@@ -248,6 +248,32 @@ private theorem flatConstraints_assertions_eq (expressions : List Expr) :
         expression :: expressions
       rw [inductionHypothesis]
 
+theorem ordered {matrixCount : Nat}
+    (polynomial : ConstraintPolynomial K matrixCount)
+    (interface : Interface matrixCount) (offset : Nat) :
+    Witness.Ordered offset (witnesses (Circuit.ops (main polynomial interface) offset))
+      (offset + localLength (Circuit.ops (main polynomial interface) offset)) := by
+  show Witness.Ordered offset
+    (witnesses ((constraints polynomial interface offset).map Op.assertZero)) _
+  rw [Witness.witnesses_assertions]
+  exact Nat.le_add_right _ _
+
+theorem computed_holdsFlat {matrixCount : Nat}
+    (polynomial : ConstraintPolynomial K matrixCount)
+    (interface : Interface matrixCount) (env : Env) (offset : Nat)
+    (specification : SpecHolds polynomial interface offset env)
+    (_computed : Witness.Computed env
+      (witnesses (Circuit.ops (main polynomial interface) offset))) :
+    holdsFlat env (Circuit.ops (main polynomial interface) offset) := by
+  unfold holdsFlat
+  change ConstraintsHold env (flatConstraints
+    ((constraints polynomial interface offset).map Op.assertZero))
+  rw [flatConstraints_assertions_eq]
+  apply (KExpr.equalities_hold_iff env _ _).mpr
+  exact specification.trans <| by
+    unfold expression
+    exact (eval_evaluate env polynomial (interface.point offset)).symm
+
 def circuit {matrixCount : Nat}
     (polynomial : ConstraintPolynomial K matrixCount)
     (interface : Interface matrixCount) : FormalCircuit where
@@ -264,19 +290,12 @@ def circuit {matrixCount : Nat}
     exact equalities.trans <| by
       unfold expression
       exact eval_evaluate env polynomial (interface.point offset)
-  completeness := by
-    intro env offset _ specification
-    refine ⟨env, ?_, ?_⟩
-    · intro index outside
-      rfl
-    · unfold holdsFlat
-      change ConstraintsHold env (flatConstraints
-        ((constraints polynomial interface offset).map Op.assertZero))
-      rw [flatConstraints_assertions_eq]
-      apply (KExpr.equalities_hold_iff env _ _).mpr
-      exact specification.trans <| by
-        unfold expression
-        exact (eval_evaluate env polynomial (interface.point offset)).symm
+  completeness := fun env offset _ specification =>
+    ⟨env, fun _ _ => rfl, computed_holdsFlat polynomial interface env offset specification
+      fun _ member => absurd member (by
+        show _ ∉ witnesses ((constraints polynomial interface offset).map Op.assertZero)
+        rw [Witness.witnesses_assertions]
+        exact List.not_mem_nil)⟩
 
 theorem soundness {matrixCount : Nat}
     (polynomial : ConstraintPolynomial K matrixCount)
@@ -803,6 +822,22 @@ private theorem specHolds_of_recipeRows {matrixCount : Nat}
   exact compileTerms_sound env (interface.point offset) offset KExpr.zero
     polynomial.terms split.1
 
+theorem ordered {matrixCount : Nat}
+    (polynomial : ConstraintPolynomial K matrixCount)
+    (interface : Interface matrixCount) (offset : Nat) (env : Env)
+    (assumptions : Assumptions polynomial interface offset env) :
+    Witness.Ordered offset (witnesses (opsAt polynomial interface offset))
+      (offset + localLength (opsAt polynomial interface offset)) :=
+  Witness.ordered_batch rfl (by simp [opsAt, localLength, Op.localLength])
+    (recipes_causal polynomial interface offset assumptions)
+
+theorem computed_holdsFlat {matrixCount : Nat}
+    (polynomial : ConstraintPolynomial K matrixCount)
+    (interface : Interface matrixCount) (env : Env) (offset : Nat)
+    (computed : Witness.Computed env (witnesses (opsAt polynomial interface offset))) :
+    holdsFlat env (opsAt polynomial interface offset) :=
+  Witness.computed_holdsFlat (by simp [opsAt, Op.RecipesOnly]) computed
+
 private theorem execute {matrixCount : Nat}
     (polynomial : ConstraintPolynomial K matrixCount)
     (interface : Interface matrixCount) (env : Env) (offset : Nat)
@@ -810,18 +845,9 @@ private theorem execute {matrixCount : Nat}
     ∃ completed,
       AgreesOutside env completed offset
         (localLength (opsAt polynomial interface offset)) ∧
-      holdsFlat completed (opsAt polynomial interface offset) := by
-  let completed := executeRecipes env offset
-    (recipes polynomial interface offset)
-  have causal := recipes_causal polynomial interface offset assumptions
-  refine ⟨completed, ?_, ?_⟩
-  · change AgreesOutside env completed offset
-      (recipes polynomial interface offset).length
-    exact executeRecipes_agreesOutside env offset _
-  · change ConstraintsHold completed
-      (flatConstraints (opsAt polynomial interface offset))
-    rw [flatConstraints_opsAt]
-    exact executeRecipes_holds_recipeConstraints env offset _ causal
+      holdsFlat completed (opsAt polynomial interface offset) :=
+  Witness.complete (ordered polynomial interface offset env assumptions) fun completed _ =>
+    computed_holdsFlat polynomial interface completed offset
 
 def circuit {matrixCount : Nat}
     (polynomial : ConstraintPolynomial K matrixCount)

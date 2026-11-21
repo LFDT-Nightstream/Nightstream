@@ -43,6 +43,7 @@ import NightstreamFPrime.Export.BoundedDepth.StepRelation
 import NightstreamFPrime.Export.BoundedDepth.StepPackage
 import NightstreamFPrime.Export.Generic.SlotLayout
 import NightstreamFPrime.Export.Generic.NativeBlock
+import NightstreamFPrime.Export.Generic.NativeFill
 import NightstreamFPrime.Export.Generic.Substitute
 import NightstreamFPrime.Export.Generic.PieceRowsCompleteness
 import NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerCompleteness
@@ -579,6 +580,7 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.IvcWalk.walk_leads
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.IvcWalk.covered
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.IvcWalk.visitCollision_isSome
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.IvcSecurity.walkBound_le
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.IvcSecurity.extraction_bound
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.IvcSecurity.probability_bound
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.NebulaSecurity.leads_length
@@ -637,6 +639,15 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.Generic.RelationCompleteness.block_input
 #audit_axioms NightstreamFPrime.Export.Generic.RelationCompleteness.block_outputs
 #audit_axioms NightstreamFPrime.Export.Generic.RelationCompleteness.ofFn_runF
+#audit_axioms NightstreamFPrime.Export.Generic.NativeFill.lanes_agree
+#audit_axioms NightstreamFPrime.Export.Generic.NativeFill.agreeOff_block
+#audit_axioms NightstreamFPrime.Export.Generic.NativeFill.agreeOff_ring
+#audit_axioms NightstreamFPrime.Export.Generic.NativeFill.markBatch_finish
+#audit_axioms NightstreamFPrime.Export.Generic.NativeFill.markBatch_ordered
+#audit_axioms NightstreamFPrime.Export.Generic.NativeFill.agreeOff_mark
+#audit_axioms NightstreamFPrime.Export.Generic.NativeFill.agreeOff_marks
+#audit_axioms NightstreamFPrime.Export.Generic.NativeFill.execute_marks
+#audit_axioms NightstreamFPrime.Export.Generic.NativeFill.agreeOff_batch
 #audit_axioms NightstreamFPrime.Export.Generic.RelationCompleteness.eval_live
 #audit_axioms NightstreamFPrime.Export.Generic.RelationCompleteness.completeEnv_low
 #audit_axioms NightstreamFPrime.Export.Generic.RelationCompleteness.completeEnv_sbox

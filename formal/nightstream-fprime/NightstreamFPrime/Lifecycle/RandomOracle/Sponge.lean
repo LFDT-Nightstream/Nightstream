@@ -4,7 +4,8 @@ import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcrip
 /-! The Poseidon2 sponge of the fold transcripts as a list of permutation calls (`Call`), for the
 random-oracle model. A transcript absorbs words in padded rate-sized chunks (`absorbCalls`),
 reads `K` coins from the state (`readK`), refreshes the state after the last coin of a chunk
-(`refresh`), and reads a `Π_RLC` challenge from one sampler draw (`readRho`). These facts do not
+(`refresh`), and reads a `Π_RLC` challenge from one sampler draw (`readRho`). Each read reads
+the rate lanes of the state (`rateLanes`). These facts do not
 depend on the fold; `TranscriptCoverage` uses them for the one-circuit fold. -/
 
 namespace NightstreamFPrime.Lifecycle.RandomOracle.Sponge
@@ -15,6 +16,9 @@ open NightstreamFPrime.Lifecycle
 abbrev Call := Fin Poseidon2.rate → F
 
 def squeeze : Call := fun _ => 0
+
+/-- The rate lanes of a state: the words that `[SPONGE]` gives for the calls before it. -/
+def rateLanes (state : Transcript.State) : Call := fun lane => state.getD lane.val 0
 
 def step (state : Transcript.State) (chunk : Call) : Transcript.State :=
   Poseidon2.absorbBlock state (List.ofFn chunk)

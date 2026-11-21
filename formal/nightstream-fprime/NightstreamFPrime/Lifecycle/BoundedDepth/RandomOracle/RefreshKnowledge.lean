@@ -11,7 +11,8 @@ statistical error (`statisticalError`: `15 · (Q + 15) · sampleError` for the f
 `(Q + 1) · 4747/q²` for the test step), the prior-state collision chances of the fork step
 (`RefreshFork.collisionChance`) and the uniqueness step (`stateChance`), and the kernel chance
 (`RefreshUniqueness.kernelChance`). `statisticalError_le`: the statistical error is at most
-`(Q + 1) · 4748/2^128`. -/
+`(Q + 1) · 4748/2^128`. The failure event, a successful run whose
+extractor does not extract, has chance at most `knowledgeError` (`failureChance_le`). -/
 
 set_option autoImplicit false
 
@@ -158,6 +159,21 @@ theorem knowledge_error_le {queries : Nat} (bounded : adversary.QueryBound queri
   have kernel := RefreshUniqueness.collisionChance_le_kernelChance ajtai key adversary
   rw [statisticalError_eq] at bound
   unfold knowledgeError
+  linarith
+
+/-- The chance that a run succeeds and the extractor, with retries drawn from the retry law, does
+not extract. -/
+noncomputable def failureChance : ℝ :=
+  𝔼 oracle, ∑ retries, Uniqueness.weight (RefreshFork.game ajtai key) adversary oracle retries *
+    (if Fork.Succeeds (RefreshFork.game ajtai key) adversary oracle ∧
+        ¬ Extracts ajtai key adversary oracle retries then 1 else 0)
+
+/-- The failure event has chance at most the knowledge error. -/
+theorem failureChance_le {queries : Nat} (bounded : adversary.QueryBound queries) :
+    failureChance ajtai key adversary ≤ knowledgeError ajtai key adversary queries := by
+  have bound := knowledge_error_le ajtai key adversary bounded
+  rw [failureChance, Uniqueness.failure_eq (RefreshFork.game ajtai key) adversary
+    fun ⟨valid, _⟩ => valid.1]
   linarith
 
 end NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.RefreshKnowledge

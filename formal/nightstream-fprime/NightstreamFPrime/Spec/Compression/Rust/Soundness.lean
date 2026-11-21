@@ -263,6 +263,55 @@ theorem layoutNew_light {blocks depth : ℕ} (positive : 0 < blocks) (fits : blo
     some ⟨30, [(26, 28), (27, 28)]⟩ from rfl]
   simp [claims, positive.ne', wide, above, found]
 
+/-- Algorithm 11, step 1: the key of `2^19` blocks is the key of more than `2^9` and at most
+`2^19` blocks. -/
+theorem keyBlocksFor_eq_light {blocks : ℕ} :
+    keyBlocksFor blocks = some (2 ^ 19) ↔ 2 ^ 9 < blocks ∧ blocks ≤ 2 ^ 19 := by
+  rcases Nat.lt_or_ge 512 blocks with big | small
+  · rcases Nat.lt_or_ge 524288 blocks with huge | fits
+    · simp [keyBlocksFor, schedules, Schedule.blocks, laneVars, rowVars, Nat.not_le.mpr big,
+        Nat.not_le.mpr huge]
+    · simp [keyBlocksFor, schedules, Schedule.blocks, laneVars, rowVars, Nat.not_le.mpr big, big,
+        fits]
+  · simp [keyBlocksFor, schedules, Schedule.blocks, laneVars, rowVars, small]
+
+/-- Algorithm 10, step 5: each light layout that `layoutNew` accepts at a depth at most the cap
+has `error_bits` 119 with 320 public cells and 4 matrices. Its count `360 + 4n + 2·n_A` is
+between 256 and 511, since `n ≤ 27` and `n_A ≤ 19`. -/
+theorem layoutNew_light_runBits {blocks depth keyBlocks : ℕ} {l : Placed}
+    (ok : layoutNew (lightClaims blocks depth) keyBlocks = .ok l)
+    (depth_le : depth ≤ productionLightFoldCap) : runBits (l.counts 320 4) = 119 := by
+  obtain ⟨schedule, member, rfl, fit, row, inRow, -, rfl⟩ := layoutNew_ok ok
+  have bounds : ∀ s ∈ schedules, ∀ r ∈ s.rows,
+      s.blocks ≤ 2 ^ 19 ∧ s.keyVars ≤ 30 ∧ r.1 ≤ 27 := by
+    decide
+  obtain ⟨keyFits, keyBound, rowBound⟩ := bounds schedule member row inRow
+  have claims := lightClaims_eq blocks depth
+  have length : (lightClaims blocks depth).length = 2 := by rw [claims]; rfl
+  have blockVars : varsFor blocks ≤ 19 :=
+    Nat.clog_le_of_le_pow ((fit _ (by rw [claims]; exact List.mem_cons_self)).trans keyFits)
+  have vars : (cellOf (lightClaims blocks depth) 0).witness.vars = varsFor blocks + 6 := by
+    rw [(cellOf_witness (by rw [length]; decide)).1, witnessVarsOf, claims]
+    rfl
+  have tables : ((assemble (lightClaims blocks depth) schedule row).counts 320 4).tables =
+      [(varsFor blocks + 6, productionGlobalParams.accumulatorBound depth)] := by
+    simp only [Placed.counts, assemble, length, List.range_succ, List.range_zero, List.nil_append]
+    simp [cellOf, claims, ← vars]
+  apply runBits_of_count
+  · have witness : 2 ^ (varsFor blocks + 6) ≤ 2 ^ 25 := Nat.pow_le_pow_right two_pos (by omega)
+    have table := slot_table_le depth_le
+    simp only [RunCounts.tablesFit, tables, List.all_cons, List.all_nil, Bool.and_true,
+      decide_eq_true_eq]
+    calc (2 ^ (varsFor blocks + 6) + (2 * productionGlobalParams.accumulatorBound depth + 1)) ^ 2
+        ≤ (2 ^ 25 + 20737) ^ 2 := Nat.pow_le_pow_left (by omega) 2
+      _ ≤ fieldOrder := by norm_num [fieldOrder]
+  all_goals
+    rw [runCount, tables]
+    simp only [RunCounts.extensionTerms, Placed.counts, assemble, length, List.length_map,
+      List.length_range, List.length_cons, List.length_nil, laneVars, rowVars,
+      show max 63 (320 - 1) = 319 from rfl]
+    omega
+
 end Light
 
 end NightstreamFPrime.Spec.Compression.Rust

@@ -1,4 +1,5 @@
 import NightstreamFPrime.Circuit.Basic
+import NightstreamFPrime.Circuit.Execution
 import NightstreamFPrime.Circuit.Quadratic
 import NightstreamFPrime.Circuit.Sequence
 import NightstreamFPrime.Circuit.StraightLine

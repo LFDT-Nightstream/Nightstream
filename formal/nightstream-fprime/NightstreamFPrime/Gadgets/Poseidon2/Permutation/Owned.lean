@@ -1,5 +1,5 @@
 import NightstreamFPrime.Gadgets.Poseidon2.LiveRows
-import NightstreamFPrime.Circuit.StraightLine
+import NightstreamFPrime.Circuit.Execution
 import NightstreamFPrime.Gadgets.Poseidon2.Permutation
 
 namespace NightstreamFPrime.Gadgets.Poseidon2.Permutation.Owned
@@ -92,26 +92,26 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
       (interface.initialState offset)] at scope
   exact scope
 
-set_option maxRecDepth 100000 in -- fixed-size: one Poseidon2 permutation, not artifact data
+theorem ordered (interface : Interface) (offset : Nat) (env : Env)
+    (assumptions : Assumptions interface offset env) :
+    Witness.Ordered offset (witnesses (operations interface offset))
+      (offset + localLength (operations interface offset)) :=
+  Witness.ordered_batch rfl (localLength_batch offset _ _)
+    (Permutation.compile_schedule_causal offset (interface.initialState offset) assumptions)
+
+theorem computed_holdsFlat (interface : Interface) (env : Env) (offset : Nat)
+    (computed : Witness.Computed env (witnesses (operations interface offset))) :
+    holdsFlat env (operations interface offset) :=
+  Witness.computed_holdsFlat (by simp [operations, Op.RecipesOnly]) computed
+
 theorem complete (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env) :
     ∃ completed,
       AgreesOutside env completed offset
         (localLength (operations interface offset)) ∧
-      holdsFlat completed (operations interface offset) := by
-  let completed := executeRecipes env offset (program interface offset).recipes
-  have causal := Permutation.compile_schedule_causal offset
-    (interface.initialState offset) assumptions
-  refine ⟨completed, ?_, ?_⟩
-  · have agrees := executeRecipes_agreesOutside env offset
-      (program interface offset).recipes
-    rw [program_recipes_length] at agrees
-    rw [localLength_eq]
-    exact agrees
-  · unfold holdsFlat
-    rw [flatConstraints_operations]
-    exact executeRecipes_holds_recipeConstraints env offset
-      (program interface offset).recipes causal
+      holdsFlat completed (operations interface offset) :=
+  Witness.complete (ordered interface offset env assumptions) fun completed _ =>
+    computed_holdsFlat interface completed offset
 
 theorem completeness (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env)

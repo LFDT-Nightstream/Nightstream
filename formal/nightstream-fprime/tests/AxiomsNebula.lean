@@ -368,7 +368,6 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.mem_eta
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.mem_poly
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.soundness
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.appendSponge
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.stateIn_assumptions
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.stateOut_assumptions
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.chainOps_assumptions
@@ -379,7 +378,6 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.squeeze1_assumptions
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.squeeze2_assumptions
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.squeeze3_assumptions
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.children_complete
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.completeness
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.assertions_localLength
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.localLength_cons
@@ -680,8 +678,10 @@ plans (`SlotPlan`), batched catalogs (`Batch`) and the free application
 #audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.packParts_lt
 #audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.packParts_injective
 #audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.replay_of_reorders
+#audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.agrees_of_accessAll
 #audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.memoryConsistent_of_accessAll
 #audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.executes_accessAll
+#audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.agrees_of_executes
 #audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.memoryConsistent_of_executes
 #audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.Reorders.nil
 #audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.Reorders.append

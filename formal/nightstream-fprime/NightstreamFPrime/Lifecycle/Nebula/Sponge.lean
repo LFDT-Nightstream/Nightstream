@@ -108,19 +108,25 @@ theorem soundness (i : Interface) (env : Env) (offset : Nat)
   unfold SpecHolds evalState
   rw [output_eq_program, program, computed, Hash.absorbManyF_eq_reference]
 
+theorem ordered (i : Interface) (offset : Nat) (env : Env)
+    (assumptions : Assumptions i offset env) :
+    Witness.Ordered offset (witnesses (opsAt i offset)) (offset + localLength (opsAt i offset)) :=
+  Witness.ordered_batch rfl (localLength_ops i offset)
+    (Hash.compileAbsorptions_causal offset (i.initial offset) (i.chunks offset)
+      assumptions.1 assumptions.2)
+
+theorem computed_holdsFlat (i : Interface) (env : Env) (offset : Nat)
+    (computed : Witness.Computed env (witnesses (opsAt i offset))) :
+    holdsFlat env (opsAt i offset) :=
+  Witness.computed_holdsFlat (by simp [opsAt, Op.RecipesOnly]) computed
+
 theorem completeness (i : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions i offset env) :
     ∃ completed,
       AgreesOutside env completed offset (localLength (Circuit.ops (main i) offset)) ∧
-      holdsFlat completed (Circuit.ops (main i) offset) := by
-  have causal := Hash.compileAbsorptions_causal offset (i.initial offset) (i.chunks offset)
-    assumptions.1 assumptions.2
-  refine ⟨executeRecipes env offset (program i offset).recipes, ?_, ?_⟩
-  · rw [localLength_ops]
-    exact executeRecipes_agreesOutside env offset _
-  · change ConstraintsHold _ (flatConstraints (Circuit.ops (main i) offset))
-    rw [flatConstraints_eq]
-    exact executeRecipes_holds_recipeConstraints env offset _ causal
+      holdsFlat completed (Circuit.ops (main i) offset) :=
+  Witness.complete (ordered i offset env assumptions) fun completed _ =>
+    computed_holdsFlat i completed offset
 
 theorem flatConstraints_varsBelow (i : Interface) (offset : Nat) (env : Env)
     (assumptions : Assumptions i offset env) :

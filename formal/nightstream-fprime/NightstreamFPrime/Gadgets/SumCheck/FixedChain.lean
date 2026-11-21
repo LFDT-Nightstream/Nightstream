@@ -808,6 +808,63 @@ theorem soundness {degree roundCount : Nat}
   exact chain_of_rows env offset interface.initial interface.rounds
     recipeRows equalityRows
 
+theorem witnesses_opsAt {degree roundCount : Nat}
+    (interface : Interface degree roundCount) (offset : Nat) :
+    witnesses (opsAt interface offset) =
+      [WitnessBatch.arithmetic offset (recipes interface offset)] := by
+  rw [opsAt, Witness.witnesses_cons, Witness.witnesses_assertions]
+  rfl
+
+theorem ordered {degree roundCount : Nat}
+    (interface : Interface degree roundCount) (offset : Nat) (env : Env)
+    (assumptions : Assumptions interface offset env) :
+    Witness.Ordered offset (witnesses (opsAt interface offset))
+      (offset + localLength (opsAt interface offset)) :=
+  Witness.ordered_batch (witnesses_opsAt interface offset)
+    (by simp [opsAt, localLength, Op.localLength, Function.comp_def])
+    (recipes_causal interface offset assumptions)
+
+theorem computed_rows {degree roundCount : Nat}
+    (interface : Interface degree roundCount) (env : Env) (offset : Nat) (terminal : K)
+    (chain : NightstreamFPrime.Spec.SumCheck.Finite.FixedPhase.Chain
+      extensionOps.toOps (interface.initial.eval env)
+      (interface.rounds.map (Round.semanticPolynomial env))
+      (interface.rounds.map fun round => round.challenge.eval env) terminal)
+    (computed : Witness.Computed env (witnesses (opsAt interface offset))) :
+    holdsFlat env (opsAt interface offset) ∧
+      (output interface offset).eval env = terminal := by
+  have recipeRows := Witness.computed_batch (witnesses_opsAt interface offset) computed
+  have result := rows_of_chain env offset interface.initial interface.rounds recipeRows
+    terminal chain
+  refine ⟨?_, result.2⟩
+  unfold holdsFlat
+  rw [flatConstraints_opsAt]
+  exact (constraintsHold_append env _ _).mpr ⟨recipeRows, result.1⟩
+
+theorem computed_holdsFlat {degree roundCount : Nat}
+    (interface : Interface degree roundCount) (env : Env) (offset : Nat)
+    (specification : SpecHolds interface offset env)
+    (computed : Witness.Computed env (witnesses (opsAt interface offset))) :
+    holdsFlat env (opsAt interface offset) :=
+  (computed_rows interface env offset _ specification computed).1
+
+private theorem inputs_eq_of_agree_below {degree roundCount : Nat}
+    (interface : Interface degree roundCount) (offset : Nat)
+    (left right : Env) (below : interface.VarsBelow offset)
+    (agrees : ∀ index, index < offset → left index = right index) :
+    interface.initial.eval left = interface.initial.eval right ∧
+      interface.rounds.map (Round.semanticPolynomial left) =
+        interface.rounds.map (Round.semanticPolynomial right) ∧
+      interface.rounds.map (fun round => round.challenge.eval left) =
+        interface.rounds.map (fun round => round.challenge.eval right) :=
+  ⟨interface.initial.eval_eq_of_agree_below offset left right below.1 agrees,
+    List.map_congr_left fun round member =>
+      round.semanticPolynomial_eq_of_agree_below offset left right
+        (Interface.rounds_below interface offset below round member) agrees,
+    List.map_congr_left fun round member =>
+      round.challenge.eval_eq_of_agree_below offset left right
+        (Interface.rounds_below interface offset below round member).2 agrees⟩
+
 theorem build {degree roundCount : Nat}
     (interface : Interface degree roundCount) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env) (terminal : K)
@@ -820,56 +877,13 @@ theorem build {degree roundCount : Nat}
         (localLength (Circuit.ops (main interface) offset)) ∧
       holdsFlat completed (Circuit.ops (main interface) offset) ∧
       (output interface offset).eval completed = terminal := by
-  let stored := recipes interface offset
-  let completed := executeRecipes env offset stored
-  have causal : RecipesCausal offset stored :=
-    recipes_causal interface offset assumptions
-  have recipeRows : ConstraintsHold completed
-      (recipeConstraints offset stored) :=
-    executeRecipes_holds_recipeConstraints env offset stored causal
-  have agreesBelow : ∀ index, index < offset → completed index = env index :=
-    executeRecipes_agrees_below env offset stored
-  have initialEq : interface.initial.eval completed =
-      interface.initial.eval env :=
-    interface.initial.eval_eq_of_agree_below offset completed env
-      assumptions.1 agreesBelow
-  have roundsEq :
-      interface.rounds.map (Round.semanticPolynomial completed) =
-        interface.rounds.map (Round.semanticPolynomial env) := by
-    apply List.map_congr_left
-    intro round member
-    exact round.semanticPolynomial_eq_of_agree_below offset completed env
-      (Interface.rounds_below interface offset assumptions round member)
-      agreesBelow
-  have challengesEq :
-      interface.rounds.map (fun round => round.challenge.eval completed) =
-        interface.rounds.map (fun round => round.challenge.eval env) := by
-    apply List.map_congr_left
-    intro round member
-    exact round.challenge.eval_eq_of_agree_below offset completed env
-      (Interface.rounds_below interface offset assumptions round member).2
-      agreesBelow
-  have completedChain :
-      NightstreamFPrime.Spec.SumCheck.Finite.FixedPhase.Chain
-        extensionOps.toOps (interface.initial.eval completed)
-        (interface.rounds.map (Round.semanticPolynomial completed))
-        (interface.rounds.map fun round => round.challenge.eval completed)
-        terminal := by
-    rw [initialEq, roundsEq, challengesEq]
-    exact chain
-  have result := rows_of_chain completed offset interface.initial
-    interface.rounds recipeRows terminal completedChain
-  refine ⟨completed, ?_, ?_, result.2⟩
-  · change AgreesOutside env completed offset
-      (localLength (opsAt interface offset))
-    have localEq : localLength (opsAt interface offset) = stored.length := by
-      change (List.map Op.localLength (opsAt interface offset)).sum = _
-      simp [opsAt, Op.localLength, Function.comp_def, stored]
-    rw [localEq]
-    exact executeRecipes_agreesOutside env offset stored
-  · change ConstraintsHold completed (flatConstraints (opsAt interface offset))
-    rw [flatConstraints_opsAt]
-    exact (constraintsHold_append completed _ _).mpr ⟨recipeRows, result.1⟩
+  have program := ordered interface offset env assumptions
+  obtain ⟨initial, rounds, challenges⟩ := inputs_eq_of_agree_below interface offset _ env
+    assumptions (Witness.execute_agrees_below program env)
+  rw [← initial, ← rounds, ← challenges] at chain
+  have rows := computed_rows interface _ offset terminal chain
+    (Witness.execute_computed program env)
+  exact ⟨_, Witness.execute_agreesOutside program env, rows.1, rows.2⟩
 
 theorem completeness {degree roundCount : Nat}
     (interface : Interface degree roundCount) (env : Env) (offset : Nat)
@@ -958,26 +972,8 @@ theorem specHolds_eq_of_agree_below {degree roundCount : Nat}
     (agrees : ∀ index, index < offset + privateCount degree roundCount →
       left index = right index) :
     SpecHolds interface offset left ↔ SpecHolds interface offset right := by
-  have agreesInputs : ∀ index, index < offset → left index = right index :=
-    fun index indexBelow => agrees index (by omega)
-  have initial := interface.initial.eval_eq_of_agree_below offset left right
-    below.1 agreesInputs
-  have rounds :
-      interface.rounds.map (Round.semanticPolynomial left) =
-        interface.rounds.map (Round.semanticPolynomial right) := by
-    apply List.map_congr_left
-    intro round member
-    exact round.semanticPolynomial_eq_of_agree_below offset left right
-      (Interface.rounds_below interface offset below round member)
-      agreesInputs
-  have challenges :
-      interface.rounds.map (fun round => round.challenge.eval left) =
-        interface.rounds.map (fun round => round.challenge.eval right) := by
-    apply List.map_congr_left
-    intro round member
-    exact round.challenge.eval_eq_of_agree_below offset left right
-      (Interface.rounds_below interface offset below round member).2
-      agreesInputs
+  obtain ⟨initial, rounds, challenges⟩ := inputs_eq_of_agree_below interface offset left right
+    below fun index indexBelow => agrees index (by omega)
   have outputEq := (output interface offset).eval_eq_of_agree_below
     (offset + privateCount degree roundCount) left right
     (output_varsBelow interface offset below) agrees

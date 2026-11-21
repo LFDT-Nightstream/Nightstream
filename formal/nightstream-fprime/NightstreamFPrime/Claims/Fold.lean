@@ -19,10 +19,17 @@ Completeness and knowledge of the two folds of the bounded-depth scheme.
 - Paper: SuperNeo v1.2 Theorems 12 and 13, Lemmas 1, 4, 10 and 11, and Cyclo Theorem 3.
 - `light_extracts` and `refresh_extracts` are deterministic: the fork of the challenges is an
   argument, and each gives the witnesses or a Π_CCS bad event.
-- `light_knowledge`, `refresh_knowledge` and `assumption1_in_random_oracle_model` hold in the
-  ideal-permutation or random-oracle model (`[P2-PERM]`, `[SPONGE]`).
+- `assumption1_in_random_oracle_model` holds in the random-oracle model of the folds.
+  `light_knowledge` and `refresh_knowledge` hold in the ideal-permutation model (`[P2-PERM]`)
+  under `[DSFS]`: ePrint 2025/536 (Chiesa and Orrù), Lemma 5.1 and Theorem 6.2, give a prover
+  with `calls` permutation calls a model prover with `calls` queries, with the event's chance
+  at most `duplexError calls` higher. The event includes the extractor's retries.
 - `light_extracts` and `refresh_extracts` also take `strongSet`, the units of the strong
   sampling set. `Claims.Foundations.low_norm_invertible` is the result behind it.
+- `light_knowledge_error_numeric` and `refresh_knowledge_error_numeric` take `[SPONGE]` under
+  `[P2-PERM]` for the collision finder. The finder is one run with one output, and its reruns of
+  the adversary use oracles of its own tape. Lean has no count of its permutation calls, so
+  `calls` is a parameter of the adversary class. The MSIS solver's advantage stays a term.
 - `assumption1_in_random_oracle_model` does not give the premise of the bounds of `Claims.Ivc`.
   Its adversary queries a uniform oracle. The IVC adversary has no oracle, because the step
   circuits evaluate the fixed Poseidon2 permutation (`SECURITY_MODEL.md` trust item 3). -/
@@ -387,27 +394,33 @@ theorem refresh_error_bits
         ((↑queries : ℝ) + 1) / 2 ^ FoldGate.bits FoldGate.production :=
   @Lifecycle.BoundedDepth.RandomOracle.FoldGate.refresh_statisticalError_le_bits queries
 
-/-- Adversary 3 for the light fold in the ideal-permutation model: under `Spec.Sponge.Transfer`
-with the light conditions, the wins of each `world` are at most the statistical error plus
-`spongeError calls`. -/
+/-- Adversary 3 for the light fold in the ideal-permutation model: under
+`Spec.Sponge.DuplexTransfer` of the failure event (the fold succeeds and the extractor does not
+extract) with the light conditions (`[DSFS]`), the chance of the event for each `world` with
+`calls` permutation calls is at most the knowledge error of a model adversary with `calls`
+queries plus `duplexError calls`. -/
 theorem light_knowledge
     {logicalWidth : ℕ}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
         PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth}
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (key : CircuitKey logicalWidth publicFits)
-    {queries : ℕ}
     {World : Type}
     (winsOf : World → ℝ)
     (calls : ℕ)
-    (premise : Sponge.Transfer (Model := FoldSponge.LightAdversary logicalWidth publicFits queries)
+    (premise : Sponge.DuplexTransfer
         (FoldSponge.Conditions (LightSchedule.schedule logicalWidth publicFits) (width := 8)
           FoldSponge.lightUse)
-        winsOf (FoldSponge.lightWins ajtai key) calls)
+        winsOf
+        (fun queries (adversary : FoldSponge.LightAdversary logicalWidth publicFits queries) =>
+          LightKnowledge.failureChance ajtai key adversary.1)
+        calls)
     (world : World) :
-    winsOf world ≤ LightKnowledge.statisticalError queries + Sponge.spongeError calls :=
-  @Export.BoundedDepth.FoldSponge.light_knowledge_le logicalWidth publicFits ajtai key queries
-    World winsOf calls premise world
+    ∃ adversary : FoldSponge.LightAdversary logicalWidth publicFits calls,
+      winsOf world ≤ LightKnowledge.knowledgeError ajtai key adversary.1 calls +
+        Sponge.duplexError calls :=
+  @Export.BoundedDepth.FoldSponge.light_knowledge_le logicalWidth publicFits ajtai key World
+    winsOf calls premise world
 
 /-- Adversary 3 for the refresh fold in the ideal-permutation model, as `light_knowledge`. -/
 theorem refresh_knowledge
@@ -416,18 +429,22 @@ theorem refresh_knowledge
         PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth}
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (key : CircuitKey logicalWidth publicFits)
-    {queries : ℕ}
     {World : Type}
     (winsOf : World → ℝ)
     (calls : ℕ)
-    (premise : Sponge.Transfer (Model := FoldSponge.RefreshAdversary logicalWidth publicFits queries)
+    (premise : Sponge.DuplexTransfer
         (FoldSponge.Conditions (RefreshSchedule.schedule logicalWidth publicFits) (width := 8)
           FoldSponge.refreshUse)
-        winsOf (FoldSponge.refreshWins ajtai key) calls)
+        winsOf
+        (fun queries (adversary : FoldSponge.RefreshAdversary logicalWidth publicFits queries) =>
+          RefreshKnowledge.failureChance ajtai key adversary.1)
+        calls)
     (world : World) :
-    winsOf world ≤ RefreshKnowledge.statisticalError queries + Sponge.spongeError calls :=
-  @Export.BoundedDepth.FoldSponge.refresh_knowledge_le logicalWidth publicFits ajtai key queries
-    World winsOf calls premise world
+    ∃ adversary : FoldSponge.RefreshAdversary logicalWidth publicFits calls,
+      winsOf world ≤ RefreshKnowledge.knowledgeError ajtai key adversary.1 calls +
+        Sponge.duplexError calls :=
+  @Export.BoundedDepth.FoldSponge.refresh_knowledge_le logicalWidth publicFits ajtai key World
+    winsOf calls premise world
 
 /-- HyperNova errata Assumption 1 for both bounded-depth folds in the random-oracle model, with the
 budgeted extractor and the error `romError`. -/
@@ -598,5 +615,105 @@ theorem refresh_production_knowledge_error
           1 / 2 ^ 1129 :=
   @Export.BoundedDepth.RandomOracleSetup.refresh_production_knowledge_error_lt_solvers key
     adversary queries bounded budget positive
+
+/-- The light knowledge bound of `light_production_knowledge_error` with numbers: the statistical
+term is at most `(Q + 1) · 575/2^128`, and under `Spec.Sponge.Transfer` of the collision event
+of the finder with `calls` permutation calls (`[SPONGE]` under `[P2-PERM]`), the finder's
+advantage is at most `C(calls + 2, 2)/q⁴ + spongeError calls`. -/
+theorem light_knowledge_error_numeric
+    (key : (RandomOracleSetup.SetupIndex StepRelation.keyWidth StepRelation.keyPublicFits →
+          AjtaiSetupV1.Rejection.Stream) →
+        CircuitKey StepRelation.keyWidth StepRelation.keyPublicFits)
+    (adversary : (RandomOracleSetup.SetupIndex StepRelation.keyWidth StepRelation.keyPublicFits →
+          AjtaiSetupV1.Rejection.Stream) →
+        RandomOracle.OracleComp
+          (RandomOracle.Test.Point
+            (LightSchedule.schedule StepRelation.keyWidth StepRelation.keyPublicFits) 8)
+          RandomOracle.Test.Answer
+          (ForkLink.Attempt StepRelation.keyWidth StepRelation.keyPublicFits))
+    {queries : ℕ}
+    (bounded : ∀
+        (chunks :
+          RandomOracleSetup.SetupIndex StepRelation.keyWidth StepRelation.keyPublicFits →
+            AjtaiSetupV1.Rejection.Stream),
+        (adversary chunks).QueryBound queries)
+    {budget : ℕ}
+    (positive : 0 < budget)
+    (blocks : ℕ)
+    (calls : ℕ)
+    (finder : Sponge.Transfer Sponge.CollisionConditions
+        (fun _ : Unit => RandomOracleSetup.lightHashAdvantage key adversary budget)
+        (fun model : Sponge.CollisionAdversary blocks calls => Sponge.collisionChance model)
+        calls) :
+    (Finset.expect Finset.univ
+          fun
+            (chunks :
+              RandomOracleSetup.SetupIndex StepRelation.keyWidth StepRelation.keyPublicFits →
+                AjtaiSetupV1.Rejection.Stream) =>
+          RandomOracleSetup.lightSuccess key adversary chunks) <
+        (Finset.expect Finset.univ
+                    fun
+                      (chunks :
+                        RandomOracleSetup.SetupIndex StepRelation.keyWidth
+                            StepRelation.keyPublicFits →
+                          AjtaiSetupV1.Rejection.Stream) =>
+                    RandomOracleSetup.lightExtraction key adversary chunks) +
+                  ((↑queries : ℝ) + 1) * (575 / 2 ^ 128) +
+                RandomOracleSetup.lightSolverAdvantage key adversary budget +
+              2 * (Sponge.birthdayBound calls + Sponge.spongeError calls) +
+            (7 * (↑queries : ℝ) + 124) / (↑budget : ℝ) +
+          1 / 2 ^ 1129 :=
+  @Export.BoundedDepth.RandomOracleSetup.light_production_knowledge_error_lt_numeric key adversary
+    queries bounded budget positive blocks calls finder
+
+/-- The refresh knowledge bound of `refresh_production_knowledge_error` with numbers: the statistical
+term is at most `(Q + 1) · 4748/2^128`, and under `Spec.Sponge.Transfer` of the collision event
+of the finder with `calls` permutation calls (`[SPONGE]` under `[P2-PERM]`), the finder's
+advantage is at most `C(calls + 2, 2)/q⁴ + spongeError calls`. -/
+theorem refresh_knowledge_error_numeric
+    (key : (RandomOracleSetup.SetupIndex StepRelation.keyWidth StepRelation.keyPublicFits →
+          AjtaiSetupV1.Rejection.Stream) →
+        CircuitKey StepRelation.keyWidth StepRelation.keyPublicFits)
+    (adversary : (RandomOracleSetup.SetupIndex StepRelation.keyWidth StepRelation.keyPublicFits →
+          AjtaiSetupV1.Rejection.Stream) →
+        RandomOracle.OracleComp
+          (RandomOracle.Test.Point
+            (RefreshSchedule.schedule StepRelation.keyWidth StepRelation.keyPublicFits) 8)
+          RandomOracle.Test.Answer
+          (ForkLink.Attempt StepRelation.keyWidth StepRelation.keyPublicFits))
+    {queries : ℕ}
+    (bounded : ∀
+        (chunks :
+          RandomOracleSetup.SetupIndex StepRelation.keyWidth StepRelation.keyPublicFits →
+            AjtaiSetupV1.Rejection.Stream),
+        (adversary chunks).QueryBound queries)
+    {budget : ℕ}
+    (positive : 0 < budget)
+    (blocks : ℕ)
+    (calls : ℕ)
+    (finder : Sponge.Transfer Sponge.CollisionConditions
+        (fun _ : Unit => RandomOracleSetup.refreshHashAdvantage key adversary budget)
+        (fun model : Sponge.CollisionAdversary blocks calls => Sponge.collisionChance model)
+        calls) :
+    (Finset.expect Finset.univ
+          fun
+            (chunks :
+              RandomOracleSetup.SetupIndex StepRelation.keyWidth StepRelation.keyPublicFits →
+                AjtaiSetupV1.Rejection.Stream) =>
+          RandomOracleSetup.refreshSuccess key adversary chunks) <
+        (Finset.expect Finset.univ
+                    fun
+                      (chunks :
+                        RandomOracleSetup.SetupIndex StepRelation.keyWidth
+                            StepRelation.keyPublicFits →
+                          AjtaiSetupV1.Rejection.Stream) =>
+                    RandomOracleSetup.refreshExtraction key adversary chunks) +
+                  ((↑queries : ℝ) + 1) * (4748 / 2 ^ 128) +
+                RandomOracleSetup.refreshSolverAdvantage key adversary budget +
+              16 * (Sponge.birthdayBound calls + Sponge.spongeError calls) +
+            (77 * (↑queries : ℝ) + 1286) / (↑budget : ℝ) +
+          1 / 2 ^ 1129 :=
+  @Export.BoundedDepth.RandomOracleSetup.refresh_production_knowledge_error_lt_numeric key adversary
+    queries bounded budget positive blocks calls finder
 
 end NightstreamFPrime.Claims.Fold

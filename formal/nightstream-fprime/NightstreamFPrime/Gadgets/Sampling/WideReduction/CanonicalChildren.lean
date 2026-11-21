@@ -1,71 +1,40 @@
 import NightstreamFPrime.Gadgets.Sampling.WideReduction
+import NightstreamFPrime.Circuit.Execution
 
-/-! Concrete execution of the five canonical input children. Each call
-uses the existing proved hint-and-recipe construction. -/
+/-! The witness program of the five canonical input children. -/
 
 namespace NightstreamFPrime.Gadgets.Sampling.WideReduction.CanonicalChildren
 
 open NightstreamFPrime.Spec NightstreamFPrime.Circuit
 open NightstreamFPrime.Gadgets.Range
 
-def values (interface : Interface) (base : Env) (offset : Nat) : Nat → Env
-  | 0 => base
-  | count + 1 =>
-      if inside : count < fieldCount then
-        CanonicalU64.completeEnv (childInterface interface offset ⟨count, inside⟩)
-          (values interface base offset count) (childOffset offset count)
-      else values interface base offset count
+theorem witnesses_childOps (interface : Interface) (offset : Nat) :
+    witnesses (childOps interface offset) =
+      (List.finRange fieldCount).flatMap fun index =>
+        witnesses (CanonicalU64.operations (childInterface interface offset index)
+          (childOffset offset index)) := by
+  unfold witnesses childOps
+  rw [List.flatMap_map]
+  rfl
 
-theorem correct (interface : Interface) (base : Env) (offset : Nat)
-    (inputs : Assumptions interface offset) (count : Nat) (bound : count ≤ fieldCount) :
-    AgreesOutside base (values interface base offset count) offset (childWidth * count) ∧
-      ∀ index : Fin fieldCount, index.val < count →
-        holdsFlat (values interface base offset count)
-          (CanonicalU64.operations (childInterface interface offset index) (childOffset offset index)) := by
-  induction count with
-  | zero =>
-      refine ⟨?_, ?_⟩
-      · intro index _
-        rfl
-      · intro index impossible
-        omega
-  | succ count ih =>
-      have inside : count < fieldCount := by omega
-      have previous := ih (by omega)
-      have sourceBelow : CanonicalU64.Assumptions
-          (childInterface interface offset ⟨count, inside⟩) (childOffset offset count)
-          (values interface base offset count) :=
-        Expr.VarsBelow.mono _ (inputs ⟨count, inside⟩) (by unfold childOffset; omega)
-      have child := CanonicalU64.completeEnv_correct _ _ _ sourceBelow
-      rw [values, dite_eq_left inside]
-      refine ⟨?_, ?_⟩
-      · have agreement := previous.1.append child.1
-        convert agreement using 1
-        rw [Nat.mul_succ]
-        rfl
-      · intro index earlier
-        by_cases last : index.val = count
-        · have same : index = ⟨count, inside⟩ := Fin.ext last
-          subst index
-          exact child.2.1
-        · apply constraintsHold_of_agree_below (values interface base offset count) _ _
-            (childOffset offset index + CanonicalU64.auxiliaryCount)
-          · exact CanonicalU64.flatConstraints_varsBelow _ _
-              (Expr.VarsBelow.mono _ (inputs index) (by unfold childOffset; omega))
-          · intro column below
-            apply child.1 column (Or.inl ?_)
-            simp only [childOffset, childWidth, CanonicalU64.auxiliaryCount] at *
-            omega
-          · exact previous.2 index (by omega)
+theorem ordered (interface : Interface) (offset : Nat) (inputs : Assumptions interface offset) :
+    Witness.Ordered offset (witnesses (childOps interface offset)) (quotientStart offset) := by
+  rw [witnesses_childOps, quotientStart, Nat.mul_comm]
+  refine Witness.Ordered.finRange_flatMap fun index =>
+    (CanonicalU64.ordered (childInterface interface offset index) (childOffset offset index)
+      (fun _ => 0) (Expr.VarsBelow.mono _ (inputs index) (by unfold childOffset; omega))).mono
+      ?_ ?_ <;>
+    simp only [childOffset, childWidth, CanonicalU64.auxiliaryCount] <;> omega
 
-theorem rows (interface : Interface) (base : Env) (offset : Nat)
-    (inputs : Assumptions interface offset) :
-    holdsFlat (values interface base offset fieldCount) (childOps interface offset) := by
-  have children := (correct interface base offset inputs fieldCount (by rfl)).2
+theorem rows (interface : Interface) (env : Env) (offset : Nat)
+    (computed : Witness.Computed env (witnesses (childOps interface offset))) :
+    holdsFlat env (childOps interface offset) := by
+  rw [witnesses_childOps, Witness.computed_flatMap] at computed
   intro expression member
   obtain ⟨operation, operationMember, member⟩ := List.mem_flatMap.mp member
   obtain ⟨index, _, rfl⟩ := List.mem_map.mp operationMember
-  exact children index index.isLt expression member
+  exact CanonicalU64.computed_holdsFlat _ env _ (computed index (List.mem_finRange index))
+    expression member
 
 theorem scope (interface : Interface) (offset : Nat) (inputs : Assumptions interface offset) :
     ∀ expression ∈ flatConstraints (childOps interface offset),
@@ -81,14 +50,16 @@ theorem scope (interface : Interface) (offset : Nat) (inputs : Assumptions inter
   simp only [childOffset, quotientStart, childWidth, CanonicalU64.auxiliaryCount, fieldCount] at *
   omega
 
-theorem specifications (interface : Interface) (base : Env) (offset : Nat)
-    (inputs : Assumptions interface offset) :
+theorem specifications (interface : Interface) (env : Env) (offset : Nat)
+    (inputs : Assumptions interface offset) (rows : holdsFlat env (childOps interface offset)) :
     ∀ index, CanonicalU64.SpecHolds (childInterface interface offset index) (childOffset offset index)
-      (values interface base offset fieldCount) := by
+      env := by
   intro index
   apply CanonicalU64.soundness
   · exact Expr.VarsBelow.mono _ (inputs index) (by unfold childOffset; omega)
-  · exact holdsFlat_implies_holds _ _
-      ((correct interface base offset inputs fieldCount (by rfl)).2 index index.isLt)
+  · apply holdsFlat_implies_holds
+    intro expression member
+    exact rows expression (List.mem_flatMap.mpr ⟨_, List.mem_map.mpr ⟨index, List.mem_finRange index, rfl⟩,
+      member⟩)
 
 end NightstreamFPrime.Gadgets.Sampling.WideReduction.CanonicalChildren

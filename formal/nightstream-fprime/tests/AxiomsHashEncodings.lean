@@ -16,6 +16,9 @@ import NightstreamFPrime.Export.BoundedDepth.CompressionSponge
 #audit_axioms NightstreamFPrime.Spec.Sponge.blocks_ne_of_differ
 #audit_axioms NightstreamFPrime.Spec.Sponge.padded_ne_of_differ
 #audit_axioms NightstreamFPrime.Spec.Sponge.transfer_le
+#audit_axioms NightstreamFPrime.Spec.Sponge.collisionChance_le
+#audit_axioms NightstreamFPrime.Spec.Sponge.collisionConditions
+#audit_axioms NightstreamFPrime.Spec.Sponge.collision_le
 
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.IdentityBinding.nodes_tag_le
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.IdentityBinding.words_injective
@@ -82,8 +85,6 @@ import NightstreamFPrime.Export.BoundedDepth.CompressionSponge
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.EtaSponge.separated_eta
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.EtaSponge.conditions
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.EtaSponge.unbalanced_le
-#audit_axioms NightstreamFPrime.Export.BoundedDepth.FoldSponge.rho_length_ge
-#audit_axioms NightstreamFPrime.Export.BoundedDepth.FoldSponge.rho_ne
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FoldSponge.conditions
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FoldSponge.light_conditions
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FoldSponge.refresh_conditions

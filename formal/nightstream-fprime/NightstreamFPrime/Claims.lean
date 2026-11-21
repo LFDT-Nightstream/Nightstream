@@ -6,6 +6,7 @@ import NightstreamFPrime.Claims.Ivc
 import NightstreamFPrime.Claims.Nebula
 import NightstreamFPrime.Claims.Compression
 import NightstreamFPrime.Claims.Final
+import NightstreamFPrime.Claims.Shipped
 
 /-! Nightstream claims exactly the theorems of `NightstreamFPrime.Claims`. Each other theorem of
 the package is a lemma. A claim states one result with each hypothesis in its signature, and its

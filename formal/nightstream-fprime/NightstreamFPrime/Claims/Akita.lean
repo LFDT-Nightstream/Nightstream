@@ -24,8 +24,9 @@ item 7).
   the event that the extractor returns no output. Lean gives no bound on the probability that an
   output is a solution of Module-SIS. `key20_instances` and `key20_instance_list` give the
   instances of Module-SIS that `breakChance` is about, and Lean does not prove their hardness.
-- Open: the operator bound `Γ` of the filtered challenge families is a hypothesis (`bounded₃` to
-  `boundedL`). No Lean result compares the Lean decoders or the Lean verifier with the code. -/
+- Open: the error bound of the integer tables of the filters of the challenge families is a
+  hypothesis (`filtered₃` to `filteredL`). With it, the operator bound `Γ` is a theorem
+  (`Spec.Compression.Akita.TrigTable.mulBound`). No Lean result compares the Lean decoders or the Lean verifier with the code. -/
 
 namespace NightstreamFPrime.Claims.Akita
 
@@ -278,8 +279,9 @@ It does not cover `key30.aks`. The verifier is the Lean verifier `Key20.Tower.ac
 Lean decoders `draw`, which differs from the verifier of the pinned Akita code. Each output is
 with an accepted transcript. It is a certified decommitment of the commitment of each group of
 the root to a table with the claimed value (`OpensAt`), or a solution of Module-SIS for a matrix
-of a group, of a level, or for `A_term`. `drawn.bounded₃` to `drawn.boundedL`: the operator bound
-`Γ` of the filtered families, which Lean does not prove (Akita Theorem H.1). -/
+of a group, of a level, or for `A_term`. `drawn.filtered₃` to `drawn.filteredL`: each filter
+accepts only elements that the fixed-point predicate of a table with the error bound of Akita
+Appendix H.1 accepts. Lean proves the operator bound `Γ` from it (Akita Theorem H.1). -/
 theorem key20_opening_sound
     {E : Type}
     [fieldE : Field E]
@@ -348,7 +350,7 @@ cover `key30.aks`. The model is one uniform table of stage answers with independ
 the verifier is the Lean verifier `Key20.Tower.accepts`, which differs from the verifier of the
 pinned Akita code. For each prover with at most `Q` queries, the probability that the verifier
 accepts and the extractor returns no output is at most
-`(Q + 1)·(317735/(1024·q²) + 49/(8·q²)) + (Q + 1)·142/budget`: `317735/(1024·q²)` for the
+`(Q + 1)·(317479/(1024·q²) + 49/(8·q²)) + (Q + 1)·142/budget`: `317479/(1024·q²)` for the
 draws of the checks, `49/(8·q²)` for the 135 fold coordinates, and 142 retry loops. The draw of
 each site has the factor `2^{−g}` for the work bits `g` of the site in the Akita code (Akita
 Remark 10.18, `Extract.workBits`, `Extract.foldWorkBits`). The bound does not contain the
@@ -384,7 +386,7 @@ theorem key20_opening_bound
                 Checkpoint.extract o.body prover budget table tape = none then
             1
           else 0) ≤
-      ((↑queries : ℝ) + 1) * (317735 / (1024 * (↑(Fintype.card E) : ℝ)) + 49 / 8 * (1 / (↑fieldModulus : ℝ) ^ 2)) +
+      ((↑queries : ℝ) + 1) * (317479 / (1024 * (↑(Fintype.card E) : ℝ)) + 49 / 8 * (1 / (↑fieldModulus : ℝ) ^ 2)) +
         ((↑queries : ℝ) + 1) * (↑142 : ℝ) / (↑budget : ℝ) :=
   @NightstreamFPrime.Spec.Compression.Akita.Key20.Tower.extraction_le E fieldE fintypeE decidableEqE
     algebraZqE degree2EAlgebraZqE Wire Coord fintypeCoord decidableEqCoord nonemptyCoord total o keepL
@@ -696,7 +698,7 @@ with independent slots, and the verifier is the Lean verifier `FinalKey20.finalA
 Lean decoders `draw`, which differs from the pinned Akita code. For each prover with at most `Q`
 queries, the probability that the verifier accepts and no proof with witnesses satisfies
 `Verifies` for the statement is at most `FinalKey20.shapesBound` at the slot probability `1/q²`:
-for each claim shape, `(Q + 1)·(runCost + 317735/(1024·q²) + 49/(8·q²)) + (Q + 1)·144/budget + breakChance`.
+for each claim shape, `(Q + 1)·(runCost + 317479/(1024·q²) + 49/(8·q²)) + (Q + 1)·144/budget + breakChance`.
 Lean gives no bound on `breakChance`, the probability of a solution of Module-SIS (`[MSIS]`).
 `drawn`: the conditions `FinalKey20.Opening.Drawn` of each opening, with the operator bound of
 the filtered families. -/

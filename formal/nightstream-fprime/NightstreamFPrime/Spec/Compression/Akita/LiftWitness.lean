@@ -25,12 +25,12 @@ next level (ePrint 2026/1983, revision of 2026-10-15, Section 5.5 with (76), Sec
   satisfies the identities (111): the relation `LiftRelation.Holds` has a witness.
   `FlatRelation.completion_range` is the digit range statement of the completion.
 
-Each quotient has `δ_quot` digits for each coefficient, with one base for each row. The pinned
-code has one row for the planes of the carrier row (102), with the digits of all planes for each
-digit index (`crates/akita-params/src/witness.rs` of the Akita code). The relation of
-`FlatFold.lean`
-has one row for each plane, so its quotient digits are in the order plane, digit, coefficient in
-the same cells. -/
+Each quotient has `δ_quot` digits for each coefficient, with one base for each row. The quotient
+of the carrier row (102) is `Q_car = Σ_t β_t·Σ_j q_{t,j}·Y^j` of Akita (113): each plane `t` is one
+ring row over `Z_q` with its quotient `Σ_j q_{t,j}·Y^j`, and `Join` joins the planes into one row
+over `E`. The pinned code has the digits of all planes for each digit index
+(`crates/akita-params/src/witness.rs` of the Akita code), and this file has the order plane,
+digit, coefficient in the same cells. -/
 
 namespace NightstreamFPrime.Spec.Compression.Akita
 
@@ -169,7 +169,8 @@ end RingRow
 
 namespace FlatRelation
 
-variable {E : Type} (rel : FlatRelation E) (G : Gaps) (base digits : ℕ)
+variable {E : Type} [Field E] [Algebra Zq E] (rel : FlatRelation E) (G : Gaps)
+  (base digits : ℕ)
 
 /-- The number of entries of the digits of the quotient of the row `r`: `δ_quot·d_r`. -/
 def quotientCells (r : Fin rel.ring) : ℕ := digits * (rel.row r).degree
@@ -214,6 +215,8 @@ def withQuotients (below : ∀ r c j x, (rel.row r).address c j = some x → x <
         have moved := G.place_lt (below r c j y h)
         unfold quotientEnd at inside
         omega
+  join := rel.join
+  independent := rel.independent
   weight := rel.weight
   value := rel.value
   quotient r := ⟨digits, fun a => (base : Zq) ^ (a : ℕ), rel.quotientCell G digits r⟩
@@ -257,12 +260,12 @@ theorem quotientTable_range (radix : Radix base) (quotient : Fin rel.ring → Zq
 variable {G base digits}
 
 /-- The quotient that the witness has at the positions of a row is the quotient whose digits it
-has, when each element of `Z_q` has `digits` balanced digits of the base `base` and the quotient
-has a degree below `d_r`. -/
+has, when `q ≤ base^digits` and the quotient has a degree below `d_r`: the digits of an element
+of `Z_q` are those of its lift of Akita Section 3.3 (`lift`, `fieldDigit_sum`), which is the lift
+of the pinned code (`decompose_centering_threshold` in
+`crates/akita-algebra/src/ring/cyclotomic/decomposition.rs` of the Akita code). -/
 theorem quotient_extend (radix : Radix base)
-    (covers : ∀ x : Zq, -((base / 2 : ℕ) : ℤ) * ∑ u ∈ Finset.range digits, (base : ℤ) ^ u ≤
-        x.valMinAbs ∧
-      x.valMinAbs ≤ (((base / 2 : ℕ) : ℤ) - 1) * ∑ u ∈ Finset.range digits, (base : ℤ) ^ u)
+    (covers : fieldModulus ≤ base ^ digits)
     (below : ∀ r c j x, (rel.row r).address c j = some x → x < G.last)
     (counts : G.mainCells + G.middleCells ≤ ∑ r, rel.quotientCells digits r)
     (inside : rel.quotientEnd G digits ≤ 2 ^ rel.vars) (w : Table)
@@ -281,7 +284,7 @@ theorem quotient_extend (radix : Radix base)
         rw [rel.extend_cell G base digits w quotient r (Finset.mem_range.mp member) a],
         Fin.sum_univ_eq_sum_range
           (fun u => (base : Zq) ^ u * fieldDigit base digits ((quotient r).coeff j) u)]
-      exact fieldDigit_sum_of_range radix (covers _).1 (covers _).2
+      exact fieldDigit_sum ⟨radix.even, radix.two, radix.small, covers⟩ _
     rw [recomposed, C_mul_X_pow_eq_monomial]
   show ∑ j ∈ Finset.range (rel.row r).degree,
     C (∑ a : Fin digits, (base : Zq) ^ (a : ℕ) *
@@ -359,8 +362,6 @@ theorem completion_range (radix : Radix base) {μ : ℕ} {w : Table}
     rw [cell]
     exact rel.quotientTable_range base digits radix _ y
 
-variable [Field E] [Algebra Zq E]
-
 /-- A witness of the identities (111) of `withQuotients` has the relation for the flat table at
 the positions `place` (Akita Lemma 3.4). `weightless`: the scalar row has the weight 0 from the
 flat position `main`. -/
@@ -380,12 +381,10 @@ theorem holds_of_lift {below : ∀ r c j x, (rel.row r).address c j = some x →
 
 /-- The completion of a table with the relation satisfies the identities (111) and the scalar
 row: the quotient-lift relation has a witness (Akita Lemma 7.1, item 1, with Lemma 3.4). `covers`:
-each element of `Z_q` has `digits` balanced digits of the base `base`. `weightless`: the scalar
+`q ≤ base^digits`, so each element of `Z_q` has `digits` balanced digits of the base `base`. `weightless`: the scalar
 row has the weight 0 from the flat position `main`. -/
 theorem withQuotients_holds (radix : Radix base)
-    (covers : ∀ x : Zq, -((base / 2 : ℕ) : ℤ) * ∑ u ∈ Finset.range digits, (base : ℤ) ^ u ≤
-        x.valMinAbs ∧
-      x.valMinAbs ≤ (((base / 2 : ℕ) : ℤ) - 1) * ∑ u ∈ Finset.range digits, (base : ℤ) ^ u)
+    (covers : fieldModulus ≤ base ^ digits)
     (below : ∀ r c j x, (rel.row r).address c j = some x → x < G.last)
     (counts : G.mainCells + G.middleCells ≤ ∑ r, rel.quotientCells digits r)
     (inside : rel.quotientEnd G digits ≤ 2 ^ rel.vars)

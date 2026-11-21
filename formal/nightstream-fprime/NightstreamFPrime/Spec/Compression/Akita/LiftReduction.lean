@@ -95,6 +95,25 @@ theorem sum_quotientWeight (w : Table) (α : E) {μ : ℕ}
     ite_eq_left (Finset.mem_range.mpr (inside j a (Finset.mem_range.mp member)))]
   ring
 
+/-- The linear form of the flat witness with the weights `liftWeight`, minus the value of the
+target, is the value at `α` of the difference of the two sides of (111). -/
+theorem sum_liftWeight (w : Table) (α : E) {μ : ℕ}
+    (inside : ∀ c j x, j < row.degree → row.address c j = some x → x < 2 ^ μ)
+    (quotientInside : ∀ j a, j < row.degree → q.address j a < 2 ^ μ) :
+    ∑ u ∈ Finset.range (2 ^ μ), algebraMap Zq E (w u) * row.liftWeight q α u -
+        aeval α (rep row.target) =
+      aeval α (row.lifted w - modulus row.degree * row.quotient q w) := by
+  have split : ∑ u ∈ Finset.range (2 ^ μ), algebraMap Zq E (w u) * row.liftWeight q α u =
+      ∑ u ∈ Finset.range (2 ^ μ), algebraMap Zq E (w u) * row.readWeight α u -
+        (α ^ row.degree + 1) *
+          ∑ u ∈ Finset.range (2 ^ μ), algebraMap Zq E (w u) * q.weight row.degree α u := by
+    rw [Finset.mul_sum, ← Finset.sum_sub_distrib]
+    exact Finset.sum_congr rfl fun u _ => by rw [liftWeight]; ring
+  rw [split, row.sum_readWeight w α inside, row.sum_quotientWeight q w α quotientInside]
+  unfold lifted modulus
+  simp only [map_sub, map_sum, map_mul, map_add, map_pow, aeval_X, map_one, aeval_read]
+  ring
+
 /-- The check (112) of Akita with the quotient of the witness is a linear form of the flat
 witness with the weights `liftWeight`, minus the value of the target. -/
 theorem liftCheck_iff_sum (w : Table) (α : E) {μ : ℕ}
@@ -103,21 +122,14 @@ theorem liftCheck_iff_sum (w : Table) (α : E) {μ : ℕ}
     row.LiftCheck w (row.quotient q w) α ↔
       ∑ u ∈ Finset.range (2 ^ μ), algebraMap Zq E (w u) * row.liftWeight q α u -
         aeval α (rep row.target) = 0 := by
-  have split : ∑ u ∈ Finset.range (2 ^ μ), algebraMap Zq E (w u) * row.liftWeight q α u =
-      ∑ u ∈ Finset.range (2 ^ μ), algebraMap Zq E (w u) * row.readWeight α u -
-        (α ^ row.degree + 1) *
-          ∑ u ∈ Finset.range (2 ^ μ), algebraMap Zq E (w u) * q.weight row.degree α u := by
-    rw [Finset.mul_sum, ← Finset.sum_sub_distrib]
-    exact Finset.sum_congr rfl fun u _ => by rw [liftWeight]; ring
-  rw [split, row.sum_readWeight w α inside, row.sum_quotientWeight q w α quotientInside, LiftCheck]
-  exact ⟨fun check => by linear_combination check, fun check => by linear_combination check⟩
+  rw [row.sum_liftWeight q w α inside quotientInside, liftCheck_iff]
 
 end RingRow
 
 /-- The relation of one fold on the flat witness on the quotient-lift route (Akita Section 7.3):
 the ring rows and the scalar row of `FlatRelation`, and for each ring row the positions of the
 digits of its quotient, inside the witness. -/
-structure LiftRelation (E : Type) extends FlatRelation E where
+structure LiftRelation (E : Type) [CommRing E] [Algebra Zq E] extends FlatRelation E where
   quotient : Fin ring → QuotientRead
   quotientInside : ∀ r j a, j < (row r).degree → (quotient r).address j a < 2 ^ vars
 
@@ -139,93 +151,124 @@ def Holds (w : Table) : Prop :=
 theorem holds_flat {w : Table} (holds : rel.Holds w) : rel.toFlatRelation.Holds w :=
   ⟨fun r => ((rel.row r).holds_iff_dvd w).mpr ⟨_, holds.1 r⟩, holds.2⟩
 
-/-- The field rows of the quotient-lift reduction at the point `α` (Akita (112)): the check of
-each ring row, then the scalar row. -/
+/-- The field rows of the quotient-lift reduction at the point `α` (Akita (112) and (113)): for
+each row over `E` the check of its planes with the coefficients of the join, then the scalar
+row. -/
 noncomputable def liftRows (α : E) : FieldRows E where
-  count := rel.ring + 1
-  weight := Fin.lastCases rel.weight fun r => (rel.row r).liftWeight (rel.quotient r) α
-  target := Fin.lastCases rel.value fun r => aeval α (rep (rel.row r).target)
+  count := rel.join.count + 1
+  weight := Fin.lastCases rel.weight fun k u =>
+    ∑ r, if rel.join.slot r = k then
+      rel.join.basis r * (rel.row r).liftWeight (rel.quotient r) α u else 0
+  target := Fin.lastCases rel.value fun k =>
+    ∑ r, if rel.join.slot r = k then rel.join.basis r * aeval α (rep (rel.row r).target) else 0
 
-theorem liftRows_residual_ring (w : Table) (α : E) (r : Fin rel.ring) :
-    (rel.liftRows α).residual rel.vars w r =
-      ∑ u ∈ Finset.range (2 ^ rel.vars),
-        algebraMap Zq E (w u) * (rel.row r).liftWeight (rel.quotient r) α u -
-          aeval α (rep (rel.row r).target) := by
-  have small : (r : ℕ) < rel.ring + 1 := r.isLt.trans (Nat.lt_succ_self _)
-  have cast : (⟨r, small⟩ : Fin (rel.ring + 1)) = r.castSucc := rfl
-  simp [FieldRows.residual, FieldRows.weightAt, FieldRows.targetAt, liftRows, small, cast]
+/-- The difference of the two sides of (111) for the row `k` over `E`, as a polynomial over `E`:
+the differences of its planes with the coefficients of the join. For the carrier row, the
+quotients of the planes are the quotient `Q_car` of Akita (113). -/
+noncomputable def liftPoly (w : Table) (k : Fin rel.join.count) : E[X] :=
+  rel.join.poly k fun r =>
+    (rel.row r).lifted w - modulus (rel.row r).degree * (rel.row r).quotient (rel.quotient r) w
+
+theorem liftRows_residual_ring (w : Table) (α : E) (k : Fin rel.join.count) :
+    (rel.liftRows α).residual rel.vars w k = (rel.liftPoly w k).eval α := by
+  have small : (k : ℕ) < rel.join.count + 1 := k.isLt.trans (Nat.lt_succ_self _)
+  have cast : (⟨k, small⟩ : Fin (rel.join.count + 1)) = k.castSucc := rfl
+  have swap : ∑ u ∈ Finset.range (2 ^ rel.vars), algebraMap Zq E (w u) *
+      (∑ r, if rel.join.slot r = k then
+        rel.join.basis r * (rel.row r).liftWeight (rel.quotient r) α u else 0) =
+      ∑ r, if rel.join.slot r = k then rel.join.basis r *
+        ∑ u ∈ Finset.range (2 ^ rel.vars),
+          algebraMap Zq E (w u) * (rel.row r).liftWeight (rel.quotient r) α u else 0 := by
+    simp only [Finset.mul_sum, mul_ite, mul_zero]
+    rw [Finset.sum_comm]
+    refine Finset.sum_congr rfl fun r _ => ?_
+    by_cases same : rel.join.slot r = k
+    · simp only [ite_eq_left same]
+      exact Finset.sum_congr rfl fun u _ => mul_left_comm _ _ _
+    · simp only [ite_eq_right same, Finset.sum_const_zero]
+  rw [liftPoly, Join.eval_poly]
+  simp only [FieldRows.residual, FieldRows.weightAt, FieldRows.targetAt, liftRows, small, cast,
+    dite_true, Fin.lastCases_castSucc]
+  rw [swap, ← Finset.sum_sub_distrib]
+  refine Finset.sum_congr rfl fun r _ => ?_
+  by_cases same : rel.join.slot r = k
+  · rw [ite_eq_left same, ite_eq_left same, ite_eq_left same, ← mul_sub,
+      (rel.row r).sum_liftWeight (rel.quotient r) w α (rel.inside r) (rel.quotientInside r)]
+  · rw [ite_eq_right same, ite_eq_right same, ite_eq_right same, sub_zero]
 
 theorem liftRows_residual_scalar (w : Table) (α : E) :
-    (rel.liftRows α).residual rel.vars w rel.ring =
+    (rel.liftRows α).residual rel.vars w rel.join.count =
       ∑ u ∈ Finset.range (2 ^ rel.vars), algebraMap Zq E (w u) * rel.weight u - rel.value := by
-  have cast : (⟨rel.ring, Nat.lt_succ_self _⟩ : Fin (rel.ring + 1)) = Fin.last rel.ring := rfl
+  have cast : (⟨rel.join.count, Nat.lt_succ_self _⟩ : Fin (rel.join.count + 1)) =
+      Fin.last rel.join.count := rfl
   simp [FieldRows.residual, FieldRows.weightAt, FieldRows.targetAt, liftRows, cast]
-
-theorem liftRows_check (w : Table) (α : E) (r : Fin rel.ring) :
-    (rel.liftRows α).residual rel.vars w r = 0 ↔
-      (rel.row r).LiftCheck w ((rel.row r).quotient (rel.quotient r) w) α := by
-  rw [liftRows_residual_ring, (rel.row r).liftCheck_iff_sum (rel.quotient r) w α (rel.inside r)
-    (rel.quotientInside r)]
 
 /-- Akita Lemma 7.1, item 1: a witness of the identities (111) passes the check (112) of each row
 at each point `α`. -/
 theorem liftRows_holds {w : Table} (holds : rel.Holds w) (α : E) :
     (rel.liftRows α).Holds rel.vars w := by
   intro i
-  rcases Nat.lt_trichotomy i rel.ring with small | rfl | large
-  · rw [show i = ((⟨i, small⟩ : Fin rel.ring) : ℕ) from rfl, liftRows_check,
-      RingRow.liftCheck_iff, holds.1 ⟨i, small⟩, sub_self, map_zero]
+  rcases Nat.lt_trichotomy i rel.join.count with small | rfl | large
+  · rw [show i = ((⟨i, small⟩ : Fin rel.join.count) : ℕ) from rfl, liftRows_residual_ring,
+      liftPoly, Join.eval_poly]
+    exact Finset.sum_eq_zero fun r _ => by
+      have lifts : (rel.row r).lifted w =
+          modulus (rel.row r).degree * (rel.row r).quotient (rel.quotient r) w := holds.1 r
+      rw [lifts, sub_self, map_zero, mul_zero, ite_self]
   · rw [liftRows_residual_scalar, holds.2, sub_self]
   · exact (rel.liftRows α).residual_of_count_le rel.vars w large
 
 open Classical in
 /-- The bad set of the point `α` of the quotient-lift reduction for the witness `w`: the roots of
-the difference of the two sides of (111) for one ring row where they differ (Akita Lemma 7.1,
-item 2). -/
+the difference of the two sides of (111) for the row over `E` of one ring row where they differ
+(Akita Lemma 7.1, item 2). -/
 noncomputable def liftBad (w : Table) : Finset E :=
-  if fails : ∃ r, ¬ rel.Lifts w r then
-    (rel.row fails.choose).liftBad w ((rel.row fails.choose).quotient (rel.quotient fails.choose) w)
+  if fails : ∃ r, ¬ rel.Lifts w r then (rel.liftPoly w (rel.join.slot fails.choose)).roots.toFinset
   else ∅
 
-/-- Akita Lemma 7.1, item 2: the bad set of `α` has at most `2·d_max − 1` points. -/
+/-- Akita Lemma 7.1, item 2: the bad set of `α` has at most `2·d_max − 1` points. A joined row
+counts once, at the degree of its planes. -/
 theorem liftBad_card_le {largest : ℕ} (degrees : ∀ r, (rel.row r).degree ≤ largest) (w : Table) :
     (rel.liftBad w).card ≤ 2 * largest - 1 := by
+  classical
   unfold liftBad
   split
-  · rename_i fails
-    have degree := degrees fails.choose
-    exact ((rel.row fails.choose).liftBad_card_le w
-      ((rel.row fails.choose).natDegree_quotient_lt _ w)).trans (by omega)
+  · refine (Multiset.toFinset_card_le _).trans ((card_roots' _).trans
+      (rel.join.natDegree_poly_le _ fun r => ?_))
+    have degree := degrees r
+    have quotient := (rel.row r).natDegree_quotient_lt (rel.quotient r) w
+    refine (natDegree_sub_le _ _).trans (max_le
+      (((rel.row r).natDegree_lifted_le w).trans (by omega)) (natDegree_mul_le.trans ?_))
+    rw [natDegree_modulus]
+    omega
   · simp
 
 /-- Checks (112) that pass at a point `α` outside the bad set give the identities (111)
-(Akita Lemma 7.1, item 2). -/
-theorem holds_of_liftRows (injective : Function.Injective (algebraMap Zq E)) {w : Table} {α : E}
-    (outside : α ∉ rel.liftBad w) (rows : (rel.liftRows α).Holds rel.vars w) : rel.Holds w := by
+(Akita Lemma 7.1, item 2). The planes of a joined row are the coordinates of one polynomial over
+`E` in a basis over `Z_q`, so this polynomial is zero only when each plane is zero. -/
+theorem holds_of_liftRows {w : Table} {α : E} (outside : α ∉ rel.liftBad w)
+    (rows : (rel.liftRows α).Holds rel.vars w) : rel.Holds w := by
   classical
   refine ⟨?_, ?_⟩
   · by_contra fails
     have some : ∃ r, ¬ rel.Lifts w r := not_forall.mp fails
     rw [liftBad, dite_eq_left some] at outside
-    have root := ((rel.row some.choose).liftCheck_iff w _ α).mp
-      ((rel.liftRows_check w α some.choose).mp (rows some.choose))
     refine outside (Multiset.mem_toFinset.mpr (mem_roots'.mpr
-      ⟨fun mapped => some.choose_spec
-        (sub_eq_zero.mp ((Polynomial.map_eq_zero_iff injective).mp mapped)), ?_⟩))
-    rw [IsRoot.def, ← eval₂_eq_eval_map, ← aeval_def]
-    exact root
-  · have scalar := rows rel.ring
+      ⟨rel.join.poly_ne_zero rel.independent fun zero =>
+        some.choose_spec (sub_eq_zero.mp zero), ?_⟩))
+    rw [IsRoot.def]
+    exact (rel.liftRows_residual_ring w α _).symm.trans (rows _)
+  · have scalar := rows rel.join.count
     rw [liftRows_residual_scalar] at scalar
     exact sub_eq_zero.mp scalar
 
 variable [Fintype E]
 
 /-- The quotient-lift reduction of the relation (Akita Section 7.3 and Lemma 7.1), for ring rows
-of the degrees `d_r ≤ d_max` and `n_rel = ring + 1 ≤ 2^s_rel` rows. Its bad set has at most
-`2·d_max − 1` points. -/
-noncomputable def lift (injective : Function.Injective (algebraMap Zq E)) (largest batch : ℕ)
-    (degrees : ∀ r, (rel.row r).degree ≤ largest) (fits : rel.ring + 1 ≤ 2 ^ batch) :
-    Reduction E where
+of the degrees `d_r ≤ d_max` and `n_rel = count + 1 ≤ 2^s_rel` rows over `E`. Its bad set has at
+most `2·d_max − 1` points. -/
+noncomputable def lift (largest batch : ℕ) (degrees : ∀ r, (rel.row r).degree ≤ largest)
+    (fits : rel.join.count + 1 ≤ 2 ^ batch) : Reduction E where
   vars := rel.vars
   batch := batch
   Holds := rel.Holds
@@ -234,7 +277,7 @@ noncomputable def lift (injective : Function.Injective (algebraMap Zq E)) (large
   bad := rel.liftBad
   badBound := 2 * largest - 1
   bad_card := rel.liftBad_card_le degrees
-  sound _ _ outside rows := rel.holds_of_liftRows injective outside rows
+  sound _ _ outside rows := rel.holds_of_liftRows outside rows
   complete _ α holds := rel.liftRows_holds holds α
 
 end LiftRelation

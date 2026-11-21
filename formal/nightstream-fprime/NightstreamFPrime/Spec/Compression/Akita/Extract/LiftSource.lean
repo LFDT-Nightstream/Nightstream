@@ -120,8 +120,7 @@ noncomputable def liftedReduction (digits : ℕ) (room : O.quotientRoom fold dig
   ((flatRelation O fold β st challenge μ fits).withQuotients (O.gaps fold digits) S.certifiedBase
     digits (flatRows_below O fold β st challenge) (flatRelation_counts β st challenge μ fits digits)
     ((flatRelation_quotientEnd β st challenge μ fits digits).trans_le room)).lift
-    (algebraMap Zq E).injective O.largestDegree batch (flatRows_degree_le O fold β st challenge)
-    rowsFit
+    O.largestDegree batch (flatRows_degree_le O fold β st challenge) rowsFit
 
 /-- A witness with the relation of `liftedReduction`, the digit range statement and the binary
 statement on `I_bin` of the witness has the exact branch relation `Witness.Satisfies` for the
@@ -169,10 +168,7 @@ the base `b⋆`. -/
 theorem liftedFold_winsTo [DecidableEq E] (admits : Type → Prop) (scalar : admits E)
     (range : ∀ n, n ≤ rangeWidth S.certifiedBase → admits (Fin n → E))
     (cubic : admits (Fin (3 + 1) → E)) (radix : Radix S.certifiedBase) {digits : ℕ}
-    (covers : ∀ x : Zq, -((S.certifiedBase / 2 : ℕ) : ℤ) *
-        ∑ u ∈ Finset.range digits, (S.certifiedBase : ℤ) ^ u ≤ x.valMinAbs ∧
-      x.valMinAbs ≤ (((S.certifiedBase / 2 : ℕ) : ℤ) - 1) *
-        ∑ u ∈ Finset.range digits, (S.certifiedBase : ℤ) ^ u)
+    (covers : fieldModulus ≤ S.certifiedBase ^ digits)
     (room : O.quotientRoom fold digits ≤ 2 ^ μ) (batch : ℕ)
     (rowsFit : O.rowCount + 1 ≤ 2 ^ batch) {w : Witness O fold}
     (satisfies : w.Satisfies β st challenge) :
@@ -275,8 +271,7 @@ noncomputable def liftedReduction (base digits : ℕ) (room : B.quotientRoom dig
   ((B.flatRelation β st challenge μ fits).withQuotients (B.gaps digits) base digits
     (B.flatRows_below β st challenge) (flatRelation_counts β st challenge μ fits digits)
     ((flatRelation_quotientEnd β st challenge μ fits digits).trans_le room)).lift
-    (algebraMap Zq E).injective B.largestDegree batch (B.flatRows_degree_le β st challenge)
-    rowsFit
+    B.largestDegree batch (B.flatRows_degree_le β st challenge) rowsFit
 
 variable {base : ℕ}
 
@@ -322,9 +317,7 @@ checks end in the claim `(r_2, w̃(r_2))` for the witness with the digits of the
 theorem liftedFold_winsTo [DecidableEq E] (admits : Type → Prop) (scalar : admits E)
     (range : ∀ n, n ≤ rangeWidth base → admits (Fin n → E)) (cubic : admits (Fin (3 + 1) → E))
     (uniform : ∀ g, (B.shape g).certifiedBase = base) (radix : Radix base) {digits : ℕ}
-    (covers : ∀ x : Zq, -((base / 2 : ℕ) : ℤ) * ∑ u ∈ Finset.range digits, (base : ℤ) ^ u ≤
-        x.valMinAbs ∧
-      x.valMinAbs ≤ (((base / 2 : ℕ) : ℤ) - 1) * ∑ u ∈ Finset.range digits, (base : ℤ) ^ u)
+    (covers : fieldModulus ≤ base ^ digits)
     (room : B.quotientRoom digits ≤ 2 ^ μ) (batch : ℕ)
     (rowsFit : B.rowCount + 1 ≤ 2 ^ batch) {w : B.Witness}
     (satisfies : w.Satisfies β st challenge) :

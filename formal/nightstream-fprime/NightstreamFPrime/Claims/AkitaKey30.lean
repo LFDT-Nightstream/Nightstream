@@ -16,8 +16,9 @@ each schedule are in `Claims.Akita`.
   give the instances of Module-SIS that `breakChance` is about, and Lean does not prove their
   hardness.
 - Open: the split of the public weight of the root into the setup part (Akita (132)) is the
-  hypothesis `split`. The operator bound `Γ` of the filtered challenge families is a hypothesis
-  (`bounded₅`, `bounded₆`, `boundedL`). The commitment of the setup prefix in the verifier setup
+  hypothesis `split`. The error bound of the integer tables of the filters of the challenge families
+  is a hypothesis (`filtered₅`, `filtered₆`, `filteredL`), and the operator bound `Γ` is a theorem
+  from it. The commitment of the setup prefix in the verifier setup
   is the output of the Lean commitment algorithm by hypothesis (`registered`). No claim states that a verifier of
   this file accepts an honest proof. No Lean result compares the Lean decoders or the Lean
   verifier with the code. -/
@@ -123,9 +124,9 @@ level 1 and of level 2 of the row: 167 and 44 for `W` of 27 variables, and 158 a
 26 variables. The draw of each site has the factor `2^{−g}` for the work bits `g` of the site in
 the Akita code (Akita Remark 10.18, `Extract.workBits`, `Extract.foldWorkBits`). The bound has no
 term for the
-probability that an output is a solution of Module-SIS (`[MSIS]`). The operator bound of the
-filtered challenge families is the hypothesis `drawn.bounded₅`, `drawn.bounded₆` and
-`drawn.boundedL`. -/
+probability that an output is a solution of Module-SIS (`[MSIS]`). The error bound of the
+tables of the filters of the challenge families is the hypothesis `drawn.filtered₅`,
+`drawn.filtered₆` and `drawn.filteredL`. -/
 theorem key30_opening_bound
     {E : Type}
     [fieldE : Field E]

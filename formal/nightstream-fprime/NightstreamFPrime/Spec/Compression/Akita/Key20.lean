@@ -18,7 +18,8 @@ holds with the file.
   (`crates/akita-params/src/witness/tail.rs`). `Γ` is 13 in `R_{q,128}` and 18 in `R_{q,64}`
   (`crates/akita-challenges/src/config.rs`). The extension degree `k` is 2.
 - These numbers are choices of this file. `Level.batch` and `rootBatch` are the least `s_rel`
-  with a place for each ring row. `level₅.vars` is the least `μ` with a place for each cell of
+  with a place for each row over `E`, which are the numbers of the pinned code
+  (`relation_row_index_num_vars` in `crates/akita-params/src/layout/params.rs`). `level₅.vars` is the least `μ` with a place for each cell of
   the flat witness. The opening shape of a trace level has `k·h_car = 1`, because its fold
   challenges are
   in `R_{q,d_A}`. The fields of `terminal` for `B` are those of `level₅`, and the terminal does
@@ -117,7 +118,7 @@ def root : Batch (Fin 3) where
 def rootVars : ℕ := 22
 
 /-- `s_rel` of the root. -/
-def rootBatch : ℕ := 6
+def rootBatch : ℕ := 5
 
 /-- `δ_quot` of the root and of level 1, in the base 8. -/
 def quotientDigits : ℕ := 22
@@ -154,7 +155,7 @@ def level₁ : Level where
     openDivides := ⟨1, rfl⟩, openRank := 1, chain := some (maps 128) }
   fold := ⟨51, 8, 4⟩
   vars := 21
-  batch := 5
+  batch := 4
 
 /-- Level 2, with evaluation trace and the coefficient norm. -/
 def level₂ : Level where
@@ -339,19 +340,10 @@ theorem paths : PathFits root.openDegree (1 * root.openRank) root.chain ∧
     ⟨pathFits_of (by decide) (by decide), pathFits_of (by decide) (by decide)⟩,
     pathFits_of (by decide) (by decide), pathFits_of (by decide) (by decide)⟩
 
-/-- The base 8 of the quotient digits has the conditions `Radix`, and each element of `Z_q` has
-`quotientDigits` balanced digits: the hypotheses `radix` and `covers` of `liftedFold_winsTo`. -/
-theorem covers : Radix 8 ∧ ∀ x : Zq,
-    -((8 / 2 : ℕ) : ℤ) * ∑ u ∈ Finset.range quotientDigits, ((8 : ℕ) : ℤ) ^ u ≤ x.valMinAbs ∧
-      x.valMinAbs ≤ (((8 / 2 : ℕ) : ℤ) - 1) *
-        ∑ u ∈ Finset.range quotientDigits, ((8 : ℕ) : ℤ) ^ u := by
-  refine ⟨⟨by decide, by decide, by decide⟩, fun x => ?_⟩
-  have near := ZMod.natAbs_valMinAbs_le x
-  have half : fieldModulus / 2 = 9223372036854775778 := by decide
-  have total : ∑ u ∈ Finset.range quotientDigits, ((8 : ℕ) : ℤ) ^ u = 10540996613548315209 := by
-    decide
-  rw [total]
-  omega
+/-- The base 8 of the quotient digits has the conditions `Radix`, and `q ≤ 8^quotientDigits`: the
+hypotheses `radix` and `covers` of `liftedFold_winsTo`. -/
+theorem covers : Radix 8 ∧ fieldModulus ≤ 8 ^ quotientDigits :=
+  ⟨⟨by decide, by decide, by decide⟩, by decide⟩
 
 end Key20
 

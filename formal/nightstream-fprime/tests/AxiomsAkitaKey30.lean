@@ -24,7 +24,7 @@ against a false history (`Export/BoundedDepth/FinalShapes`, `FinalKey30All`). -/
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.points
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.honest
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.live_cells
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.not_covers
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.covers
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.tower_counts
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.tower_suffix
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.towerError_le

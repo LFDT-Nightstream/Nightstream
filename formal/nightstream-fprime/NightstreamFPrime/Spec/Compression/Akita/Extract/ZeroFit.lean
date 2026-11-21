@@ -123,7 +123,8 @@ end Digits
 
 section Rows
 
-variable {E : Type} (rel : FlatRelation E) {base : ℕ} (G : Gaps) (digits : ℕ)
+variable {E : Type} [Field E] [Algebra Zq E] (rel : FlatRelation E) {base : ℕ} (G : Gaps)
+  (digits : ℕ)
 
 /-- A ring row that holds for the zero table has the left side 0 of Akita (111). -/
 theorem RingRow.lifted_zero {row : RingRow} (holds : row.Holds 0) : row.lifted 0 = 0 := by

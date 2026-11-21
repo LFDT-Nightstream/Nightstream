@@ -9,7 +9,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.Credit
   `towerLinks`. The retry loops are 142 and the tree size is 21449539584. Its hypotheses are: an
   answer of the oracle has 22 slots, the fold coordinates of each level have different slots, each
   challenge family has units as differences and its norm bound, and the stage of the terminal.
-- `towerError_le` bounds the sum of the stage errors by `317735/(1024·|E|) + (49/8)·p` when each
+- `towerError_le` bounds the sum of the stage errors by `317479/(1024·|E|) + (49/8)·p` when each
   challenge family has the slot probability at most `p`, with the work bits of the Akita code
   (Remark 10.18) and `|E| = q²` (`card_field`). -/
 
@@ -246,19 +246,19 @@ theorem tower_suffix {peak : Fin 3 → ℕ} (slots : 22 ≤ Fintype.card Coord)
 
 omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] in
 /-- The sum of the stage errors of `tower_suffix` (Akita (206)) is at most
-`317735/(1024·|E|) + (49/8)·p`, when each challenge family has the slot probability at most `p`.
+`317479/(1024·|E|) + (49/8)·p`, when each challenge family has the slot probability at most `p`.
 Each stage error has the factor `2^{−g}` for the work bits `g` of its site in the Akita code
 (Remark 10.18, `workBits`, `foldWorkBits`). The fold coordinates are 56 of the root with 6 work
 bits, 28, 21, 11, 7 and 7 of the levels 1 to 5 with 5, 4, 4, 3 and 3 work bits, and 5 of the
 terminal with 3 work bits: `56/2^6 + 28/2^5 + 21/2^4 + 11/2^4 + 7/2^3 + 7/2^3 + 5/2^3 = 49/8`.
 The draws of the checks of the root and of the levels 1 to 5, with the tensor reduction and the
-direct norm check, give `74623/2048`, `92735/2048`, `13623/256`, `13199/256`, `7907/128` and
+direct norm check, give `74367/2048`, `92479/2048`, `13623/256`, `13199/256`, `7907/128` and
 `7907/128`, and the weights of the batching root give `1/4`. -/
 theorem towerError_le {p : ℝ} (chance : ∀ g, slotChance (decode g) ≤ p)
     (chance₁ : slotChance decode₁ ≤ p) (chance₂ : slotChance decode₂ ≤ p)
     (chance₃ : slotChance decode₃ ≤ p) (chance₄ : slotChance decode₄ ≤ p)
     (chance₅ : slotChance decode₅ ≤ p) (chanceL : slotChance L.decode ≤ p) :
-    towerError ≤ 317735 / (1024 * Fintype.card E) + 49 / 8 * p := by
+    towerError ≤ 317479 / (1024 * Fintype.card E) + 49 / 8 * p := by
   have sum₀ : ∑ b, Tier.chance zeroth b ≤ (56 : ℕ) * p :=
     sum_le_mul (root.card_block.trans (by decide)) fun b => chance b.1
   have sum₁ : ∑ b, Tier.chance first b ≤ (28 : ℕ) * p :=
@@ -303,7 +303,6 @@ theorem towerError_le {p : ℝ} (chance : ∀ g, slotChance (decode g) ≤ p)
   have w3 : workBits 3 = 2 := by decide
   have w4 : workBits 4 = 3 := by decide
   have w5 : workBits 5 = 3 := by decide
-  have w6 : workBits 6 = 3 := by decide
   have w7 : workBits 7 = 3 := by decide
   have w17 : workBits 17 = 5 := by decide
   have w18 : workBits 18 = 5 := by decide
@@ -314,7 +313,7 @@ theorem towerError_le {p : ℝ} (chance : ∀ g, slotChance (decode g) ≤ p)
   have w255 : workBits 255 = 8 := by decide
   have w2047 : workBits 2047 = 11 := by decide
   have costs₀ : (credit (Tier.costs zeroth) (Tier.bits zeroth)).sum =
-      74623 / 2048 / (Fintype.card E : ℝ) := by
+      74367 / 2048 / (Fintype.card E : ℝ) := by
     dsimp only [liftBatch]
     rw [foldCredit_eq]
     rw [show 2 * root.largestDegree - 1 = 2047 by decide, show 2 * root.innerMax - 1 = 2047 by
@@ -322,12 +321,12 @@ theorem towerError_le {p : ℝ} (chance : ∀ g, slotChance (decode g) ≤ p)
       show root.compressed = true by decide]
     simp only [foldCredit, treeCredit, show rangeArities 8 = [] by decide,
       show rangeLeaf 8 = 4 by decide, show leafDegree 8 = 4 by decide, rootVars, rootBatch,
-      w1, w3, w5, w6, w22, w2047, ite_true]
+      w1, w3, w5, w22, w2047, ite_true]
     push_cast
     field_simp
     ring
   have costs₁ : (credit (Tier.costs first) (Tier.bits first)).sum =
-      92735 / 2048 / (Fintype.card E : ℝ) := by
+      92479 / 2048 / (Fintype.card E : ℝ) := by
     dsimp only [Tier.tensored, liftFold]
     rw [credit_append (by rw [List.length_map]; exact foldLosses_length ..), List.sum_append,
       foldCredit_eq, tensorCredit_eq]
@@ -336,8 +335,8 @@ theorem towerError_le {p : ℝ} (chance : ∀ g, slotChance (decode g) ≤ p)
       show level₁.opening.compressed level₁.fold = true by decide]
     simp only [foldCredit, tensorCredit, treeCredit, show level₁.shape.certifiedBase = 8 by rfl,
       show rangeArities 8 = [] by decide, show rangeLeaf 8 = 4 by decide,
-      show leafDegree 8 = 4 by decide, show level₁.vars = 21 by rfl, show level₁.batch = 5 by rfl,
-      show level₁.tail = 20 by rfl, w1, w2, w3, w5, w21, w2047, ite_true]
+      show leafDegree 8 = 4 by decide, show level₁.vars = 21 by rfl, show level₁.batch = 4 by rfl,
+      show level₁.tail = 20 by rfl, w1, w2, w3, w4, w5, w21, w2047, ite_true]
     push_cast
     field_simp
     ring
@@ -412,9 +411,9 @@ theorem towerError_le {p : ℝ} (chance : ∀ g, slotChance (decode g) ≤ p)
     foldL, rooted]
   push_cast at sum₀ sum₁ sum₂ sum₃ sum₄ sum₅ last ⊢
   rw [show (1024 : ℝ) * Fintype.card E = 1024 * Fintype.card E from rfl]
-  have split : 317735 / (1024 * (Fintype.card E : ℝ)) =
-      1 / (Fintype.card E : ℝ) / 2 ^ 2 + (74623 / 2048 / (Fintype.card E : ℝ) +
-        (92735 / 2048 / (Fintype.card E : ℝ) + (13623 / 256 / (Fintype.card E : ℝ) +
+  have split : 317479 / (1024 * (Fintype.card E : ℝ)) =
+      1 / (Fintype.card E : ℝ) / 2 ^ 2 + (74367 / 2048 / (Fintype.card E : ℝ) +
+        (92479 / 2048 / (Fintype.card E : ℝ) + (13623 / 256 / (Fintype.card E : ℝ) +
           (13199 / 256 / (Fintype.card E : ℝ) + (7907 / 128 / (Fintype.card E : ℝ) +
             7907 / 128 / (Fintype.card E : ℝ)))))) := by
     field_simp

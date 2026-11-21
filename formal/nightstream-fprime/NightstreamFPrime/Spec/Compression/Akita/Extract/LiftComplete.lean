@@ -126,10 +126,7 @@ theorem liftLevel_wins {sendable : (M : Type) → M → Prop} {slots width cap :
     (four : 4 ≤ width) (positive : 0 < slots) (shape : S.Bounded)
     (radix : Radix fold.responseBase) (certified : fold.responseBase ≤ S.certifiedBase)
     (path : PathFits O.openDegree (1 * O.openRank) O.chain) (base : Radix S.certifiedBase)
-    (covers : ∀ x : Zq, -((S.certifiedBase / 2 : ℕ) : ℤ) *
-        ∑ u ∈ Finset.range digits, (S.certifiedBase : ℤ) ^ u ≤ x.valMinAbs ∧
-      x.valMinAbs ≤ (((S.certifiedBase / 2 : ℕ) : ℤ) - 1) *
-        ∑ u ∈ Finset.range digits, (S.certifiedBase : ℤ) ^ u)
+    (covers : fieldModulus ≤ S.certifiedBase ^ digits)
     {source : Fin S.blocks → S.Source} {point : Point O E} {wire : Wire}
     (ready : claim wire = sourceClaim β key openKey source point) {after : Table → Prop}
     (fit : LiftFit β key openKey fold μ cells digits decode source after)
@@ -248,10 +245,7 @@ theorem packTower_complete {sendable : (M : Type) → M → Prop} {slots width c
     (certified₁ : fold₁.responseBase ≤ S₁.certifiedBase)
     (path₁ : PathFits O₁.openDegree (1 * O₁.openRank) O₁.chain)
     (digit₁ : Radix S₁.certifiedBase)
-    (covers₁ : ∀ x : Zq, -((S₁.certifiedBase / 2 : ℕ) : ℤ) *
-        ∑ u ∈ Finset.range digits₁, (S₁.certifiedBase : ℤ) ^ u ≤ x.valMinAbs ∧
-      x.valMinAbs ≤ (((S₁.certifiedBase / 2 : ℕ) : ℤ) - 1) *
-        ∑ u ∈ Finset.range digits₁, (S₁.certifiedBase : ℤ) ^ u)
+    (covers₁ : fieldModulus ≤ S₁.certifiedBase ^ digits₁)
     (range₁ : rangeWidth S₁.certifiedBase ≤ width)
     (quarter₂ : 4 * m₂ = S₂.innerDegree) (quarter₃ : 4 * m₃ = S₃.innerDegree)
     (quarter₄ : 4 * m₄ = S₄.innerDegree) (quarter₅ : 4 * m₅ = S₅.innerDegree)

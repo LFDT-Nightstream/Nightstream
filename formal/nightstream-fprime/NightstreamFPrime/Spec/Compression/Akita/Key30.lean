@@ -20,9 +20,9 @@ number that the file holds with the file.
 - A quotient has `⌈64/3⌉ = 22` digits at the root and `64/4 = 16` digits at the levels 1 to 3
   (`quotientDigits₀`, `quotientDigits`). The numbers that the file does not hold are those of
   `Key20.lean`.
-- `not_covers`: an element of `Z_q` near `q/2` has no 16 balanced digits of the base 16 for its
-  least absolute residue, so the hypothesis `covers` of `liftedFold_winsTo` is false at the levels
-  1 to 3. The Akita code uses the residues `[−8·Σ_u 16^u, 7·Σ_u 16^u]` there.
+- `covers`: `q ≤ 8^22` and `q ≤ 16^16`, which are the hypothesis `covers` of `liftedFold_winsTo`
+  at the root and at the levels 1 to 3. The Akita code uses the residues
+  `[−8·Σ_u 16^u, 7·Σ_u 16^u]` at the levels 1 to 3, and `lift` gives these residues.
 - The conditions that the levels of the suffix read are theorems: `root_sized`, `level₁_sized`,
   `level₂_sized`, `level₃_sized`, `level₄_sized`, `tails_sized`, `norms_sized`, `quarters`,
   `root_points`,
@@ -372,20 +372,14 @@ theorem live_cells : (∀ r ∈ rows,
       level₆.opening.cells level₆.fold ≤
         terminal.blocks * (terminal.blockLength * terminal.innerDegree) := by decide
 
-/-- The hypothesis `covers` of `liftedFold_winsTo` is false for the base 16 with 16 digits: the
-element `(q − 1)/2` of `Z_q` is larger than `7·Σ_{u<16} 16^u`. -/
-theorem not_covers : ¬ ∀ x : Zq,
-    -((16 / 2 : ℕ) : ℤ) * ∑ u ∈ Finset.range quotientDigits, ((16 : ℕ) : ℤ) ^ u ≤ x.valMinAbs ∧
-      x.valMinAbs ≤ (((16 / 2 : ℕ) : ℤ) - 1) *
-        ∑ u ∈ Finset.range quotientDigits, ((16 : ℕ) : ℤ) ^ u := by
-  intro covers
-  have high := (covers ((9223372036854775778 : ℕ) : Zq)).2
-  have value : (((9223372036854775778 : ℕ) : Zq)).valMinAbs = 9223372036854775778 := by
-    exact ZMod.valMinAbs_natCast_of_le_half (by decide)
-  have total : ∑ u ∈ Finset.range quotientDigits, ((16 : ℕ) : ℤ) ^ u = 1229782938247303441 := by
-    decide
-  rw [value, total] at high
-  omega
+/-- The bases 8 and 16 of the quotient digits have the conditions `Radix`, with
+`q ≤ 8^quotientDigits₀` at the root and `q ≤ 16^quotientDigits` at the levels 1 to 3: the
+hypotheses `radix` and `covers` of `liftedFold_winsTo` and of `Batch.liftedFold_winsTo`. At the
+levels 1 to 3 the lift of an element above `7·Σ_{u<16} 16^u` is negative (`lift`), as in the Akita
+code. -/
+theorem covers : (Radix 8 ∧ fieldModulus ≤ 8 ^ quotientDigits₀) ∧
+    Radix 16 ∧ fieldModulus ≤ 16 ^ quotientDigits :=
+  ⟨⟨⟨by decide, by decide, by decide⟩, by decide⟩, ⟨by decide, by decide, by decide⟩, by decide⟩
 
 end Key30
 

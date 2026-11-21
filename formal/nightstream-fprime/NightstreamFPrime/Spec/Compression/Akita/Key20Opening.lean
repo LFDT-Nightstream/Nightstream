@@ -157,8 +157,10 @@ noncomputable def Tower.body :=
 
 /-- The hypotheses of `tower_suffix` on the data `o` that are not theorems for the decoders
 `draw`. `injective` to `injectiveL`: the fold coordinates of each level have different slots.
-`bounded₃` to `boundedL`: a member of the base family that passes the filter has
-`‖c‖_mul,2 ≤ Γ` for `Γ` = 13, 18, 18 and 18 (Akita (23) and Theorem H.1). `next` and `inside`:
+`filtered₃` to `filteredL`: each filter accepts only elements that the fixed-point predicate of
+an accurate table accepts for `Γ` = 13, 18, 18 and 18 (`TrigTable.Filtered`), so a member that
+passes it has `‖c‖_mul,2 ≤ Γ` (Akita (23) and Theorem H.1; `TrigTable.Filtered.mulBound`). `next`
+and `inside`:
 the fold challenge of the terminal is the stage after the stages of the level 5, and it is a
 stage of the transcript. `decodeL`: the decoder of the terminal is `draw` of the family
 `(31, 11)` with the filter `keepL`. -/
@@ -167,33 +169,29 @@ structure Tower.Drawn (keepL : Rq Key20.terminal.innerDegree → Prop) : Prop wh
   injective₁ : Function.Injective o.block₁
   injective₂ : Function.Injective o.block₂
   injective₃ : Function.Injective o.block₃
-  bounded₃ : ∀ c ∈ SparseFamily level₃.shape.innerDegree 31 0, o.keep₃ c →
-    MulBound norm₃.operator c
+  filtered₃ : TrigTable.Filtered norm₃.operator o.keep₃
   injective₄ : Function.Injective o.block₄
-  bounded₄ : ∀ c ∈ SparseFamily level₄.shape.innerDegree 31 11, o.keep₄ c →
-    MulBound norm₄.operator c
+  filtered₄ : TrigTable.Filtered norm₄.operator o.keep₄
   injective₅ : Function.Injective o.block₅
-  bounded₅ : ∀ c ∈ SparseFamily level₅.shape.innerDegree 31 11, o.keep₅ c →
-    MulBound norm₅.operator c
+  filtered₅ : TrigTable.Filtered norm₅.operator o.keep₅
   next : Terminal.start o.terminal = Tier.finish fifth
   inside : Terminal.start o.terminal < total
   injectiveL : Function.Injective (Terminal.block o.terminal)
   decodeL : Terminal.decode o.terminal = draw (SparseFamily Key20.terminal.innerDegree 31 11) keepL
-  boundedL : ∀ c ∈ SparseFamily Key20.terminal.innerDegree 31 11, keepL c →
-    MulBound normTerminal.operator c
+  filteredL : TrigTable.Filtered normTerminal.operator keepL
 
 variable {o} {keepL : Rq Key20.terminal.innerDegree → Prop}
 
 /-- Akita Proposition 10.44 and Theorem 10.46 for the opening of `key20.aks` with the decoders
 `draw`: the stages of `Tower.body` are a suffix from the stage 0 under the verifier
 `Tower.accepts`, with 142 retry loops, the tree size 21449539584, and a sum of the stage errors
-of at most `317735/(1024·|E|) + 49/(8·q²)` (`tower_suffix` and `towerError_le` with
+of at most `317479/(1024·|E|) + 49/(8·q²)` (`tower_suffix` and `towerError_le` with
 `slotChance_draw`).
 `slots`: an answer of the oracle has 22 slots. -/
 theorem Tower.suffix (drawn : o.Drawn keepL) (slots : 22 ≤ Fintype.card Coord) :
     ∃ error, Tier.Suffix o.accepts 0 (OpensAt 0 o.commit o.value o.place o.key rootMass) o.body
         error 142 21449539584 ∧
-      error ≤ 317735 / (1024 * Fintype.card E) + 49 / 8 * (1 / (fieldModulus : ℝ) ^ 2) := by
+      error ≤ 317479 / (1024 * Fintype.card E) + 49 / 8 * (1 / (fieldModulus : ℝ) ^ 2) := by
   have unitsL : UnitDifferences (Terminal.family o.terminal) := by
     unfold Terminal.family
     rw [drawn.decodeL]
@@ -203,7 +201,7 @@ theorem Tower.suffix (drawn : o.Drawn keepL) (slots : 22 ≤ Fintype.card Coord)
     intro challenge decoded
     unfold Terminal.family at decoded
     rw [drawn.decodeL] at decoded
-    exact drawn.boundedL _ (draw_mem decoded.choose_spec).1 (draw_mem decoded.choose_spec).2
+    exact (drawn.filteredL.mulBound (by decide) (draw_mem decoded.choose_spec).2)
   have chanceL : slotChance (Terminal.decode o.terminal) ≤ 1 / (fieldModulus : ℝ) ^ 2 := by
     rw [drawn.decodeL]
     exact slotChance_draw _ _
@@ -226,13 +224,13 @@ theorem Tower.suffix (drawn : o.Drawn keepL) (slots : 22 ≤ Fintype.card Coord)
       drawn.injective₂ (draw_units 6 (by decide)) ⟨1, draw_sparse⟩
       drawn.injective₃ (draw_units 6 (by decide)) ⟨1, draw_sparse⟩
       (fun _ decoded =>
-        drawn.bounded₃ _ (draw_mem decoded.choose_spec).1 (draw_mem decoded.choose_spec).2)
+        (drawn.filtered₃.mulBound (by decide) (draw_mem decoded.choose_spec).2))
       drawn.injective₄ (draw_units 5 (by decide)) ⟨2, draw_sparse⟩
       (fun _ decoded =>
-        drawn.bounded₄ _ (draw_mem decoded.choose_spec).1 (draw_mem decoded.choose_spec).2)
+        (drawn.filtered₄.mulBound (by decide) (draw_mem decoded.choose_spec).2))
       drawn.injective₅ (draw_units 5 (by decide)) ⟨2, draw_sparse⟩
       (fun _ decoded =>
-        drawn.bounded₅ _ (draw_mem decoded.choose_spec).1 (draw_mem decoded.choose_spec).2)
+        (drawn.filtered₅.mulBound (by decide) (draw_mem decoded.choose_spec).2))
       drawn.next drawn.inside drawn.injectiveL unitsL boundedL,
     towerError_le (β := o.β) (key := o.key) (openKey := o.openKey) (claim := o.claim)
       (block := o.block) (decode := rootDecode E) (mass := rootMass) (β₁ := o.β₁)
@@ -275,7 +273,7 @@ variable [Finite Wire]
 /-- Akita Theorem 10.17 in the form (161), with Corollary 10.49 and (206), for the opening of
 `key20.aks` with the decoders `draw`. For each prover with at most `Q` queries to the table of
 the stage answers, the probability that `Tower.accepts` accepts and the extractor returns no
-output is at most `(Q + 1)·(317735/(1024·|E|) + 49/(8·q²)) + (Q + 1)·142/budget`, with `|E| = q²`
+output is at most `(Q + 1)·(317479/(1024·|E|) + 49/(8·q²)) + (Q + 1)·142/budget`, with `|E| = q²`
 (`card_field`). The probability is over the uniform table and the tape of the extractor. The
 bound has no term for the probability that the output is a solution of Module-SIS. -/
 theorem Tower.extraction_le (drawn : o.Drawn keepL) (slots : 22 ≤ Fintype.card Coord)
@@ -286,7 +284,7 @@ theorem Tower.extraction_le (drawn : o.Drawn keepL) (slots : 22 ≤ Fintype.card
           o.body.protocol.stages,
         (if o.accepts (o.body.protocol.final prover table) ∧
           Checkpoint.extract o.body prover budget table tape = none then (1 : ℝ) else 0) ≤
-      (queries + 1) * (317735 / (1024 * Fintype.card E) + 49 / 8 * (1 / (fieldModulus : ℝ) ^ 2)) +
+      (queries + 1) * (317479 / (1024 * Fintype.card E) + 49 / 8 * (1 / (fieldModulus : ℝ) ^ 2)) +
         (queries + 1) * (142 : ℕ) / budget := by
   obtain ⟨_, suffix, small⟩ := Tower.suffix drawn slots
   have bound := suffix.extraction_le rfl prover bounded positive

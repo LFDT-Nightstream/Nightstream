@@ -468,10 +468,7 @@ quotients. `covers`: each element of `Z_q` has `digits` balanced digits of the b
 theorem liftFold_winsAt (sends : Sends sendable E width cap)
     (wide : rangeWidth S.certifiedBase ≤ width) (four : 4 ≤ width)
     (radix : Radix S.certifiedBase)
-    (covers : ∀ x : Zq, -((S.certifiedBase / 2 : ℕ) : ℤ) *
-        ∑ u ∈ Finset.range digits, (S.certifiedBase : ℤ) ^ u ≤ x.valMinAbs ∧
-      x.valMinAbs ≤ (((S.certifiedBase / 2 : ℕ) : ℤ) - 1) *
-        ∑ u ∈ Finset.range digits, (S.certifiedBase : ℤ) ^ u)
+    (covers : fieldModulus ≤ S.certifiedBase ^ digits)
     (positive : 0 < slots) {wire : Wire} {challenge : Fin S.blocks → Rq O.carrierDegree}
     {w : Witness O fold}
     (satisfies : w.Satisfies β ((claim wire).statement key openKey) challenge) :
@@ -510,9 +507,7 @@ Lemma 7.1, item 1, with Theorem 10.9): for digit vectors with the exact branch r
 `(r_2, w̃(r_2))` for the flat witness with the digits of the quotients. -/
 theorem liftBatch_winsAt (sends : Sends sendable E width cap) (wide : rangeWidth base ≤ width)
     (four : 4 ≤ width) (uniform : ∀ g, (B.shape g).certifiedBase = base) (radix : Radix base)
-    (covers : ∀ x : Zq, -((base / 2 : ℕ) : ℤ) * ∑ u ∈ Finset.range digits, (base : ℤ) ^ u ≤
-        x.valMinAbs ∧
-      x.valMinAbs ≤ (((base / 2 : ℕ) : ℤ) - 1) * ∑ u ∈ Finset.range digits, (base : ℤ) ^ u)
+    (covers : fieldModulus ≤ base ^ digits)
     (positive : 0 < slots) {wire : Wire} {challenge : (b : B.Block) → Rq (B.carrierDegree b.1)}
     {w : B.Witness}
     (satisfies : w.Satisfies β ((claim wire).statement key openKey)

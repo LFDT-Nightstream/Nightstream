@@ -19,9 +19,9 @@ the shape. The bound is the sum of the bounds of the shapes.
   stage `Compose.root`, which is `Extract.offAccepts` of `FinalKey30.sound` for the decoders
   `draw`. `Opening.body` is its checkpoint structure.
 - `Opening.Drawn` has the hypotheses on an opening. It has no hypothesis on units, on `‖c‖_1` or
-  on the slot probability. Its hypotheses on the challenges are `bounded₅`, `bounded₆` and
-  `boundedL` of `Key30.Tower.Drawn`: a member that passes the filter has `‖c‖_mul,2 ≤ Γ` (Akita
-  Appendix H, Theorem H.1).
+  on the slot probability. Its hypotheses on the challenges are `filtered₅`, `filtered₆` and
+  `filteredL` of `Key30.Tower.Drawn`: each filter accepts only elements that the fixed-point
+  predicate of an accurate table accepts (`TrigTable.Filtered`; Akita Appendix H, Theorem H.1).
 - `Opening.proof` is the proof with witnesses that the table `W` of an output of the extractor
   gives, and `Opening.knowledge` bounds the event "the verifier accepts and `Verifies` rejects
   this proof".

@@ -82,20 +82,8 @@ noncomputable def groupBasis (g : Fin 3) : Module.Basis (Fin (groups.planes g)) 
 
 theorem groups_room : groups.quotientRoom 33 ≤ 2 ^ 10 := by decide
 
-/-- Each element of `Z_q` has 33 balanced digits of the base 4. -/
-theorem covers (x : Zq) :
-    -((4 / 2 : ℕ) : ℤ) * ∑ u ∈ Finset.range 33, ((4 : ℕ) : ℤ) ^ u ≤ x.valMinAbs ∧
-      x.valMinAbs ≤ (((4 / 2 : ℕ) : ℤ) - 1) * ∑ u ∈ Finset.range 33, ((4 : ℕ) : ℤ) ^ u := by
-  have range := ZMod.valMinAbs_mem_Ioc x
-  have large : (fieldModulus : ℤ) ≤ 2 * ∑ u ∈ Finset.range 33, (4 : ℤ) ^ u := by
-    simp only [Finset.sum_range_succ, Finset.sum_range_zero]
-    decide
-  have positive : (0 : ℤ) < fieldModulus := by decide
-  obtain ⟨low, high⟩ := range
-  show -(2 : ℤ) * ∑ u ∈ Finset.range 33, (4 : ℤ) ^ u ≤ _ ∧
-    _ ≤ ((2 : ℤ) - 1) * ∑ u ∈ Finset.range 33, (4 : ℤ) ^ u
-  generalize ∑ u ∈ Finset.range 33, (4 : ℤ) ^ u = total at large ⊢
-  constructor <;> omega
+/-- `q ≤ 4^33`: each element of `Z_q` has 33 balanced digits of the base 4. -/
+theorem covers : fieldModulus ≤ 4 ^ 33 := by decide
 
 /-- `Batch.liftedFold_winsTo` for the three groups, with no hypothesis on the parameters: for
 digit vectors with the exact branch relation, the checks on the quotient-lift route end in a true

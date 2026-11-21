@@ -273,7 +273,7 @@ each head.
 | `Akita/base` | `LE.le` | lean | `Spec.Compression.Akita.Key20.root_sized` and `Spec.Compression.Akita.Key20.traces_sized`: `b_z ≥ 2` at each fold of the Lean schedule of `crates/ns-compress/artifacts/key20.aks` |
 | `Akita.short_units/neZeroNatD`, `Akita.short_units/power`, `Akita.short_units/nonzero`, `Akita.short_units/short` | `*` | lean | `Spec.Compression.Akita.SparseFamily.unitDifferences` meets them for each difference of two members of a sparse family of a degree `2^{n+1}`: the difference is not 0, its coefficients are at most 4, and `2 · 4² < q` |
 | `Akita/drawn.injective`, `Akita/drawn.injective₁`, `Akita/drawn.injective₂`, `Akita/drawn.injective₃`, `Akita/drawn.injective₄`, `Akita/drawn.injective₅`, `Akita/drawn.injectiveL`, `Akita/drawn.next`, `Akita/drawn.inside`, `Akita/drawn.decodeL`, `Akita/inside`, `AkitaKey30/drawn.injective`, `AkitaKey30/drawn.injective₁`, `AkitaKey30/drawn.injective₂`, `AkitaKey30/drawn.injective₃`, `AkitaKey30/drawn.injective₄`, `AkitaKey30/drawn.injective₅`, `AkitaKey30/drawn.injective₆`, `AkitaKey30/drawn.injectiveL`, `AkitaKey30/drawn.next`, `AkitaKey30/drawn.inside`, `AkitaKey30/drawn.decodeL` | `*` | game | adversary 6: the stage layout of the Lean verifier of the opening. The fold coordinates of a level have different slots, the fold challenge of the terminal is the stage after the last level and a stage of the transcript, and the decoder of the terminal is `Spec.Compression.Akita.Extract.draw`, as at each level. It is not the layout or the sampler of the code (trust item 7) |
-| `Akita/drawn.bounded₃`, `Akita/drawn.bounded₄`, `Akita/drawn.bounded₅`, `Akita/drawn.boundedL`, `AkitaKey30/drawn.bounded₅`, `AkitaKey30/drawn.bounded₆`, `AkitaKey30/drawn.boundedL` | `Spec.Compression.Akita.MulBound` | open | Open: the operator bound `‖c‖_mul,2 ≤ Γ` of the filtered challenge families of levels 3 to 5 and of the terminal of `key20.aks`, and of levels 5 and 6 and of the terminal of `key30.aks`. Akita Theorem H.1 proves it for the fixed-point filter of the paper. Lean has no model of that filter and no theorem that the spectral value bounds `Spec.Compression.Akita.MulBound`, so the filters are free predicates with this hypothesis |
+| `Akita/drawn.filtered₃`, `Akita/drawn.filtered₄`, `Akita/drawn.filtered₅`, `Akita/drawn.filteredL`, `AkitaKey30/drawn.filtered₅`, `AkitaKey30/drawn.filtered₆`, `AkitaKey30/drawn.filteredL` | `Spec.Compression.Akita.TrigTable.Filtered` | open | Open: the error bound of the integer tables of the filters of the challenge families of levels 3 to 5 and of the terminal of `key20.aks`, and of levels 5 and 6 and of the terminal of `key30.aks`. The hypothesis states that the filter accepts only elements that the fixed-point predicate of Akita (288) accepts for integer tables `C`, `S` whose entries `C[t]` and `S[t]` differ from `Δ · cos(πt/d)` and `Δ · sin(πt/d)` by at most `ε` (`Spec.Compression.Akita.TrigTable.Accurate`). Lean proves the operator bound `‖c‖_mul,2 ≤ Γ` from it, which is Akita (287) and the right inclusion of Akita Theorem H.1 (`Spec.Compression.Akita.TrigTable.mulBound`). The filter of the pinned code is this predicate at `Δ = 2^48` for `Γ` = 13 and 18 (`crates/akita-challenges/src/sampler/op_norm.rs`). Lean does not have the tables of the code, so their error bound is not a Lean theorem. The table of the nearest integers satisfies the hypothesis (`Spec.Compression.Akita.TrigTable.filtered_nearest`) |
 | `Akita/decodes`, `Akita/decodes₁`, `Akita/decodes₂`, `Akita/decodes₃`, `Akita/decodes₄`, `Akita/decodes₅`, `Akita/decodesL` | `Eq` | game | adversary 6: `Claims.Akita.key20_opening_accepts` is for each table of stage answers whose slots decode to fold challenges |
 | `Akita/worked` | `Membership.mem` | game | adversary 6: `Claims.Akita.key20_opening_accepts` is for each table of stage answers whose work slots have 57 zero work bits (`Spec.Compression.Akita.Extract.workZeros`), in place of the nonce search of the honest prover |
 | `Akita/blocks`, `Akita/use.blocks` | `Eq` | link | `crates/ns-compress/artifacts/key20.aks`, `each_schedule_file_has_its_pinned_digest_and_its_rows`: the file of the key of 512 blocks has its pinned digest, and Rust `SCHEDULES` has the Lean schedules (`schedules_and_variables_are_lean_constants`). The claims are for a verifier that takes this key. The key of the light relation of the reference application has `2^19` blocks (row `Final.light_gate_complete/shipped`), so these claims do not cover it |
@@ -1199,16 +1199,16 @@ not change terminal source checks.
      and at the terminal (`Spec.Compression.Akita.Key20.tower_suffix`). The prover has at most `Q` queries to one
      uniform table of stage answers (item below). The final verifier with these openings
      (`Spec.Compression.Akita.Extract.towerAccepts`) accepts a statement for which no proof with witnesses satisfies
-     `Verifies` with probability at most `(Q + 1) · (runCost + 317735/(1024·|K|) + 49/8 · p) + (Q + 1) · 144/budget
+     `Verifies` with probability at most `(Q + 1) · (runCost + 317479/(1024·|K|) + 49/8 · p) + (Q + 1) · 144/budget
      + breakChance`. `runCost` is the sum of the bounds of the draws of the Π_CCS run and of the argument
-     (`Export.BoundedDepth.FinalVerifier.Setup.runCost`). `317735/(1024·|K|) + 49/8 · p` bounds the stage errors of
+     (`Export.BoundedDepth.FinalVerifier.Setup.runCost`). `317479/(1024·|K|) + 49/8 · p` bounds the stage errors of
      the opening, which has 135 fold coordinates (`Spec.Compression.Akita.Key20.towerError_le`). No decoder from one
      slot of `K` has `p ≤ 2^−128`, because `|K| = q²` is below `2^128` (`Spec.Compression.Akita.Key20.pow_lt_slotChance`).
      For a decoder that is an injection of `K` into the challenge family, `p = 1/q²`, and the bound is `324007/(1024·q²)`
      (`Spec.Compression.Akita.Key20.slotChance_draw`). The claims are for these decoders
      (`Claims.Akita.key20_opening_bound`). For them Lean proves the unit differences (`Claims.Akita.short_units`) and
-     the sparse challenges. The operator bound `Γ` of the filtered families stays a hypothesis: the paper proves it for
-     its filtered family (Akita Theorem H.1), and Lean has no model of that filter. The extractor has 144 retry loops,
+     the sparse challenges. The operator bound `Γ` of the filtered families is a theorem for the fixed-point filter
+     of Akita Theorem H.1 (`TrigTable.mulBound`); the error bound of its integer tables is a hypothesis. The extractor has 144 retry loops,
      each with at most `budget` attempts. The result closes the gap of `V` inside itself, with two checkpoints of Akita
      Definition 10.16 in sequence. The first has the candidate `W`, and its stages are the Π_CCS run and the draw of
      `τ`. The second has the candidate `W` and `V` (`Spec.Compression.Akita.Extract.Compose.suffix`, for the two parts
@@ -1283,8 +1283,8 @@ not change terminal source checks.
      setup is the output of the Lean commitment algorithm for the setup prefix, the premise of Akita Lemma 9.1
      (`Spec.Compression.Akita.Batch.registered_commit`). The operator bound `Γ` of the filtered families of levels 5 and
      6 and of the terminal. No claim states that a Lean verifier of this file accepts a proof. The condition `covers` of
-     the honest quotient digits is false at levels 1 to 3 (`Spec.Compression.Akita.Key30.not_covers`), and Lean has no
-     honest prover for the offloaded check. The memory results are not stated in this game. The claims that end in
+     the honest quotient digits holds at the root and at levels 1 to 3 (`Spec.Compression.Akita.Key30.covers`). Lean has no
+     honest prover for the offloaded check and no composition of the levels. The memory results are not stated in this game. The claims that end in
      `_with_akita` do not use these results, so they keep the premises `akita.*`, `binding`, `accepts` and
      `composition`. `decisions/akita-compression.md`, section "The results for `key30.aks`", gives the limits, the
      differences from the paper and from the code, and what the removal of those premises needs.

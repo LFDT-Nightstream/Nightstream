@@ -444,21 +444,29 @@ theorem scalarWeight_of_le (β : Module.Basis (Fin O.planes) Zq E) (point : Poin
     unfold OpeningShape.chainStart at large
     omega
 
-/-- The number of ring rows of one fold. -/
-def OpeningShape.rowCount : ℕ :=
-  O.planes + (S.innerRank + (S.slices * S.outerRank + (1 * O.openRank +
-    (firstRank S.chain + (firstRank O.chain + (secondRank S.chain + secondRank O.chain))))))
+/-- The number of ring rows of one fold after the carrier row. -/
+def OpeningShape.tailCount : ℕ :=
+  S.innerRank + (S.slices * S.outerRank + (1 * O.openRank +
+    (firstRank S.chain + (firstRank O.chain + (secondRank S.chain + secondRank O.chain)))))
+
+/-- The number of ring rows over `Z_q` of one fold: each plane of the carrier row is one row. -/
+def OpeningShape.planeRows : ℕ := O.planes + O.tailCount
+
+/-- The number of rows over `E` of one fold before the scalar row: the carrier row (102) is one
+row. This is the number of rows of the relation matrix of the pinned code
+(`relation_matrix_row_count` in `crates/akita-params/src/layout/params.rs` of the Akita code). -/
+def OpeningShape.rowCount : ℕ := 1 + O.tailCount
 
 /-- `d_max`, the largest ring degree of a row (Akita Theorem 7.4). -/
 def OpeningShape.largestDegree : ℕ :=
   max (max O.carrierDegree S.innerDegree)
     (max (max S.outerDegree O.openDegree) (max (chainDegree S.chain) (chainDegree O.chain)))
 
-/-- The ring rows of one fold in the order of Akita Figure 5: the planes of the carrier row
-(102), the rows (104) of `A`, the rows (105) of `B` for each slice, the rows (106) of `D`, the
+/-- The ring rows over `Z_q` of one fold in the order of Akita Figure 5: the planes of the carrier
+row (102), the rows (104) of `A`, the rows (105) of `B` for each slice, the rows (106) of `D`, the
 rows of `F_1`, the rows of `H_1`, the rows of `F_2` and the rows of `H_2` (47). -/
 noncomputable def flatRows (β : Module.Basis (Fin O.planes) Zq E) (st : Statement O E)
-    (challenge : Fin S.blocks → Rq O.carrierDegree) : Fin O.rowCount → RingRow :=
+    (challenge : Fin S.blocks → Rq O.carrierDegree) : Fin O.planeRows → RingRow :=
   Fin.append (evaluationRow O fold β st.point challenge)
     (Fin.append (innerRow O fold st.key challenge)
       (Fin.append (imageRow S.chain (outerForm O fold st.key) (O.firstCell fold) st.payload)
@@ -472,7 +480,7 @@ noncomputable def flatRows (β : Module.Basis (Fin O.planes) Zq E) (st : Stateme
                   st.openPayload)))))))
 
 theorem flatRows_below (β : Module.Basis (Fin O.planes) Zq E) (st : Statement O E)
-    (challenge : Fin S.blocks → Rq O.carrierDegree) (r : Fin O.rowCount) :
+    (challenge : Fin S.blocks → Rq O.carrierDegree) (r : Fin O.planeRows) :
     (flatRows O fold β st challenge r).Below (O.cells fold) := by
   revert r
   refine (forall_append (RingRow.Below · (O.cells fold)) _ _).mpr ⟨fun t => ?_,
@@ -502,7 +510,7 @@ theorem flatRows_below (β : Module.Basis (Fin O.planes) Zq E) (st : Statement O
   · exact secondRow_below O.chain _ _ _ (fun _ _ => O.openSecondCell_lt fold _)
 
 theorem flatRows_degree_le (β : Module.Basis (Fin O.planes) Zq E) (st : Statement O E)
-    (challenge : Fin S.blocks → Rq O.carrierDegree) (r : Fin O.rowCount) :
+    (challenge : Fin S.blocks → Rq O.carrierDegree) (r : Fin O.planeRows) :
     (flatRows O fold β st challenge r).degree ≤ O.largestDegree := by
   revert r
   refine (forall_append (RingRow.degree · ≤ O.largestDegree) _ _).mpr ⟨fun t => ?_,
@@ -542,21 +550,25 @@ theorem flatRows_degree_sum (β : Module.Basis (Fin O.planes) Zq E) (st : Statem
   have planes : ∀ t, (evaluationRow O fold β st.point challenge t).degree = O.carrierDegree :=
     fun _ => rfl
   have inner : ∀ a, (innerRow O fold st.key challenge a).degree = S.innerDegree := fun _ => rfl
-  unfold flatRows OpeningShape.degreeSum OpeningShape.rowCount
+  unfold flatRows OpeningShape.degreeSum OpeningShape.planeRows OpeningShape.tailCount
   simp only [sum_append RingRow.degree, planes, inner, imageRow_degree, firstRow_degree,
     secondRow_degree, Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
 
 /-- The relation of one fold with coefficient packing on the flat witness `Witness.flat`, for
 the fold challenges `c_i` (Akita Figure 5 for one group and one claim, on the quotient-free
-route): the ring rows `flatRows` and the scalar row (100). The cube has `μ` variables, with
+route): the ring rows `flatRows`, with the planes of the carrier row joined into one row over `E`
+by the basis `β`, and the scalar row (100). The cube has `μ` variables, with
 `cells < 2^μ`. -/
 noncomputable def flatRelation (β : Module.Basis (Fin O.planes) Zq E) (st : Statement O E)
     (challenge : Fin S.blocks → Rq O.carrierDegree) (μ : ℕ) (fits : O.cells fold ≤ 2 ^ μ) :
     FlatRelation E where
   vars := μ
-  ring := O.rowCount
+  ring := O.planeRows
   row := flatRows O fold β st challenge
   inside r c j _ _ read := (flatRows_below O fold β st challenge r c j _ read).trans_le fits
+  join := (Join.all β).append (Join.plain E O.tailCount)
+  independent := Join.append_independent (Join.all_independent β.linearIndependent)
+    (Join.plain_independent (algebraMap Zq E).injective _)
   weight := scalarWeight O fold β st.point
   value := st.value
 
@@ -746,7 +758,7 @@ variable [Fintype E] (β st challenge)
 Theorem 7.4), with `2^batch` places for the rows. Its bad set has at most `d_max − 1` points. -/
 noncomputable def flatReduction (batch : ℕ) (rowsFit : O.rowCount + 1 ≤ 2 ^ batch) :
     Reduction E :=
-  (flatRelation O fold β st challenge μ fits).free (algebraMap Zq E).injective O.largestDegree
+  (flatRelation O fold β st challenge μ fits).free O.largestDegree
     batch (flatRows_degree_le O fold β st challenge) rowsFit
 
 variable [DecidableEq E]

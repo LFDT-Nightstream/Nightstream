@@ -10,7 +10,10 @@ of its rows has the numbers of its Lean shape and of its Lean opening descriptor
 have the numbers of `Spec/Compression/Akita/Key20.lean`, and each group of each level of each row
 of `key30.aks` and its terminal have the numbers of `Spec/Compression/Akita/Key30.lean`. The count
 `output_witness_len` of a level is the end of its witness in the model with the last alignment of
-the Akita code, and each alignment of the code before it is empty (`segmentsAligned`). Each
+the Akita code, and each alignment of the code before it is empty (`segmentsAligned`). The count
+of rows over `E` of a level and its count `s_rel` are the numbers that the Akita code gives for
+the fields of the file (`relation_matrix_row_count` and `relation_row_index_num_vars` in
+`crates/akita-params/src/layout/params.rs`): the files do not hold these two numbers. Each
 matrix `A`, `B` and `D` of `key20.aks` and `A` of its terminal is below an instance of the list
 `Key20.instances` (`Spec/Compression/Akita/Key20Instances.lean`), and each instance of the list
 after the two compression maps has the degree, the rank, the width, the norm and the priced bound
@@ -199,37 +202,43 @@ def segmentsAligned : Bool :=
     gapsAligned (Key30.level₄.opening.gaps Key30.level₄.fold 0) (block Key30.level₄.opening) 64 32
 
 /-- The numbers of the levels of `Key20.lean`: for each level the numbers of its groups, the
-width of `D`, the count of cells of its next witness and its count `μ` of variables. -/
+width of `D`, the count of cells of its next witness, its count `μ` of variables, its count of
+rows over `E` before the scalar row and its count `s_rel`. -/
 def tower : List (List (List ℕ) × List ℕ) :=
   open Key20 in
   let groups := List.finRange 3
   let trace (L : Key20.Level) (norm : Option Squared) :=
     ([entry L.shape L.opening L.fold norm],
-      [columns L.shape L.opening, L.opening.cells L.fold, L.vars])
+      [columns L.shape L.opening, L.opening.cells L.fold, L.vars, L.opening.traceRowCount,
+        L.batch])
   [(groups.map fun g => entry (root.shape g) (root.opening g) (root.fold g) none,
       [(groups.map fun g => columns (root.shape g) (root.opening g)).sum,
-        aligned (root.quotientRoom quotientDigits) (groupsAlign root), rootVars]),
+        aligned (root.quotientRoom quotientDigits) (groupsAlign root), rootVars, root.rowCount,
+        rootBatch]),
     ([entry level₁.shape level₁.opening level₁.fold none],
       [columns level₁.shape level₁.opening,
         aligned (level₁.opening.quotientRoom level₁.fold quotientDigits) (block level₁.opening),
-        level₁.vars]),
+        level₁.vars, level₁.opening.rowCount, level₁.batch]),
     trace level₂ none, trace level₃ norm₃, trace level₄ norm₄, trace level₅ norm₅]
 
 /-- The numbers of the levels of a row of `Key30.lean`, in the form of `tower`. -/
 def tower30 (r : Key30.Row) : List (List (List ℕ) × List ℕ) :=
   open Key30 in
-  let groups {n : ℕ} (B : Batch (Fin n)) (digits vars : ℕ) :=
+  let groups {n : ℕ} (B : Batch (Fin n)) (digits vars batch : ℕ) :=
     ((List.finRange n).map fun g => entry (B.shape g) (B.opening g) (B.fold g) none,
       [((List.finRange n).map fun g => columns (B.shape g) (B.opening g)).sum,
-        aligned (B.quotientRoom digits) (groupsAlign B), vars])
+        aligned (B.quotientRoom digits) (groupsAlign B), vars, B.rowCount, batch])
   let packing (L : Key20.Level) :=
     ([entry L.shape L.opening L.fold none],
       [columns L.shape L.opening,
-        aligned (L.opening.quotientRoom L.fold quotientDigits) (block L.opening), L.vars])
+        aligned (L.opening.quotientRoom L.fold quotientDigits) (block L.opening), L.vars,
+        L.opening.rowCount, L.batch])
   let trace (L : Key20.Level) (norm : Option Key20.Squared) :=
     ([entry L.shape L.opening L.fold norm],
-      [columns L.shape L.opening, L.opening.cells L.fold, L.vars])
-  [groups (root r) quotientDigits₀ rootVars, groups (level₁ r) quotientDigits vars₁,
+      [columns L.shape L.opening, L.opening.cells L.fold, L.vars, L.opening.traceRowCount,
+        L.batch])
+  [groups (root r) quotientDigits₀ rootVars rootBatch,
+    groups (level₁ r) quotientDigits vars₁ batch₁,
     packing (level₂ r), packing level₃, trace level₄ none, trace level₅ norm₅,
     trace level₆ norm₆]
 
@@ -253,9 +262,23 @@ def fileEntry (params group : Json) : Except String (List ℕ) := do
     (← nat params (matrix ++ ["coeff_linf_bound"])) + 1,
     payload, payload, vars] ++ norm
 
+/-- The count of rows of the relation matrix of a level in the Akita code
+(`relation_matrix_row_count`): for each group the consistency row, the rows of `A` and the rows
+of `B` of each slice, then the rows of `D`, and at a level with compression digits two rows for
+each group and two rows for `D`. -/
+def fileRows (params : Json) : Except String ℕ := do
+  let groups ← (← field params ["groups", "entries"]).getArr?
+  let each ← groups.toList.mapM fun group => do
+    return 1 + (← nat group ["profile", "inner", "matrix", "output_rank"]) +
+      (← nat group ["profile", "outer_slice_count"]) *
+        (← nat group ["profile", "outer", "matrix", "output_rank"])
+  return each.sum + (← nat params ["open_matrix", "output_rank"]) +
+    (if ← compressed params then 2 * (groups.size + 1) else 0)
+
 /-- The fields of the levels of a schedule for `tower`. The count of variables of a level is that
 of the last group of the next level, which is the group of its witness, and for the last level it
-is the least count for the cells of the terminal. -/
+is the least count for the cells of the terminal. The count `s_rel` is the least count for the
+rows and the opening row (`relation_row_index_num_vars`). -/
 def fileTower (schedule : Json) : Except String (List (List (List ℕ) × List ℕ)) := do
   let folds := (← (← schedule.getObjVal? "recursive_folds").getArr?).toList
   let vars ← folds.mapM fun fold => do
@@ -265,8 +288,10 @@ def fileTower (schedule : Json) : Except String (List (List (List ℕ) × List �
   (((← schedule.getObjVal? "root") :: folds).zip (vars ++ [last])).mapM fun (level, next) => do
     let params ← level.getObjVal? "params"
     let groups ← (← field params ["groups", "entries"]).getArr?
+    let rows ← fileRows params
     return (← groups.toList.mapM (fileEntry params),
-      [← nat params ["open_matrix", "input_width"], ← nat level ["output_witness_len"], next])
+      [← nat params ["open_matrix", "input_width"], ← nat level ["output_witness_len"], next,
+        rows, Nat.clog 2 (rows + 1)])
 
 /-- The fields of a terminal for `terminal`. -/
 def fileTerminal (value : Json) : Except String (List ℕ) := do

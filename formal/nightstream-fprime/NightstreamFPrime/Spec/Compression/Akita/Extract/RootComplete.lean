@@ -184,9 +184,7 @@ theorem batchLevel_wins {sendable : (M : Type) → M → Prop} {slots width cap 
     (certified : ∀ g, (B.fold g).responseBase ≤ (B.shape g).certifiedBase)
     (path : PathFits B.openDegree (1 * B.openRank) B.chain)
     (uniform : ∀ g, (B.shape g).certifiedBase = base) (digit : Radix base)
-    (covers : ∀ x : Zq, -((base / 2 : ℕ) : ℤ) * ∑ u ∈ Finset.range digits, (base : ℤ) ^ u ≤
-        x.valMinAbs ∧
-      x.valMinAbs ≤ (((base / 2 : ℕ) : ℤ) - 1) * ∑ u ∈ Finset.range digits, (base : ℤ) ^ u)
+    (covers : fieldModulus ≤ base ^ digits)
     {table : Fin n → Table} {point : (g : Fin n) → Point (B.opening g) E} {weight : Fin n → E}
     {wire : Wire} (ready : claim wire = Batch.honestClaim β key openKey table point weight)
     {after : Table → Prop} (fit : BatchFit β key openKey μ cells base digits decode table after)
@@ -420,18 +418,13 @@ theorem tower_complete {sendable : (M : Type) → M → Prop} {slots width cap :
     (certified₀ : ∀ g, (B.fold g).responseBase ≤ (B.shape g).certifiedBase)
     (path₀ : PathFits B.openDegree (1 * B.openRank) B.chain)
     (uniform₀ : ∀ g, (B.shape g).certifiedBase = base) (digit₀ : Radix base)
-    (covers₀ : ∀ x : Zq, -((base / 2 : ℕ) : ℤ) * ∑ u ∈ Finset.range digits, (base : ℤ) ^ u ≤
-        x.valMinAbs ∧
-      x.valMinAbs ≤ (((base / 2 : ℕ) : ℤ) - 1) * ∑ u ∈ Finset.range digits, (base : ℤ) ^ u)
+    (covers₀ : fieldModulus ≤ base ^ digits)
     (range₀ : rangeWidth base ≤ width)
     (shape₁ : S₁.Bounded) (radix₁ : Radix fold₁.responseBase)
     (certified₁ : fold₁.responseBase ≤ S₁.certifiedBase)
     (path₁ : PathFits O₁.openDegree (1 * O₁.openRank) O₁.chain)
     (digit₁ : Radix S₁.certifiedBase)
-    (covers₁ : ∀ x : Zq, -((S₁.certifiedBase / 2 : ℕ) : ℤ) *
-        ∑ u ∈ Finset.range digits₁, (S₁.certifiedBase : ℤ) ^ u ≤ x.valMinAbs ∧
-      x.valMinAbs ≤ (((S₁.certifiedBase / 2 : ℕ) : ℤ) - 1) *
-        ∑ u ∈ Finset.range digits₁, (S₁.certifiedBase : ℤ) ^ u)
+    (covers₁ : fieldModulus ≤ S₁.certifiedBase ^ digits₁)
     (range₁ : rangeWidth S₁.certifiedBase ≤ width)
     (quarter₂ : 4 * m₂ = S₂.innerDegree) (quarter₃ : 4 * m₃ = S₃.innerDegree)
     (quarter₄ : 4 * m₄ = S₄.innerDegree) (quarter₅ : 4 * m₅ = S₅.innerDegree)

@@ -19,13 +19,18 @@ Sections 7.2 to 7.4, Theorem 7.4 and Theorem 10.36).
   its field rows. `Reduction.batched_of_holds`, `Reduction.holds_of_batched` and
   `Reduction.density_accepting_le` are Akita Theorem 7.4, item 1 and the bound (122).
 - `RingRow.relocate` is a ring row with each address moved by a map.
+- `Join` joins ring rows over `Z_q` into field rows: the planes of the carrier row (102) are one
+  row over `E`, with the basis `β_t` as coefficients (Akita Section 7.3, after (109), and (113)).
+  `Join.poly` is the polynomial over `E` of one field row, and `Join.poly_ne_zero` states that it
+  is not zero when one of its planes is not zero, for coefficients that are independent over
+  `Z_q`.
 - `FlatRelation` has the ring rows (110) and the scalar row of Akita Figure 5 on the flat
   witness. `FlatRelation.free` is its quotient-free reduction (Akita (120)), with the bad set of
   Akita Theorem 7.4, item 2. -/
 
 namespace NightstreamFPrime.Spec.Compression.Akita
 
-open NightstreamFPrime.Spec.Compression.Lib
+open NightstreamFPrime.Spec.Compression.Lib Polynomial
 
 /-- The field relation `M(α)·w = y(α)` of Akita Section 7.2 at one point `α`: row `i` has the
 weight `weight i u` on the entry `u` of the flat witness and the target `target i`. -/
@@ -181,14 +186,187 @@ theorem density_accepting_le {w : Table} (fails : ¬ R.Holds w) :
 
 end Reduction
 
+/-- The join of `ring` ring rows over `Z_q` into `count` field rows: the ring row `r` is in the
+field row `slot r` with the coefficient `basis r`. The planes of the carrier row (102) are one
+field row with the coefficients `β_t` (Akita Section 7.3 and (113)). -/
+structure Join (E : Type) (ring : ℕ) where
+  count : ℕ
+  slot : Fin ring → Fin count
+  basis : Fin ring → E
+
+namespace Join
+
+variable {E : Type} [CommRing E] [Algebra Zq E] {ring : ℕ} (J : Join E ring)
+
+/-- The coefficients of the ring rows of each field row are independent over `Z_q`. -/
+def Independent : Prop :=
+  ∀ (k : Fin J.count) (c : Fin ring → Zq),
+    ∑ r, (if J.slot r = k then c r • J.basis r else 0) = 0 → ∀ r, J.slot r = k → c r = 0
+
+/-- The polynomial over `E` of the field row `k` for the polynomials `P r` of the ring rows. -/
+noncomputable def poly (k : Fin J.count) (P : Fin ring → Zq[X]) : E[X] :=
+  ∑ r, if J.slot r = k then C (J.basis r) * (P r).map (algebraMap Zq E) else 0
+
+theorem eval_poly (k : Fin J.count) (P : Fin ring → Zq[X]) (α : E) :
+    (J.poly k P).eval α = ∑ r, if J.slot r = k then J.basis r * aeval α (P r) else 0 := by
+  rw [poly, eval_finsetSum]
+  refine Finset.sum_congr rfl fun r _ => ?_
+  by_cases same : J.slot r = k
+  · rw [ite_eq_left same, ite_eq_left same, eval_mul, eval_C, ← eval₂_eq_eval_map, ← aeval_def]
+  · rw [ite_eq_right same, ite_eq_right same, eval_zero]
+
+theorem natDegree_poly_le (k : Fin J.count) {P : Fin ring → Zq[X]} {bound : ℕ}
+    (degrees : ∀ r, (P r).natDegree ≤ bound) : (J.poly k P).natDegree ≤ bound :=
+  natDegree_sum_le_of_forall_le _ _ fun r _ => by
+    by_cases same : J.slot r = k
+    · rw [ite_eq_left same]
+      exact (natDegree_C_mul_le _ _).trans (natDegree_map_le.trans (degrees r))
+    · rw [ite_eq_right same, natDegree_zero]
+      exact Nat.zero_le _
+
+variable {J}
+
+/-- A field row whose coefficients are independent over `Z_q` has a polynomial that is not zero
+when the polynomial of one of its ring rows is not zero. -/
+theorem poly_ne_zero (independent : J.Independent) {P : Fin ring → Zq[X]} {r : Fin ring}
+    (nonzero : P r ≠ 0) : J.poly (J.slot r) P ≠ 0 := fun zero =>
+  nonzero (Polynomial.ext fun j => by
+    rw [Polynomial.coeff_zero]
+    refine independent (J.slot r) (fun x => (P x).coeff j) ?_ r rfl
+    have coefficient : (J.poly (J.slot r) P).coeff j = 0 := by rw [zero, Polynomial.coeff_zero]
+    rw [poly, finsetSum_coeff] at coefficient
+    refine Eq.trans (Finset.sum_congr rfl fun x _ => ?_) coefficient
+    by_cases same : J.slot x = J.slot r
+    · rw [ite_eq_left same, ite_eq_left same, Polynomial.coeff_C_mul, Polynomial.coeff_map,
+        Algebra.smul_def, mul_comm]
+    · rw [ite_eq_right same, ite_eq_right same, Polynomial.coeff_zero])
+
+/-- Each ring row is one field row. -/
+def plain (E : Type) [CommRing E] (ring : ℕ) : Join E ring := ⟨ring, id, fun _ => 1⟩
+
+theorem plain_independent (injective : Function.Injective (algebraMap Zq E)) (ring : ℕ) :
+    (plain E ring).Independent := fun k c zero r same => by
+  have value : (∑ x, if (plain E ring).slot x = k then c x • (plain E ring).basis x else 0) =
+      c k • (1 : E) :=
+    (Finset.sum_ite_eq' Finset.univ k fun x => c x • (1 : E)).trans
+      (ite_eq_left (Finset.mem_univ k))
+  rw [value, Algebra.smul_def, mul_one] at zero
+  have row : r = k := same
+  rw [row]
+  exact injective (zero.trans (map_zero _).symm)
+
+/-- All the ring rows are one field row with the coefficients `β`. -/
+def all (β : Fin ring → E) : Join E ring := ⟨1, fun _ => 0, β⟩
+
+theorem all_independent {β : Fin ring → E} (independent : LinearIndependent Zq β) :
+    (all β).Independent := fun k c zero r _ => by
+  refine Fintype.linearIndependent_iff.mp independent c ?_ r
+  rw [← zero]
+  exact Finset.sum_congr rfl fun x _ =>
+    (ite_eq_left (Subsingleton.elim (α := Fin 1) ((all β).slot x) k)).symm
+
+/-- The field rows of `a`, then the field rows of `b`. -/
+def append {m n : ℕ} (a : Join E m) (b : Join E n) : Join E (m + n) where
+  count := a.count + b.count
+  slot := Fin.addCases (fun i => Fin.castAdd b.count (a.slot i))
+    fun j => Fin.natAdd a.count (b.slot j)
+  basis := Fin.append a.basis b.basis
+
+theorem append_independent {m n : ℕ} {a : Join E m} {b : Join E n} (left : a.Independent)
+    (right : b.Independent) : (a.append b).Independent := by
+  have apart : ∀ (x : Fin a.count) (y : Fin b.count),
+      Fin.natAdd a.count y ≠ Fin.castAdd b.count x := fun x y same => by
+    have values := congrArg Fin.val same
+    rw [Fin.val_natAdd, Fin.val_castAdd] at values
+    omega
+  have raw : ∀ (k : Fin (a.count + b.count)) (c : Fin (m + n) → Zq),
+      (∑ r, (if Fin.addCases (motive := fun _ => Fin (a.count + b.count))
+          (fun i => Fin.castAdd b.count (a.slot i)) (fun j => Fin.natAdd a.count (b.slot j)) r = k
+        then c r • Fin.append a.basis b.basis r else 0)) = 0 →
+      ∀ r, Fin.addCases (motive := fun _ => Fin (a.count + b.count))
+        (fun i => Fin.castAdd b.count (a.slot i)) (fun j => Fin.natAdd a.count (b.slot j)) r = k →
+          c r = 0 := by
+    intro k c zero
+    rw [Fin.sum_univ_add] at zero
+    simp only [Fin.addCases_left, Fin.addCases_right, Fin.append_left, Fin.append_right] at zero
+    induction k using Fin.addCases with
+    | left k =>
+        simp only [apart, ite_false, Finset.sum_const_zero, add_zero, Fin.castAdd_inj] at zero
+        intro r
+        induction r using Fin.addCases with
+        | left i =>
+            intro same
+            rw [Fin.addCases_left, Fin.castAdd_inj] at same
+            exact left k (fun i => c (Fin.castAdd n i)) zero i same
+        | right j =>
+            intro same
+            rw [Fin.addCases_right] at same
+            exact absurd same (apart _ _)
+    | right k =>
+        simp only [fun x y => (apart x y).symm, ite_false, Finset.sum_const_zero, zero_add,
+          Fin.natAdd_inj] at zero
+        intro r
+        induction r using Fin.addCases with
+        | left i =>
+            intro same
+            rw [Fin.addCases_left] at same
+            exact absurd same.symm (apart _ _)
+        | right j =>
+            intro same
+            rw [Fin.addCases_right, Fin.natAdd_inj] at same
+            exact right k (fun j => c (Fin.natAdd m j)) zero j same
+  exact raw
+
+/-- The field rows of each `f g`, in the order of `g`. -/
+def gather {n : ℕ} {size : Fin n → ℕ} (f : ∀ g, Join E (size g)) : Join E (∑ g, size g) where
+  count := ∑ g, (f g).count
+  slot r := finSigmaFinEquiv
+    ⟨(finSigmaFinEquiv.symm r).1, (f (finSigmaFinEquiv.symm r).1).slot (finSigmaFinEquiv.symm r).2⟩
+  basis r := (f (finSigmaFinEquiv.symm r).1).basis (finSigmaFinEquiv.symm r).2
+
+theorem gather_independent {n : ℕ} {size : Fin n → ℕ} {f : ∀ g, Join E (size g)}
+    (each : ∀ g, (f g).Independent) : (gather f).Independent := by
+  have raw : ∀ (k : Fin (∑ g, (f g).count)) (c : Fin (∑ g, size g) → Zq),
+      (∑ r, (if (finSigmaFinEquiv ⟨(finSigmaFinEquiv.symm r).1,
+          (f (finSigmaFinEquiv.symm r).1).slot (finSigmaFinEquiv.symm r).2⟩ :
+            Fin (∑ g, (f g).count)) = k
+        then c r • (f (finSigmaFinEquiv.symm r).1).basis (finSigmaFinEquiv.symm r).2 else 0)) = 0 →
+      ∀ r, (finSigmaFinEquiv ⟨(finSigmaFinEquiv.symm r).1,
+        (f (finSigmaFinEquiv.symm r).1).slot (finSigmaFinEquiv.symm r).2⟩ :
+          Fin (∑ g, (f g).count)) = k → c r = 0 := by
+    intro k c zero r same
+    obtain ⟨⟨h, k⟩, rfl⟩ := finSigmaFinEquiv.surjective k
+    obtain ⟨⟨g, i⟩, rfl⟩ := finSigmaFinEquiv.surjective r
+    rw [Equiv.symm_apply_apply] at same
+    obtain ⟨group, slot⟩ := Sigma.mk.inj_iff.mp (finSigmaFinEquiv.injective same)
+    subst group
+    refine each g k (fun i => c (finSigmaFinEquiv ⟨g, i⟩)) ?_ i (eq_of_heq slot)
+    refine Eq.trans ?_ zero
+    refine Eq.trans ?_ ((Fintype.sum_sigma _).symm.trans (finSigmaFinEquiv.sum_comp _))
+    refine Eq.trans ?_ (Finset.sum_eq_single g (fun h _ other => Finset.sum_eq_zero fun x _ => ?_)
+      fun absent => absurd (Finset.mem_univ g) absent).symm
+    · refine Finset.sum_congr rfl fun x _ => ?_
+      rw [Equiv.symm_apply_apply]
+      exact if_congr ⟨fun same => by rw [same],
+        fun same => eq_of_heq (Sigma.mk.inj_iff.mp (finSigmaFinEquiv.injective same)).2⟩ rfl rfl
+    · rw [Equiv.symm_apply_apply]
+      exact ite_eq_right fun same =>
+        other (Sigma.mk.inj_iff.mp (finSigmaFinEquiv.injective same)).1
+  exact raw
+
+end Join
+
 /-- The relation of one fold on the flat witness of `2^vars` entries (Akita Section 7.3 and
-Figure 5): the ring rows in the normal form (110), each with its addresses inside the witness, and
-one scalar row `Σ_u w_u·weight u = value` over `E` (family 6 of Figure 5). -/
-structure FlatRelation (E : Type) where
+Figure 5): the ring rows in the normal form (110), each with its addresses inside the witness,
+the join of the ring rows into the rows over `E`, and one scalar row `Σ_u w_u·weight u = value`
+over `E` (family 6 of Figure 5). -/
+structure FlatRelation (E : Type) [CommRing E] [Algebra Zq E] where
   vars : ℕ
   ring : ℕ
   row : Fin ring → RingRow
   inside : ∀ r c j x, j < (row r).degree → (row r).address c j = some x → x < 2 ^ vars
+  join : Join E ring
+  independent : join.Independent
   weight : ℕ → E
   value : E
 
@@ -256,24 +434,52 @@ def Holds (w : Table) : Prop :=
   (∀ r, (rel.row r).Holds w) ∧
     ∑ u ∈ Finset.range (2 ^ rel.vars), algebraMap Zq E (w u) * rel.weight u = rel.value
 
-/-- The field rows of the quotient-free reduction at the point `α` (Akita Section 7.3): the
-residual `z_r(α)` of (120) for each ring row, then the scalar row. -/
+/-- The field rows of the quotient-free reduction at the point `α` (Akita Section 7.3): for each
+row over `E` the residual `z_r(α)` of (120), which for a joined row is the sum of the residuals of
+its planes with the coefficients of the join, then the scalar row. -/
 noncomputable def freeRows (α : E) : FieldRows E where
-  count := rel.ring + 1
-  weight := Fin.lastCases rel.weight fun r => (rel.row r).freeWeight α
-  target := Fin.lastCases rel.value fun r => reducedEval α (rel.row r).target
+  count := rel.join.count + 1
+  weight := Fin.lastCases rel.weight fun k u =>
+    ∑ r, if rel.join.slot r = k then rel.join.basis r * (rel.row r).freeWeight α u else 0
+  target := Fin.lastCases rel.value fun k =>
+    ∑ r, if rel.join.slot r = k then rel.join.basis r * reducedEval α (rel.row r).target else 0
 
-theorem freeRows_residual_ring (w : Table) (α : E) (r : Fin rel.ring) :
-    (rel.freeRows α).residual rel.vars w r = (rel.row r).reduced w α := by
-  have small : (r : ℕ) < rel.ring + 1 := r.isLt.trans (Nat.lt_succ_self _)
-  have cast : (⟨r, small⟩ : Fin (rel.ring + 1)) = r.castSucc := rfl
-  rw [(rel.row r).reduced_eq_sum w α (rel.inside r)]
-  simp [FieldRows.residual, FieldRows.weightAt, FieldRows.targetAt, freeRows, small, cast]
+/-- The residual of the row `k` over `E` as a polynomial over `E`: the representatives of the
+residuals `Z_r` of its planes with the coefficients of the join. -/
+noncomputable def freePoly (w : Table) (k : Fin rel.join.count) : E[X] :=
+  rel.join.poly k fun r => rep ((rel.row r).residual w)
+
+theorem freeRows_residual_ring (w : Table) (α : E) (k : Fin rel.join.count) :
+    (rel.freeRows α).residual rel.vars w k = (rel.freePoly w k).eval α := by
+  have small : (k : ℕ) < rel.join.count + 1 := k.isLt.trans (Nat.lt_succ_self _)
+  have cast : (⟨k, small⟩ : Fin (rel.join.count + 1)) = k.castSucc := rfl
+  have swap : ∑ u ∈ Finset.range (2 ^ rel.vars), algebraMap Zq E (w u) *
+      (∑ r, if rel.join.slot r = k then rel.join.basis r * (rel.row r).freeWeight α u else 0) =
+      ∑ r, if rel.join.slot r = k then rel.join.basis r *
+        ∑ u ∈ Finset.range (2 ^ rel.vars),
+          algebraMap Zq E (w u) * (rel.row r).freeWeight α u else 0 := by
+    simp only [Finset.mul_sum, mul_ite, mul_zero]
+    rw [Finset.sum_comm]
+    refine Finset.sum_congr rfl fun r _ => ?_
+    by_cases same : rel.join.slot r = k
+    · simp only [ite_eq_left same]
+      exact Finset.sum_congr rfl fun u _ => mul_left_comm _ _ _
+    · simp only [ite_eq_right same, Finset.sum_const_zero]
+  rw [freePoly, Join.eval_poly]
+  simp only [FieldRows.residual, FieldRows.weightAt, FieldRows.targetAt, freeRows, small, cast,
+    dite_true, Fin.lastCases_castSucc]
+  rw [swap, ← Finset.sum_sub_distrib]
+  refine Finset.sum_congr rfl fun r _ => ?_
+  by_cases same : rel.join.slot r = k
+  · rw [ite_eq_left same, ite_eq_left same, ite_eq_left same, ← mul_sub, ← reducedEval_apply,
+      ← RingRow.reduced_eq, (rel.row r).reduced_eq_sum w α (rel.inside r)]
+  · rw [ite_eq_right same, ite_eq_right same, ite_eq_right same, sub_zero]
 
 theorem freeRows_residual_scalar (w : Table) (α : E) :
-    (rel.freeRows α).residual rel.vars w rel.ring =
+    (rel.freeRows α).residual rel.vars w rel.join.count =
       ∑ u ∈ Finset.range (2 ^ rel.vars), algebraMap Zq E (w u) * rel.weight u - rel.value := by
-  have cast : (⟨rel.ring, Nat.lt_succ_self _⟩ : Fin (rel.ring + 1)) = Fin.last rel.ring := rfl
+  have cast : (⟨rel.join.count, Nat.lt_succ_self _⟩ : Fin (rel.join.count + 1)) =
+      Fin.last rel.join.count := rfl
   simp [FieldRows.residual, FieldRows.weightAt, FieldRows.targetAt, freeRows, cast]
 
 /-- Akita Theorem 7.4, item 1, for the ring reduction: a witness of the relation has a zero
@@ -281,54 +487,64 @@ residual in each field row at each point `α`. -/
 theorem freeRows_holds {w : Table} (holds : rel.Holds w) (α : E) :
     (rel.freeRows α).Holds rel.vars w := by
   intro i
-  rcases Nat.lt_trichotomy i rel.ring with small | rfl | large
-  · rw [show i = ((⟨i, small⟩ : Fin rel.ring) : ℕ) from rfl, freeRows_residual_ring]
-    exact (rel.row ⟨i, small⟩).freeCheck_of_holds (holds.1 ⟨i, small⟩) α
+  rcases Nat.lt_trichotomy i rel.join.count with small | rfl | large
+  · rw [show i = ((⟨i, small⟩ : Fin rel.join.count) : ℕ) from rfl, freeRows_residual_ring,
+      freePoly, Join.eval_poly]
+    exact Finset.sum_eq_zero fun r _ => by
+      have check : (rel.row r).reduced w α = 0 := (rel.row r).freeCheck_of_holds (holds.1 r) α
+      rw [← reducedEval_apply, ← RingRow.reduced_eq, check, mul_zero, ite_self]
   · rw [freeRows_residual_scalar, holds.2, sub_self]
   · exact (rel.freeRows α).residual_of_count_le rel.vars w large
 
 open Classical in
 /-- The bad set of the point `α` of the quotient-free reduction for the witness `w`: the roots of
-the residual of one ring row that does not hold (Akita Theorem 7.4, item 2). -/
+the residual of the row over `E` of one ring row that does not hold (Akita Theorem 7.4,
+item 2). -/
 noncomputable def freeBad (w : Table) : Finset E :=
-  if fails : ∃ r, ¬ (rel.row r).Holds w then (rel.row fails.choose).freeBad w else ∅
+  if fails : ∃ r, ¬ (rel.row r).Holds w then
+    (rel.freePoly w (rel.join.slot fails.choose)).roots.toFinset
+  else ∅
 
-/-- Akita Theorem 7.4, item 2: the bad set of `α` has at most `d_max − 1` points. -/
+/-- Akita Theorem 7.4, item 2: the bad set of `α` has at most `d_max − 1` points. A joined row
+counts once, at the degree of its planes. -/
 theorem freeBad_card_le {largest : ℕ} (degrees : ∀ r, (rel.row r).degree ≤ largest) (w : Table) :
     (rel.freeBad w).card ≤ largest - 1 := by
+  classical
   unfold freeBad
   split
-  · rename_i fails
-    have degree := degrees fails.choose
-    exact ((rel.row fails.choose).freeBad_card_le w).trans (by omega)
+  · exact (Multiset.toFinset_card_le _).trans ((card_roots' _).trans
+      (rel.join.natDegree_poly_le _ fun r => by
+        have degree := natDegree_rep_lt ((rel.row r).residual w)
+        have bound := degrees r
+        omega))
   · simp
 
 /-- Field rows that hold at a point `α` outside the bad set give the relation (Akita
-Theorem 7.4, item 2). -/
-theorem holds_of_freeRows (injective : Function.Injective (algebraMap Zq E)) {w : Table} {α : E}
-    (outside : α ∉ rel.freeBad w) (rows : (rel.freeRows α).Holds rel.vars w) :
-    rel.Holds w := by
-  have checks (r : Fin rel.ring) : (rel.row r).FreeCheck w α := by
-    rw [RingRow.FreeCheck, ← freeRows_residual_ring]
-    exact rows r
+Theorem 7.4, item 2). The planes of a joined row are the coordinates of one polynomial over `E`
+in a basis over `Z_q`, so this polynomial is zero only when each plane is zero. -/
+theorem holds_of_freeRows {w : Table} {α : E} (outside : α ∉ rel.freeBad w)
+    (rows : (rel.freeRows α).Holds rel.vars w) : rel.Holds w := by
+  classical
   refine ⟨?_, ?_⟩
   · by_contra fails
     have some : ∃ r, ¬ (rel.row r).Holds w := not_forall.mp fails
     rw [freeBad, dite_eq_left some] at outside
-    exact some.choose_spec
-      ((rel.row some.choose).holds_of_freeCheck injective outside (checks some.choose))
-  · have scalar := rows rel.ring
+    refine outside (Multiset.mem_toFinset.mpr (mem_roots'.mpr
+      ⟨rel.join.poly_ne_zero rel.independent fun zero => some.choose_spec ?_, ?_⟩))
+    · rw [RingRow.Holds, ← mk_rep ((rel.row some.choose).residual w), zero, map_zero]
+    · rw [IsRoot.def]
+      exact (rel.freeRows_residual_ring w α _).symm.trans (rows _)
+  · have scalar := rows rel.join.count
     rw [freeRows_residual_scalar] at scalar
     exact sub_eq_zero.mp scalar
 
 variable [Fintype E]
 
 /-- The quotient-free reduction of the relation (Akita Section 7.3 and Theorem 7.4), for ring rows
-of the degrees `d_r ≤ d_max` and `n_rel = ring + 1 ≤ 2^s_rel` rows. Its bad set has at most
-`d_max − 1` points. -/
-noncomputable def free (injective : Function.Injective (algebraMap Zq E)) (largest batch : ℕ)
-    (degrees : ∀ r, (rel.row r).degree ≤ largest) (fits : rel.ring + 1 ≤ 2 ^ batch) :
-    Reduction E where
+of the degrees `d_r ≤ d_max` and `n_rel = count + 1 ≤ 2^s_rel` rows over `E`. Its bad set has at
+most `d_max − 1` points. -/
+noncomputable def free (largest batch : ℕ) (degrees : ∀ r, (rel.row r).degree ≤ largest)
+    (fits : rel.join.count + 1 ≤ 2 ^ batch) : Reduction E where
   vars := rel.vars
   batch := batch
   Holds := rel.Holds
@@ -337,7 +553,7 @@ noncomputable def free (injective : Function.Injective (algebraMap Zq E)) (large
   bad := rel.freeBad
   badBound := largest - 1
   bad_card := rel.freeBad_card_le degrees
-  sound _ _ outside rows := rel.holds_of_freeRows injective outside rows
+  sound _ _ outside rows := rel.holds_of_freeRows outside rows
   complete _ α holds := rel.freeRows_holds holds α
 
 end FlatRelation

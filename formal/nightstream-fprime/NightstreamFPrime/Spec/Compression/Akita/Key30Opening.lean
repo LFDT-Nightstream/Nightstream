@@ -260,9 +260,10 @@ noncomputable def Tower.body (accept : Prefix Wire (Option Coord → E) total �
 `registered`: the premise of Akita Lemma 9.1, "correct preprocessing": the commitment `registry`
 of the verifier setup is the output of the commitment algorithm `commit` for a table, the setup
 prefix `flat` is this table with zeros after its cells, and `reference` is the decommitment of
-the algorithm (`Batch.registered_commit`). `bounded₅`, `bounded₆` and
-`boundedL`: a member of the base family that passes the filter has `‖c‖_mul,2 ≤ Γ` for `Γ` = 18
-(Akita (23) and Theorem H.1). `next` and `inside`: the fold challenge of the terminal is the stage
+the algorithm (`Batch.registered_commit`). `filtered₅`, `filtered₆` and
+`filteredL`: each filter accepts only elements that the fixed-point predicate of an accurate table
+accepts for `Γ` = 18 (`TrigTable.Filtered`), so a member that passes it has `‖c‖_mul,2 ≤ Γ`
+(Akita (23) and Theorem H.1; `TrigTable.Filtered.mulBound`). `next` and `inside`: the fold challenge of the terminal is the stage
 after the stages of the level 6, and it is a stage of the transcript. `decodeL`: the decoder of
 the terminal is `draw` of the family `(31, 11)` with the filter `keepL`. -/
 structure Tower.Drawn (keepL : Rq Key30.terminal.innerDegree → Prop) : Prop where
@@ -274,17 +275,14 @@ structure Tower.Drawn (keepL : Rq Key30.terminal.innerDegree → Prop) : Prop wh
   injective₃ : Function.Injective o.block₃
   injective₄ : Function.Injective o.block₄
   injective₅ : Function.Injective o.block₅
-  bounded₅ : ∀ c ∈ SparseFamily level₅.shape.innerDegree 31 11, o.keep₅ c →
-    MulBound norm₅.operator c
+  filtered₅ : TrigTable.Filtered norm₅.operator o.keep₅
   injective₆ : Function.Injective o.block₆
-  bounded₆ : ∀ c ∈ SparseFamily level₆.shape.innerDegree 31 11, o.keep₆ c →
-    MulBound norm₆.operator c
+  filtered₆ : TrigTable.Filtered norm₆.operator o.keep₆
   next : Terminal.start o.terminal = Tier.finish sixth
   inside : Terminal.start o.terminal < total
   injectiveL : Function.Injective (Terminal.block o.terminal)
   decodeL : Terminal.decode o.terminal = draw (SparseFamily Key30.terminal.innerDegree 31 11) keepL
-  boundedL : ∀ c ∈ SparseFamily Key30.terminal.innerDegree 31 11, keepL c →
-    MulBound normTerminal.operator c
+  filteredL : TrigTable.Filtered normTerminal.operator keepL
 
 variable {o split read start} {keepL : Rq Key30.terminal.innerDegree → Prop}
   {accept : Prefix Wire (Option Coord → E) total → Prop}
@@ -337,7 +335,7 @@ theorem Tower.suffix (drawn : o.Drawn split read start keepL) (slots : 28 ≤ Fi
     intro challenge decoded
     unfold Terminal.family at decoded
     rw [drawn.decodeL] at decoded
-    exact drawn.boundedL _ (draw_mem decoded.choose_spec).1 (draw_mem decoded.choose_spec).2
+    exact (drawn.filteredL.mulBound (by decide) (draw_mem decoded.choose_spec).2)
   have chanceL : slotChance (Terminal.decode o.terminal) ≤ 1 / (fieldModulus : ℝ) ^ 2 := by
     rw [drawn.decodeL]
     exact slotChance_draw _ _
@@ -368,10 +366,10 @@ theorem Tower.suffix (drawn : o.Drawn split read start keepL) (slots : 28 ≤ Fi
       drawn.injective₄ (draw_units 6 (by decide)) ⟨1, draw_sparse⟩
       drawn.injective₅ (draw_units 5 (by decide)) ⟨2, draw_sparse⟩
       (fun _ decoded =>
-        drawn.bounded₅ _ (draw_mem decoded.choose_spec).1 (draw_mem decoded.choose_spec).2)
+        (drawn.filtered₅.mulBound (by decide) (draw_mem decoded.choose_spec).2))
       drawn.injective₆ (draw_units 5 (by decide)) ⟨2, draw_sparse⟩
       (fun _ decoded =>
-        drawn.bounded₆ _ (draw_mem decoded.choose_spec).1 (draw_mem decoded.choose_spec).2)
+        (drawn.filtered₆.mulBound (by decide) (draw_mem decoded.choose_spec).2))
       drawn.next drawn.inside drawn.injectiveL unitsL boundedL linked,
     towerError_le (member := member) (scan := Tower.scan split) (reference := o.reference)
       (registry := o.registry) (β := o.β) (key := o.key) (openKey := o.openKey)

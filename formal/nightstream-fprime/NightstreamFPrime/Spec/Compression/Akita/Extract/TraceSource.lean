@@ -193,6 +193,8 @@ noncomputable def traceRelation (st : TraceStatement O E)
   ring := O.traceRowCount
   row := traceRows O fold st challenge
   inside r c j _ _ read := (traceRows_below O fold st challenge r c j _ read).trans_le fits
+  join := Join.plain E O.traceRowCount
+  independent := Join.plain_independent (algebraMap Zq E).injective _
   weight := traceScalarWeight O fold st
   value := st.value
 
@@ -414,7 +416,7 @@ variable [Fintype E] (st challenge μ fits)
 Theorem 7.4), with `2^batch` places for the rows. Its bad set has at most `d_max − 1` points. -/
 noncomputable def traceReduction (batch : ℕ) (rowsFit : O.traceRowCount + 1 ≤ 2 ^ batch) :
     Reduction E :=
-  (traceRelation O fold st challenge μ fits).free (algebraMap Zq E).injective O.largestDegree
+  (traceRelation O fold st challenge μ fits).free O.largestDegree
     batch (traceRows_degree_le O fold st challenge) rowsFit
 
 variable [DecidableEq E]

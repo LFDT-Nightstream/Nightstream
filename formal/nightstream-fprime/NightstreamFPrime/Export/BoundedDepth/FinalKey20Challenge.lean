@@ -10,8 +10,9 @@ sparse challenge families (SPEC.md, Algorithm 10; Akita, ePrint 2026/1983, revis
   level 1, `(31, 0)` for the key group and for the level 2, and the base families `(31, 0)` of
   the level 3 and `(31, 11)` of the levels 4 and 5 and of the terminal with the filters `keep₃`,
   `keep₄`, `keep₅` and `keepL`. It has no hypothesis on units, on `‖c‖_1` or on the slot
-  probability. Its hypotheses on the challenges are `bounded₃` to `boundedL`: a member that
-  passes the filter has `‖c‖_mul,2 ≤ Γ` (Akita Appendix H, Theorem H.1).
+  probability. Its hypotheses on the challenges are `filtered₃` to `filteredL`: each filter
+  accepts only elements that the fixed-point predicate of an accurate table accepts
+  (`TrigTable.Filtered`; Akita Appendix H, Theorem H.1).
 - `Opening.Drawn.sized` gives `Opening.Sized` with the slot probability `p = 1/q²`.
 - `verifier_sound_drawn` is `verifier_sound` for a family of openings with `Opening.Drawn`.
 - `history_sound_drawn` and `history_knowledge_drawn` are `history_sound` and
@@ -99,9 +100,10 @@ local notation "fifth" =>
 decoders `draw` of the sparse challenge families of the Akita code. `decode` to `decodeL`,
 `mass`, `peak` and `weight₁` to `weight₅`: the decoders and the numbers `ω` and `c_max` of `o`
 are those of the families. `keep₃`, `keep₄`, `keep₅` and `keepL` are the filters of the levels 3
-to 5 and of the terminal, and `bounded₃` to `boundedL` state that a member of the base family
-that passes the filter has `‖c‖_mul,2 ≤ Γ` for `Γ` = 13, 18, 18 and 18 (Akita (23) and
-Theorem H.1). The other fields are those of `Opening.Sized` that are not about a challenge
+to 5 and of the terminal, and `filtered₃` to `filteredL` state that each filter accepts only elements
+that the fixed-point predicate of an accurate table accepts for `Γ` = 13, 18, 18 and 18, so a
+member that passes it has `‖c‖_mul,2 ≤ Γ` (Akita (23) and Theorem H.1;
+`TrigTable.Filtered.mulBound`). The other fields are those of `Opening.Sized` that are not about a challenge
 family. -/
 structure Opening.Drawn (keep₃ : Rq level₃.shape.innerDegree → Prop)
     (keep₄ : Rq level₄.shape.innerDegree → Prop) (keep₅ : Rq level₅.shape.innerDegree → Prop)
@@ -121,20 +123,20 @@ structure Opening.Drawn (keep₃ : Rq level₃.shape.innerDegree → Prop)
   injective₃ : Function.Injective o.block₃
   decode₃ : o.decode₃ = draw (SparseFamily _ 31 0) keep₃
   weight₃ : o.weight₃ = 31
-  bounded₃ : ∀ c ∈ SparseFamily _ 31 0, keep₃ c → MulBound norm₃.operator c
+  filtered₃ : TrigTable.Filtered norm₃.operator keep₃
   injective₄ : Function.Injective o.block₄
   decode₄ : o.decode₄ = draw (SparseFamily _ 31 11) keep₄
   weight₄ : o.weight₄ = 53
-  bounded₄ : ∀ c ∈ SparseFamily _ 31 11, keep₄ c → MulBound norm₄.operator c
+  filtered₄ : TrigTable.Filtered norm₄.operator keep₄
   injective₅ : Function.Injective o.block₅
   decode₅ : o.decode₅ = draw (SparseFamily _ 31 11) keep₅
   weight₅ : o.weight₅ = 53
-  bounded₅ : ∀ c ∈ SparseFamily _ 31 11, keep₅ c → MulBound norm₅.operator c
+  filtered₅ : TrigTable.Filtered norm₅.operator keep₅
   next : Terminal.start o.terminal = Tier.finish fifth
   inside : Terminal.start o.terminal < total
   injectiveL : Function.Injective (Terminal.block o.terminal)
   decodeL : Terminal.decode o.terminal = draw (SparseFamily _ 31 11) keepL
-  boundedL : ∀ c ∈ SparseFamily _ 31 11, keepL c → MulBound normTerminal.operator c
+  filteredL : TrigTable.Filtered normTerminal.operator keepL
   registered : ∀ anchor, o.honest.Opens o.factorBound o.sourceBound (o.key 0) (o.bound anchor 0)
     (keyBase (FinalVerifier.Setup.params S₀ o.shape))
   covers : o.factorBound * (root.fold 0).sourceBound (root.shape 0) + 2 * o.mass 0 * o.sourceBound ≤
@@ -185,7 +187,7 @@ theorem Opening.Drawn.sized
     exact Key20.draw_sparse⟩
   bounded₃ challenge decoded := by
     rw [drawn.decode₃] at decoded
-    exact drawn.bounded₃ _ (draw_mem decoded.choose_spec).1 (draw_mem decoded.choose_spec).2
+    exact drawn.filtered₃.mulBound (by decide) (draw_mem decoded.choose_spec).2
   injective₄ := drawn.injective₄
   units₄ := by
     rw [drawn.decode₄]
@@ -195,7 +197,7 @@ theorem Opening.Drawn.sized
     exact Key20.draw_sparse⟩
   bounded₄ challenge decoded := by
     rw [drawn.decode₄] at decoded
-    exact drawn.bounded₄ _ (draw_mem decoded.choose_spec).1 (draw_mem decoded.choose_spec).2
+    exact drawn.filtered₄.mulBound (by decide) (draw_mem decoded.choose_spec).2
   injective₅ := drawn.injective₅
   units₅ := by
     rw [drawn.decode₅]
@@ -205,7 +207,7 @@ theorem Opening.Drawn.sized
     exact Key20.draw_sparse⟩
   bounded₅ challenge decoded := by
     rw [drawn.decode₅] at decoded
-    exact drawn.bounded₅ _ (draw_mem decoded.choose_spec).1 (draw_mem decoded.choose_spec).2
+    exact drawn.filtered₅.mulBound (by decide) (draw_mem decoded.choose_spec).2
   next := drawn.next
   inside := drawn.inside
   injectiveL := drawn.injectiveL
@@ -216,7 +218,7 @@ theorem Opening.Drawn.sized
   boundedL challenge decoded := by
     unfold Terminal.family at decoded
     rw [drawn.decodeL] at decoded
-    exact drawn.boundedL _ (draw_mem decoded.choose_spec).1 (draw_mem decoded.choose_spec).2
+    exact drawn.filteredL.mulBound (by decide) (draw_mem decoded.choose_spec).2
   chance g := by
     rw [drawn.decode]
     exact Key20.slotChance_draw _ _

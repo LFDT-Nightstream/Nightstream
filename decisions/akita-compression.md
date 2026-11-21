@@ -201,7 +201,7 @@ The main claim is `Claims.Akita.key20_verifier_sound`, from
 prover with at most `Q` queries to one uniform table of stage answers makes
 the final verifier accept a statement that has no valid proof with probability
 at most
-`(Q + 1) · (runCost + 317735/(1024·|K|) + 49/8 · p) + (Q + 1) · 144/budget +
+`(Q + 1) · (runCost + 317479/(1024·|K|) + 49/8 · p) + (Q + 1) · 144/budget +
 breakChance`. `runCost` is the sum of the error bounds of one run of Π_CCS and
 of the argument. `p` is the largest probability of one fold challenge, and the
 claim has `p = 1/q²` for the Lean decoders. Each stage error of the opening
@@ -245,8 +245,12 @@ are the claims of `Claims.Akita`, with the parts of the proof: Akita Theorem
 claims of `Claims.AkitaKey30` are the same results for `key30.aks` (section
 "The results for `key30.aks`"). Their verifier is a Lean model that differs
 from the pinned Akita code. The operator bound of the filtered challenge
-families is their hypothesis: the paper proves it for its filter (Akita
-Theorem H.1), and Lean has no model of that filter. The claims that end in
+families is a Lean theorem for the fixed-point filter of the paper and of the
+pinned code (Akita Theorem H.1, right inclusion, with the spectral formula
+(287): `Spec.Compression.Akita.TrigTable.mulBound`). The hypothesis that stays
+is the error bound of the integer tables of the filter
+(`Spec.Compression.Akita.TrigTable.Filtered`): Lean does not have the tables
+of the code. The claims that end in
 `_with_akita` do not use these results, so they keep the premises of this
 section ([security model](../formal/nightstream-fprime/SECURITY_MODEL.md),
 trust item 7).
@@ -337,10 +341,10 @@ that need a decision.
   with the last alignment of the code to 1,024 cells. The model has no
   alignment zeros, and each alignment of the code before the last one is empty
   at each level of the two files (`tests/AkitaSchedules.lean`). One order
-  stays: the code has one row for the planes of the carrier row (difference
-  (p)), so in the quotient segment of this row the code has the order digit,
-  plane, coefficient of Akita (348), and the model has the order plane, digit,
-  coefficient in the same cells. The batching weights of the root are
+  stays: in the quotient segment of the carrier row the code has the order
+  digit, plane, coefficient of Akita (348), and the model has the order plane,
+  digit, coefficient in the same cells, because the model has the quotient of
+  each plane as one polynomial over `Z_q` (difference (p)). The batching weights of the root are
   independent draws, as in the code, and not the powers of one challenge, as in
   the paper (`Spec.Compression.Akita.Extract.density_batched_le`). The model
   has one claim for each group and the extension degree 2 in its trace and
@@ -370,10 +374,9 @@ that need a decision.
   (`Spec.Compression.Akita.Extract.mass_workZeros_le`). The bits are schedule
   data by the rule of the code (`Spec.Compression.Akita.Extract.workBits`,
   `Spec.Compression.Akita.Extract.foldWorkBits`), from the losses of the
-  sites of the code in the order of its plan. At three sites the Lean loss is
-  not the loss of the code: the point of the row variables at the root and at
-  level 1 of `key20.aks` (difference (p)), the leaves of the range tree, and
-  the batch of the virtual evaluations. At each of them the Lean bits are at
+  sites of the code in the order of its plan. At two sites the Lean loss is
+  not the loss of the code: the leaves of the range tree, and the batch of the
+  virtual evaluations. At each of them the Lean bits are at
   most the bits of the code, so the Lean verifier accepts each transcript that
   the code accepts at these sites. This is a derivation from the code, not a
   Lean theorem. Lean has no site `SetupBatch`, which the plan of the code has
@@ -479,31 +482,57 @@ that need a decision.
   in the file (`Spec.Compression.Akita.Key30.level₃_sized`).
 - (o) At a quotient with 16 digits of the base 16, which levels 1 to 3 of
   `key30.aks` have, the code uses the residues from `−8 · Σ_u 16^u` to `7 · Σ_u
-  16^u` (`crates/akita-algebra/src/ring/cyclotomic/decomposition.rs` of the
-  Akita code). The least absolute residue of an element near `q/2` has no 16
-  balanced digits (`Spec.Compression.Akita.Key30.not_covers`). Lean has no
-  model of this digit lift, so it has no honest prover for these levels and no
-  acceptance result for `key30.aks`.
+  16^u`: an element above `min(T_δ, ⌊q/2⌋)` has the residue `x − q`
+  (`decompose_centering_threshold` in
+  `crates/akita-algebra/src/ring/cyclotomic/decomposition.rs` of the Akita
+  code; Akita Section 3.3). The Lean digits are those of this lift
+  (`Spec.Compression.Akita.lift`, `Spec.Compression.Akita.fieldDigit_sum`).
+  The condition of the honest quotient digits was a range of the least
+  absolute residue, which is false at these levels. It is now `q ≤ b^δ`
+  (`Spec.Compression.Akita.FlatRelation.withQuotients_holds`), which holds at
+  the root and at levels 1 to 3 (`Spec.Compression.Akita.Key30.covers`). So
+  the honest prover of a fold with quotient digits has its result at the
+  numbers of `key30.aks`. Lean has no acceptance result for `key30.aks`: it
+  has no honest prover for the offloaded check of the root (Stage 3) and no
+  composition of the levels of this schedule.
 
-- (p) The rows of a fold with coefficient packing. The pinned code has one
-  consistency row for each group: it joins the planes of the carrier row, Akita
-  (102), with the basis of the extension field before the evaluation at `α`
-  (`crates/akita-types/src/proof/coefficient_packing_relation.rs` and
-  `crates/akita-verifier/src/coefficient_packing_relation/compact.rs` of the
-  Akita code). The Lean relation has one row for each plane
-  (`Spec.Compression.Akita.evaluationRow`). The other rows are in the order of
-  the code. The number of rows of the code is `Σ_g (1 + n_A + n_B) +
-  n_D`, plus `2 · (G + 1)` at a level with compression digits, plus one opening
-  row (`crates/akita-params/src/layout/params.rs`). So the batching point
-  `τ_1` has 5 coordinates in the code and 6 in Lean at the root of `key20.aks`,
-  and 4 and 5 at its level 1. The other levels of `key20.aks` and each level of
-  `key30.aks` have the same number in the two. The Lean bound is larger by
-  `1/|K|` at each of these two levels. The terms of the fused sum-check are the
-  same in the code and in Lean: the claim `γ · s + V + η · v`, with the opening
-  row in `V`, and the final check with the weights of the relation, of the
-  opening row, of the norm and of the binary support
-  (`crates/akita-verifier/src/stages/stage2.rs` of the Akita code;
-  `Spec.Compression.Akita.fusedCheck`).
+- (p) Removed. The rows of a fold with coefficient packing. The pinned code
+  has one consistency row for each group: it joins the planes of the carrier
+  row, Akita (102), with the basis of the extension field before the
+  evaluation at `α` (`crates/akita-types/src/proof/coefficient_packing_relation.rs`
+  and `crates/akita-verifier/src/coefficient_packing_relation/compact.rs` of
+  the Akita code). The paper has this row: the carrier row has the coefficient
+  field `E`, its multipliers have the basis elements `β_t`, its quotient is
+  `Q_car = Σ_t β_t · Σ_j q_{t,j} · Y^j`, and it counts once at the degree
+  `d_car` (Akita Section 7.3, (110) to (113), and the text after Lemma 7.1).
+  The Lean relation now has this row. It has one ring row over `Z_q` for each
+  plane (`Spec.Compression.Akita.evaluationRow`), and
+  `Spec.Compression.Akita.Join` joins the planes into one row over `E` with
+  the basis as coefficients (`Spec.Compression.Akita.FlatRelation.freeRows`,
+  `Spec.Compression.Akita.LiftRelation.liftRows`). The soundness is the root
+  count of one polynomial over `E`: the polynomials of the planes are its
+  coordinates in a basis over `Z_q`, so it is zero only when each plane is
+  zero (`Spec.Compression.Akita.Join.poly_ne_zero`), and it has at most
+  `2 · d − 1` roots on the quotient-lift route and `d − 1` on the
+  quotient-free route (`Spec.Compression.Akita.LiftRelation.liftBad_card_le`,
+  `Spec.Compression.Akita.FlatRelation.freeBad_card_le`). Lemma 7.1 of the
+  paper has its statement for rows over `Z_q`, and the paper applies it to the
+  carrier row without a separate proof. The number of rows over `E` is that of
+  the code, `Σ_g (1 + n_A + n_B) + n_D`, plus `2 · (G + 1)` at a level with
+  compression digits (`crates/akita-params/src/layout/params.rs`;
+  `Spec.Compression.Akita.OpeningShape.rowCount`,
+  `Spec.Compression.Akita.Batch.rowCount`), and the batching point `τ_1` has
+  the number of coordinates of the code at each level of the two files: 5 at
+  the root of `key20.aks` and 4 at its level 1, where the model had 6 and 5.
+  The files do not hold these two numbers, and `tests/AkitaSchedules.lean`
+  computes them from the fields of the files with the formulas of the code.
+  The bound of `key20.aks` is smaller by `1/(8 · |K|)` at each of these two
+  levels: `317479/(1024 · |K|)` in place of `317735/(1024 · |K|)`. The terms
+  of the fused sum-check are the same in the code and in Lean: the claim
+  `γ · s + V + η · v`, with the opening row in `V`, and the final check with
+  the weights of the relation, of the opening row, of the norm and of the
+  binary support (`crates/akita-verifier/src/stages/stage2.rs` of the Akita
+  code; `Spec.Compression.Akita.fusedCheck`).
 
 ### The results for `key30.aks`
 

@@ -113,15 +113,31 @@ noncomputable def scalarWeight (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E
       Akita.scalarWeight (B.opening g) (B.fold g) (β g) (st.point g) y
     else 0
 
-/-- The number of ring rows of the group `g` before the rows of `D`. -/
-def groupCount (g : Fin n) : ℕ :=
-  B.planes g + ((B.shape g).innerRank + (B.shape g).slices * (B.shape g).outerRank)
+/-- The number of ring rows of the group `g` after its carrier row and before the rows of
+`D`. -/
+def groupTail (g : Fin n) : ℕ :=
+  (B.shape g).innerRank + (B.shape g).slices * (B.shape g).outerRank
 
-/-- The number of ring rows of one fold with opening groups. -/
-def rowCount : ℕ :=
-  ∑ g, B.groupCount g + (1 * B.openRank +
-    (∑ g, firstRank (B.shape g).chain + (firstRank B.chain +
-      (∑ g, secondRank (B.shape g).chain + secondRank B.chain))))
+/-- The number of ring rows over `Z_q` of the group `g` before the rows of `D`: each plane of the
+carrier row is one row. -/
+def groupPlaneRows (g : Fin n) : ℕ := B.planes g + B.groupTail g
+
+/-- The number of rows over `E` of the group `g` before the rows of `D`: the carrier row (102)
+is one row. -/
+def groupCount (g : Fin n) : ℕ := 1 + B.groupTail g
+
+/-- The number of ring rows of one fold with opening groups after the rows of the groups. -/
+def restCount : ℕ :=
+  1 * B.openRank + (∑ g, firstRank (B.shape g).chain + (firstRank B.chain +
+    (∑ g, secondRank (B.shape g).chain + secondRank B.chain)))
+
+/-- The number of ring rows over `Z_q` of one fold with opening groups. -/
+def planeRows : ℕ := ∑ g, B.groupPlaneRows g + B.restCount
+
+/-- The number of rows over `E` of one fold with opening groups before the scalar row, which is
+the number of rows of the relation matrix of the pinned code (`relation_matrix_row_count` in
+`crates/akita-params/src/layout/params.rs` of the Akita code). -/
+def rowCount : ℕ := ∑ g, B.groupCount g + B.restCount
 
 /-- `d_max`, the largest ring degree of a row (Akita Theorem 7.4). -/
 def largestDegree : ℕ :=
@@ -138,7 +154,7 @@ variable (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E) (st : B.Statement E)
 /-- The ring rows of the group `g` before the rows of `D`: the planes of the carrier row (102),
 the rows (104) of `A_g`, and for each slice the rows (105) of `B_g`, with the addresses moved to
 the flat witness of the fold. -/
-noncomputable def groupRows (g : Fin n) : Fin (B.groupCount g) → RingRow :=
+noncomputable def groupRows (g : Fin n) : Fin (B.groupPlaneRows g) → RingRow :=
   Fin.append
     (fun t => (evaluationRow (B.opening g) (B.fold g) (β g) (st.point g) (challenge g) t).relocate
       (B.relocate g))
@@ -152,7 +168,7 @@ noncomputable def groupRows (g : Fin n) : Fin (B.groupCount g) → RingRow :=
 code: for each group the rows `groupRows`, then the rows (106) of `D`, and the rows (47): for each
 group the rows of `F_1`, the rows of `H_1`, for each group the rows of `F_2`, and the rows of
 `H_2`. -/
-noncomputable def flatRows : Fin B.rowCount → RingRow :=
+noncomputable def flatRows : Fin B.planeRows → RingRow :=
   Fin.append (gather (B.groupRows β st challenge))
     (Fin.append (imageRow B.chain (B.openForm st.openKey) B.openFirstCell st.openPayload)
       (Fin.append
@@ -176,7 +192,7 @@ theorem openForm_below (key : B.OpenKey) (j : Fin (1 * B.openRank)) :
       exact read ▸ B.relocate_lt column.1
         ((B.opening column.1).partialCell_lt (B.fold column.1) column.2 k h)
 
-theorem flatRows_below (r : Fin B.rowCount) : (B.flatRows β st challenge r).Below B.cells := by
+theorem flatRows_below (r : Fin B.planeRows) : (B.flatRows β st challenge r).Below B.cells := by
   have moves : ∀ g, ∀ x < (B.opening g).cells (B.fold g), B.relocate g x < B.cells :=
     fun g _ small => B.relocate_lt g small
   revert r
@@ -215,7 +231,7 @@ theorem flatRows_below (r : Fin B.rowCount) : (B.flatRows β st challenge r).Bel
       (fun _ _ => (B.opening g).secondCell_lt (B.fold g) _) r) (moves g)
   · exact secondRow_below B.chain _ _ _ (fun _ _ => B.openSecondCell_lt _)
 
-theorem flatRows_degree_le (r : Fin B.rowCount) :
+theorem flatRows_degree_le (r : Fin B.planeRows) :
     (B.flatRows β st challenge r).degree ≤ B.largestDegree := by
   revert r
   refine (forall_append (RingRow.degree · ≤ B.largestDegree) _ _).mpr
@@ -264,7 +280,7 @@ theorem flatRows_degree_sum : ∑ r, (B.flatRows β st challenge r).degree = B.d
       t).degree = B.carrierDegree g := fun _ _ => rfl
   have inner : ∀ g a, (innerRow (B.opening g) (B.fold g) (st.key g) (challenge g) a).degree =
       (B.shape g).innerDegree := fun _ _ => rfl
-  unfold flatRows groupRows degreeSum groupDegrees rowCount groupCount
+  unfold flatRows groupRows degreeSum groupDegrees planeRows groupPlaneRows groupTail restCount
   simp only [sum_append RingRow.degree, sum_gather RingRow.degree, moved, planes, inner,
     imageRow_degree, firstRow_degree, secondRow_degree, Finset.sum_const, Finset.card_univ,
     Fintype.card_fin, smul_eq_mul]
@@ -275,9 +291,16 @@ group, on the quotient-free route): the ring rows `flatRows` and the scalar row 
 has `μ` variables, with `cells < 2^μ`. -/
 noncomputable def flatRelation (μ : ℕ) (fits : B.cells ≤ 2 ^ μ) : FlatRelation E where
   vars := μ
-  ring := B.rowCount
+  ring := B.planeRows
   row := B.flatRows β st challenge
   inside r c j _ _ read := (B.flatRows_below β st challenge r c j _ read).trans_le fits
+  join := (Join.gather fun g => (Join.all (β g)).append (Join.plain E (B.groupTail g))).append
+    (Join.plain E B.restCount)
+  independent := Join.append_independent
+    (Join.gather_independent fun g => Join.append_independent
+      (Join.all_independent (β g).linearIndependent)
+      (Join.plain_independent (algebraMap Zq E).injective _))
+    (Join.plain_independent (algebraMap Zq E).injective _)
   weight := B.scalarWeight β st μ
   value := st.value
 
@@ -511,7 +534,7 @@ Section 7.3 and Theorem 7.4), with `2^batch` places for the rows. Its bad set ha
 `d_max − 1` points. -/
 noncomputable def flatReduction (batch : ℕ) (rowsFit : B.rowCount + 1 ≤ 2 ^ batch) :
     Reduction E :=
-  (B.flatRelation β st challenge μ fits).free (algebraMap Zq E).injective B.largestDegree batch
+  (B.flatRelation β st challenge μ fits).free B.largestDegree batch
     (B.flatRows_degree_le β st challenge) rowsFit
 
 variable [DecidableEq E]

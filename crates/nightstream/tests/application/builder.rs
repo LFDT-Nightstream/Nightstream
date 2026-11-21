@@ -36,6 +36,9 @@ fn rust_defined_addition_uses_the_same_application_interface() {
             .into();
     }
     let circuit = builder.finish(outputs).unwrap();
+    let clone = circuit.clone();
+    assert_eq!(clone.private_inputs(), private);
+    assert!(std::ptr::eq(circuit.private_inputs(), clone.private_inputs()));
     let input = [1, 2, 3, 4].map(Fq::from_u64);
     let private = [5, 6, 7, 8].map(Fq::from_u64);
     let witness = circuit.execute(input, &private).unwrap();

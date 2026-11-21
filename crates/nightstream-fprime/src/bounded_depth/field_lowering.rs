@@ -189,10 +189,11 @@ impl FieldLowering {
                     substituted.terms.push((input, coefficient));
                 }
             }
-            let substituted = normalized(substituted);
+            let mut substituted = normalized(substituted);
             if substituted.terms.len() > 128 || substituted.terms.iter().any(|&(input, _)| input >= column) {
                 continue;
             }
+            substituted.terms.shrink_to_fit();
             result.affine.insert(column, (index, substituted));
             result.removed.insert(index);
             result.dead.insert(column);

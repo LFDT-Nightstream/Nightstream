@@ -355,6 +355,8 @@ impl StepPackage {
                 *rows = Vec::new();
             }
         }
+        self.field_lowering.removed.clear();
+        self.field_lowering.dead.clear();
         self.packed_booleans.removed = Vec::new();
         self.guard_fusion = guard_fusion::GuardFusion::default();
         self.word_packing = word_packing::WordPacking::default();

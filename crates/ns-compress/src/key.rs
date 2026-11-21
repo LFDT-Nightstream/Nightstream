@@ -133,19 +133,20 @@ impl ProverKey {
     pub fn shared(blocks: usize) -> Result<Arc<Self>, Error> {
         static KEYS: [Mutex<Weak<ProverKey>>; SCHEDULES.len()] = [const { Mutex::new(Weak::new()) }; SCHEDULES.len()];
         let index = schedule_index(blocks)?;
-        let current = || {
-            KEYS[index]
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-        };
-        if let Some(key) = current().upgrade() {
+        let mut slot = KEYS[index]
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(key) = slot.upgrade() {
             return Ok(key);
         }
-        let key = Arc::new(Self::new(blocks)?);
-        let mut slot = current();
-        if let Some(existing) = slot.upgrade() {
-            return Ok(existing);
-        }
+        // Rayon install can run another setup on the calling worker while it waits.
+        let pool = crate::akita::large_stack_pool().ok_or(Error::Key("could not start the key setup workers"))?;
+        let key = std::thread::Builder::new()
+            .spawn(move || pool.install(|| Self::new(blocks)))
+            .map_err(crate::akita::failed)?
+            .join()
+            .unwrap_or_else(|panic| std::panic::resume_unwind(panic))?;
+        let key = Arc::new(key);
         *slot = Arc::downgrade(&key);
         Ok(key)
     }

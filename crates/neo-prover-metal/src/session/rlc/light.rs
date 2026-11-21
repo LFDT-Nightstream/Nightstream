@@ -3,11 +3,13 @@ use neo_math::{D, F};
 use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use rayon::prelude::*;
+use std::sync::{atomic::Ordering, Arc};
 
-use crate::session::{host_view, Arg, Buffer, Grid, MetalSession};
+use crate::session::{host_view, ActivityCounters, Arg, Buffer, Grid, MetalSession};
 use crate::MetalError;
 
 pub(super) struct LightDeltas {
+    activity: Arc<ActivityCounters>,
     output: Buffer,
     cells: usize,
 }
@@ -15,6 +17,9 @@ pub(super) struct LightDeltas {
 impl LightDeltas {
     pub(super) fn add_to(&self, running: &Mat<F>) -> Mat<F> {
         let deltas = host_view::<i16>(&self.output, self.cells);
+        self.activity
+            .downloaded_bytes
+            .fetch_add(size_of_val(deltas) as u64, Ordering::Relaxed);
         let values = if let Some(constant) = running.virtual_constant_value() {
             deltas
                 .par_iter()
@@ -97,6 +102,10 @@ impl MetalSession {
         );
         encoder.endEncoding();
         self.finish(&command)?;
-        Ok(Some(LightDeltas { output, cells }))
+        Ok(Some(LightDeltas {
+            activity: Arc::clone(&self.activity),
+            output,
+            cells,
+        }))
     }
 }

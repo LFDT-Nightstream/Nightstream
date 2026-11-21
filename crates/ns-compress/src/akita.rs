@@ -118,13 +118,17 @@ impl CpuProverPool {
 }
 
 /// Under fat LTO, Akita's NTT loops need more than rayon's default 2 MB stack.
+pub(crate) fn large_stack_pool() -> Option<&'static ThreadPool> {
+    static POOL: OnceLock<Option<ThreadPool>> = OnceLock::new();
+    POOL.get_or_init(|| ThreadPoolBuilder::new().stack_size(64 << 20).build().ok())
+        .as_ref()
+}
+
 pub(crate) fn on_large_stacks<R: Send>(work: impl FnOnce() -> R + Send) -> R {
     if in_cpu_prover_pool() {
         return work();
     }
-    static POOL: OnceLock<Option<ThreadPool>> = OnceLock::new();
-    let pool = POOL.get_or_init(|| ThreadPoolBuilder::new().stack_size(64 << 20).build().ok());
-    match pool {
+    match large_stack_pool() {
         Some(pool) => pool.install(work),
         None => work(),
     }

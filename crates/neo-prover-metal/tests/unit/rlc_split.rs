@@ -134,10 +134,13 @@ fn packed_light_mix_matches_host_for_constant_and_dense_carries() {
     for running in [Mat::virtual_constant(D, cols, -F::ONE), dense] {
         let witnesses = [&fresh, &running];
         let expected = rlc_mix_witnesses(D * cols, &rotations, &witnesses);
-        let actual = session
-            .mix_rlc_witnesses(&rotations, &witnesses)
-            .unwrap()
-            .finish(&witnesses);
-        assert_eq!(actual, expected);
+        let before = session.activity().downloaded_bytes;
+        let mix = session.mix_rlc_witnesses(&rotations, &witnesses).unwrap();
+        assert_eq!(session.activity().downloaded_bytes, before);
+        assert_eq!(mix.finish(&witnesses), expected);
+        assert_eq!(
+            session.activity().downloaded_bytes - before,
+            (D * cols * size_of::<i16>()) as u64
+        );
     }
 }

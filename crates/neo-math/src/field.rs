@@ -40,7 +40,16 @@ impl Fq {
 
     #[inline]
     const fn reduce128(x: u128) -> Self {
-        let folded = (x >> 64) * TWO_POW_64_MOD_Q as u128 + (x as u64) as u128;
+        Self::reduce_folded(Self::fold128(x))
+    }
+
+    #[inline]
+    const fn fold128(x: u128) -> u128 {
+        (x >> 64) * TWO_POW_64_MOD_Q as u128 + (x as u64) as u128
+    }
+
+    #[inline]
+    const fn reduce_folded(folded: u128) -> Self {
         let (low, carry) = (folded as u64).overflowing_add((folded >> 64) as u64 * TWO_POW_64_MOD_Q);
         let (wrapped, above) = low.overflowing_add(TWO_POW_64_MOD_Q);
         Self(if carry | above { wrapped } else { low })
@@ -350,7 +359,21 @@ impl PrimeField64 for Fq {
     }
 }
 
-impl BinomiallyExtendableAlgebra<Self, 2> for Fq {}
+impl BinomiallyExtendableAlgebra<Self, 2> for Fq {
+    #[inline]
+    fn binomial_mul(&[a0, a1]: &[Self; 2], &[b0, b1]: &[Self; 2], res: &mut [Self; 2], w: Self) {
+        let fold_product = |a: Self, b: Self| Self::fold128(u128::from(a.0) * u128::from(b.0));
+        let quadratic = if w == Self::TWO {
+            2 * fold_product(a1, b1)
+        } else {
+            fold_product(a1, b1 * w)
+        };
+        *res = [
+            Self::reduce_folded(fold_product(a0, b0) + quadratic),
+            Self::reduce_folded(fold_product(a0, b1) + fold_product(a1, b0)),
+        ];
+    }
+}
 
 impl BinomiallyExtendable<2> for Fq {
     /// 2 is not a square modulo `q`, so `u² − 2` is irreducible (Lean

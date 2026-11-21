@@ -1,5 +1,6 @@
 import importlib.util
 from pathlib import Path
+import re
 import subprocess
 import sys
 from tempfile import TemporaryDirectory
@@ -43,6 +44,43 @@ class CheckSpecTests(unittest.TestCase):
         result = check(SPEC.read_text(encoding="utf-8") + "\n`Spec.production_parameter_values` (`12ab`)\n")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("not 16 hex digits", result.stdout)
+
+    def test_unpinned_claim_fails(self):
+        text = re.sub(r"(`Claims\.Foundations\.chain_norm`) \(`[0-9a-f]{16}`\)", r"\1", SPEC.read_text(encoding="utf-8"))
+        result = check(text)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("claim `Claims.Foundations.chain_norm` has no pin", result.stdout)
+
+    def test_unlisted_paper_number_fails(self):
+        result = check(SPEC.read_text(encoding="utf-8") +
+                       "\nHyperNova Lemma 99, Poseidon2 Section 99, Chiesa and Orrù Theorem 99, "
+                       "SuperNeo v1.2 Lemmas 97 and 98, and SuperNeo Lemma 99.\n")
+        self.assertNotEqual(result.returncode, 0)
+        for citation in ("HyperNova Lemma 99", "Poseidon2 Section 99", "Chiesa and Orrù Theorem 99",
+                         "SuperNeo v1.2 Lemma 97", "SuperNeo v1.2 Lemma 98", "SuperNeo Lemma 99"):
+            self.assertIn(f"cites {citation}, which is not a row of the papers table", result.stdout)
+
+    def test_named_citations_cover_their_rows(self):
+        text = SPEC.read_text(encoding="utf-8").replace(
+            "<!-- /papers -->",
+            "| Sample Paper | 2026/99999 | 2026-01-01 | Lemma 3 | Example. |\n<!-- /papers -->")
+        result = check(text + "\nSuperNeo v1.2 Theorems 12 and 13, SuperNeo Lemmas 1, 4 and 10, "
+                       "and Sample Paper Lemma 3. Theorem 99 names no paper.\n")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_named_protocol_paper_fails_when_it_has_no_rows(self):
+        text = re.sub(r"^\| HyperNova \|.*\n", "", SPEC.read_text(encoding="utf-8"), flags=re.M)
+        result = check(text + "\nHyperNova Lemma 99 has no row.\n")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("cites HyperNova Lemma 99, which is not a row", result.stdout)
+
+    def test_direct_eprint_fails_when_the_paper_has_no_rows(self):
+        text = SPEC.read_text(encoding="utf-8")
+        text = re.sub(r"^\| Poseidon2 \|.*\n", "", text, flags=re.M)
+        result = check(text)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("cites ePrint 2023/323 Section 5.3, which is not a row of the papers table",
+                      result.stdout)
 
     def test_specs_folder_fails(self):
         errors = list(CHECK_SPEC.layout_errors(["specs/nebula-superneo.md", "specs/vectors.json"]))

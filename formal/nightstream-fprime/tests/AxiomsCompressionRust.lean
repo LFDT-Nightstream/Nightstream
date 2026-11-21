@@ -14,6 +14,7 @@ import NightstreamFPrime.Export.MatrixPassParity
 #audit_axioms NightstreamFPrime.Spec.Compression.Rust.runError_le_runCount
 #audit_axioms NightstreamFPrime.Spec.Compression.Rust.runBits_spec
 #audit_axioms NightstreamFPrime.Spec.Compression.Rust.runError_le_runBits
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.runBits_of_count
 #audit_axioms NightstreamFPrime.Spec.Compression.Rust.params_run_soundness_bits
 #audit_axioms NightstreamFPrime.Spec.Compression.Rust.error_le_runBits
 #audit_axioms NightstreamFPrime.Spec.Compression.Rust.nextMultiple_spec
@@ -38,6 +39,8 @@ import NightstreamFPrime.Export.MatrixPassParity
 #audit_axioms NightstreamFPrime.Spec.Compression.Rust.nextMultiple_lt
 #audit_axioms NightstreamFPrime.Spec.Compression.Rust.lightClaims_eq
 #audit_axioms NightstreamFPrime.Spec.Compression.Rust.layoutNew_light
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.keyBlocksFor_eq_light
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.layoutNew_light_runBits
 #audit_axioms NightstreamFPrime.Spec.Compression.Rust.layout_soundness
 #audit_axioms NightstreamFPrime.Spec.Compression.Rust.layout_run_soundness
 #audit_axioms NightstreamFPrime.Spec.Compression.Rust.followsK_bind

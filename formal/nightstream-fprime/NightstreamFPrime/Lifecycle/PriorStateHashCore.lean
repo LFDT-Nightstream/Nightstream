@@ -616,74 +616,6 @@ theorem flatConstraints_varsBelow
         subst expression
         exact Expr.VarsBelow.mono _ (assumptions.2 (tailIndex lane)) (by omega)
 
-private theorem prefixHashSpec
-    (interface : Interface) (offset : Nat) (initial : Env)
-    (completedPrefix : Sequence.Prefix initial offset)
-    (assumptions : Assumptions interface offset completedPrefix.current)
-    (member : hashOp interface offset ∈ completedPrefix.operations) :
-    RawFormal.SpecHolds (hashInterface interface) offset
-      completedPrefix.current := by
-  have logical := holdsFlat_implies_holds completedPrefix.current
-    completedPrefix.operations completedPrefix.rows
-  have call := logical (hashOp interface offset) member
-  change RawFormal.Assumptions (hashInterface interface) offset
-      completedPrefix.current →
-    RawFormal.SpecHolds (hashInterface interface) offset
-      completedPrefix.current at call
-  exact call (rawAssumptions interface offset assumptions)
-
-private theorem appendWord
-    (interface : Interface) (offset : Nat) (initial : Env)
-    (initialAssumptions : Assumptions interface offset initial)
-    (initialSpecification : SpecHolds interface offset initial)
-    (before : Sequence.Prefix initial offset) (word : Fin 4)
-    (startEq : offset + localLength before.operations =
-      wordOffset interface offset word)
-    (hashMember : hashOp interface offset ∈ before.operations) :
-    ∃ after : Sequence.Prefix initial offset,
-      after.operations = before.operations ++ [wordOp interface offset word] ∧
-      offset + localLength after.operations =
-        wordOffset interface offset word + CanonicalPublicU64.privateCount := by
-  have agreesBelow : ∀ index, index < offset →
-      before.current index = initial index := by
-    intro index below
-    exact before.agrees index (Or.inl below)
-  have currentAssumptions : Assumptions interface offset before.current :=
-    initialAssumptions
-  have currentSpecification := specHolds_of_agree_below interface offset
-    initial before.current initialAssumptions agreesBelow initialSpecification
-  have currentHash := prefixHashSpec interface offset initial before
-    currentAssumptions hashMember
-  have currentWord := wordSpec_of_spec interface offset before.current
-    currentSpecification currentHash word
-  have childAssumptions := wordAssumptions interface offset
-    currentAssumptions word
-  rcases CanonicalPublicU64.complete (wordInterface interface offset word)
-      before.current (wordOffset interface offset word) childAssumptions
-      currentWord with
-    ⟨wordEnv, wordAgrees, wordRows⟩
-  rcases Sequence.appendBuiltAt before (wordName word)
-      (wordCircuit interface offset word) (wordOffset interface offset word)
-      startEq (wordScope interface offset currentAssumptions word)
-      wordEnv wordAgrees wordRows with
-    ⟨after, operationsEq, endEq, _, _⟩
-  refine ⟨after, operationsEq, ?_⟩
-  have childLength : localLength
-      (Circuit.ops (wordCircuit interface offset word).main
-        (wordOffset interface offset word)) =
-        CanonicalPublicU64.privateCount := by
-    exact wordCircuit_localLength_eq interface offset word
-  rw [childLength] at endEq
-  exact endEq
-
-private theorem coreOps_localLength (interface : Interface) (offset : Nat) :
-    localLength (hashOp interface offset :: wordOps interface offset) =
-      logicalPrivateCount interface offset := by
-  change (hashOp interface offset).localLength +
-    localLength (wordOps interface offset) = _
-  rw [hashOp_localLength, wordOps_localLength]
-  rfl
-
 private theorem bindingRowsAt
     (interface : Interface) (offset : Nat) (env : Env)
     (specification : SpecHolds interface offset env) :
@@ -707,96 +639,90 @@ private theorem bindingRowsAt
     have tail := congrFun specification (tailIndex lane)
     simpa using tail
 
+theorem witnesses_opsAt (interface : Interface) (offset : Nat) :
+    witnesses (opsAt interface offset) =
+      witnesses (RawFormal.operations (hashInterface interface) offset) ++
+        (List.finRange 4).flatMap fun word =>
+          witnesses (CanonicalPublicU64.opsAt (wordInterface interface offset word)
+            (wordOffset interface offset word)) := by
+  have binding : witnesses (bindingAssertions interface offset) = [] := by
+    unfold witnesses bindingAssertions
+    rw [List.flatMap_eq_nil_iff]
+    intro operation member
+    rcases List.mem_cons.mp member with rfl | member
+    · rfl
+    · rw [List.mem_ofFn'] at member
+      rcases member with ⟨lane, rfl⟩
+      rfl
+  have words : witnesses (wordOps interface offset) =
+      (List.finRange 4).flatMap fun word =>
+        witnesses (CanonicalPublicU64.opsAt (wordInterface interface offset word)
+          (wordOffset interface offset word)) := by
+    unfold witnesses wordOps
+    rw [List.ofFn_eq_map, List.flatMap_map]
+    rfl
+  rw [opsAt, Witness.witnesses_cons, Witness.witnesses_append, binding, List.append_nil, words]
+  rfl
+
+theorem ordered (interface : Interface) (offset : Nat) (env : Env)
+    (assumptions : Assumptions interface offset env) :
+    Witness.Ordered offset (witnesses (opsAt interface offset))
+      (offset + localLength (opsAt interface offset)) := by
+  have hash := RawFormal.ordered (hashInterface interface) offset env
+    (rawAssumptions interface offset assumptions)
+  rw [show localLength (RawFormal.operations (hashInterface interface) offset) =
+      hashLength interface offset from
+    (hashCircuit_localLength_compiled interface offset).trans
+      (compiledHashLength_eq_hashLength interface offset)] at hash
+  rw [witnesses_opsAt, show localLength (opsAt interface offset) =
+    logicalPrivateCount interface offset from localLength_eq interface offset]
+  refine hash.append (Witness.Ordered.mono
+    (Witness.Ordered.finRange_flatMap (start := hashEnd interface offset)
+      (stride := CanonicalPublicU64.privateCount) fun word =>
+        (CanonicalPublicU64.ordered _ _ env
+          (wordAssumptions interface offset assumptions word)).mono le_rfl ?_) le_rfl ?_)
+  · simp only [wordOffset, CanonicalPublicU64.privateCount, CanonicalU64.auxiliaryCount]
+    omega
+  · simp only [hashEnd, logicalPrivateCount, CanonicalPublicU64.privateCount,
+      CanonicalU64.auxiliaryCount]
+    omega
+
+theorem computed_holdsFlat (interface : Interface) (env : Env) (offset : Nat)
+    (assumptions : Assumptions interface offset env)
+    (specification : SpecHolds interface offset env)
+    (computed : Witness.Computed env (witnesses (opsAt interface offset))) :
+    holdsFlat env (opsAt interface offset) := by
+  rw [witnesses_opsAt, Witness.computed_append, Witness.computed_flatMap] at computed
+  have hashRows := RawFormal.computed_holdsFlat (hashInterface interface) env offset computed.1
+  have hashSpec : RawFormal.SpecHolds (hashInterface interface) offset env :=
+    (hashCircuit interface).soundness env offset (rawAssumptions interface offset assumptions)
+      (holdsFlat_implies_holds _ _ hashRows)
+  intro expression member
+  obtain ⟨operation, operationMember, rowMember⟩ := List.mem_flatMap.mp member
+  simp only [opsAt, List.mem_cons] at operationMember
+  rcases operationMember with rfl | operationMember
+  · exact hashRows expression rowMember
+  · rcases List.mem_append.mp operationMember with wordMember | bindingMember
+    · rw [wordOps, List.mem_ofFn'] at wordMember
+      rcases wordMember with ⟨word, rfl⟩
+      exact CanonicalPublicU64.computed_holdsFlat (wordInterface interface offset word) env
+        (wordOffset interface offset word) (wordAssumptions interface offset assumptions word)
+        (wordSpec_of_spec interface offset env specification hashSpec word)
+        (computed.2 word (List.mem_finRange word)) expression rowMember
+    · exact bindingRowsAt interface offset env specification expression
+        (List.mem_flatMap.mpr ⟨operation, bindingMember, rowMember⟩)
+
 theorem completeness (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env)
     (specification : SpecHolds interface offset env) :
     ∃ completed,
       AgreesOutside env completed offset
         (localLength (Circuit.ops (main interface) offset)) ∧
-      holdsFlat completed (Circuit.ops (main interface) offset) := by
-  let empty := Sequence.empty env offset
-  rcases RawFormal.complete (hashInterface interface) env offset
-      (rawAssumptions interface offset assumptions) with
-    ⟨hashEnv, hashAgrees, hashRows⟩
-  rcases Sequence.appendBuiltAt empty hashName (hashCircuit interface) offset
-      (by rfl) (hashScope interface offset assumptions)
-      hashEnv hashAgrees hashRows with
-    ⟨afterHash, hashOps, hashEndEq, _, _⟩
-  have hashPrefix : afterHash.operations = [hashOp interface offset] := by
-    simpa [empty, hashOp] using! hashOps
-  have word0Start : offset + localLength afterHash.operations =
-      wordOffset interface offset 0 := by
-    calc
-      offset + localLength afterHash.operations =
-          offset + localLength (Circuit.ops (hashCircuit interface).main offset) :=
-        hashEndEq
-      _ = offset + compiledHashLength interface offset := by
-        exact congrArg (fun length => offset + length)
-          (hashCircuit_localLength_compiled interface offset)
-      _ = wordOffset interface offset 0 := by
-        rw [compiledHashLength_eq_hashLength]
-        simp [wordOffset, hashEnd]
-  rcases appendWord interface offset env assumptions specification afterHash 0
-      word0Start (by simp [hashPrefix]) with
-    ⟨after0, word0Ops, word0End⟩
-  have word1Start : offset + localLength after0.operations =
-      wordOffset interface offset 1 := by
-    rw [word0End]
-    simp [wordOffset, hashEnd, CanonicalPublicU64.privateCount]
-  rcases appendWord interface offset env assumptions specification after0 1
-      word1Start (by simp [word0Ops, hashPrefix]) with
-    ⟨after1, word1Ops, word1End⟩
-  have word2Start : offset + localLength after1.operations =
-      wordOffset interface offset 2 := by
-    rw [word1End]
-    simp [wordOffset, hashEnd, CanonicalPublicU64.privateCount]
-    omega
-  rcases appendWord interface offset env assumptions specification after1 2
-      word2Start (by simp [word1Ops, word0Ops, hashPrefix]) with
-    ⟨after2, word2Ops, word2End⟩
-  have word3Start : offset + localLength after2.operations =
-      wordOffset interface offset 3 := by
-    rw [word2End]
-    simp [wordOffset, hashEnd, CanonicalPublicU64.privateCount]
-    omega
-  rcases appendWord interface offset env assumptions specification after2 3
-      word3Start (by simp [word2Ops, word1Ops, word0Ops, hashPrefix]) with
-    ⟨after3, word3Ops, word3End⟩
-  have completedOps : after3.operations =
-      hashOp interface offset :: wordOps interface offset := by
-    rw [word3Ops, word2Ops, word1Ops, word0Ops, hashPrefix]
-    simp [wordOps, List.ofFn_succ]
-  have agreesBelow : ∀ index, index < offset → after3.current index = env index := by
-    intro index below
-    exact after3.agrees index (Or.inl below)
-  have completedSpecification := specHolds_of_agree_below interface offset env
-    after3.current assumptions agreesBelow specification
-  refine ⟨after3.current, ?_, ?_⟩
-  · have fullLength : localLength (Circuit.ops (main interface) offset) =
-        localLength after3.operations := by
-      calc
-        localLength (Circuit.ops (main interface) offset) =
-            logicalPrivateCount interface offset :=
-          localLength_eq interface offset
-        _ = localLength (hashOp interface offset :: wordOps interface offset) :=
-          (coreOps_localLength interface offset).symm
-        _ = localLength after3.operations :=
-          (congrArg localLength completedOps).symm
-    rw [fullLength]
-    exact after3.agrees
-  · have coreRows : holdsFlat after3.current
-        (hashOp interface offset :: wordOps interface offset) := by
-      rw [← completedOps]
-      exact after3.rows
-    unfold holdsFlat at coreRows ⊢
-    change ConstraintsHold after3.current
-      (flatConstraints ((hashOp interface offset :: wordOps interface offset) ++
-        bindingAssertions interface offset))
-    rw [flatConstraints_append, constraintsHold_append]
-    constructor
-    · exact coreRows
-    · exact bindingRowsAt interface offset after3.current
-        completedSpecification
+      holdsFlat completed (Circuit.ops (main interface) offset) :=
+  Witness.complete (ordered interface offset env assumptions) fun completed below computed =>
+    computed_holdsFlat interface completed offset assumptions
+      (specHolds_of_agree_below interface offset env completed assumptions below specification)
+      computed
 
 def circuit (interface : Interface) : FormalCircuit where
   main := main interface

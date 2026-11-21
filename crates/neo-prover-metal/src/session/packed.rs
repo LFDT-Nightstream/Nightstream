@@ -268,10 +268,9 @@ impl Packed {
         self.activity
             .downloaded_bytes
             .fetch_add(read_bytes as u64, Ordering::Relaxed);
-        let [(_, gate, _, gate_groups), (_, norm, _, norm_groups)] = reductions
-            .try_into()
-            .ok()
-            .expect("one gate and one norm reduction");
+        let Ok([(_, gate, _, gate_groups), (_, norm, _, norm_groups)]) = <[_; 2]>::try_from(reductions) else {
+            unreachable!("one gate and one norm reduction")
+        };
         Ok(RoundReadback {
             command,
             gate: (gate, gate_groups),

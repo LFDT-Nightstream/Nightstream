@@ -1,6 +1,6 @@
 import NightstreamFPrime.Gadgets.Poseidon2.LiveRows
 import NightstreamFPrime.Gadgets.Poseidon2.RawFormal
-import NightstreamFPrime.Circuit.StraightLine
+import NightstreamFPrime.Circuit.Execution
 
 namespace NightstreamFPrime.Gadgets.Poseidon2.Formal
 
@@ -133,6 +133,54 @@ theorem soundness (interface : Interface) (env : Env) (offset : Nat)
     _ = Spec.Poseidon2.hash (Hash.evalList env (interface.input offset)) :=
       computed
 
+theorem witnesses_opsAt (interface : Interface) (offset : Nat) :
+    witnesses (opsAt interface offset) =
+      [WitnessBatch.arithmetic offset (Hash.compile offset (interface.input offset)).recipes] :=
+  rfl
+
+theorem ordered (interface : Interface) (offset : Nat) (env : Env)
+    (assumptions : Assumptions interface offset env) :
+    Witness.Ordered offset (witnesses (opsAt interface offset))
+      (offset + localLength (opsAt interface offset)) :=
+  Witness.ordered_batch (witnesses_opsAt interface offset) (opsAt_localLength interface offset)
+    (Hash.compile_causal offset (interface.input offset) assumptions.1)
+
+theorem computed_holdsFlat (interface : Interface) (env : Env) (offset : Nat)
+    (specification : SpecHolds interface offset env)
+    (computed : Witness.Computed env (witnesses (opsAt interface offset))) :
+    holdsFlat env (opsAt interface offset) := by
+  let program := Hash.compile offset (interface.input offset)
+  have recipeRows : ConstraintsHold env (recipeConstraints offset program.recipes) :=
+    Witness.computed_batch (witnesses_opsAt interface offset) computed
+  have digestLists :
+      List.ofFn (fun lane => (Hash.digestE program.output lane).eval env) =
+        List.ofFn (fun lane => (interface.expected offset lane).eval env) :=
+    (Hash.compile_sound env offset (interface.input offset) recipeRows).trans
+      specification.symm
+  have digestEquation (lane : Fin 4) :
+      (Hash.digestE program.output lane).eval env =
+        (interface.expected offset lane).eval env := by
+    have selected := congrArg (fun values : List F => values.getD lane.val 0)
+      digestLists
+    fin_cases lane <;>
+      simpa [Hash.digestE, Hash.digestF, Layer.evalState, List.ofFn_succ] using
+        selected
+  intro expression member
+  simp only [flatConstraints, List.mem_flatMap] at member
+  rcases member with ⟨operation, operationMember, constraintMember⟩
+  simp only [opsAt, List.mem_cons] at operationMember
+  rcases operationMember with rfl | rfl | operationMember
+  · exact recipeRows expression constraintMember
+  · simp [Op.flatConstraints] at constraintMember
+  · rw [assertions, List.mem_ofFn'] at operationMember
+    rcases operationMember with ⟨lane, rfl⟩
+    simp only [Op.flatConstraints, List.mem_singleton] at constraintMember
+    subst expression
+    change (Hash.digestE program.output lane -
+      interface.expected offset lane).eval env = 0
+    simp only [Expr.eval_sub]
+    exact sub_eq_zero.mpr (digestEquation lane)
+
 theorem completeness (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env)
     (specification : SpecHolds interface offset env) :
@@ -140,73 +188,24 @@ theorem completeness (interface : Interface) (env : Env) (offset : Nat)
       AgreesOutside env completed offset
         (localLength (Circuit.ops (main interface) offset)) ∧
       holdsFlat completed (Circuit.ops (main interface) offset) := by
-  let program := Hash.compile offset (interface.input offset)
-  let completed := executeRecipes env offset program.recipes
-  have causal : RecipesCausal offset program.recipes :=
-    Hash.compile_causal offset (interface.input offset) assumptions.1
-  have recipeRows : ConstraintsHold completed
-      (recipeConstraints offset program.recipes) :=
-    executeRecipes_holds_recipeConstraints env offset program.recipes causal
-  have agreesBelow : ∀ index, index < offset → completed index = env index :=
-    executeRecipes_agrees_below env offset program.recipes
+  refine Witness.complete (ordered interface offset env assumptions)
+    fun completed below computed => computed_holdsFlat interface completed offset ?_ computed
   have inputEval : Hash.evalList completed (interface.input offset) =
       Hash.evalList env (interface.input offset) := by
     unfold Hash.evalList
     apply List.map_congr_left
     intro expression member
     exact expression.eval_eq_of_agree_below offset completed env
-      (assumptions.1 expression member) agreesBelow
+      (assumptions.1 expression member) below
   have expectedEval : (fun lane =>
       (interface.expected offset lane).eval completed) =
       fun lane => (interface.expected offset lane).eval env := by
     funext lane
     exact (interface.expected offset lane).eval_eq_of_agree_below offset
-      completed env (assumptions.2 lane) agreesBelow
-  have computed := Hash.compile_sound completed offset (interface.input offset)
-    recipeRows
-  have digestLists :
-      List.ofFn (fun lane => (Hash.digestE program.output lane).eval completed) =
-        List.ofFn (fun lane =>
-          (interface.expected offset lane).eval completed) := by
-    calc
-      List.ofFn (fun lane => (Hash.digestE program.output lane).eval completed) =
-          Spec.Poseidon2.hash
-            (Hash.evalList completed (interface.input offset)) := computed
-      _ = Spec.Poseidon2.hash
-            (Hash.evalList env (interface.input offset)) := by rw [inputEval]
-      _ = List.ofFn (fun lane =>
-            (interface.expected offset lane).eval env) := specification.symm
-      _ = List.ofFn (fun lane =>
-            (interface.expected offset lane).eval completed) := by
-          rw [expectedEval]
-  have digestEquation (lane : Fin 4) :
-      (Hash.digestE program.output lane).eval completed =
-        (interface.expected offset lane).eval completed := by
-    have selected := congrArg (fun values : List F => values.getD lane.val 0)
-      digestLists
-    fin_cases lane <;>
-      simpa [Hash.digestE, Hash.digestF, Layer.evalState, List.ofFn_succ] using
-        selected
-  refine ⟨completed, ?_, ?_⟩
-  · simpa [main_ops, opsAt_localLength, program, completed] using
-      executeRecipes_agreesOutside env offset program.recipes
-  · change ConstraintsHold completed
-      (flatConstraints (opsAt interface offset))
-    intro expression member
-    simp only [flatConstraints, List.mem_flatMap] at member
-    rcases member with ⟨operation, operationMember, constraintMember⟩
-    simp only [opsAt, List.mem_cons] at operationMember
-    rcases operationMember with rfl | rfl | operationMember
-    · exact recipeRows expression constraintMember
-    · simp [Op.flatConstraints] at constraintMember
-    · rw [assertions, List.mem_ofFn'] at operationMember
-      rcases operationMember with ⟨lane, rfl⟩
-      simp only [Op.flatConstraints, List.mem_singleton] at constraintMember
-      subst expression
-      change (Hash.digestE program.output lane -
-        interface.expected offset lane).eval completed = 0
-      simp only [Expr.eval_sub]
-      exact sub_eq_zero.mpr (digestEquation lane)
+      completed env (assumptions.2 lane) below
+  unfold SpecHolds
+  rw [inputEval, expectedEval]
+  exact specification
 
 def circuit (interface : Interface) : FormalCircuit where
   main := main interface

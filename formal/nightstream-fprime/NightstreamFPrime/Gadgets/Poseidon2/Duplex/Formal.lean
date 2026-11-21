@@ -1,3 +1,4 @@
+import NightstreamFPrime.Circuit.Execution
 import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Absorb
 import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Read
 import NightstreamFPrime.Gadgets.Poseidon2.HashMarks
@@ -948,71 +949,46 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
     · have below := finalScope expression finalMember
       simpa [program, opsAt_localLength] using below
 
+theorem witnesses_opsAt (interface : Interface) (offset : Nat) :
+    witnesses (opsAt interface offset) =
+      [WitnessBatch.arithmetic offset
+        (compile offset (interface.initial offset) (interface.actions offset)).recipes] := by
+  show witnesses (Op.witness _ :: (allAssertions interface offset).map Op.assertZero) = _
+  rw [Witness.witnesses_cons, Witness.witnesses_assertions]
+  rfl
+
+theorem ordered (interface : Interface) (offset : Nat) (env : Env)
+    (assumptions : Assumptions interface offset env) :
+    Witness.Ordered offset (witnesses (opsAt interface offset))
+      (offset + localLength (opsAt interface offset)) :=
+  Witness.ordered_batch (witnesses_opsAt interface offset) (opsAt_localLength interface offset)
+    (compile_causal offset (interface.initial offset) (interface.actions offset)
+      assumptions.1 assumptions.2.1)
+
+theorem computed_holdsFlat (interface : Interface) (env : Env) (offset : Nat)
+    (specification : SpecHolds interface offset env)
+    (computed : Witness.Computed env (witnesses (opsAt interface offset))) :
+    holdsFlat env (opsAt interface offset) := by
+  have recipeRows := Witness.computed_batch (witnesses_opsAt interface offset) computed
+  have traceComplete := compile_complete env offset (interface.initial offset)
+    (interface.actions offset) _ recipeRows specification
+  unfold holdsFlat
+  rw [flatConstraints_opsAt]
+  exact (Permutation.constraintsHold_append env _ _).mpr ⟨recipeRows,
+    (Permutation.constraintsHold_append env _ _).mpr ⟨traceComplete.1,
+      (stateEqualities_hold_iff env _ (interface.final offset)).mpr traceComplete.2⟩⟩
+
 theorem completeness (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env)
     (specification : SpecHolds interface offset env) :
     ∃ completed,
       AgreesOutside env completed offset
         (localLength (Circuit.ops (main interface) offset)) ∧
-      holdsFlat completed (Circuit.ops (main interface) offset) := by
-  let program := compile offset (interface.initial offset)
-    (interface.actions offset)
-  let completed := executeRecipes env offset program.recipes
-  have causal := compile_causal offset (interface.initial offset)
-    (interface.actions offset) assumptions.1 assumptions.2.1
-  have recipeRows : ConstraintsHold completed
-      (recipeConstraints offset program.recipes) :=
-    executeRecipes_holds_recipeConstraints env offset program.recipes causal
-  have agreesBelow : ∀ index, index < offset → completed index = env index :=
-    executeRecipes_agrees_below env offset program.recipes
-  have initialEval :
-      List.ofFn (Layer.evalState completed (interface.initial offset)) =
-        List.ofFn (Layer.evalState env (interface.initial offset)) := by
-    apply congrArg List.ofFn
-    funext lane
-    exact (interface.initial offset lane).eval_eq_of_agree_below offset
-      completed env (assumptions.1 lane) agreesBelow
-  have actionsEval :
-      (interface.actions offset).map (Action.eval completed) =
-        (interface.actions offset).map (Action.eval env) := by
-    apply List.map_congr_left
-    intro action member
-    exact action_eval_preserved env completed offset action
-      (assumptions.2.1 action member) agreesBelow
-  have finalEval :
-      List.ofFn (Layer.evalState completed (interface.final offset)) =
-        List.ofFn (Layer.evalState env (interface.final offset)) := by
-    apply congrArg List.ofFn
-    funext lane
-    exact (interface.final offset lane).eval_eq_of_agree_below offset
-      completed env (assumptions.2.2 lane) agreesBelow
-  have completedSpec : TraceHolds
-      (List.ofFn (Layer.evalState completed (interface.initial offset)))
-      ((interface.actions offset).map (Action.eval completed))
-      (List.ofFn (Layer.evalState completed (interface.final offset))) := by
-    rw [initialEval, actionsEval, finalEval]
-    exact specification
-  have traceComplete := compile_complete completed offset
-    (interface.initial offset) (interface.actions offset)
-    (List.ofFn (Layer.evalState completed (interface.final offset)))
-    recipeRows completedSpec
-  have finalRows := (stateEqualities_hold_iff completed program.output
-    (interface.final offset)).mpr traceComplete.2
-  have allRows : ConstraintsHold completed
-      (recipeConstraints offset program.recipes ++
-        allAssertions interface offset) := by
-    apply (Permutation.constraintsHold_append completed _ _).mpr
-    refine ⟨recipeRows, ?_⟩
-    apply (Permutation.constraintsHold_append completed _ _).mpr
-    simpa [allAssertions, program] using ⟨traceComplete.1, finalRows⟩
-  refine ⟨completed, ?_, ?_⟩
-  · have agrees := executeRecipes_agreesOutside env offset program.recipes
-    rw [main_ops, opsAt_localLength]
-    exact agrees
-  · change ConstraintsHold completed
-      (flatConstraints (opsAt interface offset))
-    rw [flatConstraints_opsAt]
-    exact allRows
+      holdsFlat completed (Circuit.ops (main interface) offset) :=
+  Witness.complete (ordered interface offset env assumptions) fun completed below computed =>
+    computed_holdsFlat interface completed offset
+      (specHolds_of_agree_below interface offset env completed assumptions below specification)
+      computed
 
 def circuit (interface : Interface) : FormalCircuit where
   main := main interface
@@ -1141,56 +1117,71 @@ theorem soundness (interface : Interface) (env : Env) (offset : Nat)
     (interface.actions offset) recipeRows (by
       simpa [allAssertions, program] using assertionRows)
 
+theorem witnesses_opsAt (interface : Interface) (offset : Nat) :
+    witnesses (opsAt interface offset) =
+      [WitnessBatch.arithmetic offset (program interface offset).recipes] := by
+  show witnesses (Op.witness _ :: Op.mark _ ::
+    (allAssertions interface offset).map Op.assertZero) = _
+  rw [Witness.witnesses_cons, Witness.witnesses_cons, Witness.witnesses_assertions]
+  rfl
+
+theorem ordered (interface : Interface) (offset : Nat) (env : Env)
+    (assumptions : Assumptions interface offset env) :
+    Witness.Ordered offset (witnesses (opsAt interface offset))
+      (offset + localLength (opsAt interface offset)) :=
+  Witness.ordered_batch (witnesses_opsAt interface offset) (opsAt_localLength interface offset)
+    (compile_causal offset (interface.initial offset) (interface.actions offset)
+      assumptions.1 assumptions.2)
+
+theorem computed_holdsFlat (interface : Interface) (env : Env) (offset : Nat)
+    (final : Spec.Poseidon2.State)
+    (trace : TraceHolds (List.ofFn (Layer.evalState env (interface.initial offset)))
+      ((interface.actions offset).map (Action.eval env)) final)
+    (computed : Witness.Computed env (witnesses (opsAt interface offset))) :
+    holdsFlat env (opsAt interface offset) := by
+  have recipeRows := Witness.computed_batch (witnesses_opsAt interface offset) computed
+  unfold holdsFlat
+  rw [flatConstraints_opsAt]
+  exact (Permutation.constraintsHold_append env _ _).mpr ⟨recipeRows,
+    (compile_complete env offset (interface.initial offset) (interface.actions offset) final
+      recipeRows trace).1⟩
+
+private theorem trace_of_agree_below (interface : Interface) (offset : Nat)
+    (before after : Env) (assumptions : Assumptions interface offset before)
+    (agrees : ∀ index, index < offset → after index = before index)
+    (final : Spec.Poseidon2.State)
+    (trace : TraceHolds (List.ofFn (Layer.evalState before (interface.initial offset)))
+      ((interface.actions offset).map (Action.eval before)) final) :
+    TraceHolds (List.ofFn (Layer.evalState after (interface.initial offset)))
+      ((interface.actions offset).map (Action.eval after)) final := by
+  have initialEval :
+      List.ofFn (Layer.evalState after (interface.initial offset)) =
+        List.ofFn (Layer.evalState before (interface.initial offset)) := by
+    apply congrArg List.ofFn
+    funext lane
+    exact (interface.initial offset lane).eval_eq_of_agree_below offset
+      after before (assumptions.1 lane) agrees
+  have actionsEval :
+      (interface.actions offset).map (Action.eval after) =
+        (interface.actions offset).map (Action.eval before) := by
+    apply List.map_congr_left
+    intro action member
+    exact action_eval_preserved before after offset action
+      (assumptions.2 action member) agrees
+  rw [initialEval, actionsEval]
+  exact trace
+
 theorem completeness (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env)
     (specification : SpecHolds interface offset env) :
     ∃ completed,
       AgreesOutside env completed offset
         (localLength (Circuit.ops (main interface) offset)) ∧
-      holdsFlat completed (Circuit.ops (main interface) offset) := by
-  let compiled := program interface offset
-  let completed := executeRecipes env offset compiled.recipes
-  have causal := compile_causal offset (interface.initial offset)
-    (interface.actions offset) assumptions.1 assumptions.2
-  have recipeRows : ConstraintsHold completed
-      (recipeConstraints offset compiled.recipes) :=
-    executeRecipes_holds_recipeConstraints env offset compiled.recipes causal
-  have agreesBelow : ∀ index, index < offset → completed index = env index :=
-    executeRecipes_agrees_below env offset compiled.recipes
-  have initialEval :
-      List.ofFn (Layer.evalState completed (interface.initial offset)) =
-        List.ofFn (Layer.evalState env (interface.initial offset)) := by
-    apply congrArg List.ofFn
-    funext lane
-    exact (interface.initial offset lane).eval_eq_of_agree_below offset
-      completed env (assumptions.1 lane) agreesBelow
-  have actionsEval :
-      (interface.actions offset).map (Action.eval completed) =
-        (interface.actions offset).map (Action.eval env) := by
-    apply List.map_congr_left
-    intro action member
-    exact action_eval_preserved env completed offset action
-      (assumptions.2 action member) agreesBelow
-  have completedSpec : TraceHolds
-      (List.ofFn (Layer.evalState completed (interface.initial offset)))
-      ((interface.actions offset).map (Action.eval completed))
-      (List.ofFn (Layer.evalState env (output interface offset))) := by
-    rw [initialEval, actionsEval]
-    exact specification
-  have traceComplete := compile_complete completed offset
-    (interface.initial offset) (interface.actions offset)
-    (List.ofFn (Layer.evalState env (output interface offset))) recipeRows
-      completedSpec
-  refine ⟨completed, ?_, ?_⟩
-  · have agrees := executeRecipes_agreesOutside env offset compiled.recipes
-    rw [main_ops, opsAt_localLength]
-    exact agrees
-  · change ConstraintsHold completed
-      (flatConstraints (opsAt interface offset))
-    rw [flatConstraints_opsAt]
-    exact (Permutation.constraintsHold_append completed _ _).mpr
-      ⟨by simpa [compiled, program] using recipeRows,
-        by simpa [allAssertions, compiled, program] using traceComplete.1⟩
+      holdsFlat completed (Circuit.ops (main interface) offset) :=
+  Witness.complete (ordered interface offset env assumptions) fun completed below computed =>
+    computed_holdsFlat interface completed offset _
+      (trace_of_agree_below interface offset env completed assumptions below _ specification)
+      computed
 
 theorem build_of_no_assertions (interface : Interface) (env : Env)
     (offset : Nat) (assumptions : Assumptions interface offset env)
@@ -1198,22 +1189,11 @@ theorem build_of_no_assertions (interface : Interface) (env : Env)
     ∃ completed,
       AgreesOutside env completed offset
         (localLength (Circuit.ops (main interface) offset)) ∧
-      holdsFlat completed (Circuit.ops (main interface) offset) := by
-  let compiled := program interface offset
-  let completed := executeRecipes env offset compiled.recipes
-  have causal := compile_causal offset (interface.initial offset)
-    (interface.actions offset) assumptions.1 assumptions.2
-  have recipeRows : ConstraintsHold completed
-      (recipeConstraints offset compiled.recipes) :=
-    executeRecipes_holds_recipeConstraints env offset compiled.recipes causal
-  refine ⟨completed, ?_, ?_⟩
-  · have agrees := executeRecipes_agreesOutside env offset compiled.recipes
-    rw [main_ops, opsAt_localLength]
-    exact agrees
-  · change ConstraintsHold completed
-      (flatConstraints (opsAt interface offset))
-    rw [flatConstraints_opsAt, none, List.append_nil]
-    simpa [compiled, program] using recipeRows
+      holdsFlat completed (Circuit.ops (main interface) offset) :=
+  Witness.complete (ordered interface offset env assumptions) fun completed _ computed => by
+    unfold holdsFlat
+    rw [main_ops, flatConstraints_opsAt, none, List.append_nil]
+    exact Witness.computed_batch (witnesses_opsAt interface offset) computed
 
 theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env) :
@@ -1252,23 +1232,6 @@ theorem specHolds_of_agree_below (interface : Interface) (offset : Nat)
   let bound := offset + localLength (Circuit.ops (main interface) offset)
   have offsetLe : offset ≤ bound := by
     simp [bound]
-  have initialEval :
-      List.ofFn (Layer.evalState after (interface.initial offset)) =
-        List.ofFn (Layer.evalState before (interface.initial offset)) := by
-    apply congrArg List.ofFn
-    funext lane
-    exact (interface.initial offset lane).eval_eq_of_agree_below bound
-      after before
-      (Expr.VarsBelow.mono _ (assumptions.1 lane) offsetLe)
-      (by simpa [bound] using agrees)
-  have actionsEval :
-      (interface.actions offset).map (Action.eval after) =
-        (interface.actions offset).map (Action.eval before) := by
-    apply List.map_congr_left
-    intro action member
-    exact action_eval_preserved before after offset action
-      (assumptions.2 action member)
-      (fun index below => agrees index (lt_of_lt_of_le below offsetLe))
   have finalEval :
       List.ofFn (Layer.evalState after (output interface offset)) =
         List.ofFn (Layer.evalState before (output interface offset)) := by
@@ -1280,8 +1243,9 @@ theorem specHolds_of_agree_below (interface : Interface) (offset : Nat)
         output_varsBelow interface offset before assumptions lane)
       (by simpa [bound] using agrees)
   unfold SpecHolds at specification ⊢
-  rw [initialEval, actionsEval, finalEval]
-  exact specification
+  rw [finalEval]
+  exact trace_of_agree_below interface offset before after assumptions
+    (fun index below => agrees index (lt_of_lt_of_le below offsetLe)) _ specification
 
 def circuit (interface : Interface) : FormalCircuit where
   main := main interface

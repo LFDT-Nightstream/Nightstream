@@ -20,7 +20,9 @@ witness fixed. `worst_error_le` bounds that event with the worst pair fixed by t
 `(Q + 1) · testError` plus the chances of the two other outcomes
 (`collisionChance`, `startChance`). `knowledge_error_le` adds the fork step
 (`Fork.fork_failure_le_of_mismatch`): a successful run extracts except with the statistical
-error `statisticalError` and the chances of a moved start claim and a collision. -/
+error `statisticalError` and the chances of a moved start claim and a collision. The failure
+event, a successful run whose extractor does not extract, has the success chance less the
+extraction chance (`failure_eq`). -/
 
 set_option autoImplicit false
 
@@ -77,7 +79,7 @@ variable {schedule : Schedule} {width : Nat}
 
 /-- The calls of `target` start with the statement calls of `statement`. -/
 def Extends (statement : schedule.Statement) (target : Point schedule width) : Bool :=
-  (schedule.statementCalls statement).isPrefixOf target.1.val
+  (schedule.statementCalls statement).isPrefixOf target.val
 
 theorem extends_point (statement : schedule.Statement) (messages : schedule.Messages width)
     (challenge : schedule.Challenge) :
@@ -784,6 +786,33 @@ variable {schedule : Schedule} {width : Nat} {Output Start Witness : Type}
 
 local notation "Oracle" => Point schedule width → Answer
 local notation "Retries" => Fin schedule.rhoCount → Answer
+
+/-- The chance of the failure event, a successful run whose extractor does not extract, is the
+success chance less the extraction chance, when extraction needs success. -/
+theorem failure_eq {Extracts : Oracle → Retries → Prop}
+    (succeeds : ∀ {oracle retries}, Extracts oracle retries → Fork.Succeeds game adversary oracle) :
+    𝔼 oracle, ∑ retries, weight game adversary oracle retries *
+        (if Fork.Succeeds game adversary oracle ∧ ¬ Extracts oracle retries then 1 else 0) =
+      𝔼 oracle, (if Fork.Succeeds game adversary oracle then (1 : ℝ) else 0) -
+        𝔼 oracle, ∑ retries, weight game adversary oracle retries *
+          (if Extracts oracle retries then 1 else 0) := by
+  rw [← Finset.expect_sub_distrib]
+  refine Finset.expect_congr rfl fun oracle _ => ?_
+  by_cases success : Fork.Succeeds game adversary oracle
+  · have total : ∑ retries, weight game adversary oracle retries = 1 :=
+      retryWeight_sum_eq_one _ fun index =>
+        Fork.mass_ne_zero (Fork.base_mem_retrySets game adversary success index)
+    have each (retries : Retries) :
+        weight game adversary oracle retries *
+            (if Fork.Succeeds game adversary oracle ∧ ¬ Extracts oracle retries then 1 else 0) =
+          weight game adversary oracle retries -
+            weight game adversary oracle retries * (if Extracts oracle retries then 1 else 0) := by
+      by_cases extracted : Extracts oracle retries <;> simp [success, extracted]
+    rw [ite_eq_left success, Finset.sum_congr rfl fun retries _ => each retries,
+      Finset.sum_sub_distrib, total]
+  · have never (retries : Retries) : ¬ Extracts oracle retries := fun extracted =>
+      success (succeeds extracted)
+    simp [success, never]
 
 variable (schedule width) in
 /-- The statistical part of the knowledge error: the fork step's sampling error and the test

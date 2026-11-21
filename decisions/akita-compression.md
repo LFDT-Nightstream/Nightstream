@@ -141,7 +141,7 @@ a refresh fold (`Export.BoundedDepth.FinalVerifier.Mode`).
     that of the larger relation, or of the light relation in the light
     mode.
 11. **One Akita proof.** One proof opens the key polynomial, `W` and `V`.
-    The schedule rows offload Akita's setup (ePrint 2026/1983 section 9),
+    The schedule rows offload Akita's setup (ePrint 2026/1983, Section 9),
     and the verification key holds Akita's commitments of the setup
     prefixes.
 12. **Transcript.** The Poseidon2 transcript of the Π_CCS run makes each
@@ -183,19 +183,19 @@ production shapes (`Spec.Compression.Verifier.soundness`,
 `Spec.Compression.Verifier.production_error_lt`). This is not a security
 level of the final proof. It does not include:
 
-- the knowledge error of the Akita opening (`[AKITA]`). Akita states a target
-  of a 128-bit Fiat–Shamir rate for each query in the classical
-  random-oracle model, and it states no complete bound;
+- the knowledge error of the Akita opening for the pinned setup. This bound
+  is an open premise of the final claim. Akita states a target of a 128-bit
+  Fiat–Shamir rate for each query in the classical random-oracle model;
 - the error of the Π_CCS run of the fresh instance; and
 - Module-SIS for the Akita commitments, which Akita prices at 169 bits of
   quantum Core-SVP cost in the ADPS16 model, and Module-SIS for the Ajtai
   commitments of the claims (`[MSIS]`).
 
 The argument has these premises about the verification key. The key is the
-key of Algorithm 11, which the pin of choice 13 gives. Akita is binding and
-knowledge sound for the key polynomial and for its own setup prefixes, so
-the value that Akita opens is the value of the key polynomial. The verifier
-never reads the polynomial, and no Lean statement covers the key
+key of Algorithm 11, which the pin of choice 13 gives. Under `[AKITA]`, the
+commitment binds the key polynomial. The extraction bound for this setup,
+including its offloaded prefixes, is open. The verifier never reads the
+polynomial, and no Lean statement covers the key
 ([security model](../formal/nightstream-fprime/SECURITY_MODEL.md), adversary
 6 and trust item 7).
 

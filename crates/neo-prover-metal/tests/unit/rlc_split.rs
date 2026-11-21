@@ -107,7 +107,13 @@ fn device_rlc_mix_matches_host_mix() {
     .collect();
     let sampled = std::mem::replace(&mut rhos[3], RotRho::light_running_weight().as_mat().clone());
     let expected = rlc_mix_witnesses(D * columns, &rhos, &witnesses);
-    assert_eq!(session.mix_rlc_witnesses(&rhos, &witnesses).unwrap(), expected);
+    assert_eq!(
+        session
+            .mix_rlc_witnesses(&rhos, &witnesses)
+            .unwrap()
+            .finish(&witnesses),
+        expected
+    );
     rhos[3] = sampled;
     assert!(session.mix_rlc_witnesses(&rhos, &witnesses).is_err());
 }
@@ -128,7 +134,10 @@ fn packed_light_mix_matches_host_for_constant_and_dense_carries() {
     for running in [Mat::virtual_constant(D, cols, -F::ONE), dense] {
         let witnesses = [&fresh, &running];
         let expected = rlc_mix_witnesses(D * cols, &rotations, &witnesses);
-        let actual = session.mix_rlc_witnesses(&rotations, &witnesses).unwrap();
+        let actual = session
+            .mix_rlc_witnesses(&rotations, &witnesses)
+            .unwrap()
+            .finish(&witnesses);
         assert_eq!(actual, expected);
     }
 }

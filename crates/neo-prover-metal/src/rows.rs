@@ -7,7 +7,7 @@ use neo_reductions::{
     PiCcsError,
 };
 
-use crate::session::MetalPaperJointOracle;
+use crate::session::{MetalPaperJointOracle, RlcMix};
 use crate::{oracle_error, MetalActivity, MetalError, MetalSession};
 
 pub struct MetalRowProver {
@@ -52,7 +52,7 @@ impl MetalRowProver {
             .map_err(oracle_error)
     }
 
-    pub fn mix_rlc_witnesses(&self, rhos: &[Mat<F>], witnesses: &[&Mat<F>]) -> Result<Mat<F>, PiCcsError> {
+    pub fn mix_rlc_witnesses(&self, rhos: &[Mat<F>], witnesses: &[&Mat<F>]) -> Result<RlcMix, PiCcsError> {
         self.session
             .mix_rlc_witnesses(rhos, witnesses)
             .map_err(oracle_error)

@@ -223,6 +223,32 @@ theorem expect_eval (point : Point) (value : Answer → ℝ) :
   simp only [Function.update_self]
   exact Finset.expect_const Finset.univ_nonempty _
 
+omit [Fintype Point] [DecidableEq Point] [Fintype Answer] [Nonempty Answer] in
+/-- A uniform whole is a uniform whole with one part drawn again, for a part that `get` reads
+and `set` writes. -/
+theorem expect_lens {Whole Part : Type*} [Fintype Whole] [Fintype Part] [Nonempty Part]
+    (get : Whole → Part) (set : Whole → Part → Whole)
+    (get_set : ∀ whole part, get (set whole part) = part)
+    (set_get : ∀ whole, set whole (get whole) = whole)
+    (set_set : ∀ whole part part', set (set whole part) part' = set whole part')
+    (value : Whole → ℝ) :
+    𝔼 whole, value whole = 𝔼 whole, 𝔼 part, value (set whole part) := by
+  let swap : Whole × Part ≃ Whole × Part :=
+    { toFun := fun pair => (set pair.1 pair.2, get pair.1)
+      invFun := fun pair => (set pair.1 pair.2, get pair.1)
+      left_inv := fun pair => by simp [set_set, set_get, get_set]
+      right_inv := fun pair => by simp [set_set, set_get, get_set] }
+  have sums : ∑ whole, ∑ part, value (set whole part) =
+      Fintype.card Part * ∑ whole, value whole := by
+    rw [← Fintype.sum_prod_type', Fintype.sum_equiv swap
+      (fun pair => value (set pair.1 pair.2)) (fun pair => value pair.1) (fun _ => rfl),
+      Fintype.sum_prod_type, Finset.mul_sum]
+    simp
+  simp only [Finset.expect_eq_sum_div_card, Finset.card_univ, div_eq_mul_inv, ← Finset.sum_mul]
+  rw [sums]
+  have positive : (0 : ℝ) < Fintype.card Part := by exact_mod_cast Fintype.card_pos
+  field_simp
+
 def overlay (fixed : Finset Point) (values oracle : Point → Answer) : Point → Answer :=
   fun point => if point ∈ fixed then values point else oracle point
 
@@ -363,6 +389,207 @@ theorem pinned_le {computation : OracleComp Point Answer Output} {bound : Nat}
     simp only [ite_eq_left isBad, ite_eq_left queried]
     norm_num
   · simp only [ite_eq_right isBad]
+    split <;> norm_num
+
+/-- Two different queried points with one answer. -/
+def Collision (queries : List Point) (oracle : Point → Answer) : Prop :=
+  ∃ point ∈ queries, ∃ other ∈ queries, point ≠ other ∧ oracle point = oracle other
+
+private def CollidesFrom (computation : OracleComp Point Answer Output) (fixed : Finset Point)
+    (oracle : Point → Answer) : Prop :=
+  ∃ point ∈ computation.queries oracle, point ∉ fixed ∧ ∃ other,
+    (other ∈ fixed ∨ other ∈ computation.queries oracle) ∧ other ≠ point ∧
+      oracle other = oracle point
+
+private theorem collides_le_over {computation : OracleComp Point Answer Output} {bound : Nat}
+    (bounded : computation.QueryBound bound) (fixed : Finset Point) (values : Point → Answer) :
+    𝔼 oracle, (if CollidesFrom computation fixed (overlay fixed values oracle) then (1 : ℝ)
+      else 0) ≤ ((bound * fixed.card + bound.choose 2 : Nat) : ℝ) / Fintype.card Answer := by
+  have card : (0 : ℝ) < Fintype.card Answer := by exact_mod_cast Fintype.card_pos
+  induction bounded generalizing fixed values with
+  | done output bound =>
+      have none (oracle : Point → Answer) :
+          ¬ CollidesFrom (OracleComp.done output) fixed oracle := by
+        rintro ⟨point, member, _⟩
+        simp [OracleComp.queries] at member
+      simp only [none, ite_false, Finset.expect_const_zero]
+      positivity
+  | query point next bound _ inductionHypothesis =>
+      have grows : ((bound * fixed.card + bound.choose 2 : Nat) : ℝ) / Fintype.card Answer ≤
+          (((bound + 1) * fixed.card + (bound + 1).choose 2 : Nat) : ℝ) / Fintype.card Answer := by
+        refine div_le_div_of_nonneg_right ?_ card.le
+        have more : bound * fixed.card ≤ (bound + 1) * fixed.card :=
+          Nat.mul_le_mul_right _ (Nat.le_succ bound)
+        have pairs : bound.choose 2 ≤ (bound + 1).choose 2 := Nat.choose_le_succ bound 2
+        exact_mod_cast Nat.add_le_add more pairs
+      by_cases inside : point ∈ fixed
+      · have same (oracle : Point → Answer) :
+            CollidesFrom (.query point next) fixed (overlay fixed values oracle) →
+              CollidesFrom (next (values point)) fixed (overlay fixed values oracle) := by
+          rintro ⟨asked, member, outside, other, otherMember, different, equal⟩
+          have fixedPoint : overlay fixed values oracle point = values point := by
+            simp [overlay, inside]
+          simp only [OracleComp.queries, List.mem_cons, fixedPoint] at member otherMember
+          have askedNe : asked ≠ point := fun equal => outside (equal ▸ inside)
+          refine ⟨asked, member.resolve_left askedNe, outside, other, ?_, different, equal⟩
+          rcases otherMember with inFixed | isPoint | later
+          · exact Or.inl inFixed
+          · exact Or.inl (isPoint ▸ inside)
+          · exact Or.inr later
+        refine (Finset.expect_le_expect fun oracle _ => ?_).trans
+          ((inductionHypothesis (values point) fixed values).trans grows)
+        by_cases collides : CollidesFrom (.query point next) fixed (overlay fixed values oracle)
+        · rw [ite_eq_left collides, ite_eq_left (same oracle collides)]
+        · rw [ite_eq_right collides]
+          split <;> norm_num
+      · let first (oracle : Point → Answer) : Prop := ∃ other ∈ fixed, values other = oracle point
+        let later (oracle : Point → Answer) : Prop :=
+          CollidesFrom (next (overlay fixed values oracle point)) (insert point fixed)
+            (overlay fixed values oracle)
+        have openPoint (oracle : Point → Answer) :
+            overlay fixed values oracle point = oracle point := by
+          simp [overlay, inside]
+        have split (oracle : Point → Answer) :
+            (if CollidesFrom (.query point next) fixed (overlay fixed values oracle) then (1 : ℝ)
+              else 0) ≤ (if first oracle then 1 else 0) + (if later oracle then 1 else 0) := by
+          have firstNonnegative : (0 : ℝ) ≤ if first oracle then 1 else 0 := by
+            split <;> norm_num
+          have laterNonnegative : (0 : ℝ) ≤ if later oracle then 1 else 0 := by
+            split <;> norm_num
+          have firstOne (holds : first oracle) : (1 : ℝ) ≤ (if first oracle then 1 else 0) +
+              (if later oracle then 1 else 0) := by
+            rw [ite_eq_left holds]
+            linarith
+          have laterOne (holds : later oracle) : (1 : ℝ) ≤ (if first oracle then 1 else 0) +
+              (if later oracle then 1 else 0) := by
+            rw [ite_eq_left holds]
+            linarith
+          by_cases collides : CollidesFrom (.query point next) fixed (overlay fixed values oracle)
+          · rw [ite_eq_left collides]
+            obtain ⟨asked, member, outside, other, otherMember, different, equal⟩ := collides
+            have fixedValue {other : Point} (inFixed : other ∈ fixed) :
+                overlay fixed values oracle other = values other := by
+              simp [overlay, inFixed]
+            have firstOf {other : Point} (inFixed : other ∈ fixed)
+                (same : overlay fixed values oracle other = overlay fixed values oracle point) :
+                first oracle :=
+              ⟨other, inFixed, by rw [← fixedValue inFixed, same, openPoint]⟩
+            simp only [OracleComp.queries, List.mem_cons] at member otherMember
+            by_cases askedPoint : asked = point
+            · subst askedPoint
+              rcases otherMember with inFixed | isPoint | tail
+              · exact firstOne (firstOf inFixed equal)
+              · exact absurd isPoint different
+              · by_cases otherFixed : other ∈ fixed
+                · exact firstOne (firstOf otherFixed equal)
+                · refine laterOne ⟨other, tail, ?_, asked, Or.inl (Finset.mem_insert_self _ _),
+                    Ne.symm different, equal.symm⟩
+                  simp only [Finset.mem_insert, not_or]
+                  exact ⟨different, otherFixed⟩
+            · refine laterOne ⟨asked, member.resolve_left askedPoint, ?_, other, ?_, different,
+                equal⟩
+              · simp only [Finset.mem_insert, not_or]
+                exact ⟨askedPoint, outside⟩
+              · rcases otherMember with inFixed | isPoint | tail
+                · exact Or.inl (Finset.mem_insert_of_mem inFixed)
+                · exact Or.inl (isPoint ▸ Finset.mem_insert_self _ _)
+                · exact Or.inr tail
+          · rw [ite_eq_right collides]
+            linarith
+        have single (other : Point) :
+            𝔼 answer : Answer, (if values other = answer then (1 : ℝ) else 0) =
+              1 / Fintype.card Answer := by
+          rw [Finset.expect_eq_sum_div_card, Finset.sum_ite_eq]
+          simp
+        have firstBound :
+            𝔼 oracle, (if first oracle then (1 : ℝ) else 0) ≤
+              (fixed.card : ℝ) / Fintype.card Answer := by
+          rw [expect_eval point (fun answer => if ∃ other ∈ fixed, values other = answer then
+            (1 : ℝ) else 0)]
+          calc
+            _ ≤ 𝔼 answer : Answer, ∑ other ∈ fixed,
+                  (if values other = answer then (1 : ℝ) else 0) := by
+              refine Finset.expect_le_expect fun answer _ => ?_
+              by_cases found : ∃ other ∈ fixed, values other = answer
+              · rw [ite_eq_left found]
+                obtain ⟨other, inFixed, equal⟩ := found
+                have one := Finset.single_le_sum
+                  (f := fun other => if values other = answer then (1 : ℝ) else 0)
+                  (fun _ _ => by split <;> norm_num) inFixed
+                simpa [equal] using one
+              · rw [ite_eq_right found]
+                exact Finset.sum_nonneg fun _ _ => by split <;> norm_num
+            _ = (fixed.card : ℝ) / Fintype.card Answer := by
+              rw [Finset.expect_sum_comm]
+              simp only [single, Finset.sum_const, nsmul_eq_mul]
+              ring
+        have laterBound :
+            𝔼 oracle, (if later oracle then (1 : ℝ) else 0) ≤
+              ((bound * (fixed.card + 1) + bound.choose 2 : Nat) : ℝ) / Fintype.card Answer := by
+          rw [expect_update point]
+          have reached (oracle : Point → Answer) (answer : Answer) :
+              overlay (insert point fixed) (Function.update values point answer) oracle point =
+                answer := by
+            simp [overlay]
+          simp only [later, overlay_update inside, reached]
+          rw [Finset.expect_comm]
+          refine (Finset.expect_le_expect fun answer _ => (inductionHypothesis answer
+            (insert point fixed) (Function.update values point answer)).trans
+              (le_of_eq ?_)).trans (Finset.expect_const Finset.univ_nonempty _).le
+          rw [Finset.card_insert_of_notMem inside]
+        calc
+          _ ≤ 𝔼 oracle, ((if first oracle then (1 : ℝ) else 0) +
+                (if later oracle then 1 else 0)) :=
+            Finset.expect_le_expect fun oracle _ => split oracle
+          _ = (𝔼 oracle, if first oracle then (1 : ℝ) else 0) +
+                𝔼 oracle, if later oracle then (1 : ℝ) else 0 :=
+            Finset.expect_add_distrib _ _ _
+          _ ≤ (fixed.card : ℝ) / Fintype.card Answer +
+                ((bound * (fixed.card + 1) + bound.choose 2 : Nat) : ℝ) / Fintype.card Answer :=
+            add_le_add firstBound laterBound
+          _ = (((bound + 1) * fixed.card + (bound + 1).choose 2 : Nat) : ℝ) /
+                Fintype.card Answer := by
+            rw [Nat.choose_succ_succ, Nat.choose_one_right]
+            push_cast
+            ring
+
+/-- An oracle computation with at most `Q` queries queries two different points with one answer
+with probability at most `C(Q, 2)/|Answer|` (the birthday bound). -/
+theorem collision_le {computation : OracleComp Point Answer Output} {bound : Nat}
+    (bounded : computation.QueryBound bound) :
+    𝔼 oracle, (if Collision (computation.queries oracle) oracle then (1 : ℝ) else 0) ≤
+      (bound.choose 2 : ℝ) / Fintype.card Answer := by
+  have over := collides_le_over bounded ∅ (fun _ => Classical.arbitrary _)
+  simp only [overlay_empty, Finset.card_empty, Nat.mul_zero, Nat.zero_add] at over
+  refine (Finset.expect_le_expect fun oracle _ => ?_).trans over
+  by_cases collides : Collision (computation.queries oracle) oracle
+  · obtain ⟨point, member, other, otherMember, different, equal⟩ := collides
+    have from_ : CollidesFrom computation ∅ oracle :=
+      ⟨point, member, Finset.notMem_empty _, other, Or.inr otherMember, Ne.symm different,
+        equal.symm⟩
+    rw [ite_eq_left ⟨point, member, other, otherMember, different, equal⟩, ite_eq_left from_]
+  · rw [ite_eq_right collides]
+    split <;> norm_num
+
+/-- An adversary with at most `Q` queries outputs two different points with one answer with
+probability at most `C(Q + 2, 2)/|Answer|`: the two points are queries of the adversary followed
+by two queries. -/
+theorem pair_collision_le (adversary : OracleComp Point Answer (Point × Point)) {bound : Nat}
+    (bounded : adversary.QueryBound bound) :
+    𝔼 oracle, (if (adversary.run oracle).1 ≠ (adversary.run oracle).2 ∧
+        oracle (adversary.run oracle).1 = oracle (adversary.run oracle).2 then (1 : ℝ) else 0) ≤
+      ((bound + 2).choose 2 : ℝ) / Fintype.card Answer := by
+  have checked := collision_le (bounded.thenQueries
+    (points := fun pair : Point × Point => [pair.1, pair.2]) (count := 2) fun _ => le_rfl)
+  refine (Finset.expect_le_expect fun oracle _ => ?_).trans checked
+  by_cases wins : (adversary.run oracle).1 ≠ (adversary.run oracle).2 ∧
+      oracle (adversary.run oracle).1 = oracle (adversary.run oracle).2
+  · have collides : Collision ((adversary.thenQueries fun pair : Point × Point =>
+        [pair.1, pair.2]).queries oracle) oracle :=
+      ⟨_, adversary.mem_queries_thenQueries _ oracle (by simp), _,
+        adversary.mem_queries_thenQueries _ oracle (by simp), wins.1, wins.2⟩
+    rw [ite_eq_left wins, ite_eq_left collides]
+  · rw [ite_eq_right wins]
     split <;> norm_num
 
 omit [Nonempty Answer] in

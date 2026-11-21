@@ -17,6 +17,7 @@ mod masks;
 mod packed;
 mod production_commitment;
 mod rlc;
+pub use rlc::RlcMix;
 mod shared_key;
 mod terminal_opening;
 pub(crate) use joint::MetalPaperJointOracle;

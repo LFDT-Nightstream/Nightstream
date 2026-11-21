@@ -145,61 +145,66 @@ theorem outputChallenge_varsBelow (start : Nat) (position : Fin ringDegree) :
   · exact bits 1 (by decide)
   · exact bits 2 (by decide)
 
-def childEnv (interface : Interface) (base : Env) (start : Nat) : Env :=
-  CanonicalChildren.values (coreInterface interface start) (HintProgram.helperEnv interface base start)
-    (coreOffset start) fieldCount
+theorem witnesses_operations (interface : Interface) (start : Nat) :
+    witnesses (operations interface start) =
+      WitnessBatch.hinted start (HintProgram.helpers interface start) ::
+        (witnesses (childOps (coreInterface interface start) (coreOffset start)) ++
+          [WitnessBatch.hinted (quotientStart (coreOffset start))
+            (HintProgram.resultHints start (coreOffset start))]) := by
+  have rows : witnesses (WideReduction.rowOps (coreOffset start)) = [] := by
+    unfold witnesses WideReduction.rowOps
+    rw [List.flatMap_eq_nil_iff]
+    intro op member
+    simp only [List.mem_append, List.mem_map] at member
+    rcases member with (⟨_, _, rfl⟩ | ⟨_, _, rfl⟩) | ⟨_, _, rfl⟩ <;> rfl
+  change _ :: (witnesses (WideReduction.operations (coreInterface interface start)
+    (HintProgram.resultHints start) (coreOffset start)) ++ []) = _
+  rw [List.append_nil, WideReduction.operations, Witness.witnesses_append,
+    Witness.witnesses_append, rows, List.append_nil]
+  rfl
 
-def completeEnv (interface : Interface) (base : Env) (start : Nat) : Env :=
-  executeHints (childEnv interface base start) (quotientStart (coreOffset start))
-    (HintProgram.resultHints start (coreOffset start))
+theorem ordered (interface : Interface) (start : Nat) (inputs : Assumptions interface start) :
+    Witness.Ordered start (witnesses (operations interface start))
+      (start + localLength (operations interface start)) := by
+  rw [witnesses_operations, localLength_eq]
+  exact ⟨le_rfl, ⟨trivial, (HelperExecution.certificate interface (fun _ => 0) start inputs).1⟩,
+    ((CanonicalChildren.ordered _ _ (core_inputs interface start inputs)).mono
+      (by simp [WitnessBatch.finish, WitnessBatch.hinted, WitnessBatch.outputLength,
+        HintProgram.helpers_length, coreOffset]) le_rfl).append
+      ⟨le_rfl, ⟨trivial, OutputExecution.causal start (coreOffset start) le_rfl⟩, by
+        simp [Witness.Ordered, WitnessBatch.finish, WitnessBatch.hinted,
+          WitnessBatch.outputLength, HintProgram.resultHints_length, privateCount,
+          WideReduction.privateCount, quotientStart, coreOffset, Nat.add_assoc]⟩⟩
 
-theorem completeEnv_correct (interface : Interface) (base : Env) (start : Nat)
+theorem computed_holdsFlat (interface : Interface) (env : Env) (start : Nat)
+    (inputs : Assumptions interface start)
+    (computed : Witness.Computed env (witnesses (operations interface start))) :
+    holdsFlat env (operations interface start) := by
+  rw [witnesses_operations] at computed
+  have later : Witness.Computed env _ := fun batch member =>
+    computed batch (List.mem_cons_of_mem _ member)
+  rw [Witness.computed_append] at later
+  have coreInputs := core_inputs interface start inputs
+  have childRows := CanonicalChildren.rows (coreInterface interface start) env (coreOffset start)
+    later.1
+  have childSpecs := CanonicalChildren.specifications _ env _ coreInputs childRows
+  have childScope := CanonicalChildren.scope _ _ coreInputs
+  have rows := completeNew_holds (coreInterface interface start) (HintProgram.resultHints start)
+    env (coreOffset start) childSpecs childRows childScope
+  rw [OutputExecution.reference (coreInterface interface start) env start (coreOffset start)
+    le_rfl (HelperExecution.present interface env start inputs
+      (computed _ List.mem_cons_self).2) childSpecs childRows childScope
+    (later.2 _ (List.mem_singleton.mpr rfl)).2] at rows
+  change ConstraintsHold env (flatConstraints (operations interface start))
+  rw [constraints_eq]
+  exact rows
+
+theorem complete (interface : Interface) (env : Env) (start : Nat)
     (inputs : Assumptions interface start) :
-    AgreesOutside base (completeEnv interface base start) start privateCount ∧
-      holdsFlat (completeEnv interface base start) (operations interface start) := by
-  let prepared := HintProgram.helperEnv interface base start
-  let children := childEnv interface base start
-  let core := coreInterface interface start
-  have helperAgreement := HintProgram.helperEnv_agreesOutside interface base start
-  change AgreesOutside base prepared start HintProgram.helperCount at helperAgreement
-  have childAgreement :=
-    (CanonicalChildren.correct core prepared (coreOffset start) (core_inputs interface start inputs)
-      fieldCount (by rfl)).1
-  change AgreesOutside prepared children (coreOffset start) (childWidth * fieldCount) at childAgreement
-  have drawSame : drawOf core children (coreOffset start) = drawOf interface base start := by
-    funext lane
-    apply Expr.eval_eq_of_agree_below _ start children base (inputs lane)
-    intro index below
-    rw [childAgreement index (Or.inl (by unfold coreOffset; omega)),
-      helperAgreement index (Or.inl below)]
-  have helperPresent : HelperValues.Present prepared start (drawOf interface base start) := by
-    rw [show prepared = HelperValues.environment base start (drawOf interface base start) from
-      HelperExecution.execute_reference interface base start inputs]
-    exact HelperValues.present base start _
-  have childrenPresent : HelperValues.Present children start (drawOf core children (coreOffset start)) := by
-    rw [drawSame]
-    apply HelperValues.present_of_agree prepared children start _ helperPresent
-    intro index _ upper
-    exact childAgreement index (Or.inl upper)
-  have childRows := CanonicalChildren.rows core prepared (coreOffset start) (core_inputs interface start inputs)
-  have childScope := CanonicalChildren.scope core (coreOffset start) (core_inputs interface start inputs)
-  have childSpecs := CanonicalChildren.specifications core prepared (coreOffset start)
-    (core_inputs interface start inputs)
-  have resultSame := OutputExecution.execute_reference core children start (coreOffset start)
-    (by rfl) childrenPresent childSpecs childRows childScope
-  have resultAgreement := executeHints_agreesOutside children (quotientStart (coreOffset start))
-    (HintProgram.resultHints start (coreOffset start))
-  rw [HintProgram.resultHints_length] at resultAgreement
-  refine ⟨?_, ?_⟩
-  · have first := helperAgreement.append childAgreement
-    have all := first.append resultAgreement
-    simpa only [privateCount, WideReduction.privateCount, quotientStart, coreOffset, Nat.add_assoc] using! all
-  · change holdsFlat (executeHints children _ _) _
-    rw [resultSame]
-    change ConstraintsHold _ (flatConstraints (operations interface start))
-    rw [constraints_eq]
-    exact completeNew_holds core (HintProgram.resultHints start) children (coreOffset start)
-      childSpecs childRows childScope
+    ∃ completed, AgreesOutside env completed start (localLength (operations interface start)) ∧
+      holdsFlat completed (operations interface start) :=
+  Witness.complete (ordered interface start inputs) fun completed _ =>
+    computed_holdsFlat interface completed start inputs
 
 def circuit (interface : Interface) : FormalCircuit where
   main := fun start => ((), start + privateCount, operations interface start)
@@ -214,14 +219,7 @@ def circuit (interface : Interface) : FormalCircuit where
     change holds env (operations interface start) at rows
     have child := rows (checkedOp interface start) (by simp [operations])
     exact child (core_inputs interface start inputs)
-  completeness := by
-    intro env start inputs _
-    refine ⟨completeEnv interface env start, ?_⟩
-    change AgreesOutside env (completeEnv interface env start) start
-      (localLength (operations interface start)) ∧
-      holdsFlat (completeEnv interface env start) (operations interface start)
-    rw [localLength_eq]
-    exact completeEnv_correct interface env start inputs
+  completeness := fun env start inputs _ => complete interface env start inputs
 
 /-! ### The exporter's blocks (SPEC.md section 4.4) -/
 

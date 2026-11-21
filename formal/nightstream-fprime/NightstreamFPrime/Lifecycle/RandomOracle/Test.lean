@@ -6,15 +6,20 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.IndependentExecution
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RoundByRound
 
 /-! The Π_CCS test error in the random-oracle model for any fold transcript `Schedule`: the test
-step of the random-oracle chain, which `RandomOracleTest` states for the one-circuit fold. A random
-function of each challenge's address (`point`) replaces the Poseidon2 sponge read, so the
-Π_CCS coins are `coins oracle statement messages`.
+step of the random-oracle chain, which `RandomOracleTest` states for the one-circuit fold. The
+model is the one of `[SPONGE]` (`SECURITY_MODEL.md`): a uniform function from the list of sponge
+calls before a read (`point`) to the rate lanes of the state after them (`Answer`). A `K` coin of
+slot `s` reads lanes `2s` and `2s + 1` (`decodeK`), so the coins of one state read one answer at
+disjoint lanes, as in the sponge. The Π_CCS coins are `coins oracle statement messages`.
 
 The fold supplies the claimed protocol data of each statement (`source`). The bad set of a
 challenge (`bad`) is the `RoundByRound` set of its coin: an `α` coordinate, `γ`, or one round
-challenge. A `ρ` challenge has no bad set. Each bad set is local (`bad_local`) and has mass at
-most `error` (`bad_mass_le`). When the fold's split lemma (`RoundByRound.falseAcceptance_splits`,
-`Light.PiCCS.falseAcceptance_splits`) holds on the oracle coins (`Splits`), one challenge hits
+challenge. A `ρ` challenge has no bad set. A bad set reads the other coins of its state from the
+answer, so it is local (`bad_local`). The coin's own lanes are uniform for any value of the other
+lanes (`setSlot`, `Spec.RandomOracle.expect_lens`), and no coin that the bad set reads is on them
+(`coinBad_setSlot`), so it has mass at most `error` (`bad_mass_le`). When the fold's split lemma
+(`RoundByRound.falseAcceptance_splits`, `Light.PiCCS.falseAcceptance_splits`) holds on the
+oracle coins (`Splits`), one challenge hits
 its bad set at its address (`splits_hits`). For any local per-challenge family of these masses,
 an event that implies a hit has probability at most `(Q + 1) · testError`
 (`family_error_le`), and the bad sets are one such family (`test_error_le`). The checked game
@@ -37,33 +42,69 @@ attribute [local instance low] Classical.propDecidable
 
 section Answers
 
-/-- One oracle answer: one draw of the production Π_RLC sampler. -/
-abbrev Answer := Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Draw
+/-- One oracle answer: the rate lanes of the sponge state after the calls of the point. -/
+abbrev Answer := Call
 
-def decodeK (answer : Answer) : K := ⟨answer ⟨0, by decide⟩, answer ⟨1, by decide⟩⟩
+/-- The lane of word `half` of the coin of `slot`: `2 · slot + half`. -/
+def lane (slot : Slot) (half : Fin 2) : Fin Poseidon2.rate :=
+  ⟨2 * slot.val + half.val, by
+    have inside : slot.val < 6 := slot.isLt
+    have small := half.isLt
+    show _ < 12
+    omega⟩
 
-private def splitAnswer : Answer ≃ (F × F) × (F × F × F) where
-  toFun answer := ((answer ⟨0, by decide⟩, answer ⟨1, by decide⟩),
-    (answer ⟨2, by decide⟩, answer ⟨3, by decide⟩, answer ⟨4, by decide⟩))
-  invFun words := fun lane =>
-    match lane with
-    | ⟨0, _⟩ => words.1.1
-    | ⟨1, _⟩ => words.1.2
-    | ⟨2, _⟩ => words.2.1
-    | ⟨3, _⟩ => words.2.2.1
-    | _ => words.2.2.2
-  left_inv answer := by
-    funext lane
-    match lane with
-    | ⟨0, _⟩ => rfl
-    | ⟨1, _⟩ => rfl
-    | ⟨2, _⟩ => rfl
-    | ⟨3, _⟩ => rfl
-    | ⟨4, _⟩ => rfl
-    | ⟨index + 5, inside⟩ =>
-        exact absurd inside
-          (by unfold Spec.Folding.Nifs.NonInteractive.PiRlcSampler.drawWidth; omega)
-  right_inv _ := rfl
+theorem lane_injective {slot slot' : Slot} {half half' : Fin 2}
+    (same : lane slot half = lane slot' half') : slot = slot' ∧ half = half' := by
+  have value := congrArg Fin.val same
+  simp only [lane] at value
+  have small := half.isLt
+  have small' := half'.isLt
+  exact ⟨Fin.ext (by omega), Fin.ext (by omega)⟩
+
+/-- The `K` coin of `slot`: lanes `2 · slot` and `2 · slot + 1`, as `Sponge.readK` reads them. -/
+def decodeK (slot : Slot) (answer : Answer) : K := ⟨answer (lane slot 0), answer (lane slot 1)⟩
+
+theorem decodeK_rateLanes (slot : Slot) (state : Transcript.State) :
+    decodeK slot (rateLanes state) = readK slot state :=
+  rfl
+
+/-- The two words of the coin of `slot`. -/
+def getSlot (slot : Slot) (answer : Answer) : F × F := (answer (lane slot 0), answer (lane slot 1))
+
+/-- `answer` with the coin of `slot` set to `words`. -/
+def setSlot (slot : Slot) (answer : Answer) (words : F × F) : Answer :=
+  Function.update (Function.update answer (lane slot 0) words.1) (lane slot 1) words.2
+
+private theorem lanes_ne (slot : Slot) : lane slot 0 ≠ lane slot 1 := fun same =>
+  absurd (lane_injective same).2 (by decide)
+
+theorem decodeK_setSlot (slot : Slot) (answer : Answer) (words : F × F) :
+    decodeK slot (setSlot slot answer words) = ⟨words.1, words.2⟩ := by
+  simp [decodeK, setSlot, Function.update_of_ne (lanes_ne slot)]
+
+/-- A new coin at `slot` leaves the coin of each other slot. -/
+theorem decodeK_setSlot_ne {slot other : Slot} (different : other ≠ slot) (answer : Answer)
+    (words : F × F) : decodeK other (setSlot slot answer words) = decodeK other answer := by
+  have apart (half half' : Fin 2) : lane other half ≠ lane slot half' := fun same =>
+    different (lane_injective same).1
+  simp [decodeK, setSlot, Function.update_of_ne (apart _ _)]
+
+/-- A uniform answer is a uniform answer with the coin of `slot` drawn again. -/
+theorem expect_setSlot (slot : Slot) (value : Answer → ℝ) :
+    𝔼 answer, value answer = 𝔼 answer, 𝔼 words : F × F, value (setSlot slot answer words) :=
+  expect_lens (getSlot slot) (setSlot slot)
+    (fun answer words => by simp [getSlot, setSlot, Function.update_of_ne (lanes_ne slot)])
+    (fun answer => by simp [getSlot, setSlot])
+    (fun answer words words' => by
+      funext target
+      by_cases high : target = lane slot 1
+      · subst high
+        simp [setSlot]
+      · by_cases low : target = lane slot 0
+        · subst low
+          simp [setSlot, Function.update_of_ne (lanes_ne slot)]
+        · simp [setSlot, Function.update_of_ne high, Function.update_of_ne low])
+    value
 
 /-- Every element of `K`, as the pairs of its two words. Noncomputable: compiled code would build
 the `fieldModulus ^ 2` pairs when an executable that imports this module starts. -/
@@ -77,18 +118,17 @@ noncomputable def pairs : Finset K :=
 theorem pairs_card : (pairs.card : ℝ) = (fieldModulus ^ 2 : Nat) := by
   simp [pairs, Fintype.card_prod, Fintype.card_fin, pow_two]
 
-/-- A uniform answer decodes to a uniform element of `K`. -/
-theorem expect_decodeK (value : K → ℝ) :
-    𝔼 answer : Answer, value (decodeK answer) = 𝔼 element ∈ pairs, value element := by
-  refine (Fintype.expect_equiv splitAnswer (fun answer => value (decodeK answer))
-    (fun words : (F × F) × (F × F × F) => value ⟨words.1.1, words.1.2⟩) fun _ => rfl).trans ?_
-  simp only [pairs, Finset.expect_eq_sum_div_card, Finset.sum_map, Finset.card_map,
-    Finset.card_univ, Fintype.card_prod, Fintype.sum_prod_type, Finset.sum_const, nsmul_eq_mul,
-    ← Finset.mul_sum]
-  have positive : (0 : ℝ) < Fintype.card F := by exact_mod_cast Fintype.card_pos
-  push_cast
-  field_simp
+theorem expect_pairs (value : K → ℝ) :
+    𝔼 words : F × F, value ⟨words.1, words.2⟩ = 𝔼 element ∈ pairs, value element := by
+  simp only [pairs, Finset.expect_eq_sum_div_card, Finset.sum_map, Finset.card_map]
   rfl
+
+/-- The coin of `slot` of a uniform answer is a uniform element of `K`. -/
+theorem expect_decodeK (slot : Slot) (value : K → ℝ) :
+    𝔼 answer : Answer, value (decodeK slot answer) = 𝔼 element ∈ pairs, value element := by
+  rw [expect_setSlot slot, ← expect_pairs]
+  simp only [decodeK_setSlot]
+  exact Finset.expect_const Finset.univ_nonempty _
 
 end Answers
 
@@ -117,30 +157,28 @@ abbrev BoundedCalls := {calls : List Call // calls.length ≤ pointBound schedul
 noncomputable instance : Fintype (BoundedCalls schedule width) :=
   (List.finite_length_le Call _).fintype
 
-/-- A random-oracle point: the sponge calls before a read and the lane pair of the read. -/
-abbrev Point := BoundedCalls schedule width × Slot
+/-- A random-oracle point: the sponge calls before a read. -/
+abbrev Point := BoundedCalls schedule width
 
 variable {schedule width}
 
 noncomputable def point (statement : schedule.Statement) (messages : schedule.Messages width)
     (challenge : schedule.Challenge) : Point schedule width :=
-  (⟨schedule.challengeCalls statement messages challenge,
-    Classical.choose_spec (exists_bound schedule width) statement messages challenge⟩,
-    challenge.slot)
+  ⟨schedule.challengeCalls statement messages challenge,
+    Classical.choose_spec (exists_bound schedule width) statement messages challenge⟩
 
-theorem point_injective (statement : schedule.Statement) (messages : schedule.Messages width)
+/-- Two challenges of one transcript at one point read different slots, or they are equal. -/
+theorem eq_of_point_eq (statement : schedule.Statement) (messages : schedule.Messages width)
     {challenge other : schedule.Challenge}
-    (same : point statement messages challenge = point statement messages other) :
-    challenge = other :=
-  schedule.challengeAddress_injective statement messages (by
-    have calls := congrArg (fun target => target.1.val) same
-    have slot := congrArg Prod.snd same
-    exact Prod.ext calls slot)
+    (same : point statement messages challenge = point statement messages other)
+    (sameSlot : challenge.slot = other.slot) : challenge = other :=
+  schedule.challengeAddress_injective statement messages
+    (Prod.ext (congrArg Subtype.val same) sameSlot)
 
 noncomputable def read (oracle : Point schedule width → Answer) (address : List Call × Slot) :
     K :=
   if fits : address.1.length ≤ pointBound schedule width then
-    decodeK (oracle (⟨address.1, fits⟩, address.2))
+    decodeK address.2 (oracle ⟨address.1, fits⟩)
   else K.zero
 
 /-- The Π_CCS coins that the transcript reads from `oracle`. -/
@@ -152,7 +190,7 @@ theorem read_challengeAddress (oracle : Point schedule width → Answer)
     (statement : schedule.Statement) (messages : schedule.Messages width)
     (challenge : schedule.Challenge) :
     read oracle (schedule.challengeAddress statement messages challenge) =
-      decodeK (oracle (point statement messages challenge)) :=
+      decodeK challenge.slot (oracle (point statement messages challenge)) :=
   dite_eq_left _
 
 end Points
@@ -175,14 +213,14 @@ def coinBad (data : ProtocolPolynomial.Data K schedule.shape) (challenge : sched
   | .rho _ => ∅
 
 /-- The answers at `target` that put `challenge` in its bad set, for any statement and messages
-whose `challenge` address is `target`. -/
+whose `challenge` point is `target`. The coins of the same state come from the answer. -/
 def bad (source : schedule.Statement → ProtocolPolynomial.Data K schedule.shape)
     (challenge : schedule.Challenge) (target : Point schedule width)
     (oracle : Point schedule width → Answer) : Set Answer :=
   {answer | ∃ (statement : schedule.Statement) (messages : schedule.Messages width),
     point statement messages challenge = target ∧
-      decodeK answer ∈ coinBad (source statement) challenge (coins oracle statement messages)
-        messages}
+      decodeK challenge.slot answer ∈ coinBad (source statement) challenge
+        (coins (Function.update oracle target answer) statement messages) messages}
 
 variable (schedule width) in
 /-- The mass bound of each challenge's bad set: `1/q²` for an `α` coordinate, `(J − 1)/q²` for
@@ -204,35 +242,53 @@ private theorem cubePoint_eq {size : Nat} {left right : CubePoint K size}
   cases same
   rfl
 
-private theorem read_update (oracle : Point schedule width → Answer)
+private theorem read_setSlot (oracle : Point schedule width → Answer)
     (statement : schedule.Statement) (messages : schedule.Messages width)
-    {challenge other : schedule.Challenge} (different : other ≠ challenge) (answer : Answer) :
-    read (Function.update oracle (point statement messages challenge) answer)
+    {challenge other : schedule.Challenge} (different : other ≠ challenge) (answer : Answer)
+    (words : F × F) :
+    read (Function.update oracle (point statement messages challenge)
+        (setSlot challenge.slot answer words))
         (schedule.challengeAddress statement messages other) =
-      read oracle (schedule.challengeAddress statement messages other) := by
-  have apart : point statement messages other ≠ point statement messages challenge := fun same =>
-    different (point_injective statement messages same)
-  rw [read_challengeAddress, read_challengeAddress, Function.update_of_ne apart]
+      read (Function.update oracle (point statement messages challenge) answer)
+        (schedule.challengeAddress statement messages other) := by
+  rw [read_challengeAddress, read_challengeAddress]
+  by_cases same : point statement messages other = point statement messages challenge
+  · rw [same, Function.update_self, Function.update_self]
+    exact decodeK_setSlot_ne (fun slot => different (eq_of_point_eq statement messages same slot))
+      answer words
+  · rw [Function.update_of_ne same, Function.update_of_ne same]
 
-private theorem alpha_update (oracle : Point schedule width → Answer)
+private theorem read_setSlot_self (oracle : Point schedule width → Answer)
+    (statement : schedule.Statement) (messages : schedule.Messages width)
+    (challenge : schedule.Challenge) (answer : Answer) (words : F × F) :
+    read (Function.update oracle (point statement messages challenge)
+        (setSlot challenge.slot answer words))
+        (schedule.challengeAddress statement messages challenge) = ⟨words.1, words.2⟩ := by
+  rw [read_challengeAddress, Function.update_self, decodeK_setSlot]
+
+private theorem alpha_setSlot (oracle : Point schedule width → Answer)
     (statement : schedule.Statement) (messages : schedule.Messages width)
     {challenge : schedule.Challenge} (notAlpha : ∀ index, challenge ≠ .alpha index)
-    (answer : Answer) :
-    (coins (Function.update oracle (point statement messages challenge) answer) statement
-        messages).alpha = (coins oracle statement messages).alpha := by
+    (answer : Answer) (words : F × F) :
+    (coins (Function.update oracle (point statement messages challenge)
+        (setSlot challenge.slot answer words)) statement messages).alpha =
+      (coins (Function.update oracle (point statement messages challenge) answer) statement
+        messages).alpha := by
   apply cubePoint_eq
   simp only [coins, Schedule.coinsFrom]
   congr 1
   funext index
-  exact read_update oracle statement messages (fun same => notAlpha index same.symm) answer
+  exact read_setSlot oracle statement messages (fun same => notAlpha index same.symm) answer words
 
-private theorem alpha_update_self (oracle : Point schedule width → Answer)
+private theorem alpha_setSlot_self (oracle : Point schedule width → Answer)
     (statement : schedule.Statement) (messages : schedule.Messages width)
-    (index : Fin schedule.shape.cubeVariables) (answer : Answer) :
-    (coins (Function.update oracle (point statement messages (.alpha index)) answer) statement
-        messages).alpha =
-      ⟨(coins oracle statement messages).alpha.coordinates.set index.val (decodeK answer),
-        by simp [(coins oracle statement messages).alpha.dimension]⟩ := by
+    (index : Fin schedule.shape.cubeVariables) (answer : Answer) (words : F × F) :
+    (coins (Function.update oracle (point statement messages (.alpha index))
+        (setSlot (Schedule.Challenge.alpha index).slot answer words)) statement messages).alpha =
+      ⟨(coins (Function.update oracle (point statement messages (.alpha index)) answer) statement
+          messages).alpha.coordinates.set index.val ⟨words.1, words.2⟩,
+        by simp [(coins (Function.update oracle (point statement messages (.alpha index)) answer)
+          statement messages).alpha.dimension]⟩ := by
   apply cubePoint_eq
   simp only [coins, Schedule.coinsFrom]
   apply List.ext_getElem (by simp)
@@ -240,65 +296,69 @@ private theorem alpha_update_self (oracle : Point schedule width → Answer)
   simp only [List.getElem_ofFn]
   by_cases same : position = index.val
   · subst same
-    simp [read_challengeAddress]
+    simp [read_setSlot_self]
   · rw [List.getElem_set_ne (Ne.symm same), List.getElem_ofFn]
-    exact read_update oracle statement messages
-      (fun equal => same (congrArg Fin.val (Schedule.Challenge.alpha.inj equal))) answer
+    exact read_setSlot oracle statement messages
+      (fun equal => same (congrArg Fin.val (Schedule.Challenge.alpha.inj equal))) answer words
 
-private theorem gamma_update (oracle : Point schedule width → Answer)
+private theorem gamma_setSlot (oracle : Point schedule width → Answer)
     (statement : schedule.Statement) (messages : schedule.Messages width)
-    {challenge : schedule.Challenge} (notGamma : challenge ≠ .gamma) (answer : Answer) :
-    (coins (Function.update oracle (point statement messages challenge) answer) statement
-        messages).gamma = (coins oracle statement messages).gamma :=
-  read_update oracle statement messages (Ne.symm notGamma) answer
+    {challenge : schedule.Challenge} (notGamma : challenge ≠ .gamma) (answer : Answer)
+    (words : F × F) :
+    (coins (Function.update oracle (point statement messages challenge)
+        (setSlot challenge.slot answer words)) statement messages).gamma =
+      (coins (Function.update oracle (point statement messages challenge) answer) statement
+        messages).gamma :=
+  read_setSlot oracle statement messages (Ne.symm notGamma) answer words
 
-private theorem rounds_update (oracle : Point schedule width → Answer)
+private theorem rounds_setSlot (oracle : Point schedule width → Answer)
     (statement : schedule.Statement) (messages : schedule.Messages width)
-    (index : Fin schedule.shape.cubeVariables) (answer : Answer) :
-    (coins (Function.update oracle (point statement messages (.round index)) answer) statement
+    (index : Fin schedule.shape.cubeVariables) (answer : Answer) (words : F × F) :
+    (coins (Function.update oracle (point statement messages (.round index))
+        (setSlot (Schedule.Challenge.round index).slot answer words)) statement
         messages).roundPoint.coordinates.take index.val =
-      (coins oracle statement messages).roundPoint.coordinates.take index.val := by
+      (coins (Function.update oracle (point statement messages (.round index)) answer) statement
+        messages).roundPoint.coordinates.take index.val := by
   simp only [coins, Schedule.coinsFrom]
   apply List.ext_getElem (by simp)
   intro position inside _
   simp only [List.getElem_take, List.getElem_ofFn]
   have below : position < index.val := by simp at inside; omega
-  exact read_update oracle statement messages (fun equal => by
+  exact read_setSlot oracle statement messages (fun equal => by
     have := congrArg Fin.val (Schedule.Challenge.round.inj equal)
     simp at this
-    omega) answer
+    omega) answer words
 
-private theorem coinBad_update (data : ProtocolPolynomial.Data K schedule.shape)
+/-- A new coin at the slot of `challenge` leaves its bad set: the set reads only the other
+coins. -/
+private theorem coinBad_setSlot (data : ProtocolPolynomial.Data K schedule.shape)
     (challenge : schedule.Challenge) (oracle : Point schedule width → Answer)
-    (statement : schedule.Statement) (messages : schedule.Messages width) (answer : Answer) :
+    (statement : schedule.Statement) (messages : schedule.Messages width) (answer : Answer)
+    (words : F × F) :
     coinBad data challenge
+        (coins (Function.update oracle (point statement messages challenge)
+          (setSlot challenge.slot answer words)) statement messages) messages =
+      coinBad data challenge
         (coins (Function.update oracle (point statement messages challenge) answer) statement
-          messages) messages =
-      coinBad data challenge (coins oracle statement messages) messages := by
+          messages) messages := by
   cases challenge with
   | alpha index =>
       simp only [coinBad]
-      rw [alpha_update_self, RoundByRound.alphaBad_set]
+      rw [alpha_setSlot_self, RoundByRound.alphaBad_set]
   | gamma =>
       simp only [coinBad]
-      rw [alpha_update oracle statement messages (fun _ => by simp)]
+      rw [alpha_setSlot oracle statement messages (fun _ => by simp)]
   | round index =>
       simp only [coinBad]
-      rw [alpha_update oracle statement messages (fun _ => by simp),
-        gamma_update oracle statement messages (by simp), rounds_update]
+      rw [alpha_setSlot oracle statement messages (fun _ => by simp),
+        gamma_setSlot oracle statement messages (by simp), rounds_setSlot]
   | rho => rfl
 
 theorem bad_local (source : schedule.Statement → ProtocolPolynomial.Data K schedule.shape)
     (challenge : schedule.Challenge) : Local (bad (width := width) source challenge) := by
   intro target oracle answer
   ext candidate
-  constructor
-  · rintro ⟨statement, messages, located, inside⟩
-    subst located
-    exact ⟨statement, messages, rfl, by rwa [coinBad_update] at inside⟩
-  · rintro ⟨statement, messages, located, inside⟩
-    subst located
-    exact ⟨statement, messages, rfl, by rwa [coinBad_update]⟩
+  simp only [bad, Set.mem_ofPred_eq, Function.update_idem]
 
 private theorem below_of_mem_take {count bound : Nat} {index : Fin count}
     (member : index ∈ (canonicalFinIndices count).take bound) : index.val < bound := by
@@ -334,7 +394,8 @@ private theorem coordinate_alpha (oracle : Point schedule width → Answer)
     (statement : schedule.Statement) (messages : schedule.Messages width)
     (index : Fin schedule.shape.cubeVariables) :
     RoundByRound.coordinate (coins oracle statement messages).alpha index =
-      decodeK (oracle (point statement messages (.alpha index))) := by
+      decodeK (Schedule.Challenge.alpha index).slot
+        (oracle (point statement messages (.alpha index))) := by
   simp only [RoundByRound.coordinate, coins, Schedule.coinsFrom, List.getElem_ofFn,
     read_challengeAddress]
 
@@ -342,7 +403,8 @@ private theorem coordinate_round (oracle : Point schedule width → Answer)
     (statement : schedule.Statement) (messages : schedule.Messages width)
     (index : Fin schedule.shape.cubeVariables) :
     RoundByRound.coordinate (coins oracle statement messages).roundPoint index =
-      decodeK (oracle (point statement messages (.round index))) := by
+      decodeK (Schedule.Challenge.round index).slot
+        (oracle (point statement messages (.round index))) := by
   simp only [RoundByRound.coordinate, coins, Schedule.coinsFrom, List.getElem_ofFn,
     read_challengeAddress]
 
@@ -369,7 +431,7 @@ private theorem coinBad_congr
       coinBad (source statement') challenge (coins oracle statement' messages') messages' := by
   have calls : schedule.challengeCalls statement messages challenge =
       schedule.challengeCalls statement' messages' challenge :=
-    congrArg (fun target => target.1.val) same
+    congrArg Subtype.val same
   have agree := schedule.proverCalls_identify challenge (List.append_cancel_right calls)
   cases challenge with
   | alpha index =>
@@ -451,18 +513,24 @@ theorem bad_mass_le (source : schedule.Statement → ProtocolPolynomial.Data K s
   by_cases located : ∃ (statement : schedule.Statement) (messages : schedule.Messages width),
       point statement messages challenge = target
   · obtain ⟨statement₀, messages₀, rfl⟩ := located
+    let badAt : Answer → Set K := fun answer => coinBad (source statement₀) challenge
+      (coins (Function.update oracle (point statement₀ messages₀ challenge) answer) statement₀
+        messages₀) messages₀
     have inside : bad source challenge (point statement₀ messages₀ challenge) oracle ⊆
-        {answer | decodeK answer ∈ coinBad (source statement₀) challenge
-          (coins oracle statement₀ messages₀) messages₀} := by
+        {answer | decodeK challenge.slot answer ∈ badAt answer} := by
       rintro answer ⟨statement, messages, same, member⟩
-      rwa [coinBad_congr source challenge oracle same] at member
+      rwa [coinBad_congr source challenge _ same] at member
     refine (mass_mono inside).trans ?_
-    have uniform := expect_decodeK (fun element => if element ∈ coinBad (source statement₀)
-      challenge (coins oracle statement₀ messages₀) messages₀ then (1 : ℝ) else 0)
-    have bound := coinBad_probability_le (source statement₀) (degreeCovers statement₀) challenge
-      (coins oracle statement₀ messages₀) messages₀
     unfold mass
-    exact (le_of_eq uniform).trans bound
+    refine (expect_setSlot challenge.slot _).le.trans ?_
+    refine (Finset.expect_le_expect fun answer _ => ?_).trans
+      (Finset.expect_const Finset.univ_nonempty _).le
+    simp only [Set.mem_ofPred_eq, decodeK_setSlot, badAt, coinBad_setSlot]
+    refine (expect_pairs fun element => if element ∈ coinBad (source statement₀) challenge
+      (coins (Function.update oracle (point statement₀ messages₀ challenge) answer) statement₀
+        messages₀) messages₀ then (1 : ℝ) else 0).le.trans ?_
+    exact coinBad_probability_le (source statement₀) (degreeCovers statement₀) challenge _
+      messages₀
   · have empty : bad source challenge target oracle = ∅ := by
       ext answer
       simp only [bad, Set.mem_ofPred_eq, Set.mem_empty_iff_false, iff_false]
@@ -524,11 +592,14 @@ theorem splits_hits (source : schedule.Statement → ProtocolPolynomial.Data K s
   rcases splits with ⟨index, member⟩ | member |
     ⟨certificate, index, message, decoded, located, member⟩
   · refine Or.inl ⟨index, statement, messages, rfl, ?_⟩
+    rw [Function.update_eq_self]
     rwa [coordinate_alpha] at member
   · refine Or.inr (Or.inl ⟨statement, messages, rfl, ?_⟩)
+    rw [Function.update_eq_self]
     change read oracle (schedule.challengeAddress statement messages .gamma) ∈ _ at member
     rwa [read_challengeAddress] at member
   · refine Or.inr (Or.inr ⟨index, statement, messages, rfl, ?_⟩)
+    rw [Function.update_eq_self]
     rw [roundsEq, FixedPhase.RawCertificate.decode_encode] at decoded
     cases decoded
     have equal : message = messages.rounds index := by simpa using located.symm

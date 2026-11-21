@@ -10,8 +10,9 @@ two such transcripts, so one proof serves the light fold and the refresh fold.
 
 For each challenge, `challengeCalls` is the list of sponge calls before the read and
 `Challenge.slot` is the lane pair that the read uses. Distinct challenges of one transcript
-have distinct addresses (`challengeAddress_injective`), the address length does not depend on
-the prover's data (`challengeCalls_length_eq`), and equal calls before a challenge fix the
+have distinct addresses (`challengeAddress_injective`), the state of a `ρ` read is the state of
+no other challenge (`rhoCalls_ne`), the address length does not depend on the prover's data
+(`challengeCalls_length_eq`), and equal calls before a challenge fix the
 absorbed data that the challenge depends on (`proverCalls_identify`). Transcripts with distinct
 domain chunks share no sponge call prefix (`challengeCalls_separated`). A transcript that uses
 `spongeOracle` reads its Π_CCS coins (`derive_eq_reads`, `derive_publicCoins`) and its Π_RLC
@@ -348,6 +349,47 @@ theorem challengeAddress_injective (statement : schedule.Statement)
   simp only [challengeAddress, challengeCalls_length] at lengths
   exact schedule.offset_slot_injective _ _ (roundCallCount_pos width)
     (Nat.add_left_cancel lengths) (congrArg Prod.snd same)
+
+/-- A `ρ` read has more calls than every `K` coin, and two `ρ` reads have different numbers of
+calls. So, in any two transcripts of the schedule, the state of a `ρ` read is the state of no
+other challenge. -/
+theorem rhoCalls_ne (statement statement' : schedule.Statement)
+    (messages messages' : schedule.Messages width) (index : Fin schedule.rhoCount)
+    {challenge : schedule.Challenge} (other : challenge ≠ .rho index) :
+    schedule.challengeCalls statement messages (.rho index) ≠
+      schedule.challengeCalls statement' messages' challenge := by
+  intro same
+  have lengths := congrArg List.length same
+  have output : (absorbCalls (schedule.outputWords messages'.output)).length =
+      (absorbCalls (schedule.outputWords messages.output)).length := by
+    rw [absorbCalls_length, absorbCalls_length,
+      schedule.outputWords_length messages'.output messages.output]
+  rw [challengeCalls_length, challengeCalls_length,
+    schedule.statementCalls_length statement' statement, output] at lengths
+  have total := Nat.add_left_cancel lengths
+  have positive := roundCallCount_pos width
+  cases challenge with
+  | alpha coordinate =>
+      have inside := coordinate.isLt
+      simp only [offset, Transcript.coinsPerChunk_eq] at total
+      generalize schedule.shape.cubeVariables * roundCallCount width = rounds at total
+      omega
+  | gamma =>
+      simp only [offset, Transcript.coinsPerChunk_eq] at total
+      generalize schedule.shape.cubeVariables * roundCallCount width = rounds at total
+      omega
+  | round round =>
+      have below : round.val * roundCallCount width + roundCallCount width ≤
+          schedule.shape.cubeVariables * roundCallCount width := by
+        rw [← Nat.succ_mul]
+        exact Nat.mul_le_mul_right _ round.isLt
+      simp only [offset] at total
+      generalize round.val * roundCallCount width = steps at total below
+      generalize schedule.shape.cubeVariables * roundCallCount width = rounds at total below
+      omega
+  | rho other' =>
+      simp only [offset] at total
+      exact other (congrArg Schedule.Challenge.rho (Fin.ext (by omega))).symm
 
 end Lengths
 

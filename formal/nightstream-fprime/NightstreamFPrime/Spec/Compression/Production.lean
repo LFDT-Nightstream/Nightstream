@@ -1,4 +1,4 @@
-import NightstreamFPrime.Spec.Compression.Verifier.Bound
+import NightstreamFPrime.Spec.Compression.Verifier.Honest
 import NightstreamFPrime.Spec.Compression.Verifier.Pass
 import NightstreamFPrime.Spec.FieldExtensionRing
 import NightstreamFPrime.Spec.Folding.Schedule
@@ -254,5 +254,34 @@ theorem slot_normBounded {st : Statement (params key matrices depths layout)} {W
     (Nat.lt_of_lt_of_le column.isLt fits)
 
 end Norm
+
+section Honest
+
+variable {n : ℕ} (key : ℕ → ℕ → ℕ → F) (matrices : Fin (n + 1) → Matrices F) (depths : Fin n → ℕ)
+  (layout : Layout (n + 1))
+
+theorem params_tablesDistinct (depths_le : ∀ s, depths s ≤ productionLightFoldCap) :
+    TablesDistinct (params key matrices depths layout) := by
+  intro c table s t s_lt t_lt equal
+  have slot : (c : ℕ) < n := of_decide_eq_true table
+  have values := slot_table_le (depths_le ⟨c, slot⟩)
+  have slot_bound : bound depths c = productionGlobalParams.accumulatorBound (depths ⟨c, slot⟩) :=
+    by simp only [bound, slot, dite_true]
+  change s < 2 * bound depths c + 1 at s_lt
+  change t < 2 * bound depths c + 1 at t_lt
+  have field : (20737 : ℕ) < fieldModulus := by decide
+  change (s : ZMod fieldModulus) - (bound depths c : ZMod fieldModulus) =
+    (t : ZMod fieldModulus) - (bound depths c : ZMod fieldModulus) at equal
+  have mods := (ZMod.natCast_eq_natCast_iff' s t fieldModulus).mp (sub_left_inj.mp equal)
+  rwa [Nat.mod_eq_of_lt (by omega), Nat.mod_eq_of_lt (by omega)] at mods
+
+/-- SPEC.md Algorithm 9, Rejects. -/
+theorem params_omegaError_le :
+    omegaError (params key matrices depths layout) ≤ 7 / Fintype.card K := by
+  refine omegaError_le le_rfl (fun zero => ?_) (by rw [card_K]; decide)
+  have divides := (CharP.cast_eq_zero_iff K fieldModulus 2).mp (by exact_mod_cast zero)
+  exact absurd (Nat.le_of_dvd two_pos divides) (by decide)
+
+end Honest
 
 end NightstreamFPrime.Spec.Compression.Production

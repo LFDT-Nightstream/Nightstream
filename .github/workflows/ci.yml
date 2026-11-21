@@ -114,3 +114,41 @@ jobs:
       run: |
         timeout --signal=KILL 300 python3 -B -m unittest scripts.tests.test_check_spec
         timeout --signal=KILL 300 python3 -B -m unittest discover -s formal/nightstream-fprime/tests -p 'test_*.py'
+
+  lean:
+    name: Lean build, axiom audits and census
+    runs-on: self-hosted
+    timeout-minutes: 150
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    # The runner keeps its container between jobs, so this folder stays warm.
+    # It is outside the checkout because actions/checkout removes ignored files.
+    - name: Use this runner's Lake folder
+      run: |
+        dir="$RUNNER_WORKSPACE/lake-$(cat formal/nightstream-fprime/lean-toolchain formal/nightstream-fprime/lake-manifest.json | sha256sum | cut -c1-16)"
+        find "$RUNNER_WORKSPACE" -mindepth 1 -maxdepth 1 -name 'lake-*' ! -path "$dir" -exec rm -rf {} +
+        mkdir -p "$dir"
+        rm -rf formal/nightstream-fprime/.lake
+        ln -s "$dir" formal/nightstream-fprime/.lake
+
+    - name: Install the pinned Lean toolchain and the Mathlib cache
+      uses: leanprover/lean-action@v1
+      with:
+        lake-package-directory: formal/nightstream-fprime
+        auto-config: false
+        build: false
+        test: false
+        lint: false
+        use-github-cache: false
+        use-mathlib-cache: true
+
+    - name: Run the Lean gates
+      run: bash formal/nightstream-fprime/scripts/validate.sh all

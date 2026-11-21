@@ -38,6 +38,71 @@ theorem localLength_opsAt : offset + localLength (opsAt p app i offset) = endOff
   simp only [localLength_cons, child_localLength, show localLength ([] : List Op) = 0 from rfl,
     Nat.add_zero, ← Nat.add_assoc, e1, e2, e3, e4, e5, e6, e7, e8, e9]
 
+theorem witnesses_opsAt :
+    witnesses (opsAt p app i offset) = witnesses (childOps p app i offset) := by
+  rw [opsAt, Witness.witnesses_append, Witness.witnesses_assertions, List.append_nil]
+
+theorem ordered (inputs : Application.InputsBelow i offset) :
+    Witness.Ordered offset (witnesses (opsAt p app i offset))
+      (offset + localLength (opsAt p app i offset)) := by
+  obtain ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9⟩ := child_ends p app i offset
+  have child : ∀ (child : Sponge.Interface) (start next : ℕ),
+      Sponge.Assumptions child start (fun _ => 0) →
+        start + (child.chunks start).length * 1096 = next →
+          Witness.Ordered start (witnesses (Sponge.opsAt child start)) next := by
+    intro child start next assumptions finish
+    have ordered := Sponge.ordered child start _ assumptions
+    rwa [show localLength (Sponge.opsAt child start) = _ from Sponge.localLength_eq child start,
+      finish] at ordered
+  have chain :=
+    (child _ _ _ (stateIn_assumptions inputs _) e1).append <|
+    (child _ _ _ (stateOut_assumptions inputs _) e2).append <|
+    (child _ _ _ (chainOps_assumptions inputs _) e3).append <|
+    (child _ _ _ (chainInitial_assumptions inputs _) e4).append <|
+    (child _ _ _ (chainFinal_assumptions inputs _) e5).append <|
+    (child _ _ _ (eta_assumptions inputs _) e6).append <|
+    (child _ _ _ (squeeze1_assumptions inputs _) e7).append <|
+    (child _ _ _ (squeeze2_assumptions inputs _) e8).append
+      (child _ _ _ (squeeze3_assumptions inputs _) e9)
+  rw [witnesses_opsAt, localLength_opsAt]
+  exact chain
+
+private theorem child_holdsFlat (env : Env)
+    (computed : Witness.Computed env (witnesses (childOps p app i offset)))
+    {name : String} {child : Sponge.Interface} {start : ℕ}
+    (member : Sequence.childOp name (Sponge.circuit child) start ∈ childOps p app i offset) :
+    ConstraintsHold env (Sequence.childOp name (Sponge.circuit child) start).flatConstraints :=
+  Sponge.computed_holdsFlat child env start fun batch inside =>
+    computed batch (List.mem_flatMap.mpr ⟨_, member, inside⟩)
+
+theorem children_holdsFlat (env : Env)
+    (computed : Witness.Computed env (witnesses (childOps p app i offset))) :
+    holdsFlat env (childOps p app i offset) := by
+  intro expression member
+  obtain ⟨operation, operationMember, rowMember⟩ := List.mem_flatMap.mp member
+  simp only [childOps, List.mem_cons, List.not_mem_nil, or_false] at operationMember
+  rcases operationMember with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
+    exact child_holdsFlat p app i offset env computed (by simp [childOps]) expression rowMember
+
+theorem computed_holdsFlat (env : Env) (inputs : Application.InputsBelow i offset)
+    (specification : Application.Holds (step p app) i offset env ∧
+      Application.Valid (valid p app) i offset env)
+    (computed : Witness.Computed env (witnesses (opsAt p app i offset))) :
+    holdsFlat env (opsAt p app i offset) :=
+  rows_of_children p app i offset env env inputs specification (fun _ _ => rfl)
+    (children_holdsFlat p app i offset env (by rwa [witnesses_opsAt] at computed))
+
+/-- Completeness: honest execution satisfies every flattened row of a valid
+step and changes only the circuit's own variables. -/
+theorem completeness (env : Env) (inputs : Application.InputsBelow i offset)
+    (specification : Application.Holds (step p app) i offset env ∧
+      Application.Valid (valid p app) i offset env) :
+    ∃ completed, AgreesOutside env completed offset (localLength (opsAt p app i offset)) ∧
+      holdsFlat completed (opsAt p app i offset) :=
+  Witness.complete (ordered p app i offset inputs) fun completed below computed =>
+    rows_of_children p app i offset env completed inputs specification below
+      (children_holdsFlat p app i offset completed (by rwa [witnesses_opsAt] at computed))
+
 /-- Every flattened row reads only supported caller wires or the circuit's own
 variables. -/
 theorem supported (allowed : ℕ → Prop) (inputs : Application.InputsSupported i offset allowed)

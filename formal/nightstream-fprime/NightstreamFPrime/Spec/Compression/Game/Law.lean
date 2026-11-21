@@ -27,6 +27,16 @@ theorem event_ne_top {β : Type} (p : PMF β) (event : Set β) : p.toOuterMeasur
   rw [PMF.toOuterMeasure_apply]
   exact p.tsum_coe_indicator_ne_top event
 
+/-- The first part of a draw from `base` and then from `kernel` has the law `base`. -/
+theorem map_fst_bind {β : Type} (base : PMF α) (kernel : α → PMF β) :
+    (base.bind fun a => (kernel a).map (a, ·)).map Prod.fst = base := by
+  rw [PMF.map_bind]
+  conv_rhs => rw [← PMF.bind_pure base]
+  congr 1
+  funext a
+  rw [PMF.map_comp]
+  exact PMF.map_const (kernel a) a
+
 /-- `prob` is the measure of the event under the game's law. -/
 theorem prob_eq_law (s : Strategy α) (g : Game α) (E : α → Prop) :
     prob s g E = ((law s g).toOuterMeasure {a | E a}).toReal := by

@@ -35,6 +35,7 @@ import NightstreamFPrime.Spec.Nebula
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Schedule.statementCalls_length
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Schedule.challengeCalls_length_eq
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Schedule.challengeAddress_injective
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Schedule.rhoCalls_ne
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Schedule.statementCalls_identify
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Schedule.AgreeOnAbsorbed.statement_eq
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Schedule.proverCalls_identify
@@ -70,9 +71,15 @@ import NightstreamFPrime.Spec.Nebula
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.LightSchedule.probe_coins
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.LightSchedule.challenge_seal
 
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.lane_injective
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.decodeK_rateLanes
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.decodeK_setSlot
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.decodeK_setSlot_ne
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.expect_setSlot
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.pairs_card
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.expect_pairs
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.expect_decodeK
-#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.point_injective
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.eq_of_point_eq
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.read_challengeAddress
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.error_nonnegative
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.bad_local
@@ -102,10 +109,11 @@ import NightstreamFPrime.Spec.Nebula
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.readRho_eq_iff
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.sponge_readRho
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.sampleError_nonnegative
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.expect_setDraw
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.fiber_mass_le
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.rho_valid
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.rhoPoint_identifies
-#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.update_ne
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.update_rho_ne
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.coins_update_rho
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.rho_update
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Fork.normalized_bound
@@ -211,6 +219,7 @@ import NightstreamFPrime.Spec.Nebula
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Uniqueness.forkIndex_lt_bound
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Uniqueness.sum_success
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Uniqueness.source_error_le
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Uniqueness.failure_eq
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Uniqueness.knowledge_error_le
 
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.UniquenessLink.ajtaiCollision
@@ -238,6 +247,7 @@ import NightstreamFPrime.Spec.Nebula
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.LightKnowledge.statisticalError_two_pow_64
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.LightKnowledge.splits
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.LightKnowledge.knowledge_error_le
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.LightKnowledge.failureChance_le
 
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.RefreshUniqueness.holds_of_knowledge
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.RefreshUniqueness.folds_refresh
@@ -256,6 +266,7 @@ import NightstreamFPrime.Spec.Nebula
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.RefreshKnowledge.statisticalError_two_pow_64
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.RefreshKnowledge.splits
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.RefreshKnowledge.knowledge_error_le
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.RefreshKnowledge.failureChance_le
 
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Budgeted.runs_le
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Budgeted.extract_eq
@@ -363,6 +374,10 @@ import NightstreamFPrime.Spec.Nebula
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.RandomOracleSetup.refresh_production_knowledge_error_two_pow_64
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.RandomOracleSetup.light_production_knowledge_error_lt_solvers
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.RandomOracleSetup.refresh_production_knowledge_error_lt_solvers
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.RandomOracleSetup.light_hashAdvantage_le
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.RandomOracleSetup.refresh_hashAdvantage_le
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.RandomOracleSetup.light_production_knowledge_error_lt_numeric
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.RandomOracleSetup.refresh_production_knowledge_error_lt_numeric
 
 /-! A collision that the finder outputs has inputs of one length, and every witness of a
 reached statement has the application's word count. -/

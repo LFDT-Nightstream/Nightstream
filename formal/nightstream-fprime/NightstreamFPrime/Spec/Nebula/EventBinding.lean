@@ -2,7 +2,8 @@ import NightstreamFPrime.Spec.Nebula.MemoryTrace
 import NightstreamFPrime.Spec.Nebula.Reference
 
 /-! Owns the binding of catalog memory events to Nebula port accesses (SPEC.md
-section 7.6) and the bridge from a Nebula execution to `MemoryConsistent`. A binding
+section 7.6) and the bridge from a Nebula execution to `MemoryConsistent` and to the
+agreement of the final catalog state with the final memory (`Agrees`). A binding
 gives each bound memory a region in its namespace: RAM for a memory that the
 catalog declares RAM, ROM otherwise. An access binds an event when it names
 the event's packed address, a read reads the event value, and a write writes
@@ -140,18 +141,18 @@ theorem packParts_injective {ws : List ℕ} {xs ys : Address}
 /-! ### Simulation -/
 
 /-- The global index (SPEC.md section 7.2 `g`) of an address in region `r` of `memory`. -/
-private def cellIndex (p : Geometry) (catalog : List MemorySpec) (memory : ℕ) (r : Region)
+def cellIndex (p : Geometry) (catalog : List MemorySpec) (memory : ℕ) (r : Region)
     (address : Address) : ℕ :=
   if isRam catalog memory then p.romSize + r.addr address else r.addr address
 
 /-- The region address lies in the memory's namespace, as a valid access needs. -/
-private def Live (p : Geometry) (catalog : List MemorySpec) (memory : ℕ) (r : Region)
+def Live (p : Geometry) (catalog : List MemorySpec) (memory : ℕ) (r : Region)
     (address : Address) : Prop :=
   if isRam catalog memory then r.addr address < p.ramSize else r.addr address < p.romSize
 
-/-- Every in-range address in its namespace holds the value of its Nebula
-cell. -/
-private def Agrees (p : Geometry) (catalog : List MemorySpec) (b : Binding) (state : MemoryState)
+/-- The catalog state agrees with the Nebula memory: every in-range address in its
+namespace holds the value of its Nebula cell. -/
+def Agrees (p : Geometry) (catalog : List MemorySpec) (b : Binding) (state : MemoryState)
     (mem : Memory) : Prop :=
   ∀ memory r address, b.region memory = some r → r.Fits address →
     Live p catalog memory r address →
@@ -266,11 +267,12 @@ private theorem replay_of_agrees (disjoint : b.Disjoint catalog) {events : List 
     {accesses : List PortAccess} (bound : List.Forall₂ (b.Binds catalog) events accesses) :
     ∀ {state : MemoryState} {m final : Machine}, Agrees p catalog b state m.memory →
       (∀ e ∈ events, b.InRange e.memory e.address) → accessAll p m accesses = some final →
-      ∃ final', Replay state events final' := by
+      ∃ final', Replay state events final' ∧ Agrees p catalog b final' final.memory := by
   induction bound with
   | nil =>
-    intro state _ _ _ _ _
-    exact ⟨state, .nil state⟩
+    intro state _ _ agree _ replays
+    cases replays
+    exact ⟨state, .nil state, agree⟩
   | @cons e a events accesses binds _ ih =>
     intro state m final agree range replays
     rw [show accessAll p m (a :: accesses) = (access p m a).bind fun m' =>
@@ -278,9 +280,9 @@ private theorem replay_of_agrees (disjoint : b.Disjoint catalog) {events : List 
     obtain ⟨m', first, replays⟩ := replays
     obtain ⟨state', step, agree'⟩ :=
       step_agrees disjoint agree (range e List.mem_cons_self) binds first
-    obtain ⟨final', replay⟩ :=
+    obtain ⟨final', replay, agreeFinal⟩ :=
       ih agree' (fun e' member => range e' (List.mem_cons_of_mem e member)) replays
-    exact ⟨final', .cons step replay⟩
+    exact ⟨final', .cons step replay, agreeFinal⟩
 
 /-! ### Reorder
 
@@ -524,7 +526,22 @@ theorem reorders_filterMap (event : ℕ → Option Event) {source order : List �
 
 /-- If every event of the trace is in range, the initial state holds the plan
 images on the in-range set, and accesses that bind a reorder of the events
-replay from the plan images, then the trace is `MemoryConsistent`. -/
+replay from the plan images to `final`, then the events of the trace replay to
+a catalog state that agrees with the memory of `final`. -/
+theorem agrees_of_accessAll {p : Plan} {initial : MemoryState} {rows : List Witness}
+    {order : List Event} {accesses : List PortAccess} {final : Machine}
+    (disjoint : b.Disjoint catalog)
+    (inRange : ∀ e ∈ eventsForTrace catalog rows, b.InRange e.memory e.address)
+    (start : b.Initial catalog p initial) (reorders : Reorders (eventsForTrace catalog rows) order)
+    (bound : List.Forall₂ (b.Binds catalog) order accesses)
+    (replays : accessAll p.toGeometry (initialMachine p) accesses = some final) :
+    ∃ state, Replay initial (eventsForTrace catalog rows) state ∧
+      Agrees p.toGeometry catalog b state final.memory := by
+  obtain ⟨state, replay, agree⟩ := replay_of_agrees disjoint bound (agrees_initial start)
+    (fun e member => inRange e (reorders.mem member)) replays
+  exact ⟨state, replay_of_reorders reorders replay, agree⟩
+
+/-- Under the premises of `agrees_of_accessAll`, the trace is `MemoryConsistent`. -/
 theorem memoryConsistent_of_accessAll {p : Plan} {initial : MemoryState} {rows : List Witness}
     {order : List Event} {accesses : List PortAccess} {final : Machine}
     (disjoint : b.Disjoint catalog)
@@ -532,10 +549,8 @@ theorem memoryConsistent_of_accessAll {p : Plan} {initial : MemoryState} {rows :
     (start : b.Initial catalog p initial) (reorders : Reorders (eventsForTrace catalog rows) order)
     (bound : List.Forall₂ (b.Binds catalog) order accesses)
     (replays : accessAll p.toGeometry (initialMachine p) accesses = some final) :
-    MemoryConsistent catalog initial rows := by
-  obtain ⟨final', replay⟩ := replay_of_agrees disjoint bound (agrees_initial start)
-    (fun e member => inRange e (reorders.mem member)) replays
-  exact ⟨final', replay_of_reorders reorders replay⟩
+    MemoryConsistent catalog initial rows :=
+  (agrees_of_accessAll disjoint inRange start reorders bound replays).imp fun _ => And.left
 
 /-- An execution replays its active ports, step after step. -/
 theorem executes_accessAll {σ : Type} {app : Application p σ} {s s' : σ} {m m' : Machine}
@@ -547,9 +562,24 @@ theorem executes_accessAll {σ : Type} {app : Application p σ} {s s' : σ} {m m
     rw [List.flatMap_cons, accessAll_append, first, Option.bind_some]
     exact ih
 
-/-- Nebula's memory guarantee for a bound catalog: an execution from the plan
+/-- Nebula's memory guarantee for a bound catalog: for an execution from the plan
 images whose active ports, step after step, bind a reorder of the events of
-the trace gives `MemoryConsistent`. -/
+the trace, the events replay to a catalog state that agrees with the memory of
+the final machine on every live mapped cell. -/
+theorem agrees_of_executes {p : Plan} {σ : Type} {app : Application p.toGeometry σ}
+    {s s' : σ} {final : Machine} {steps : List (List (Option PortAccess))} {initial : MemoryState}
+    {rows : List Witness} {order : List Event}
+    (exec : Executes p.toGeometry app s (initialMachine p) steps s' final)
+    (disjoint : b.Disjoint catalog)
+    (inRange : ∀ e ∈ eventsForTrace catalog rows, b.InRange e.memory e.address)
+    (start : b.Initial catalog p initial) (reorders : Reorders (eventsForTrace catalog rows) order)
+    (bound : List.Forall₂ (b.Binds catalog) order
+      (steps.flatMap fun ports => ports.filterMap id)) :
+    ∃ state, Replay initial (eventsForTrace catalog rows) state ∧
+      Agrees p.toGeometry catalog b state final.memory :=
+  agrees_of_accessAll disjoint inRange start reorders bound (executes_accessAll exec)
+
+/-- Under the premises of `agrees_of_executes`, the trace is `MemoryConsistent`. -/
 theorem memoryConsistent_of_executes {p : Plan} {σ : Type} {app : Application p.toGeometry σ}
     {s s' : σ} {final : Machine} {steps : List (List (Option PortAccess))} {initial : MemoryState}
     {rows : List Witness} {order : List Event}
@@ -560,6 +590,6 @@ theorem memoryConsistent_of_executes {p : Plan} {σ : Type} {app : Application p
     (bound : List.Forall₂ (b.Binds catalog) order
       (steps.flatMap fun ports => ports.filterMap id)) :
     MemoryConsistent catalog initial rows :=
-  memoryConsistent_of_accessAll disjoint inRange start reorders bound (executes_accessAll exec)
+  (agrees_of_executes exec disjoint inRange start reorders bound).imp fun _ => And.left
 
 end NightstreamFPrime.Spec.Nebula.MemoryTrace

@@ -60,9 +60,8 @@ noncomputable def forkedOf (view : View schedule width Output) (index : Fin sche
 def ForkValidOf (view : View schedule width Output) (index : Fin schedule.rhoCount) : Prop :=
   (game.Succeeds (forkedOf game view index) (view.forks index) ∧
       rhoPointOf game (view.forks index) index = rhoPointOf game view.base index) ∧
-    Spec.Folding.Nifs.NonInteractive.PiRlcSampler.sample (view.retries index) ≠
-      Spec.Folding.Nifs.NonInteractive.PiRlcSampler.sample
-        (view.oracle (rhoPointOf game view.base index)) ∧
+    Fork.scalar (view.retries index) ≠
+      Fork.scalar (view.oracle (rhoPointOf game view.base index)) ∧
     game.start (view.forks index) = game.start view.base
 
 /-- `Uniqueness.Valid` on a view. -/

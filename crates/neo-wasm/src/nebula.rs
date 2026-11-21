@@ -528,8 +528,9 @@ impl WasmLimits {
 /// most segments for which the memory fingerprint term of all its segments,
 /// `S_max · 2·m_mem/q²`, is at most `2^−109` (SPEC.md section 7.1), so the
 /// runtime gate accepts at most 109 bits. This is not an end-to-end security
-/// level: the deployment query count, retries, and recursive depth remain
-/// separate. A proof of a size has at most `N · S_max ≤ 30` steps, so no run
+/// level: the deployment query count and retries remain separate, and no
+/// result gives concrete security for a long recursive history
+/// (`SECURITY_MODEL.md`, trust item 3). A proof of a size has at most `N · S_max ≤ 30` steps, so no run
 /// reaches a refresh fold and the final proof carries slot 0 alone (SPEC.md
 /// Algorithm 9, Lean `WasmSize.steps_le_light`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]

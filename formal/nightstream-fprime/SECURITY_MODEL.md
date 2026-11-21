@@ -1204,7 +1204,10 @@ not change terminal source checks.
      openings, a win is a failure of the fixed-setup extractor, a
      break of the binding of the key, or a win in which the extractor
      returns the tables with the key polynomial
-     (`Spec.Compression.Akita.Use.wins_le`). The premise `composition`
+     (`Spec.Compression.Akita.Use.wins_le`). The pinned Akita verifier
+     (revision `d50f700`) does not make the check of the paper's
+     Definition 10.27(iii) that each extension-opening factor θ is nonzero
+     (`LayerZero-Labs/akita` PR 451). The premise `composition`
      bounds the last event by the event of one prover of the game, whose IVC
      adversary must be admitted (trust item 3).
      `Export.BoundedDepth.FinalVerifier.Premises` collects the premises on

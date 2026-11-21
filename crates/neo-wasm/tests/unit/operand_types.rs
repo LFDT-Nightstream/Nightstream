@@ -1,0 +1,89 @@
+use super::OperandLane;
+use wasmparser::{Parser, ValidPayload, Validator};
+
+#[test]
+fn a_sum_stores_at_most_one_operand_lane_per_instruction() {
+    let terms = 512;
+    let instructions = format!("{}{}", "i32.const 1 ".repeat(terms), "i32.add ".repeat(terms - 1));
+    let wasm = wat::parse_str(format!("(module (func (result i32) {instructions}))")).unwrap();
+    let artifacts = crate::extract_wasm_program_artifacts(&wasm).unwrap();
+    let stored = artifacts.trace.operand_types.nodes.len();
+    let operators = artifacts.trace.opcode_map.len();
+    assert!(stored <= operators, "{stored} lanes for {operators} instructions");
+}
+
+#[test]
+fn snapshots_match_validation_across_control_frames() {
+    let wasm = wat::parse_str(
+        "(module
+            (func $pair (param i32 i64) (result i32 i64) local.get 0 local.get 1)
+            (func (param i32 funcref) (result i64)
+                local.get 1 i64.const 42
+                i32.const 7 i64.const 8
+                local.get 0
+                if (param i32 i64) (result i32 i64)
+                    call $pair
+                else
+                    block (param i32 i64) (result i32 i64)
+                        local.get 0 br_if 0
+                        unreachable select drop
+                    end
+                end
+                drop drop return))",
+    )
+    .unwrap();
+    let trace = crate::extract_wasm_program_artifacts(&wasm).unwrap().trace;
+    let mut validator = Validator::new();
+    for payload in Parser::new(0).parse_all(&wasm) {
+        if let ValidPayload::Func(function, body) = validator.payload(&payload.unwrap()).unwrap() {
+            let mut function = function.into_validator(Default::default());
+            function.read_locals(&mut body.get_binary_reader()).unwrap();
+            let mut operators = body.get_operators_reader().unwrap();
+            while !operators.eof() {
+                let offset = operators.original_position();
+                let decoded = &trace.opcode_map[&(function.index(), offset as u32)];
+                let height = function.operand_stack_height();
+                assert_eq!(decoded.operand_height, height);
+                let count = height as usize - function.get_control_frame(0).unwrap().height;
+                let expected: Vec<_> = (0..count)
+                    .rev()
+                    .map(|depth| {
+                        function
+                            .get_operand_type(depth)
+                            .unwrap()
+                            .map(OperandLane::of_type)
+                    })
+                    .collect();
+                assert_eq!(
+                    trace.operand_types.lanes(decoded.frame_operands),
+                    expected,
+                    "at byte {offset}"
+                );
+                function.op(offset, &operators.read().unwrap()).unwrap();
+            }
+        }
+    }
+}
+
+#[test]
+fn wide_blocks_and_calls_store_at_most_one_operand_lane_per_instruction() {
+    let width = 255;
+    let types = "i32 ".repeat(width);
+    let locals: String = (0..width)
+        .map(|local| format!("local.get {local} "))
+        .collect();
+    let wasm = wat::parse_str(format!(
+        "(module
+            (type $wide (func (param {types}) (result {types})))
+            (func $same (type $wide) {locals})
+            (func (result i32) {} {} {}))",
+        "i32.const 1 ".repeat(width),
+        "block (type $wide) end call $same i32.const 1 if (type $wide) nop else nop end ".repeat(64),
+        "drop ".repeat(width - 1),
+    ))
+    .unwrap();
+    let artifacts = crate::extract_wasm_program_artifacts(&wasm).unwrap();
+    let stored = artifacts.trace.operand_types.nodes.len();
+    let operators = artifacts.trace.opcode_map.len();
+    assert!(stored <= operators, "{stored} lanes for {operators} instructions");
+}

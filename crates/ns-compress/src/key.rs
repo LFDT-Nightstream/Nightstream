@@ -177,10 +177,14 @@ impl ProverKey {
                 })
                 .collect();
             if let Some(values) = source.metal_weighted_rows(&weights) {
-                return values
-                    .into_iter()
-                    .map(|pair| K::from_coeffs(pair.map(F::new)))
-                    .collect();
+                const {
+                    assert!(size_of::<K>() == size_of::<[u64; 2]>());
+                    assert!(align_of::<K>() == align_of::<[u64; 2]>());
+                }
+                let (ptr, len, cap) = values.into_raw_parts();
+                // SAFETY: Akita returns canonical coordinate pairs. K is transparent over
+                // [F; 2] and F is transparent over u64, with the same allocation layout.
+                return unsafe { Vec::from_raw_parts(ptr.cast::<K>(), len, cap) };
             }
         }
         fold(&self.key, omega, active_blocks)

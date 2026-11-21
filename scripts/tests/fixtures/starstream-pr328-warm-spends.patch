@@ -1,0 +1,70 @@
+--- a/starstream-ledger/tests/proving.rs
++++ b/starstream-ledger/tests/proving.rs
+@@ -315,6 +315,12 @@
+                 );
+             }
+         }
++        let path = if self.previous.is_some() { "spend.cbor" } else { "create.cbor" };
++        if std::path::Path::new(path).exists() {
++            assert_eq!(std::fs::read(path)?.as_slice(), bytes.as_slice());
++        } else {
++            std::fs::write(path, &bytes)?;
++        }
+         Ok(decoded)
+     }
+ }
+@@ -414,7 +420,7 @@
+
+     let client = TestClient(Some(created.outputs[0].clone()));
+     // Each branch spends the same fixture independently.
+-    for (script, authorized) in [("denied", false), ("spend", true)] {
++    for (script, authorized) in std::iter::once(("denied", false)).chain(std::iter::repeat_n(("spend", true), 15)) {
+         let spend = contract.get_coordination_script(script)?;
+         let mut store = Store::new(&engine, Ctx::default());
+         let input = TransactionInput {
+--- a/starstream-proving-runtime/src/prove.rs
++++ b/starstream-proving-runtime/src/prove.rs
+@@ -390,6 +390,7 @@
+         registry: &neo_wasm::WasmtimeTraceRegistry,
+         execution: &CapturedExecution,
+     ) -> wasmtime::Result<(TransactionProof, ProofTimings)> {
++        let call_started = Instant::now();
+         let mut timings = ProofTimings::default();
+         let transaction = &execution.transaction;
+         let coroutines = coroutine_ids(execution)?;
+@@ -451,7 +452,12 @@
+             scope(|workers| -> wasmtime::Result<()> {
+                 let mut early = context.map(|context| {
+                     workers.spawn(move || {
+-                        let job = || context.prove_with_finalized_roots(transaction);
++                        let job = || {
++                            let start = call_started.elapsed().as_nanos();
++                            let result = context.prove_with_finalized_roots(transaction);
++                            eprintln!("proof job interleaving {} {}", start, call_started.elapsed().as_nanos());
++                            result
++                        };
+                         match pools {
+                             Some((_, pool)) => pool.install(job),
+                             None => job(),
+@@ -502,7 +508,12 @@
+                                     ..Default::default()
+                                 },
+                             };
+-                            let job = move || input.prove(&circuit, timing, prebuilt);
++                            let job = move || {
++                                let start = call_started.elapsed().as_nanos();
++                                let result = input.prove(&circuit, timing, prebuilt);
++                                eprintln!("proof job wasm {} {}", start, call_started.elapsed().as_nanos());
++                                result
++                            };
+                             if overlap {
+                                 pending.push_back(workers.spawn(move || match pools {
+                                     Some((pool, _)) => pool.install(job),
+@@ -565,6 +576,7 @@
+             }
+         };
+         let proof = result.proof?;
++        eprintln!("full warm clock ns {}", call_started.elapsed().as_nanos());
+         timings.prove_compress_wall = proof_wall;
+         timings.interleaving.proving = result.proving;
+         timings.interleaving.compression = result.compression;

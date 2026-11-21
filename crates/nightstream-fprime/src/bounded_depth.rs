@@ -2,6 +2,7 @@
 
 mod application;
 mod boolean;
+mod compact;
 mod expand;
 mod field_lowering;
 mod guard_fusion;
@@ -14,6 +15,7 @@ mod word_packing;
 pub mod words;
 
 pub use application::{NativeBlock, NativeShape};
+pub use compact::FrameCodec;
 pub use expand::PlanRows;
 
 use std::sync::Arc;
@@ -307,6 +309,16 @@ pub struct ExpandedPackage {
 }
 
 impl ExpandedPackage {
+    pub fn pack<C: FrameCodec>(mut self) -> impl FnOnce() -> Result<Self, PackageError> + Send + Sync {
+        let rows = self.rows.pack::<C>();
+        let layout = self.layout.pack::<C>();
+        move || {
+            rows(&mut self.rows)?;
+            layout(&mut self.layout)?;
+            Ok(self)
+        }
+    }
+
     pub fn rows(&self) -> &PlanRows {
         &self.rows
     }

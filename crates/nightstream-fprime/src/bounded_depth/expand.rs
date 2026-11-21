@@ -10,7 +10,7 @@ use neo_ccs::{
 use neo_math::Fq;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
-use super::{Linear, Piece, Row, StepPackage};
+use super::{FrameCodec, Linear, Piece, Row, StepPackage};
 use crate::package::{
     external_outputs, permutation_rows, Entries, PackageError, BLOCK_OUTPUTS, RING_DEGREE, RING_NODES, SBOX_ROWS,
 };
@@ -67,6 +67,45 @@ pub struct PlanRows {
 }
 
 impl PlanRows {
+    pub(super) fn pack<C: FrameCodec>(&mut self) -> impl FnOnce(&mut Self) -> Result<(), PackageError> + Send + Sync {
+        use super::compact::Frame;
+
+        let columns = Frame::<C>::pack_u32(std::mem::take(&mut self.columns).into_iter());
+        let coefficients = Frame::<C>::pack_fields(&std::mem::take(&mut self.coefficients));
+        let ports = self.shared_ports.take().map(|(ports, entries)| {
+            (
+                entries,
+                [
+                    Frame::<C>::pack_u32(ports.iter().map(|port| port.slot_start)),
+                    Frame::<C>::pack_u32(ports.iter().map(|port| port.coefficient_start)),
+                    Frame::<C>::pack_u32(ports.iter().map(|port| port.len)),
+                ],
+            )
+        });
+        move |rows| {
+            rows.columns = columns.unpack_u32()?;
+            rows.coefficients = coefficients.unpack_fields()?;
+            if let Some((entries, [slots, coefficients, lengths])) = ports {
+                let count = slots.count;
+                let (mut slots, mut coefficients, mut lengths) =
+                    (slots.reader()?, coefficients.reader()?, lengths.reader()?);
+                let mut restored = Vec::with_capacity(count);
+                for _ in 0..count {
+                    restored.push(SharedPort {
+                        slot_start: slots.u32()?,
+                        coefficient_start: coefficients.u32()?,
+                        len: lengths.u32()?,
+                    });
+                }
+                slots.finish()?;
+                coefficients.finish()?;
+                lengths.finish()?;
+                rows.shared_ports = Some((restored.into_boxed_slice(), entries));
+            }
+            Ok(())
+        }
+    }
+
     fn shrink_to_fit(&mut self) {
         self.share_ports();
         self.offsets.shrink_to_fit();

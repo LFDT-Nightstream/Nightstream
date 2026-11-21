@@ -124,13 +124,24 @@ pub(crate) struct CompiledSteps {
 }
 
 impl CompiledSteps {
+    #[cfg(test)]
     pub(crate) fn new(packages: BoundedDepthPackages) -> Result<Self, BoundedDepthError> {
+        Self::with_refresh_storage(packages, false)
+    }
+
+    pub(crate) fn with_refresh_storage(
+        packages: BoundedDepthPackages,
+        pack_refresh: bool,
+    ) -> Result<Self, BoundedDepthError> {
         let ExpandedPackages {
             light,
             refresh,
             identity,
         } = packages.expand()?;
-        let (light, refresh) = rayon::join(|| CompiledStep::new(light), || CompiledStep::new(refresh));
+        let (light, refresh) = rayon::join(
+            || CompiledStep::new(light, false),
+            || CompiledStep::new(refresh, pack_refresh),
+        );
         Ok(Self {
             identity,
             steps: [Arc::new(light?), Arc::new(refresh?)],

@@ -265,7 +265,7 @@ impl<A: Application> Circuit<A> {
         check_port_count(&geometry, &app)?;
         let application = circuit::memory_circuit(&geometry, &app)?;
         Ok(Self {
-            circuit: crate::Circuit::compile(application)?.into_memory(),
+            circuit: crate::Circuit::compile_memory(application, compression(&geometry))?,
             geometry,
             app,
         })

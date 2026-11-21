@@ -25,7 +25,7 @@ impl OpeningColumns {
         let columns = if let Some(kept) = self.columns.get() {
             kept
         } else {
-            if construction_bytes(shape, slots, entries.slots.len())? > available {
+            if construction_bytes(shape, slots, entries.entry_count())? > available {
                 return None;
             }
             self.columns.get_or_init(|| {
@@ -84,14 +84,8 @@ pub(super) struct Columns {
 impl Columns {
     fn new(matrix: usize, shape: MatrixShape, count: usize, entries: FactoredEntries<'_>) -> Option<Self> {
         let mut counts = vec![0u32; count];
-        let ranges = || {
-            (0..shape.rows).map(|row| {
-                let port = row * shape.matrices + matrix;
-                entries.offsets[port]..entries.offsets[port + 1]
-            })
-        };
-        for range in ranges() {
-            for &slot in &entries.slots[range] {
+        for row in 0..shape.rows {
+            for &slot in entries.port(row * shape.matrices + matrix).0 {
                 counts[slot as usize] += 1;
             }
         }
@@ -112,11 +106,12 @@ impl Columns {
         let mut rows = PackedRows::new(shape.rows, total as usize)?;
         let mut tags = vec![0; total as usize];
         let mut ids = FactorIds::new(total as usize);
-        for (row, range) in ranges().enumerate() {
-            for entry in range {
-                let next = &mut counts[entries.slots[entry] as usize];
+        for row in 0..shape.rows {
+            let (slots, coefficients) = entries.port(row * shape.matrices + matrix);
+            for (&slot, &coefficient) in slots.iter().zip(coefficients) {
+                let next = &mut counts[slot as usize];
                 rows.set(*next as usize, row as u32);
-                tags[*next as usize] = ids.tag(entries.coefficients[entry])?;
+                tags[*next as usize] = ids.tag(coefficient)?;
                 *next += 1;
             }
         }

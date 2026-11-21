@@ -199,11 +199,7 @@ impl Circuit {
         let spans = self.expanded.layout().spans();
         FactoredRows::new(
             self.shape(),
-            FactoredEntries {
-                offsets: rows.offsets(),
-                slots: rows.columns(),
-                coefficients: rows.coefficients(),
-            },
+            rows.entries(),
             FactoredSlots {
                 starts: &spans.starts,
                 widths: &spans.widths,
@@ -348,7 +344,7 @@ impl LeanRows {
         FactoredRows::new(
             self.shape,
             FactoredEntries {
-                offsets: &self.offsets,
+                ports: neo_ccs::sparse::FactoredPorts::Offsets(&self.offsets),
                 slots: &self.slots,
                 coefficients: &self.coefficients,
             },

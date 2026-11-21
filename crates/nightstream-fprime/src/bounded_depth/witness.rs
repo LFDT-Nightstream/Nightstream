@@ -81,7 +81,7 @@ impl super::ExpandedPackage {
         let mut columns = vec![Fq::ZERO; package.source_end()];
         let (inputs, sboxes) = columns.split_at_mut(package.sbox_start);
         package.fill_circuit_columns(shared, locals, &mut inputs[..package.first_fresh], Some(sboxes))?;
-        package.finish_relation_columns(&mut columns, &self.rows)?;
+        package.finish_relation_columns(&mut columns, &self.rows, &self.fresh_product_rows)?;
         Ok(columns)
     }
 
@@ -208,6 +208,26 @@ impl StepPackage {
         Ok(())
     }
 
+    pub(super) fn fresh_product_rows(&self, rows: &PlanRows) -> Box<[usize]> {
+        let mut products = Vec::new();
+        let mut next = self.first_fresh;
+        for (piece, range) in self.pieces.iter().zip(rows.piece_ranges()) {
+            match piece {
+                Piece::Rows(_) => {
+                    for row in range.clone() {
+                        if rows.single(row, 2) == Some((next, Fq::ONE)) {
+                            products.push(row);
+                            next += 1;
+                        }
+                    }
+                }
+                Piece::Ring { cells, .. } => next += RING_DEGREE * cells,
+                Piece::Block { .. } => {}
+            }
+        }
+        products.into_boxed_slice()
+    }
+
     /// `SPEC.md` sections 7.9 and 7.10.
     pub fn relation_columns(&self, mut columns: Vec<Fq>, rows: &PlanRows) -> Result<Vec<Fq>, PackageError> {
         let width = self.source_end();
@@ -218,25 +238,27 @@ impl StepPackage {
             };
             columns[column] = rows.evaluate(row, 3, &columns).exp_u64(SBOX_DEGREE);
         }
-        self.finish_relation_columns(&mut columns, rows)?;
+        self.finish_relation_columns(&mut columns, rows, &self.fresh_product_rows(rows))?;
         Ok(columns)
     }
 
-    fn finish_relation_columns(&self, columns: &mut [Fq], rows: &PlanRows) -> Result<(), PackageError> {
+    fn finish_relation_columns(
+        &self,
+        columns: &mut [Fq],
+        rows: &PlanRows,
+        product_rows: &[usize],
+    ) -> Result<(), PackageError> {
         if rows.piece_ranges().len() != self.pieces.len() {
             return Err(PackageError::Malformed("bounded-depth witness row pieces"));
         }
         let mut next = self.first_fresh;
+        let mut products = product_rows.iter().copied().peekable();
         for (piece, range) in self.pieces.iter().zip(rows.piece_ranges()) {
             match piece {
                 Piece::Rows(_) => {
-                    for row in range.clone() {
-                        if let Some((column, coefficient)) = rows.single(row, 2) {
-                            if column == next && coefficient == Fq::ONE {
-                                columns[column] = rows.evaluate(row, 0, columns) * rows.evaluate(row, 1, columns);
-                                next += 1;
-                            }
-                        }
+                    while let Some(row) = products.next_if(|&row| row < range.end) {
+                        columns[next] = rows.evaluate(row, 0, columns) * rows.evaluate(row, 1, columns);
+                        next += 1;
                     }
                 }
                 Piece::Ring {

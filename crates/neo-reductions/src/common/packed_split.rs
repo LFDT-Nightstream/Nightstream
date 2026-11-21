@@ -78,7 +78,7 @@ pub(super) fn split_base2_packed(z: &Mat<F>, k: usize) -> Result<Planes, usize> 
         .zip(&flags)
         .map(|((positive, negative), &used)| {
             if used {
-                Mat::compact_signed_unit_from_column_masks(rows, columns, &positive, &negative)
+                Mat::from_owned_column_masks(rows, columns, positive, negative)
                     .expect("binary split writes disjoint in-range row masks")
             } else {
                 Mat::virtual_constant(rows, columns, F::ZERO)

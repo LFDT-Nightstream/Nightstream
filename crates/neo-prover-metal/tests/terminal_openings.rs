@@ -103,7 +103,7 @@ fn first_and_later_terminal_openings_match_all_cpu_coordinates_and_recover_from_
             FactoredRows::new(
                 shape,
                 FactoredEntries {
-                    offsets: &offsets,
+                    ports: neo_ccs::sparse::FactoredPorts::Offsets(&offsets),
                     slots: &slots,
                     coefficients: &coefficients,
                 },

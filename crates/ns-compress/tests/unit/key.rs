@@ -87,7 +87,7 @@ fn the_reduction_gives_the_shake_value(blocks: usize, counts: &[usize], seed: u6
         .sum();
 
     let key = ExpandedKey::production(blocks as u64);
-    let folded = fold(&key, omega);
+    let folded = fold(&key, omega, blocks);
     let blocks_for_key = block_weights(&uses);
     assert_eq!(
         weights::key_part(&uses.form, &blocks_for_key, &folded),
@@ -110,11 +110,12 @@ fn the_reduction_gives_the_shake_value(blocks: usize, counts: &[usize], seed: u6
     let rounds = LANE_VARS + block_vars;
     let (messages, point, folded_value) = sumcheck::prove_product(
         &mut Poseidon2Transcript::new_v1_2(),
-        folded.clone(),
+        folded[..(D * counts.iter().copied().max().unwrap())].to_vec(),
         &uses.form,
         &blocks_for_key,
         direct,
         rounds,
+        |lanes, values| super::fold_remaining_blocks(&key, omega, lanes, values),
     );
     assert_eq!(messages.len(), rounds);
     let (verifier_point, claim) =
@@ -158,6 +159,7 @@ fn the_reduction_gives_the_shake_value(blocks: usize, counts: &[usize], seed: u6
 fn the_reduction_of_a_small_key_gives_the_shake_value() {
     the_reduction_gives_the_shake_value(16, &[16, 5, 11, 1], 1);
     the_reduction_gives_the_shake_value(8, &[7], 2);
+    the_reduction_gives_the_shake_value(32, &[1], 4);
 }
 
 #[test]
@@ -187,7 +189,7 @@ fn the_fold_is_the_sum_of_the_key_rows_times_the_powers_of_omega() {
                     .sum()
             })
             .collect();
-        assert!(fold(&key, omega) == expected, "{blocks} blocks");
+        assert!(fold(&key, omega, blocks as usize) == expected, "{blocks} blocks");
     }
 }
 

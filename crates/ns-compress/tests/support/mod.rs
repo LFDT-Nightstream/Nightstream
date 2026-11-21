@@ -116,7 +116,7 @@ impl Rows {
         FactoredRows::new(
             self.shape,
             FactoredEntries {
-                offsets: &self.offsets,
+                ports: neo_ccs::sparse::FactoredPorts::Offsets(&self.offsets),
                 slots: &self.slots,
                 coefficients: &self.coefficients,
             },

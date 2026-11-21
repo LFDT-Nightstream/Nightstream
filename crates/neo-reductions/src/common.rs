@@ -187,10 +187,8 @@ pub fn split_b_matrix_k_with_nonzero_flags(Z: &Mat<F>, k: usize, b: u32) -> Resu
             .into_iter()
             .map(|masks| match masks {
                 None => Mat::virtual_constant(Z_rows, Z_cols, F::ZERO),
-                Some((positive, negative)) => {
-                    Mat::compact_signed_unit_from_column_masks(Z_rows, Z_cols, &positive, &negative)
-                        .expect("binary split writes disjoint in-range row masks")
-                }
+                Some((positive, negative)) => Mat::from_owned_column_masks(Z_rows, Z_cols, positive, negative)
+                    .expect("binary split writes disjoint in-range row masks"),
             })
             .collect();
         return Ok(SplitDigits {

@@ -364,7 +364,17 @@ impl Committed<'_> {
             )
         });
         let witness = std::mem::take(&mut self.witness);
-        let fold_key = || self.key.fold(challenges.omega, metal_kernels);
+        let active_blocks = self
+            .layout
+            .cells
+            .iter()
+            .map(|cell| cell.blocks)
+            .max()
+            .expect("a witness claim");
+        let fold_key = || {
+            self.key
+                .fold(challenges.omega, active_blocks, metal_kernels)
+        };
         let (witness, weights, folded, lane_inputs) = if let (Some((slice, _)), Some(masks)) = (self.zero_prefix, masks)
         {
             let cells = self.layout.cells[1];
@@ -441,6 +451,10 @@ impl Committed<'_> {
             &blocks,
             key_part,
             LANE_VARS + self.layout.key_block_vars(),
+            |lanes, folded| {
+                self.key
+                    .fold_remaining_blocks(challenges.omega, lanes, folded)
+            },
         );
         key_point.extend(row_point);
         let key_polynomial_value = folded_value * scale.inverse();

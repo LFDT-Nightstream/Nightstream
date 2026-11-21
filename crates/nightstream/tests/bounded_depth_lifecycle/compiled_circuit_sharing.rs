@@ -30,7 +30,7 @@ fn provers_and_verifiers_read_the_circuit_expansion() {
             let shared = lifecycle.relations()[index].step();
             assert!(Arc::ptr_eq(shared, step), "circuit {index}: another compiled step");
             let rows = shared.expanded().rows();
-            assert_eq!(rows.columns().as_ptr(), expanded.rows().columns().as_ptr());
+            assert_eq!(rows.entries().slots.as_ptr(), expanded.rows().entries().slots.as_ptr());
             assert!(std::ptr::eq(shared.expanded().layout(), expanded.layout()));
         }
         let windows: Vec<*const RetainedMatrixWindow> = lifecycles

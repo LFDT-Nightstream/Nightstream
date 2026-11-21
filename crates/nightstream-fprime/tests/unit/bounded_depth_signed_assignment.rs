@@ -4,8 +4,9 @@ use super::*;
 fn packed_assignment_has_the_same_digits_across_blocks_and_tasks() {
     let size = PUBLIC + 251;
     let mut columns = vec![Fq::ZERO; size];
-    let mut kinds = vec![Kind::Field; size];
-    let mut slots = Vec::new();
+    let mut centered = vec![0; size.div_ceil(64)];
+    let mut run_starts = Vec::new();
+    let mut previous = None;
     let mut spans = SlotSpans {
         starts: vec![0; size],
         widths: vec![0; size],
@@ -18,27 +19,36 @@ fn packed_assignment_has_the_same_digits_across_blocks_and_tasks() {
         *value = Fq::from_usize(column % 3) - Fq::ONE;
     }
     for column in PUBLIC..columns.len() {
-        if column % 3 == 0 {
+        if column >= PUBLIC + 128 && column % 3 == 0 {
             continue;
         }
-        let (kind, value) = match column % 5 {
-            0 => (Kind::Bit, Fq::ONE),
-            1 => (Kind::Centered, Fq::NEG_ONE),
-            2 => (Kind::Field, Fq::new(Fq::ORDER_U64 / 2)),
-            3 => (Kind::Field, Fq::new(Fq::ORDER_U64 / 2 + 1)),
-            _ => (Kind::Field, Fq::ZERO),
+        let (kind, value) = match column {
+            c if c < PUBLIC + 64 => (Kind::Field, Fq::from_usize(c)),
+            c if c < PUBLIC + 128 => (Kind::Bit, Fq::from_bool(c % 2 == 1)),
+            c => match c % 5 {
+                0 => (Kind::Bit, Fq::ONE),
+                1 => (Kind::Centered, Fq::NEG_ONE),
+                2 => (Kind::Field, Fq::new(Fq::ORDER_U64 / 2)),
+                3 => (Kind::Field, Fq::new(Fq::ORDER_U64 / 2 + 1)),
+                _ => (Kind::Field, Fq::ZERO),
+            },
         };
-        kinds[column] = kind;
+        if kind == Kind::Centered {
+            centered[column / 64] |= 1u64 << (column % 64);
+        }
         spans.starts[column] = width as u32;
         spans.widths[column] = kind.width() as u8;
-        slots.push(column as u32);
+        if previous != Some((column - 1, kind)) {
+            run_starts.push(column as u32);
+        }
+        previous = Some((column, kind));
         width += kind.width();
         columns[column] = value;
     }
     let layout = LogicalLayout {
         spans,
-        kinds,
-        slots: slots.into_boxed_slice(),
+        centered,
+        run_starts: run_starts.into_boxed_slice(),
         width,
     };
     let logical = layout.assignment(&columns).unwrap();

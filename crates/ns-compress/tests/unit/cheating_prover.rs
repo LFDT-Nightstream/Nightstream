@@ -149,7 +149,7 @@ fn a_lookup_challenge_in_a_table_gives_no_proof_and_no_acceptance() {
                 &statements,
                 &layout,
                 &challenges,
-                || key().fold(challenges.omega, false),
+                || key().fold(challenges.omega, key().verification_key().blocks(), false),
                 false,
             )
             .map(|_| ()),

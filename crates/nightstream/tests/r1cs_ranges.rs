@@ -1,7 +1,7 @@
 //! SPEC.md section 7.6: private range checks across internal continuity links.
 use std::num::NonZeroUsize;
 
-use nightstream::nebula::{Geometry, R1csApplication, RowRelation, SharedColumns, Size};
+use nightstream::nebula::{Geometry, R1csApplication, R1csStepError, RowRelation, SharedColumns, Size};
 use nightstream::relation::{
     ColumnFamilySpec, ColumnRegistry, ColumnWidth, ContinuityCatalog, ContinuityGroup, ContinuityLink, MemoryCatalog,
     MemoryKind, MemoryPortActivation, MemoryPortKind, MemoryPortSpec, MemorySpec,
@@ -163,9 +163,11 @@ fn boundaries_and_internal_values_remain_checked() {
 #[test]
 fn continuity_mismatch_is_rejected_even_when_both_values_are_bounded() {
     let app = application(relation(), 2, SharedColumns::NONE, false);
-    assert!(app
-        .check(&batch(&SharedColumns::NONE, &[witness(0, 1), witness(2, 3)]))
-        .is_err());
+    let mut z = batch(&SharedColumns::NONE, &[witness(0, 1), witness(0, 0)]);
+    let continuity = app.relation_rows() - 1;
+    assert!(matches!(app.check(&z), Err(R1csStepError::Relation { row }) if row == continuity));
+    z[0] = F::ZERO;
+    assert!(matches!(app.check(&z), Err(R1csStepError::Relation { row }) if row == app.relation_rows()));
 }
 
 #[test]

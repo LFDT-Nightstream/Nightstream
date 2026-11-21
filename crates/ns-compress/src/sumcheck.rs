@@ -647,8 +647,9 @@ pub(crate) fn prove_product(
     blocks: &[K],
     claim: K,
     rounds: usize,
+    complete: impl FnOnce(&[K], &mut Vec<K>),
 ) -> (Vec<KeyRound>, Vec<K>, K) {
-    if lanes.len() != D || rounds < LANE_VARS || values.len() < 2 * D {
+    if lanes.len() != D || rounds < LANE_VARS || !values.len().is_multiple_of(D) {
         return prove_product_direct(transcript, values, lanes, blocks, claim, rounds);
     }
     let marginal = lane_marginal(&values, blocks);
@@ -658,7 +659,7 @@ pub(crate) fn prove_product(
     let claim = poly_eval_k(&messages[prefix_rounds - 1], point[prefix_rounds - 1]);
     let prefix_width = 1 << prefix_rounds;
     let weights = crate::weights::equality(&point, prefix_width);
-    let folded = values
+    let mut folded = values
         .par_chunks(prefix_width)
         .with_min_len(128)
         .map(|row| key_dot(row, &weights))
@@ -668,6 +669,7 @@ pub(crate) fn prove_product(
         .map(|row| key_dot(row, &weights))
         .collect();
     drop(values);
+    complete(&weights, &mut folded);
     let (tail, remaining, value) = prove_product_direct(
         transcript,
         folded,

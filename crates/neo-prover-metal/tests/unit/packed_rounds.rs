@@ -13,6 +13,19 @@ fn value(coefficients: &[K], x: K) -> K {
 }
 
 #[test]
+fn packed_gate_keeps_both_rows_of_a_signed_pair() {
+    let session = MetalSession::new().unwrap();
+    let rows = vec![[F::ZERO; 4], [-F::ONE, -F::TWO, F::TWO, F::ZERO]];
+    let mut packed = Packed::new(&session, rows, &[0], &[0], 2).unwrap();
+    packed.submit(0, K::ZERO, (&[K::ONE], &[K::ONE])).unwrap();
+    let (gate, _) = packed.coefficients(0).unwrap();
+    let mut expected = [K::ZERO; 8];
+    expected[1] = -K::TWO;
+    expected[2] = K::TWO;
+    assert_eq!(gate, expected);
+}
+
+#[test]
 fn packed_rounds_and_handoff_match_direct_evaluation_with_partial_tiles() {
     let session = MetalSession::new().unwrap();
     let before = session.activity();
@@ -98,8 +111,8 @@ fn packed_rounds_and_handoff_match_direct_evaluation_with_partial_tiles() {
     assert_eq!(after.command_buffers - before.command_buffers, 8);
     assert_eq!(after.dispatches - before.dispatches, 32);
     assert_eq!(after.host_waits - before.host_waits, 8);
-    assert_eq!(after.allocated_bytes - before.allocated_bytes, 216_080);
-    assert_eq!(after.uploaded_bytes - before.uploaded_bytes, 168_720);
+    assert_eq!(after.allocated_bytes - before.allocated_bytes, 606_864);
+    assert_eq!(after.uploaded_bytes - before.uploaded_bytes, 592_368);
     assert_eq!(after.downloaded_bytes - before.downloaded_bytes, 3_424);
 }
 

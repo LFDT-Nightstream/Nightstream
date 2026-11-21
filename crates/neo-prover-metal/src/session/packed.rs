@@ -40,7 +40,6 @@ struct Packed {
     queue: Queue,
     activity: Arc<ActivityCounters>,
     pipelines: [Pipeline; 4],
-    checked: Option<Buffer>,
     positive: Buffer,
     negative: Buffer,
     gate: Buffer,
@@ -63,7 +62,7 @@ impl MetalSession {
         let width = input.dims.assignment_width;
         let gate = rows.div_ceil(2) * 4 * 16;
         let masks = width.div_ceil(64) * 16;
-        let tables = (rows * 32).max(width.div_ceil(16) * 16);
+        let tables = (rows * 32).max(width.div_ceil(16) * 16).max(6561 * 4 * 16);
         let reductions = (rows.div_ceil(256) * 8 + width.div_ceil(256) * 4) * 32;
         let factor_bits = input.dims.variables - 1;
         let factors = ((1usize << (factor_bits / 2)) + (1usize << factor_bits.div_ceil(2))) * 16;
@@ -96,17 +95,17 @@ impl Packed {
         width: usize,
     ) -> Result<Self, MetalError> {
         let rows = checked.len();
-        let base = session.buffer_from_slice(&checked)?;
+        let gate = session.buffer(rows.div_ceil(2) * 4 * 16)?;
+        session.write_shared(&gate, &checked)?;
         drop(checked);
         Ok(Self {
             device: session.device.clone(),
             queue: session.queue.clone(),
             activity: Arc::clone(&session.activity),
             pipelines: session.packed.clone(),
-            checked: Some(base),
             positive: session.buffer_from_slice(positive)?,
             negative: session.buffer_from_slice(negative)?,
-            gate: session.buffer(rows.div_ceil(2) * 4 * 16)?,
+            gate,
             norm: None,
             codebook: vec![-K::ONE, K::ZERO, K::ONE],
             code_buffer: None,
@@ -166,8 +165,39 @@ impl Packed {
             .fetch_add(bytes as u64, Ordering::Relaxed);
         Ok(buffer)
     }
+    fn norm_coefficients(&self) -> Result<Buffer, MetalError> {
+        let radix = self.codebook.len();
+        let words = radix * radix * 4 * 2;
+        let mut buffer = self.buffer(words * size_of::<u64>())?;
+        let table = host_view_mut(&mut buffer, words);
+        for (entry, (&a, &b)) in table.chunks_exact_mut(8).zip(
+            self.codebook
+                .iter()
+                .flat_map(|b| self.codebook.iter().map(move |a| (a, b))),
+        ) {
+            let d = b - a;
+            let square = a.square();
+            let d2 = d.square();
+            let ad2 = a * d2;
+            let coefficients = [
+                a * (square - K::ONE),
+                d * (square.double() + square - K::ONE),
+                ad2.double() + ad2,
+                d * d2,
+            ];
+            for (limbs, coefficient) in entry.chunks_exact_mut(2).zip(coefficients) {
+                let (real, imaginary) = coefficient.to_limbs_u64();
+                limbs.copy_from_slice(&[real, imaginary]);
+            }
+        }
+        self.activity
+            .uploaded_bytes
+            .fetch_add(buffer.length() as u64, Ordering::Relaxed);
+        Ok(buffer)
+    }
     fn encode(&mut self, r: usize, challenge: K, weights: (&[K], &[K])) -> Result<RoundReadback, MetalError> {
         if r <= 3 {
+            self.code_buffer = None;
             if r > 0 {
                 let k = self.codebook.len();
                 self.codebook = (0..k * k)
@@ -177,10 +207,11 @@ impl Packed {
                     })
                     .collect();
             }
-            self.code_buffer = Some(self.upload(&self.codebook)?);
-        }
-        if r == 2 {
-            self.checked = None;
+            self.code_buffer = Some(if r == 1 || r == 2 {
+                self.norm_coefficients()?
+            } else {
+                self.upload(&self.codebook)?
+            });
         }
         if r == 4 {
             self.norm = Some(self.buffer(self.width.div_ceil(16) * 16)?);
@@ -216,30 +247,17 @@ impl Packed {
                 y,
             ];
             encoder.setComputePipelineState(&self.pipelines[kernel]);
-            let buffers = if kernel == 0 {
-                [
-                    self.checked.as_ref().unwrap_or(&self.gate),
-                    &self.gate,
-                    &low,
-                    &high,
-                    &partial,
-                ]
-            } else {
-                [
-                    &self.positive,
-                    self.norm.as_ref().unwrap_or(&self.positive),
-                    &low,
-                    &high,
-                    &partial,
-                ]
-            };
             // SAFETY: The accepted dimensions bound every access in packed.metal; each scalar argument is copied.
             unsafe {
-                for (slot, b) in buffers.iter().enumerate() {
-                    encoder.setBuffer_offset_atIndex(Some(b), 0, slot);
-                }
+                encoder.setBuffer_offset_atIndex(Some(&low), 0, 2);
+                encoder.setBuffer_offset_atIndex(Some(&high), 0, 3);
+                encoder.setBuffer_offset_atIndex(Some(&partial), 0, 4);
                 self.bytes(&encoder, 5, &shape);
-                if kernel == 1 {
+                if kernel == 0 {
+                    encoder.setBuffer_offset_atIndex(Some(&self.gate), 0, 0);
+                } else {
+                    encoder.setBuffer_offset_atIndex(Some(&self.positive), 0, 0);
+                    encoder.setBuffer_offset_atIndex(Some(self.norm.as_ref().unwrap_or(&self.positive)), 0, 1);
                     encoder.setBuffer_offset_atIndex(self.code_buffer.as_deref(), 0, 6);
                     self.bytes(&encoder, 7, &TERNARY);
                     encoder.setBuffer_offset_atIndex(Some(&self.negative), 0, 8);

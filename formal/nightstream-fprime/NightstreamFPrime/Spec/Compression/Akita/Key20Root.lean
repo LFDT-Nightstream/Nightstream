@@ -69,7 +69,7 @@ theorem lifts : level₁.vars = level₁.tail + 1 ∧
 
 variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree2 E]
   {Wire Coord : Type} [Fintype Coord] [DecidableEq Coord] {total : ℕ}
-  {accept : Prefix Wire (Coord → E) total → Prop} {read : Reader Wire} {start : ℕ}
+  {accept : Prefix Wire (Option Coord → E) total → Prop} {read : Reader Wire} {start : ℕ}
   {β : ∀ g, Module.Basis (Fin (root.planes g)) Zq E} {key : (g : Fin 3) → Key (root.shape g)}
   {openKey : root.OpenKey} {claim : Wire → root.Claim E} {block : root.Block → Coord}
   {decode : (g : Fin 3) → E → Option (Rq (root.carrierDegree g))} {mass : Fin 3 → ℕ}
@@ -173,15 +173,16 @@ theorem tower_complete {sendable : (M : Type) → M → Prop} {slots width cap :
     (next : Terminal.start L = Tier.finish fifth) (inside : Terminal.start L < total)
     (reads : ∀ point, Terminal.read L point = statementOf (point.wire (Terminal.start L)))
     (clears : ∀ point, Terminal.partials L point = partialsOf (point.wire (Terminal.start L)))
-    (table : Prefix Wire (Coord → E) total → Coord → E)
-    (decodes : ∀ input b, (decode b.1 (table input (block b))).isSome)
-    (decodes₁ : ∀ input i, (decode₁ (table input (block₁ i))).isSome)
-    (decodes₂ : ∀ input i, (decode₂ (table input (block₂ i))).isSome)
-    (decodes₃ : ∀ input i, (decode₃ (table input (block₃ i))).isSome)
-    (decodes₄ : ∀ input i, (decode₄ (table input (block₄ i))).isSome)
-    (decodes₅ : ∀ input i, (decode₅ (table input (block₅ i))).isSome)
-    (decodesL : ∀ input i, (Terminal.decode L (table input (Terminal.block L i))).isSome)
-    {wire₀ : Wire} {early : List ((Coord → E) × Wire)} (on : OnPath accept table wire₀ early)
+    (table : Prefix Wire (Option Coord → E) total → Option Coord → E)
+    (decodes : ∀ input b, (decode b.1 (table input (some (block b)))).isSome)
+    (decodes₁ : ∀ input i, (decode₁ (table input (some (block₁ i)))).isSome)
+    (decodes₂ : ∀ input i, (decode₂ (table input (some (block₂ i)))).isSome)
+    (decodes₃ : ∀ input i, (decode₃ (table input (some (block₃ i)))).isSome)
+    (decodes₄ : ∀ input i, (decode₄ (table input (some (block₄ i)))).isSome)
+    (decodes₅ : ∀ input i, (decode₅ (table input (some (block₅ i)))).isSome)
+    (decodesL : ∀ input i, (Terminal.decode L (table input (some (Terminal.block L i)))).isSome)
+    (worked : ∀ input, table input none ∈ workZeros E 57)
+    {wire₀ : Wire} {early : List ((Option Coord → E) × Wire)} (on : OnPath accept table wire₀ early)
     (starts : early.length = start) {tables : Fin 3 → Table}
     (live : ∀ g cell, 2 ^ ![20, 16, 16] g ≤ cell → tables g cell = 0)
     (committed : commit (lastWire wire₀ early) = fun g => (Akita.commit (key g) (tables g)).1)
@@ -206,7 +207,7 @@ theorem tower_complete {sendable : (M : Type) → M → Prop} {slots width cap :
           (And.right (And.right (And.right (And.right quarters)))) (packed w₅ : ℕ → E))) ≤
           normTerminal.limit) :
     ∃ later, OnPath accept table wire₀ (early ++ later) ∧ (early ++ later).length = total ∧
-      ∀ stage : Prefix Wire (Coord → E) total, stage.first = wire₀ →
+      ∀ stage : Prefix Wire (Option Coord → E) total, stage.first = wire₀ →
         stage.rest = early ++ later → links stage := by
   have sums := root_segments
   have segment : ∀ g, ![3, 3, 4] g ≤ (place (lastWire wire₀ early) g).length ∧
@@ -237,7 +238,7 @@ theorem tower_complete {sendable : (M : Type) → M → Prop} {slots width cap :
     ((by decide : norm₃.limit ≤ 3029804899).trans capped)
     ((by decide : norm₄.limit ≤ 3029804899).trans capped)
     ((by decide : norm₅.limit ≤ 3029804899).trans capped) next inside reads clears table decodes
-    decodes₁ decodes₂ decodes₃ decodes₄ decodes₅ decodesL on starts
+    decodes₁ decodes₂ decodes₃ decodes₄ decodes₅ decodesL worked on starts
     (blockOf := fun g => (((place (lastWire wire₀ early) g).drop (![3, 3, 4] g)).drop
       (![7, 6, 6] g)).drop (![5, 3, 3] g))
     (positionOf := fun g => (((place (lastWire wire₀ early) g).drop (![3, 3, 4] g)).drop

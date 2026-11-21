@@ -162,29 +162,32 @@ variable [Fintype Slot] [Nonempty Slot] [Fintype Coord] [DecidableEq Coord]
     (B.LevelBreak key openKey fun g => 2 * (2 * mass g) * (B.fold g).sourceBound (B.shape g))
     B.Witness B.Weak Wire Coord Slot Result Source)
 
-omit [Fintype E] [DecidableEq E] [Fintype Slot] [Nonempty Slot] [Fintype Coord]
-  [DecidableEq Coord] in
+omit [Fintype E] [DecidableEq E] [Nonempty Slot] [Fintype Coord] [DecidableEq Coord] in
 /-- The link of the verifier from the batching root at the stage `start` to the root fold `T` on
 a transcript (Akita Section 5.4, "Combining the scalar claims"). The payload of the claim of `T`
 for a group is the commitment `commit` of the message before the stage `start`. The weights of the
 claim of `T` are `weights`, and its target is `Σ_g ϑ_g·v_g` (Akita (72) with `φ = 1`). The opening
 point of the group `g` has the segments `(r_pack, r_tail, r_pos, r_blk)` of the lengths of the
-shape of the group, with `B_g ≤ 2^{r_blk}`. -/
+shape of the group, with `B_g ≤ 2^{r_blk}`. The work bits of the answer of the stage `start` are
+zero (Akita (146)). -/
 def RootLinked (start : ℕ) (commit : Wire → (g : Fin count) → (B.shape g).Payload)
     (value : Wire → Fin count → E) (place : Wire → Fin count → List E) (weights : Fin count → E)
-    (point : Prefix Wire (Coord → Slot) total) : Prop :=
+    (point : Prefix Wire (Option Coord → Slot) total) : Prop :=
   (T.claim (point.wire T.start)).payload = commit (point.wire start) ∧
     (T.claim (point.wire T.start)).weight = weights ∧
     (T.claim (point.wire T.start)).value = ∑ g, weights g * value (point.wire start) g ∧
-    ∀ g, ∃ block position pack tail,
+    (∀ g, ∃ block position pack tail,
       (B.shape g).blocks ≤ 2 ^ block.length ∧ (B.shape g).blockLength = 2 ^ position.length ∧
       (B.opening g).stride = 2 ^ pack.length ∧ B.carrierDegree g = 2 ^ tail.length ∧
       (T.claim (point.wire T.start)).point g =
         Point.ofSegments (B.opening g) block position pack tail ∧
-      place (point.wire start) g = pack ++ (tail ++ (position ++ block))
+      place (point.wire start) g = pack ++ (tail ++ (position ++ block))) ∧
+    ∃ reply, point.reply start = some reply ∧ reply none ∈ workZeros Slot (Root.rootBits count)
 
-variable {T} {Inner BreakT CandT KeyT : Type} {accept : Prefix Wire (Coord → Slot) total → Prop}
-  {body : Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire) Inner BreakT CandT
+variable {T} {Inner BreakT CandT KeyT : Type} {accept : Prefix Wire (Option Coord → Slot) total →
+  Prop}
+  {body : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
+    BreakT CandT
     KeyT (Option B.Weak)}
   {error : ℝ} {loops tree : ℕ}
 
@@ -232,7 +235,7 @@ theorem root_suffix (start : ℕ) (read : Reader Wire) (value : Wire → Fin cou
             ((B.shape g).decode (ω.certified g).source)) ∧
           (fun g => mle (place ((point.take start).wire start) g)
             (lifted E (Batch.tablesOf opening g))) = value ((point.take start).wire start))
-      (1 / Fintype.card E + error) (1 + loops) (2 * tree) := by
+      (1 / Fintype.card E / 2 ^ Root.rootBits count + error) (1 + loops) (2 * tree) := by
   have opened : ∀ point opening, accept point → T.Opens point opening →
       ∃ ω, opening = some ω ∧
         ω.Opens β (fun g => 2 * mass g) (fun g => (B.fold g).sourceBound (B.shape g))
@@ -268,8 +271,8 @@ theorem root_suffix (start : ℕ) (read : Reader Wire) (value : Wire → Fin cou
       rw [same]
       exact kept)
     (fun point opening accepted opens => ?_) ?_
-  · obtain ⟨long, _, weight, target, places⟩ := linked point accepted
-    refine ⟨long, certified point opening accepted opens, ?_⟩
+  · obtain ⟨long, _, weight, target, places, worked⟩ := linked point accepted
+    refine ⟨long, certified point opening accepted opens, ?_, worked⟩
     obtain ⟨ω, rfl, weak⟩ := opened point opening accepted opens
     have row := weak.value
     unfold Batch.scalar at row
@@ -298,7 +301,8 @@ theorem root_suffix (start : ℕ) (read : Reader Wire) (value : Wire → Fin cou
     obtain ⟨ω', rfl, right⟩ := certified other opening' accepted' opens'
     have sameWire : other.wire start = point.wire start := by
       have taken : (other.take start).wire start = (point.take start).wire start :=
-        congrArg (fun anchor : Prefix Wire (Coord → Slot) total => anchor.wire start) same.symm
+        congrArg (fun anchor : Prefix Wire (Option Coord → Slot) total => anchor.wire start)
+          same.symm
       rwa [Prefix.wire_take le_rfl, Prefix.wire_take le_rfl] at taken
     obtain ⟨g, differs⟩ := Function.ne_iff.mp different
     refine embedded _ ?_

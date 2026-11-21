@@ -2,12 +2,11 @@ import tests.AxiomAudit
 import NightstreamFPrime.Export.BoundedDepth.FinalKey30All
 
 /-! Axiom audits for the Akita opening of the schedule `key30.aks`: the numbers of the two rows
-(`Spec/Compression/Akita/Key30`), the level with the row `w_cells = 0` in `R_{q,1}`
-(`Extract/LiftSlim`), the checks of an offloaded fold (`Extract/Offload`), the group of the setup
-prefix and the offloaded step of the suffix (`Extract/Groups`), the suffix of the opening with an
-offloaded root (`Extract/OffTower`, `Key30Tower`), the opening with the decoders `draw`
-(`Key30Opening`), the instances of Module-SIS (`Key30Instances`), the final verifier over the
-opening (`Export/BoundedDepth/FinalKey30`), and the final verifier for each claim shape and
+(`Spec/Compression/Akita/Key30`), the checks of an offloaded fold (`Extract/Offload`), the group
+of the setup prefix and the offloaded step of the suffix (`Extract/Groups`), the suffix of the
+opening with an offloaded root (`Extract/OffTower`, `Key30Tower`), the opening with the decoders
+`draw` (`Key30Opening`), the instances of Module-SIS (`Key30Instances`), the final verifier over
+the opening (`Export/BoundedDepth/FinalKey30`), and the final verifier for each claim shape and
 against a false history (`Export/BoundedDepth/FinalShapes`, `FinalKey30All`). -/
 
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.root_sized
@@ -15,7 +14,6 @@ against a false history (`Export/BoundedDepth/FinalShapes`, `FinalKey30All`). -/
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.level₁_sized
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.level₂_sized
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.level₃_sized
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.level₃_tight
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.level₄_sized
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.tails_sized
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.norms_sized
@@ -30,13 +28,6 @@ against a false history (`Export/BoundedDepth/FinalShapes`, `FinalKey30All`). -/
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.tower_counts
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.tower_suffix
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.towerError_le
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.slimRows_below
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.slimRows_degree_le
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.slimRows_degree_sum
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.slimRelation_locked
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.slimRelation_quotientEnd
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.slimFold_satisfies
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.LevelSized.slim
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.setupCheck_avoids
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.SetupScan.direct
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.SetupScan.direct_value

@@ -241,25 +241,27 @@ variable {read}
 
 /-- The transcript prefix of the honest prover for a game with `draws` draws and `WinsAt`: for
 the answers `reply` of the oracle, which can read the earlier messages, wire messages exist such
-that the game ends in the goal. Wire message `index` has the data `data index after` for the game
-`after` at its next draw or at its end, and `invariant` is a property of the prefix that each
-step preserves. -/
-theorem play_carried {dataOf : Wire → Data} (carries : Carries fits slots read dataOf)
+that the game ends in the goal. The game reads each answer through `look`. Wire message `index`
+has the data `data index after` for the game `after` at its next draw or at its end, and
+`invariant` is a property of the prefix that each step preserves. -/
+theorem play_carried {Answer : Type} (look : Answer → Reply) {dataOf : Wire → Data}
+    (carries : Carries fits slots read dataOf)
     {start : Game α} {draws : ℕ}
     (wins : WinsAt fits slots start draws 0 fun result _ _ => goal result)
-    (data : ℕ → Game α → Data) (reply : Wire → List (Reply × Wire) → Reply)
-    (invariant : Wire → List (Reply × Wire) → Prop)
+    (data : ℕ → Game α → Data) (reply : Wire → List (Answer × Wire) → Answer)
+    (invariant : Wire → List (Answer × Wire) → Prop)
     (base : ∀ first, dataOf first = data 0 (settle read first start 0) → invariant first [])
     (step : ∀ first moves wire, moves.length < draws → invariant first moves →
-      dataOf wire = data (moves.length + 1)
-        (position read start first (moves ++ [(reply first moves, wire)])) →
+      dataOf wire = data (moves.length + 1) (position read start first
+        ((moves ++ [(reply first moves, wire)]).map fun move => (look move.1, move.2))) →
       invariant first (moves ++ [(reply first moves, wire)])) :
     ∃ first moves result, moves.length = draws ∧ invariant first moves ∧
-      position read start first moves = .pure result ∧ goal result := by
+      position read start first (moves.map fun move => (look move.1, move.2)) = .pure result ∧
+        goal result := by
   have build : ∀ count ≤ draws, ∃ first moves, moves.length = count ∧ invariant first moves ∧
-      Settled (position read start first moves) ∧
-      WinsAt fits slots (position read start first moves) (draws - count) 0
-        fun result _ _ => goal result := by
+      Settled (position read start first (moves.map fun move => (look move.1, move.2))) ∧
+      WinsAt fits slots (position read start first (moves.map fun move => (look move.1, move.2)))
+        (draws - count) 0 fun result _ _ => goal result := by
     intro count
     induction count with
     | zero =>
@@ -279,16 +281,18 @@ theorem play_carried {dataOf : Wire → Data} (carries : Carries fits slots read
         obtain ⟨first, moves, length, kept, settled, won⟩ := induction (by omega)
         rw [show draws - count = draws - (count + 1) + 1 by omega] at won
         obtain ⟨sent, after, short, each, later, reads⟩ := settle_winsAt fits slots read
-          (advance_winsAt (reply first moves) settled won)
+          (advance_winsAt (look (reply first moves)) settled won)
         obtain ⟨wire, held, sends⟩ := carries (data (count + 1) after) sent short each
-        have same : position read start first (moves ++ [(reply first moves, wire)]) = after := by
-          rw [position_append]
+        have same : position read start first
+            ((moves ++ [(reply first moves, wire)]).map fun move => (look move.1, move.2)) =
+              after := by
+          rw [position_map_append]
           exact reads wire fun place inside => by
             rw [Nat.zero_add]
             exact sends place inside
         refine ⟨first, moves ++ [(reply first moves, wire)], by simp [length],
           step first moves wire (by omega) kept (by rw [same, length]; exact held), ?_, ?_⟩
-        · rw [position_append]
+        · rw [position_map_append]
           exact settle_settled read wire _ 0
         · rw [same]
           exact later
@@ -335,18 +339,18 @@ variable {Block : Type} {Ring : Block → Type}
   {Stmt Brk Wit Weak Wire Coord Slot Result Source Data : Type} [∀ b, Zero (Ring b)]
   (T : Tier Block Ring Stmt Brk Wit Weak Wire Coord Slot Result Source) {total : ℕ}
   [Fintype Slot] [Nonempty Slot] [Fintype Coord] [DecidableEq Coord]
-  {accept : Prefix Wire (Coord → Slot) total → Prop}
-  (table : Prefix Wire (Coord → Slot) total → Coord → Slot)
+  {accept : Prefix Wire (Option Coord → Slot) total → Prop}
+  (table : Prefix Wire (Option Coord → Slot) total → Option Coord → Slot)
 
 omit [Fintype Slot] [Fintype Coord] [DecidableEq Coord] in
 /-- The fold challenges of the level that the table of the oracle gives after the transcript
 prefix with the message `first` and the moves `early`. -/
-noncomputable def drawn (first : Wire) (early : List ((Coord → Slot) × Wire)) (b : Block) :
+noncomputable def drawn (first : Wire) (early : List ((Option Coord → Slot) × Wire)) (b : Block) :
     Ring b :=
   (T.decode b (answer table first early (T.block b))).getD 0
 
 omit [Fintype Slot] [Fintype Coord] [DecidableEq Coord] in
-theorem drawn_mem {first : Wire} {early : List ((Coord → Slot) × Wire)}
+theorem drawn_mem {first : Wire} {early : List ((Option Coord → Slot) × Wire)}
     (short : early.length ≤ total)
     (decodes : ∀ input b, (T.decode b (table input (T.block b))).isSome) (b : Block) :
     T.decode b (answer table first early (T.block b)) = some (T.drawn table first early b) :=
@@ -362,43 +366,46 @@ the prover has a message for each draw sequence of the checks for the claim of t
 `early`, the fold challenges `Tier.drawn` and the source `source`. Then a message `wire` and
 moves exist such that the prefix is on the path, `wire` and the last message have the data
 `data`, the game of the checks ends in the goal, and each transcript with this prefix has the
-stages of the level, fold challenges that decode to `Tier.drawn`, and the game `position` of
-these moves for each source. -/
+stages of the level, zero work bits and fold challenges that decode to `Tier.drawn`, and the game
+`position` of these moves for each source. `worked`: each work slot of the table has 57 zero work
+bits, and `capped`: the work bits of the level are at most 57. -/
 theorem run {fits : (M : Type) → M → Prop} {slots : ℕ} {dataOf : Wire → Data}
     (carries : Carries fits slots T.read dataOf) {goal : Result → Prop} {first : Wire}
-    {early : List ((Coord → Slot) × Wire)} (on : OnPath accept table first early)
+    {early : List ((Option Coord → Slot) × Wire)} (on : OnPath accept table first early)
     (starts : early.length = T.start) (room : T.finish ≤ total)
-    (decodes : ∀ input b, (T.decode b (table input (T.block b))).isSome) (source : Source)
+    (decodes : ∀ input b, (T.decode b (table input (T.block b))).isSome)
+    (worked : ∀ input, table input none ∈ workZeros Slot 57) (capped : T.Capped) (source : Source)
     (wins : WinsAt fits slots
       (T.check (lastWire first early) (T.drawn table first early) source) T.costs.length 0
       fun result _ _ => goal result)
     (data : ℕ → Game Result → Data) :
-    ∃ (wire : Wire) (moves : List ((Coord → Slot) × Wire)) (result : Result),
+    ∃ (wire : Wire) (moves : List ((Option Coord → Slot) × Wire)) (result : Result),
       moves.length = T.costs.length ∧ goal result ∧
       OnPath accept table first (early ++ (answer table first early, wire) :: moves) ∧
       dataOf wire = data 0 (settle T.read wire
         (T.check (lastWire first early) (T.drawn table first early) source) 0) ∧
       dataOf (lastWire wire moves) = data moves.length (.pure result) ∧
       position T.read (T.check (lastWire first early) (T.drawn table first early) source) wire
-        moves = .pure result ∧
-      ∀ stage : Prefix Wire (Coord → Slot) total, stage.first = first →
+        (moves.map fun move => (view move.1, move.2)) = .pure result ∧
+      ∀ stage : Prefix Wire (Option Coord → Slot) total, stage.first = first →
         (∃ later, stage.rest = (early ++ (answer table first early, wire) :: moves) ++ later) →
         T.finish ≤ stage.rest.length ∧ T.Decodes stage ∧
         stage.wire T.start = lastWire first early ∧ stage.wire (T.start + 1) = wire ∧
         stage.wire T.finish = lastWire wire moves ∧
         ∀ candidate, T.game candidate stage =
           position T.read (T.check (lastWire first early) (T.drawn table first early) candidate)
-            wire moves := by
+            wire (moves.map fun move => (view move.1, move.2)) := by
   have ends := T.finish_eq
   obtain ⟨reply0, answered⟩ : ∃ reply, reply = answer table first early := ⟨_, rfl⟩
   obtain ⟨wire, moves, result, counted, ⟨on', held, last⟩, ended, good⟩ :=
-    play_carried carries wins data
+    play_carried view carries wins data
       (fun wire moves => answer table first (early ++ (reply0, wire) :: moves))
       (fun wire moves => OnPath accept table first (early ++ (reply0, wire) :: moves) ∧
         dataOf wire = data 0 (settle T.read wire
           (T.check (lastWire first early) (T.drawn table first early) source) 0) ∧
         dataOf (lastWire wire moves) = data moves.length (position T.read
-          (T.check (lastWire first early) (T.drawn table first early) source) wire moves))
+          (T.check (lastWire first early) (T.drawn table first early) source) wire
+            (moves.map fun move => (view move.1, move.2))))
       (fun wire kept => ⟨by
         have next := on.snoc (by omega) wire
         rwa [← answered] at next, kept, kept⟩)
@@ -428,16 +435,20 @@ theorem run {fits : (M : Type) → M → Prop} {slots : ℕ} {dataOf : Wire → 
     exact Prefix.wire_length head
   have opened : stage.wire (T.start + 1) = wire :=
     stage.wire_of head (congrArg (· + 1) starts.symm)
+  have zero : reply0 none ∈ workZeros Slot T.foldBits :=
+    path_worked on' shape worked (index := T.start) (by omega) capped.1 reply0 replied
   refine ⟨by rw [shape, List.length_append, whole]; omega,
-    ⟨reply0, replied, fun b => Option.isSome_iff_exists.mpr
-      ⟨_, answered ▸ T.drawn_mem table short decodes b⟩⟩, claimed, opened, ?_,
+    ⟨⟨reply0, replied, zero, fun b => Option.isSome_iff_exists.mpr
+      ⟨_, answered ▸ T.drawn_mem table short decodes b⟩⟩, fun index inside =>
+        path_worked on' shape worked (by omega) (capped.getD index)⟩, claimed, opened, ?_,
     fun candidate => ?_⟩
   · rw [← whole, Prefix.wire_length shape, lastWire_append_cons]
   · have moved : (stage.rest.take T.finish).drop (T.start + 1) = moves := by
       rw [shape, List.take_left' whole, List.append_cons]
       exact List.drop_left' (by rw [List.length_append, List.length_singleton, starts])
     show position T.read (T.check (stage.wire T.start) (T.challenge stage) candidate)
-      (stage.wire (T.start + 1)) ((stage.rest.take T.finish).drop (T.start + 1)) = _
+      (stage.wire (T.start + 1)) (((stage.rest.take T.finish).drop (T.start + 1)).map
+        fun move => (view move.1, move.2)) = _
     rw [moved, fold, claimed, opened]
 
 end Tier

@@ -247,6 +247,15 @@ theorem position_append (start : Game α) (first : Wire) (moves : List (Reply ×
       settle read wire (advance reply (position read start first moves)) 0 := by
   simp [position, List.foldl_append]
 
+/-- `position_append` for a transcript whose answers the game reads through `look`. -/
+theorem position_map_append {Answer : Type} (look : Answer → Reply) (start : Game α)
+    (first : Wire) (moves : List (Answer × Wire)) (answer : Answer) :
+    position read start first ((moves ++ [(answer, wire)]).map fun move => (look move.1, move.2)) =
+      settle read wire (advance (look answer)
+        (position read start first (moves.map fun move => (look move.1, move.2)))) 0 := by
+  rw [List.map_append, List.map_singleton]
+  exact position_append read wire start first _ (look answer)
+
 theorem position_staged {start : Game α} {costs : List ℝ} (staged : Staged Reply start costs)
     (first : Wire) (moves : List (Reply × Wire)) :
     Staged Reply (position read start first moves) (costs.drop moves.length) := by

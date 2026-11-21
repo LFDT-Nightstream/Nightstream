@@ -20,8 +20,7 @@ claim in each group (ePrint 2026/1983, revision of 2026-10-15, Section 5.5 with 
   positions and the flat witness of `FlatWitness.lean`.
 
 Akita (75) has the order `[ẑ_g | ê_g | t̂_g]` in a group, which is the order of `Witness.flat`.
-As in `FlatWitness.lean`, there are no alignment zeros, and the cell `Batch.cells` is a zero
-cell. -/
+As in `FlatWitness.lean`, there are no alignment zeros. -/
 
 namespace NightstreamFPrime.Spec.Compression.Akita
 
@@ -133,8 +132,12 @@ def secondStart : ℕ := B.openFirstStart + firstCells B.chain
 /-- The offset of the digits of `H_2`, after the digits of `F_2` of each group. -/
 def openSecondStart : ℕ := B.secondStart + ∑ g, secondCells (B.shape g).chain
 
-/-- The number of cells of the flat witness before the zero suffix. -/
+/-- The number of cells of the flat witness. -/
 def cells : ℕ := B.openSecondStart + secondCells B.chain
+
+theorem chainStart_le_cells : B.chainStart ≤ B.cells := by
+  unfold cells openSecondStart secondStart openFirstStart
+  omega
 
 /-- The offset of the main segment of the group `g`. -/
 def mainStart (g : Fin n) : ℕ := offset B.mainCells g
@@ -166,21 +169,39 @@ def binarySupport (x : ℕ) : Prop := B.chainStart ≤ x ∧ x < B.cells
 
 instance : DecidablePred B.binarySupport := fun _ => inferInstanceAs (Decidable (_ ∧ _))
 
+/-- The fold has compression digits: the set `I_bin` is not empty. -/
+def compressed : Bool := decide (B.chainStart < B.cells)
+
+theorem binarySupport_empty (raw : B.compressed = false) (x : ℕ) : ¬ B.binarySupport x := by
+  have none := of_decide_eq_false raw
+  unfold binarySupport
+  omega
+
 /-- The position of entry `position` of the digit sequence of `H_1`. -/
-def openFirstCell (position : ℕ) : ℕ :=
-  if position < firstCells B.chain then B.openFirstStart + position else B.cells
+def openFirstCell (position : ℕ) : Option ℕ :=
+  if position < firstCells B.chain then some (B.openFirstStart + position) else none
 
 /-- The position of entry `position` of the digit sequence of `H_2`. -/
-def openSecondCell (position : ℕ) : ℕ :=
-  if position < secondCells B.chain then B.openSecondStart + position else B.cells
+def openSecondCell (position : ℕ) : Option ℕ :=
+  if position < secondCells B.chain then some (B.openSecondStart + position) else none
 
-theorem openFirstCell_le (position : ℕ) : B.openFirstCell position ≤ B.cells := by
-  unfold openFirstCell cells openSecondStart secondStart
-  split <;> omega
+theorem openFirstCell_lt (position : ℕ) {x : ℕ} (read : B.openFirstCell position = some x) :
+    x < B.cells := by
+  unfold openFirstCell at read
+  split at read
+  · cases read
+    unfold cells openSecondStart secondStart
+    omega
+  · cases read
 
-theorem openSecondCell_le (position : ℕ) : B.openSecondCell position ≤ B.cells := by
-  unfold openSecondCell cells
-  split <;> omega
+theorem openSecondCell_lt (position : ℕ) {x : ℕ} (read : B.openSecondCell position = some x) :
+    x < B.cells := by
+  unfold openSecondCell at read
+  split at read
+  · cases read
+    unfold cells
+    omega
+  · cases read
 
 /-- The offsets of the flat witness of the group `g`, each from the one before it. -/
 theorem starts (g : Fin n) :
@@ -215,6 +236,14 @@ theorem bounds (g : Fin n) :
 theorem relocate_main (g : Fin n) {x : ℕ} (small : x < B.mainCells g) :
     B.relocate g x = B.mainStart g + x :=
   ite_eq_left small
+
+/-- A position of the main segment of a group moves to a position before `chainStart`. -/
+theorem relocate_lt_chainStart (g : Fin n) {x : ℕ}
+    (small : x < (B.opening g).chainStart (B.fold g)) : B.relocate g x < B.chainStart := by
+  have ends := (B.bounds g).2.1
+  rw [B.relocate_main g small]
+  unfold mainCells at ends
+  omega
 
 theorem relocate_first (g : Fin n) {y : ℕ} (small : y < firstCells (B.shape g).chain) :
     B.relocate g ((B.opening g).chainStart (B.fold g) + y) = B.firstStart g + y := by
@@ -272,19 +301,10 @@ theorem relocate_cases (g : Fin n) (x : ℕ) :
   · obtain ⟨y, rfl⟩ := Nat.exists_eq_add_of_le (Nat.le_of_not_lt three)
     exact Or.inr (Or.inr (Or.inr (Or.inr ⟨y, rfl, B.relocate_openSecond g y⟩)))
 
-/-- A position of a group up to its zero cell moves to a position up to the zero cell of the
+/-- A position of the flat witness of a group moves to a position of the flat witness of the
 fold. -/
-theorem relocate_le (g : Fin n) {x : ℕ} (le : x ≤ (B.opening g).cells (B.fold g)) :
-    B.relocate g x ≤ B.cells := by
-  obtain ⟨first, second, third, last⟩ := B.starts g
-  obtain ⟨main, a, b, c, d, e, f, ends⟩ := B.bounds g
-  rcases B.relocate_cases g x with ⟨small, moved⟩ | ⟨y, small, rfl, moved⟩ |
-    ⟨y, small, rfl, moved⟩ | ⟨y, small, rfl, moved⟩ | ⟨y, rfl, moved⟩ <;> omega
-
-/-- A position of a group after its zero cell moves to a position after the zero cell of the
-fold. -/
-theorem relocate_lt (g : Fin n) {x : ℕ} (large : (B.opening g).cells (B.fold g) < x) :
-    B.cells < B.relocate g x := by
+theorem relocate_lt (g : Fin n) {x : ℕ} (small : x < (B.opening g).cells (B.fold g)) :
+    B.relocate g x < B.cells := by
   obtain ⟨first, second, third, last⟩ := B.starts g
   obtain ⟨main, a, b, c, d, e, f, ends⟩ := B.bounds g
   rcases B.relocate_cases g x with ⟨small, moved⟩ | ⟨y, small, rfl, moved⟩ |
@@ -422,22 +442,24 @@ theorem flat_one {B : Batch (Fin 1)} (w : B.Witness) : w.flat = (w.group 0).flat
   funext fun x => by rw [← w.flat_relocate 0 x, B.relocate_one x]
 
 theorem flat_openFirstCell (position : ℕ) :
-    w.flat (B.openFirstCell position) = PathDigits.firstTable B.chain w.openChain position := by
+    (B.openFirstCell position).elim 0 w.flat =
+      PathDigits.firstTable B.chain w.openChain position := by
   unfold openFirstCell
   split
   · rename_i small
     exact w.flat_openFirst small
   · rename_i large
-    rw [w.flat_of_le le_rfl, PathDigits.firstTable_of_le _ _ _ (Nat.le_of_not_lt large)]
+    exact (PathDigits.firstTable_of_le _ _ _ (Nat.le_of_not_lt large)).symm
 
 theorem flat_openSecondCell (position : ℕ) :
-    w.flat (B.openSecondCell position) = PathDigits.secondTable B.chain w.openChain position := by
+    (B.openSecondCell position).elim 0 w.flat =
+      PathDigits.secondTable B.chain w.openChain position := by
   unfold openSecondCell
   split
   · rename_i small
     exact w.flat_openSecond small
   · rename_i large
-    rw [w.flat_of_le le_rfl, PathDigits.secondTable_of_le _ _ _ (Nat.le_of_not_lt large)]
+    exact (PathDigits.secondTable_of_le _ _ _ (Nat.le_of_not_lt large)).symm
 
 end Witness
 

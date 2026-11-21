@@ -68,7 +68,8 @@ variable {logicalWidth : Nat}
 
 /-- The commitments that a stage input fixes: the commitments of the key polynomial and of `W`
 of the first message, and the commitment of `V` of the message after the lookup challenges. -/
-noncomputable def sheetBound (anchor : Prefix (Sheet logicalWidth publicFits slots width limit) (Coord → K) total)
+noncomputable def sheetBound (anchor : Prefix (Sheet logicalWidth publicFits slots width limit)
+  (Option Coord → K) total)
     (g : Fin 3) : (root.shape g).Payload :=
   if g = 2 then
     (anchor.wire
@@ -183,20 +184,21 @@ ends in a probe whose claims satisfy `Shaped` and `Relation` for `W`. No Lean re
 polynomial, `W` and the honest inverses of each lookup challenges that are no table values. -/
 theorem accepts (use : Use setup shape) (wide : 8 ≤ width) (capped : 3029804899 ≤ limit)
     (room : 3 < slots) (inside : Tier.finish fifth < total)
-    (accept : Prefix Leaf (Coord → K) total → Prop)
-    (table : Prefix Leaf (Coord → K) total → Coord → K)
-    (calm : ∀ input, sample (Coord → K) (Fin (setup.params shape).lookups → Zq) (table input) ∉
-      Compression.Verifier.tableHit (setup.params shape))
+    (accept : Prefix Leaf (Option Coord → K) total → Prop)
+    (table : Prefix Leaf (Option Coord → K) total → Option Coord → K)
+    (calm : ∀ input, sample (Coord → K) (Fin (setup.params shape).lookups → Zq)
+      (view (table input)) ∉ Compression.Verifier.tableHit (setup.params shape))
     (regular : ∀ input,
-      sample (Coord → K) (Compression.Verifier.Challenges (setup.params shape)) (table input) ∉
-        Compression.Verifier.omegaBad (setup.params shape))
-    (decodes : ∀ input b, (decode b.1 (table input (block b))).isSome)
-    (decodes₁ : ∀ input i, (decode₁ (table input (block₁ i))).isSome)
-    (decodes₂ : ∀ input i, (decode₂ (table input (block₂ i))).isSome)
-    (decodes₃ : ∀ input i, (decode₃ (table input (block₃ i))).isSome)
-    (decodes₄ : ∀ input i, (decode₄ (table input (block₄ i))).isSome)
-    (decodes₅ : ∀ input i, (decode₅ (table input (block₅ i))).isSome)
-    (decodesL : ∀ input i, (decodeL (table input (blockL i))).isSome)
+      sample (Coord → K) (Compression.Verifier.Challenges (setup.params shape))
+        (view (table input)) ∉ Compression.Verifier.omegaBad (setup.params shape))
+    (decodes : ∀ input b, (decode b.1 (table input (some (block b)))).isSome)
+    (decodes₁ : ∀ input i, (decode₁ (table input (some (block₁ i)))).isSome)
+    (decodes₂ : ∀ input i, (decode₂ (table input (some (block₂ i)))).isSome)
+    (decodes₃ : ∀ input i, (decode₃ (table input (some (block₃ i)))).isSome)
+    (decodes₄ : ∀ input i, (decode₄ (table input (some (block₄ i)))).isSome)
+    (decodes₅ : ∀ input i, (decode₅ (table input (some (block₅ i)))).isSome)
+    (decodesL : ∀ input i, (decodeL (table input (some (blockL i)))).isSome)
+    (worked : ∀ input, table input none ∈ workZeros K 57)
     (given : First logicalWidth publicFits)
     (checks : FinalVerifier.Checks mode given.statement (given.claims shape))
     (gate : setup.Gate (given.claims shape)) (W : Table)
@@ -329,7 +331,7 @@ theorem accepts (use : Use setup shape) (wide : 8 ≤ width) (capped : 302980489
     (Page.carries (fun data : First logicalWidth publicFits × Key20.Note K => data.2.response)
       fun target => ⟨(given, { base with response := target }), rfl⟩)
     started inside (fun _ => rfl) (fun _ => rfl) table calm regular decodes decodes₁ decodes₂
-    decodes₃ decodes₄ decodes₅ decodesL
+    decodes₃ decodes₄ decodes₅ decodesL worked
     (⟨(given, { base with commit := fun g => (Compression.Akita.commit (key g)
       (![keyBase (setup.params shape), W, 0] g)).1 }), fun _ => (fun _ => 0, 0)⟩ : Leaf)
     checks gate W counts tail leads

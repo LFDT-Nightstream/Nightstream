@@ -87,11 +87,6 @@ theorem sequence_zero {m : ℕ} : sequence (0 : Fin m → Rq d) = 0 :=
 theorem cellsOf_zero {m : ℕ} (code : ι ≃ Fin m) : cellsOf code (0 : ι → Rq d) = 0 :=
   sequence_zero
 
-theorem join_zero (n : ℕ) : join n 0 0 = 0 :=
-  funext fun x => by
-    unfold join
-    split <;> rfl
-
 theorem concat_zero {n : ℕ} (size : Fin n → ℕ) : concat size (fun _ => 0) = 0 :=
   funext fun x => Finset.sum_eq_zero fun g _ => by split <;> rfl
 
@@ -128,11 +123,12 @@ end Digits
 
 section Rows
 
-variable {E : Type} (rel : FlatRelation E) {base : ℕ} (digits start : ℕ)
+variable {E : Type} (rel : FlatRelation E) {base : ℕ} (G : Gaps) (digits : ℕ)
 
 /-- A ring row that holds for the zero table has the left side 0 of Akita (111). -/
 theorem RingRow.lifted_zero {row : RingRow} (holds : row.Holds 0) : row.lifted 0 = 0 := by
-  have reads : ∀ c, row.read 0 c = 0 := fun c => ofCoeffs_zero
+  have reads : ∀ c, row.read 0 c = 0 := fun c =>
+    (congrArg ofCoeffs (funext fun j => by cases row.address c j <;> rfl)).trans ofCoeffs_zero
   have target : row.target = 0 := by
     have residual : row.residual 0 = 0 := holds
     simpa [RingRow.residual, reads] using residual
@@ -141,7 +137,7 @@ theorem RingRow.lifted_zero {row : RingRow} (holds : row.Holds 0) : row.lifted 0
 /-- The table with the digits of the quotients of the zero table is the zero table, when each
 ring row holds for the zero table. -/
 theorem FlatRelation.completion_zero (two : 2 ≤ base) (holds : ∀ r, (rel.row r).Holds 0) :
-    rel.completion base digits start 0 = 0 := by
+    rel.completion G base digits 0 = 0 := by
   have quotients : ∀ r, rel.quotients 0 r = 0 := fun r =>
     (mul_eq_zero.mp (((rel.quotients_spec (holds r)).2.symm.trans
       (RingRow.lifted_zero (holds r))))).resolve_left (modulus_monic _).ne_zero
@@ -149,8 +145,8 @@ theorem FlatRelation.completion_zero (two : 2 ≤ base) (holds : ∀ r, (rel.row
     unfold FlatRelation.quotientTable
     simp only [quotients, Polynomial.coeff_zero, fieldDigit_zero two]
     exact concat_zero _
-  show join start 0 (rel.quotientTable base digits (rel.quotients 0)) = 0
-  rw [table, join_zero]
+  show G.merge 0 (rel.quotientTable base digits (rel.quotients 0)) = 0
+  rw [table, G.merge_zero]
 
 end Rows
 
@@ -402,13 +398,13 @@ variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {E : Type} [Field 
 theorem liftNext_zero (shape : S.Bounded) (radix : Radix fold.responseBase)
     (certified : fold.responseBase ≤ S.certifiedBase)
     (path : PathFits O.openDegree (1 * O.openRank) O.chain) (two : 2 ≤ S.certifiedBase) (μ : ℕ)
-    (cells : O.cells fold < 2 ^ μ) (digits : ℕ) (point : Point O E)
+    (cells : O.cells fold ≤ 2 ^ μ) (digits : ℕ) (point : Point O E)
     (c : Fin S.blocks → Rq O.carrierDegree) :
     liftNext β key openKey fold μ cells digits 0 point c = 0 := by
   have satisfies := sourceClaim_satisfies (β := β) (key := key) (openKey := openKey)
     (fold := fold) 0 point c shape radix certified path
     (by rw [response_zero]; exact encodable_zero radix.two _)
-  have holds := lockedRelation_of_flat (Witness.flat_of_le _ le_rfl) (satisfies.flat μ cells)
+  have holds := satisfies.flat μ cells
   have flat := honest_flat_zero (fold := fold) shape.opening.two radix.two β key openKey point c
   unfold liftNext
   rw [flat] at holds ⊢
@@ -419,7 +415,7 @@ table, when `after` holds for the zero table. -/
 theorem liftFit_zero (shape : S.Bounded) (radix : Radix fold.responseBase)
     (certified : fold.responseBase ≤ S.certifiedBase)
     (path : PathFits O.openDegree (1 * O.openRank) O.chain) (two : 2 ≤ S.certifiedBase) {μ : ℕ}
-    {cells : O.cells fold < 2 ^ μ} {digits : ℕ} {decode : E → Option (Rq O.carrierDegree)}
+    {cells : O.cells fold ≤ 2 ^ μ} {digits : ℕ} {decode : E → Option (Rq O.carrierDegree)}
     {after : Table → Prop} (holds : after 0) :
     LiftFit β key openKey fold μ cells digits decode (fun i => S.embed (S.pack 0 i)) after := by
   rw [Shape.embed_pack_zero]
@@ -474,7 +470,7 @@ theorem batchFit_zero (shape : ∀ g, (B.shape g).Honest)
     (radix : ∀ g, Radix (B.fold g).responseBase)
     (certified : ∀ g, (B.fold g).responseBase ≤ (B.shape g).certifiedBase)
     (path : PathFits B.openDegree (1 * B.openRank) B.chain) {base : ℕ} (two : 2 ≤ base) {μ : ℕ}
-    {cells : B.cells < 2 ^ μ} {digits : ℕ}
+    {cells : B.cells ≤ 2 ^ μ} {digits : ℕ}
     {decode : (g : Fin n) → E → Option (Rq (B.carrierDegree g))} {after : Table → Prop}
     (holds : after 0) :
     BatchFit β key openKey μ cells base digits decode (fun _ => 0) after := by
@@ -486,8 +482,7 @@ theorem batchFit_zero (shape : ∀ g, (B.shape g).Honest)
   refine ⟨encodable, ?_⟩
   have satisfies := Batch.honestClaim_satisfies (β := β) (key := key) (openKey := openKey)
     (fun _ => 0) point weight c shape radix certified path encodable
-  have rows := Batch.lockedRelation_of_flat (Batch.Witness.flat_of_le _ le_rfl)
-    (satisfies.flat μ cells)
+  have rows := satisfies.flat μ cells
   have flat := Batch.honest_flat_zero (fun g => (shape g).source.two)
     (fun g => (shape g).opening.two) (fun g => (radix g).two) β key openKey point c
   unfold batchNext

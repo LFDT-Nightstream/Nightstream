@@ -239,7 +239,7 @@ tree, the draw of `η_norm` before `ζ_bin` and `γ`, and the fused sum-check (1
 `m_{τ_1} + η_norm·K_{r_virt}` and the claim `V + η_norm·z̃(r_virt)` of Akita (93). The bad set of
 `η_norm` is the root of the residual of the relation and the residual of (91). -/
 noncomputable def foldCheckSq (R : Reduction E) (b : ℕ) (support : ℕ → Prop)
-    [DecidablePred support] (limit : ℕ) (kernel : ℕ → ℕ → Zq) (w : Table) :
+    [DecidablePred support] (bin : Bool) (limit : ℕ) (kernel : ℕ → ℕ → Zq) (w : Table) :
     Game (Option (List E × E)) :=
   .draw E (R.bad w) fun α =>
   .draw (Fin R.vars → E) (rangeBad b R.vars w) fun τ0 =>
@@ -250,7 +250,7 @@ noncomputable def foldCheckSq (R : Reduction E) (b : ℕ) (support : ℕ → Pro
     | some (r, sClaim, y) =>
         .draw E (zeros (linePoly (mle (List.ofFn τ1) ((R.rows α).residual R.vars w))
           (mle r (lifted E (normTable R.vars kernel w)) - y))) fun η =>
-        .draw E (zeros (linePoly (mle (List.ofFn τ1) ((R.rows α).residual R.vars w) +
+        drawBin bin (zeros (linePoly (mle (List.ofFn τ1) ((R.rows α).residual R.vars w) +
           η * (mle r (lifted E (normTable R.vars kernel w)) - y))
           (mle r (supportTable support w)))) fun ζ =>
         .draw E (zeros (linePoly (mle (List.ofFn τ1) ((R.rows α).residual R.vars w) +
@@ -265,8 +265,9 @@ true for the committed witness, `v_W = w̃(r_2)`, gives the relation of the ring
 digit range statement, the binary statement, and a number `E_resp ≤ S_max` with
 `Σ_{u < 2^{μ'}} (z^Z_u)² = E_resp` in `Z_q` (Akita Lemma 6.3 in the field and Lemma 10.34). -/
 theorem foldCheckSq_avoids (R : Reduction E) (b : ℕ) (support : ℕ → Prop)
-    [DecidablePred support] (limit : ℕ) (kernel : ℕ → ℕ → Zq) (w : Table) :
-    (foldCheckSq R b support limit kernel w).Avoids fun result =>
+    [DecidablePred support] (bin : Bool) (empty : bin = false → ∀ x, ¬ support x) (limit : ℕ)
+    (kernel : ℕ → ℕ → Zq) (w : Table) :
+    (foldCheckSq R b support bin limit kernel w).Avoids fun result =>
       ∀ r2 v, result = some (r2, v) → v = mle r2 (lifted E w) →
         (R.Holds w ∧ RangeHolds b R.vars w ∧ BinaryOn support R.vars w) ∧ ∃ claimed ≤ limit,
           ∑ u ∈ Finset.range (2 ^ R.vars), normTable R.vars kernel w u ^ 2 = (claimed : Zq) := by
@@ -281,7 +282,8 @@ theorem foldCheckSq_avoids (R : Reduction E) (b : ℕ) (support : ℕ → Prop)
   · intro r2 v equal
     simp at equal
   obtain ⟨⟨virt, energy⟩, rangeSound⟩ := ranged (r, sClaim, y) rfl
-  intro η outsideη ζ outsideζ γ outsideγ
+  intro η outsideη
+  refine drawBin_avoids empty fun ζ outsideζ γ outsideγ => ?_
   refine (fusedCheck_avoids R.vars support w _ _ r sClaim ζ γ).mono ?_
   intro result fused r2 v equal opening
   have batched : ∑ x ∈ Finset.range (2 ^ R.vars), lifted E w x *

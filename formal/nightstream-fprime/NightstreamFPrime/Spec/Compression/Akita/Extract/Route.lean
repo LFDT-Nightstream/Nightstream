@@ -62,6 +62,11 @@ inductive Route
   | coefficient
   | euclidean (operator limit : ℕ)
 
+/-- The Euclidean route has a fold challenge family with the operator filter. -/
+def Route.filtered : Route → Bool
+  | .coefficient => false
+  | .euclidean _ _ => true
+
 section Terminal
 
 variable {d : ℕ} [NeZero d]

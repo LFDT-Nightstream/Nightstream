@@ -103,13 +103,14 @@ end Representative
 
 /-- One ring row in the normal form of Akita (110): the native degree `d_r`, the public
 multipliers `A_{r,c}` of the occurrences `c ∈ Occ_r`, the address maps `addr_{r,c}` of (108), and
-the public target `Y_r`. -/
+the public target `Y_r`. An address `none` is a coefficient 0 of `W_{r,c}` that the row does not
+read from the witness. -/
 structure RingRow where
   degree : ℕ
   [positive : NeZero degree]
   occurrences : ℕ
   multiplier : Fin occurrences → Rq degree
-  address : Fin occurrences → ℕ → ℕ
+  address : Fin occurrences → ℕ → Option ℕ
   target : Rq degree
 
 attribute [instance] RingRow.positive
@@ -120,7 +121,7 @@ variable (row : RingRow)
 
 /-- `W_{r,c}(X) = Σ_{j<d_r} w_{addr_{r,c}(j)}·X^j` of Akita (109), for the flat witness `w`. -/
 noncomputable def read (w : Table) (c : Fin row.occurrences) : Rq row.degree :=
-  ofCoeffs fun j => w (row.address c j)
+  ofCoeffs fun j => (row.address c j).elim 0 w
 
 /-- The residual `Z_r = Σ_c A_{r,c}·W_{r,c} − Y_r` of Akita (110). -/
 noncomputable def residual (w : Table) : Rq row.degree :=
@@ -179,12 +180,12 @@ variable {E : Type} [CommRing E] [Algebra Zq E]
 `Σ_c Σ_{j<d_r} A_{r,c}(α)·α^j·w_{addr_{r,c}(j)} − Y_r(α) − (α^{d_r} + 1)·Q_r(α) = 0`. -/
 def LiftCheck (w : Table) (quotient : Zq[X]) (α : E) : Prop :=
   ∑ c, aeval α (rep (row.multiplier c)) *
-      ∑ j ∈ Finset.range row.degree, α ^ j * algebraMap Zq E (w (row.address c j)) -
+      ∑ j ∈ Finset.range row.degree, α ^ j * algebraMap Zq E ((row.address c j).elim 0 w) -
     aeval α (rep row.target) - (α ^ row.degree + 1) * aeval α quotient = 0
 
 theorem aeval_read (w : Table) (c : Fin row.occurrences) (α : E) :
     aeval α (rep (row.read w c)) =
-      ∑ j ∈ Finset.range row.degree, α ^ j * algebraMap Zq E (w (row.address c j)) := by
+      ∑ j ∈ Finset.range row.degree, α ^ j * algebraMap Zq E ((row.address c j).elim 0 w) := by
   rw [aeval_rep]
   exact Finset.sum_congr rfl fun j member => by
     rw [read, coeff_ofCoeffs _ (Finset.mem_range.mp member), Algebra.smul_def, mul_comm]
@@ -209,7 +210,7 @@ theorem liftCheck_of_holds {w : Table} (holds : row.Holds w) :
 the target. -/
 noncomputable def reduced (w : Table) (α : E) : E :=
   ∑ c, ∑ j ∈ Finset.range row.degree,
-      residueKernel (row.multiplier c) α j * algebraMap Zq E (w (row.address c j)) -
+      residueKernel (row.multiplier c) α j * algebraMap Zq E ((row.address c j).elim 0 w) -
     reducedEval α row.target
 
 /-- `z_r(α)` is the value at `α` of the ring residual `Z_r` (Akita Section 7.3). -/

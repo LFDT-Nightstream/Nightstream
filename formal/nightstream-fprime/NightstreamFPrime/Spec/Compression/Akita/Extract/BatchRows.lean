@@ -5,13 +5,13 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.FlatSource
 each group, and its link to the exact branch relation (ePrint 2026/1983, revision of 2026-10-15,
 Section 7.2 with Figure 5, Section 7.3, and the hypothesis of Corollary 10.32).
 
-- `RingRow.relocate` is a ring row with each address moved by a map, and `gather` puts the rows
-  of the groups of one family in the order of the groups.
-- `Batch.flatRows` has the ring rows in the order of Akita Figure 5: the planes of the row (102)
-  of each group, the rows (104) of each group, the rows (105) of each group and slice, the rows
-  (106) of the shared matrix `D`, and the rows (47) in increasing depth, with the rows of `F_a` of
-  each group before the rows of `H_a`. A row of the group `g` is the row of `FlatFold.lean` for
-  `Batch.opening g`, with its addresses moved by `Batch.relocate g`.
+- `gather` puts the rows of the groups of one family in the order of the groups.
+- `Batch.flatRows` has the ring rows in the order of Akita (76) and of the pinned code
+  (`crates/akita-params/src/layout/relation_rows.rs` of the Akita code): for each group the
+  planes of the row (102), the rows (104) and the rows (105) of each slice (`Batch.groupRows`),
+  then the rows (106) of the shared matrix `D`, and the rows (47) in increasing depth, with the
+  rows of `F_a` of each group before the rows of `H_a`. A row of the group `g` is the row of
+  `FlatFold.lean` for `Batch.opening g`, with its addresses moved by `Batch.relocate g`.
 - `Batch.scalarWeight` has the weights of the scalar row (100) with the weights `ϑ_g`.
 - `Batch.flatRelation` is the `FlatRelation` of the fold, and `Batch.flatRelation_holds_iff`
   states that `Batch.Witness.flat` satisfies it when the digit vectors satisfy the rows of
@@ -35,22 +35,14 @@ local instance : Fact (Nat.Prime fieldModulus) := ⟨FieldPrime.fieldModulus_nat
 
 section Moves
 
-/-- The ring row with each address moved by `move`. -/
-def RingRow.relocate (row : RingRow) (move : ℕ → ℕ) : RingRow where
-  degree := row.degree
-  occurrences := row.occurrences
-  multiplier := row.multiplier
-  address c j := move (row.address c j)
-  target := row.target
-
-theorem RingRow.relocate_holds (row : RingRow) (move : ℕ → ℕ) (w : Table) :
-    (row.relocate move).Holds w ↔ row.Holds fun x => w (move x) :=
-  Iff.rfl
-
 theorem RingRow.Below.relocate {row : RingRow} {bound other : ℕ} {move : ℕ → ℕ}
-    (below : row.Below bound) (moves : ∀ x ≤ bound, move x ≤ other) :
-    (row.relocate move).Below other :=
-  fun c j => moves _ (below c j)
+    (below : row.Below bound) (moves : ∀ x < bound, move x < other) :
+    (row.relocate move).Below other := fun c j x read => by
+  cases h : row.address c j with
+  | none => simp [RingRow.relocate, h] at read
+  | some y =>
+      simp only [RingRow.relocate, h, Option.map_some, Option.some.injEq] at read
+      exact read ▸ moves _ (below c j y h)
 
 variable {n : ℕ} {count : Fin n → ℕ}
 
@@ -108,7 +100,7 @@ element `col` of `ê_g` in the main segment of the group `g`. -/
 def openForm (key : B.OpenKey) (j : Fin (1 * B.openRank)) : Form B.openDegree :=
   Form.ofMatrix key.matrix
     (fun column k =>
-      B.relocate column.1 ((B.opening column.1).partialCell (B.fold column.1) column.2 k))
+      ((B.opening column.1).partialCell (B.fold column.1) column.2 k).map (B.relocate column.1))
     (finProdFinEquiv.symm j).2
 
 /-- The weight of the cell `x` in the scalar row (100) of Akita Figure 5 for the groups: the sum
@@ -121,12 +113,15 @@ noncomputable def scalarWeight (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E
       Akita.scalarWeight (B.opening g) (B.fold g) (β g) (st.point g) y
     else 0
 
+/-- The number of ring rows of the group `g` before the rows of `D`. -/
+def groupCount (g : Fin n) : ℕ :=
+  B.planes g + ((B.shape g).innerRank + (B.shape g).slices * (B.shape g).outerRank)
+
 /-- The number of ring rows of one fold with opening groups. -/
 def rowCount : ℕ :=
-  ∑ g, B.planes g + (∑ g, (B.shape g).innerRank +
-    (∑ g, (B.shape g).slices * (B.shape g).outerRank + (1 * B.openRank +
-      (∑ g, firstRank (B.shape g).chain + (firstRank B.chain +
-        (∑ g, secondRank (B.shape g).chain + secondRank B.chain))))))
+  ∑ g, B.groupCount g + (1 * B.openRank +
+    (∑ g, firstRank (B.shape g).chain + (firstRank B.chain +
+      (∑ g, secondRank (B.shape g).chain + secondRank B.chain))))
 
 /-- `d_max`, the largest ring degree of a row (Akita Theorem 7.4). -/
 def largestDegree : ℕ :=
@@ -140,94 +135,100 @@ theorem group_le (g : Fin n) : (B.opening g).largestDegree ≤ B.largestDegree :
 variable (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E) (st : B.Statement E)
   (challenge : B.Challenge)
 
-/-- The ring rows of one fold with opening groups in the order of Akita Figure 5: for each group
-the planes of the carrier row (102), for each group the rows (104) of `A_g`, for each group and
-slice the rows (105) of `B_g`, the rows (106) of `D`, and the rows (47): for each group the rows
-of `F_1`, the rows of `H_1`, for each group the rows of `F_2`, and the rows of `H_2`. -/
-noncomputable def flatRows : Fin B.rowCount → RingRow :=
+/-- The ring rows of the group `g` before the rows of `D`: the planes of the carrier row (102),
+the rows (104) of `A_g`, and for each slice the rows (105) of `B_g`, with the addresses moved to
+the flat witness of the fold. -/
+noncomputable def groupRows (g : Fin n) : Fin (B.groupCount g) → RingRow :=
   Fin.append
-    (gather (count := fun g => B.planes g) fun g t =>
-      (evaluationRow (B.opening g) (B.fold g) (β g) (st.point g) (challenge g) t).relocate
-        (B.relocate g))
+    (fun t => (evaluationRow (B.opening g) (B.fold g) (β g) (st.point g) (challenge g) t).relocate
+      (B.relocate g))
     (Fin.append
-      (gather (count := fun g => (B.shape g).innerRank) fun g a =>
-        (innerRow (B.opening g) (B.fold g) (st.key g) (challenge g) a).relocate (B.relocate g))
+      (fun a => (innerRow (B.opening g) (B.fold g) (st.key g) (challenge g) a).relocate
+        (B.relocate g))
+      (fun j => (imageRow (B.shape g).chain (outerForm (B.opening g) (B.fold g) (st.key g))
+        ((B.opening g).firstCell (B.fold g)) (st.payload g) j).relocate (B.relocate g)))
+
+/-- The ring rows of one fold with opening groups in the order of Akita (76) and of the pinned
+code: for each group the rows `groupRows`, then the rows (106) of `D`, and the rows (47): for each
+group the rows of `F_1`, the rows of `H_1`, for each group the rows of `F_2`, and the rows of
+`H_2`. -/
+noncomputable def flatRows : Fin B.rowCount → RingRow :=
+  Fin.append (gather (B.groupRows β st challenge))
+    (Fin.append (imageRow B.chain (B.openForm st.openKey) B.openFirstCell st.openPayload)
       (Fin.append
-        (gather (count := fun g => (B.shape g).slices * (B.shape g).outerRank) fun g j =>
-          (imageRow (B.shape g).chain (outerForm (B.opening g) (B.fold g) (st.key g))
-            ((B.opening g).firstCell (B.fold g)) (st.payload g) j).relocate (B.relocate g))
-        (Fin.append (imageRow B.chain (B.openForm st.openKey) B.openFirstCell st.openPayload)
+        (gather (count := fun g => firstRank (B.shape g).chain) fun g r =>
+          (firstRow (B.shape g).chain (st.key g).chain ((B.opening g).firstCell (B.fold g))
+            ((B.opening g).secondCell (B.fold g)) r).relocate (B.relocate g))
+        (Fin.append (firstRow B.chain st.openKey.chain B.openFirstCell B.openSecondCell)
           (Fin.append
-            (gather (count := fun g => firstRank (B.shape g).chain) fun g r =>
-              (firstRow (B.shape g).chain (st.key g).chain ((B.opening g).firstCell (B.fold g))
-                ((B.opening g).secondCell (B.fold g)) r).relocate (B.relocate g))
-            (Fin.append (firstRow B.chain st.openKey.chain B.openFirstCell B.openSecondCell)
-              (Fin.append
-                (gather (count := fun g => secondRank (B.shape g).chain) fun g r =>
-                  (secondRow (B.shape g).chain (st.key g).chain
-                    ((B.opening g).secondCell (B.fold g)) (st.payload g) r).relocate
-                      (B.relocate g))
-                (secondRow B.chain st.openKey.chain B.openSecondCell st.openPayload)))))))
+            (gather (count := fun g => secondRank (B.shape g).chain) fun g r =>
+              (secondRow (B.shape g).chain (st.key g).chain
+                ((B.opening g).secondCell (B.fold g)) (st.payload g) r).relocate
+                  (B.relocate g))
+            (secondRow B.chain st.openKey.chain B.openSecondCell st.openPayload)))))
 
 theorem openForm_below (key : B.OpenKey) (j : Fin (1 * B.openRank)) :
-    (B.openForm key j).Below B.cells :=
-  fun column k => B.relocate_le column.1
-    ((B.opening column.1).partialCell_le (B.fold column.1) column.2 k)
+    (B.openForm key j).Below B.cells := fun column k x read => by
+  cases h : (B.opening column.1).partialCell (B.fold column.1) column.2 k with
+  | none => simp [openForm, Form.ofMatrix, h] at read
+  | some y =>
+      simp only [openForm, Form.ofMatrix, h, Option.map_some, Option.some.injEq] at read
+      exact read ▸ B.relocate_lt column.1
+        ((B.opening column.1).partialCell_lt (B.fold column.1) column.2 k h)
 
 theorem flatRows_below (r : Fin B.rowCount) : (B.flatRows β st challenge r).Below B.cells := by
-  have moves : ∀ g, ∀ x ≤ (B.opening g).cells (B.fold g), B.relocate g x ≤ B.cells :=
-    fun g _ le => B.relocate_le g le
+  have moves : ∀ g, ∀ x < (B.opening g).cells (B.fold g), B.relocate g x < B.cells :=
+    fun g _ small => B.relocate_lt g small
   revert r
   refine (forall_append (RingRow.Below · B.cells) _ _).mpr
-    ⟨(forall_gather (RingRow.Below · B.cells) _).mpr fun g t => ?_,
-    (forall_append (RingRow.Below · B.cells) _ _).mpr
-    ⟨(forall_gather (RingRow.Below · B.cells) _).mpr fun g a => ?_,
-    (forall_append (RingRow.Below · B.cells) _ _).mpr
-    ⟨(forall_gather (RingRow.Below · B.cells) _).mpr fun g j => ?_,
+    ⟨(forall_gather (RingRow.Below · B.cells) _).mpr fun g =>
+      (forall_append (RingRow.Below · B.cells) _ _).mpr ⟨fun t => ?_,
+        (forall_append (RingRow.Below · B.cells) _ _).mpr ⟨fun a => ?_, fun j => ?_⟩⟩,
     (forall_append (RingRow.Below · B.cells) _ _).mpr ⟨?_,
     (forall_append (RingRow.Below · B.cells) _ _).mpr
     ⟨(forall_gather (RingRow.Below · B.cells) _).mpr fun g r => ?_,
     (forall_append (RingRow.Below · B.cells) _ _).mpr ⟨?_,
     (forall_append (RingRow.Below · B.cells) _ _).mpr
-    ⟨(forall_gather (RingRow.Below · B.cells) _).mpr fun g r => ?_, ?_⟩⟩⟩⟩⟩⟩⟩
+    ⟨(forall_gather (RingRow.Below · B.cells) _).mpr fun g r => ?_, ?_⟩⟩⟩⟩⟩
   · exact RingRow.Below.relocate ((Form.Below.sub
       (f := partialForm (B.opening g) (B.fold g) (challenge g) t)
       (g := contractForm (B.opening g) (B.fold g) (β g) (st.point g) t)
-      (fun _ _ => (B.opening g).partialPosition_le (B.fold g) _ _ _)
-      (fun _ _ => (B.opening g).responseCell_le (B.fold g) _ _)).row 0) (moves g)
+      (fun _ _ _ => (B.opening g).partialPosition_lt (B.fold g) _ _ _)
+      (fun _ _ _ => (B.opening g).responseCell_lt (B.fold g) _ _)).row 0) (moves g)
   · exact RingRow.Below.relocate ((Form.Below.sub
-      (f := responseForm (B.opening g) (B.fold g) (st.key g) a)
+      (f := responseForm (B.fold g) (st.key g) a)
       (g := imageForm (B.opening g) (B.fold g) (challenge g) a)
-      (fun _ _ => (B.opening g).responseCell_le (B.fold g) _ _)
-      (fun _ _ => (B.opening g).innerCell_le (B.fold g) _ _ _ _)).row 0) (moves g)
+      (fun _ _ _ => (B.opening g).responseCell_lt (B.fold g) _ _)
+      (fun _ _ _ => (B.opening g).innerCell_lt (B.fold g) _ _ _ _)).row 0) (moves g)
   · exact RingRow.Below.relocate (imageRow_below (B.shape g).chain _ _ _
-      (fun _ => Form.ofMatrix_below _ (fun _ _ => (B.opening g).sliceCell_le (B.fold g) _ _ _) _)
-      ((B.opening g).firstCell_le (B.fold g)) j) (moves g)
-  · exact imageRow_below B.chain _ _ _ (B.openForm_below st.openKey) B.openFirstCell_le
+      (fun _ => Form.ofMatrix_below _
+        (fun _ _ _ => (B.opening g).sliceCell_lt (B.fold g) _ _ _) _)
+      (fun _ _ => (B.opening g).firstCell_lt (B.fold g) _) j) (moves g)
+  · exact imageRow_below B.chain _ _ _ (B.openForm_below st.openKey)
+      (fun _ _ => B.openFirstCell_lt _)
   · exact RingRow.Below.relocate (firstRow_below (B.shape g).chain _ _ _
-      ((B.opening g).firstCell_le (B.fold g)) ((B.opening g).secondCell_le (B.fold g)) r)
-      (moves g)
-  · exact firstRow_below B.chain _ _ _ B.openFirstCell_le B.openSecondCell_le
+      (fun _ _ => (B.opening g).firstCell_lt (B.fold g) _)
+      (fun _ _ => (B.opening g).secondCell_lt (B.fold g) _) r) (moves g)
+  · exact firstRow_below B.chain _ _ _ (fun _ _ => B.openFirstCell_lt _)
+      (fun _ _ => B.openSecondCell_lt _)
   · exact RingRow.Below.relocate (secondRow_below (B.shape g).chain _ _ _
-      ((B.opening g).secondCell_le (B.fold g)) r) (moves g)
-  · exact secondRow_below B.chain _ _ _ B.openSecondCell_le
+      (fun _ _ => (B.opening g).secondCell_lt (B.fold g) _) r) (moves g)
+  · exact secondRow_below B.chain _ _ _ (fun _ _ => B.openSecondCell_lt _)
 
 theorem flatRows_degree_le (r : Fin B.rowCount) :
     (B.flatRows β st challenge r).degree ≤ B.largestDegree := by
   revert r
   refine (forall_append (RingRow.degree · ≤ B.largestDegree) _ _).mpr
-    ⟨(forall_gather (RingRow.degree · ≤ B.largestDegree) _).mpr fun g t => ?_,
-    (forall_append (RingRow.degree · ≤ B.largestDegree) _ _).mpr
-    ⟨(forall_gather (RingRow.degree · ≤ B.largestDegree) _).mpr fun g a => ?_,
-    (forall_append (RingRow.degree · ≤ B.largestDegree) _ _).mpr
-    ⟨(forall_gather (RingRow.degree · ≤ B.largestDegree) _).mpr fun g j => ?_,
+    ⟨(forall_gather (RingRow.degree · ≤ B.largestDegree) _).mpr fun g =>
+      (forall_append (RingRow.degree · ≤ B.largestDegree) _ _).mpr ⟨fun t => ?_,
+        (forall_append (RingRow.degree · ≤ B.largestDegree) _ _).mpr ⟨fun a => ?_, fun j => ?_⟩⟩,
     (forall_append (RingRow.degree · ≤ B.largestDegree) _ _).mpr ⟨fun j => ?_,
     (forall_append (RingRow.degree · ≤ B.largestDegree) _ _).mpr
     ⟨(forall_gather (RingRow.degree · ≤ B.largestDegree) _).mpr fun g r => ?_,
     (forall_append (RingRow.degree · ≤ B.largestDegree) _ _).mpr ⟨fun r => ?_,
     (forall_append (RingRow.degree · ≤ B.largestDegree) _ _).mpr
     ⟨(forall_gather (RingRow.degree · ≤ B.largestDegree) _).mpr fun g r => ?_,
-      fun r => ?_⟩⟩⟩⟩⟩⟩⟩
+      fun r => ?_⟩⟩⟩⟩⟩
   · exact le_trans (le_max_of_le_left
       (le_max_left (B.opening g).carrierDegree (B.shape g).innerDegree)) (B.group_le g)
   · exact le_trans (le_max_of_le_left
@@ -242,16 +243,19 @@ theorem flatRows_degree_le (r : Fin B.rowCount) :
       (le_max_of_le_right (le_max_of_le_right (le_max_left _ _)))) (B.group_le g)
   · exact (secondRow_degree_le B.chain _ _ _ r).trans (le_max_of_le_right (le_max_right _ _))
 
+/-- The sum of the ring degrees of the rows `groupRows` of the group `g`. -/
+def groupDegrees (g : Fin n) : ℕ :=
+  B.planes g * B.carrierDegree g + ((B.shape g).innerRank * (B.shape g).innerDegree +
+    (B.shape g).slices * (B.shape g).outerRank * (B.shape g).outerDegree)
+
 /-- The sum of the ring degrees of the rows of one fold with opening groups, in the order of
 `Batch.flatRows`. -/
 def degreeSum : ℕ :=
-  ∑ g, B.planes g * B.carrierDegree g + (∑ g, (B.shape g).innerRank * (B.shape g).innerDegree +
-    (∑ g, (B.shape g).slices * (B.shape g).outerRank * (B.shape g).outerDegree +
-      (1 * B.openRank * B.openDegree +
-        (∑ g, firstRank (B.shape g).chain * firstDegree (B.shape g).chain +
-          (firstRank B.chain * firstDegree B.chain +
-            (∑ g, secondRank (B.shape g).chain * secondDegree (B.shape g).chain +
-              secondRank B.chain * secondDegree B.chain))))))
+  ∑ g, B.groupDegrees g + (1 * B.openRank * B.openDegree +
+    (∑ g, firstRank (B.shape g).chain * firstDegree (B.shape g).chain +
+      (firstRank B.chain * firstDegree B.chain +
+        (∑ g, secondRank (B.shape g).chain * secondDegree (B.shape g).chain +
+          secondRank B.chain * secondDegree B.chain))))
 
 theorem flatRows_degree_sum : ∑ r, (B.flatRows β st challenge r).degree = B.degreeSum := by
   have moved : ∀ (row : RingRow) (move : ℕ → ℕ), (row.relocate move).degree = row.degree :=
@@ -260,7 +264,7 @@ theorem flatRows_degree_sum : ∑ r, (B.flatRows β st challenge r).degree = B.d
       t).degree = B.carrierDegree g := fun _ _ => rfl
   have inner : ∀ g a, (innerRow (B.opening g) (B.fold g) (st.key g) (challenge g) a).degree =
       (B.shape g).innerDegree := fun _ _ => rfl
-  unfold flatRows degreeSum rowCount
+  unfold flatRows groupRows degreeSum groupDegrees rowCount groupCount
   simp only [sum_append RingRow.degree, sum_gather RingRow.degree, moved, planes, inner,
     imageRow_degree, firstRow_degree, secondRow_degree, Finset.sum_const, Finset.card_univ,
     Fintype.card_fin, smul_eq_mul]
@@ -269,24 +273,24 @@ theorem flatRows_degree_sum : ∑ r, (B.flatRows β st challenge r).degree = B.d
 `Batch.Witness.flat`, for the fold challenges `c_{g,i}` (Akita Figure 5 for one claim in each
 group, on the quotient-free route): the ring rows `flatRows` and the scalar row (100). The cube
 has `μ` variables, with `cells < 2^μ`. -/
-noncomputable def flatRelation (μ : ℕ) (fits : B.cells < 2 ^ μ) : FlatRelation E where
+noncomputable def flatRelation (μ : ℕ) (fits : B.cells ≤ 2 ^ μ) : FlatRelation E where
   vars := μ
   ring := B.rowCount
   row := B.flatRows β st challenge
-  inside r c j _ := (B.flatRows_below β st challenge r c j).trans_lt fits
+  inside r c j _ _ read := (B.flatRows_below β st challenge r c j _ read).trans_le fits
   weight := B.scalarWeight β st μ
   value := st.value
 
-/-- The weight of the scalar row is 0 at each cell after `cells`. -/
-theorem scalarWeight_of_lt (μ : ℕ) {x : ℕ} (large : B.cells < x) :
+/-- The weight of the scalar row is 0 from the offset `chainStart`. -/
+theorem scalarWeight_of_le (μ : ℕ) {x : ℕ} (large : B.chainStart ≤ x) :
     B.scalarWeight β st μ x = 0 :=
   Finset.sum_eq_zero fun g _ => by
     rw [Finset.sum_eq_zero fun y _ => ?_, mul_zero]
     split
     · rename_i moved
-      refine Akita.scalarWeight_of_lt (B.opening g) (B.fold g) (β g) (st.point g) ?_
+      refine Akita.scalarWeight_of_le (B.opening g) (B.fold g) (β g) (st.point g) ?_
       by_contra small
-      have below := B.relocate_le g (Nat.le_of_not_lt small)
+      have below := B.relocate_lt_chainStart g (Nat.lt_of_not_le small)
       omega
     · rfl
 
@@ -300,12 +304,13 @@ theorem openForm_value (key : B.OpenKey) (j : Fin (1 * B.openRank)) :
     (B.openForm key j).value w.flat = stack key.matrix (fun _ : Fin 1 => w.partials) j :=
   Form.value_ofMatrix _ _ _
     (fun column => ofCoeffs_eq fun k small => by
-      rw [w.flat_relocate, Akita.Witness.flat_partialCell _ _ small]
+      rw [elim_map, show (fun x => w.flat (B.relocate column.1 x)) = (w.group column.1).flat from
+        funext (w.flat_relocate column.1), Akita.Witness.flat_partialCell _ _ small]
       rfl) _
 
 /-- The scalar row of the flat witness is the left side of the scalar row (100) of Akita. -/
 theorem scalarWeight_sum (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E) (st : B.Statement E)
-    (μ : ℕ) (fits : B.cells < 2 ^ μ) :
+    (μ : ℕ) (fits : B.cells ≤ 2 ^ μ) :
     ∑ x ∈ Finset.range (2 ^ μ), algebraMap Zq E (w.flat x) * B.scalarWeight β st μ x =
       B.scalar β st w.partials := by
   have each : ∀ g, ∑ x ∈ Finset.range (2 ^ μ), algebraMap Zq E (w.flat x) *
@@ -315,12 +320,15 @@ theorem scalarWeight_sum (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E) (st 
         ((B.opening g).partialPlane fun column => w.partials ⟨g, column⟩) := fun g => by
     rw [sum_mul_relocate _ _ _ _ fun y _ nonzero => by
       by_contra outside
-      refine nonzero (Akita.scalarWeight_of_lt (B.opening g) (B.fold g) (β g) (st.point g) ?_)
+      refine nonzero (Akita.scalarWeight_of_le (B.opening g) (B.fold g) (β g) (st.point g) ?_)
       by_contra small
-      have below := B.relocate_le g (Nat.le_of_not_lt small)
+      have below := B.relocate_lt_chainStart g (Nat.lt_of_not_le small)
+      have ends : B.chainStart ≤ B.cells := by
+        unfold cells openSecondStart secondStart openFirstStart
+        omega
       omega]
     simp only [w.flat_relocate g]
-    exact Akita.scalarWeight_sum (w.group g) (β g) (st.point g) μ ((B.cells_le g).trans_lt fits)
+    exact Akita.scalarWeight_sum (w.group g) (β g) (st.point g) μ ((B.cells_le g).trans fits)
   unfold Batch.scalarWeight Batch.scalar
   simp only [Finset.mul_sum]
   rw [Finset.sum_comm]
@@ -335,7 +343,7 @@ end Values
 section Link
 
 variable {B} (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E) (st : B.Statement E)
-  (challenge : B.Challenge) (μ : ℕ) (fits : B.cells < 2 ^ μ)
+  (challenge : B.Challenge) (μ : ℕ) (fits : B.cells ≤ 2 ^ μ)
 
 /-- The flat witness satisfies the relation of one fold with opening groups when the digit
 vectors satisfy, for each group, the rows (102), (104) and (105) with their rows (47) or (48),
@@ -369,12 +377,12 @@ theorem flatRelation_holds_iff (w : B.Witness) :
     B.openFirstCell B.openSecondCell w.flat (openForm_value w st.openKey) w.flat_openFirstCell
     w.flat_openSecondCell
   have rows : (∀ r, (B.flatRows β st challenge r).Holds w.flat) ↔
-      (∀ g t, (evaluationRow (B.opening g) (B.fold g) (β g) (st.point g) (challenge g) t).Holds
-        (w.group g).flat) ∧
-      (∀ g a, (innerRow (B.opening g) (B.fold g) (st.key g) (challenge g) a).Holds
-        (w.group g).flat) ∧
-      (∀ g j, (imageRow (B.shape g).chain (outerForm (B.opening g) (B.fold g) (st.key g))
-        ((B.opening g).firstCell (B.fold g)) (st.payload g) j).Holds (w.group g).flat) ∧
+      (∀ g, (∀ t, (evaluationRow (B.opening g) (B.fold g) (β g) (st.point g) (challenge g)
+          t).Holds (w.group g).flat) ∧
+        (∀ a, (innerRow (B.opening g) (B.fold g) (st.key g) (challenge g) a).Holds
+          (w.group g).flat) ∧
+        ∀ j, (imageRow (B.shape g).chain (outerForm (B.opening g) (B.fold g) (st.key g))
+          ((B.opening g).firstCell (B.fold g)) (st.payload g) j).Holds (w.group g).flat) ∧
       (∀ j, (imageRow B.chain (B.openForm st.openKey) B.openFirstCell st.openPayload j).Holds
         w.flat) ∧
       (∀ g r, (firstRow (B.shape g).chain (st.key g).chain ((B.opening g).firstCell (B.fold g))
@@ -385,39 +393,36 @@ theorem flatRelation_holds_iff (w : B.Witness) :
         ((B.opening g).secondCell (B.fold g)) (st.payload g) r).Holds (w.group g).flat) ∧
       ∀ r, (secondRow B.chain st.openKey.chain B.openSecondCell st.openPayload r).Holds w.flat :=
     (forall_append (RingRow.Holds · w.flat) _ _).trans (and_congr
-      ((forall_gather (RingRow.Holds · w.flat) _).trans
-        (forall_congr' fun g => forall_congr' fun _ => moved g _))
-      ((forall_append (RingRow.Holds · w.flat) _ _).trans (and_congr
-        ((forall_gather (RingRow.Holds · w.flat) _).trans
-          (forall_congr' fun g => forall_congr' fun _ => moved g _))
+      ((forall_gather (RingRow.Holds · w.flat) _).trans (forall_congr' fun g =>
+        (forall_append (RingRow.Holds · w.flat) _ _).trans (and_congr
+          (forall_congr' fun _ => moved g _)
+          ((forall_append (RingRow.Holds · w.flat) _ _).trans (and_congr
+            (forall_congr' fun _ => moved g _) (forall_congr' fun _ => moved g _))))))
+      ((forall_append (RingRow.Holds · w.flat) _ _).trans (and_congr_right'
         ((forall_append (RingRow.Holds · w.flat) _ _).trans (and_congr
           ((forall_gather (RingRow.Holds · w.flat) _).trans
             (forall_congr' fun g => forall_congr' fun _ => moved g _))
           ((forall_append (RingRow.Holds · w.flat) _ _).trans (and_congr_right'
-            ((forall_append (RingRow.Holds · w.flat) _ _).trans (and_congr
+            ((forall_append (RingRow.Holds · w.flat) _ _).trans (and_congr_left'
               ((forall_gather (RingRow.Holds · w.flat) _).trans
-                (forall_congr' fun g => forall_congr' fun _ => moved g _))
-              ((forall_append (RingRow.Holds · w.flat) _ _).trans (and_congr_right'
-                ((forall_append (RingRow.Holds · w.flat) _ _).trans (and_congr_left'
-                  ((forall_gather (RingRow.Holds · w.flat) _).trans
-                    (forall_congr' fun g => forall_congr' fun _ => moved g _)))))))))))))))
+                (forall_congr' fun g => forall_congr' fun _ => moved g _)))))))))))
   have value := scalarWeight_sum w β st μ fits
   constructor
   · rintro ⟨ring, scalarRow⟩
-    obtain ⟨evaluation, inner, outerImage, openImage, outerFirst, openFirst, outerSecond,
-      openSecond⟩ := rows.mp ring
+    obtain ⟨groups, openImage, outerFirst, openFirst, outerSecond, openSecond⟩ := rows.mp ring
     exact ⟨fun g => ⟨fun t => (evaluationRow_holds (w.group g) (β g) (st.point g) (challenge g)
-        t).mp (evaluation g t),
-      funext fun a => (innerRow_holds (w.group g) (st.key g) (challenge g) a).mp (inner g a),
-      (outer g).mp ⟨outerImage g, outerFirst g, outerSecond g⟩⟩,
+        t).mp ((groups g).1 t),
+      funext fun a => (innerRow_holds (w.group g) (st.key g) (challenge g) a).mp
+        ((groups g).2.1 a),
+      (outer g).mp ⟨(groups g).2.2, outerFirst g, outerSecond g⟩⟩,
       opening.mp ⟨openImage, openFirst, openSecond⟩, value.symm.trans scalarRow⟩
   · rintro ⟨groups, openRows, scalarRow⟩
     obtain ⟨openImage, openFirst, openSecond⟩ := opening.mpr openRows
-    exact ⟨rows.mpr ⟨fun g t => (evaluationRow_holds (w.group g) (β g) (st.point g)
+    exact ⟨rows.mpr ⟨fun g => ⟨fun t => (evaluationRow_holds (w.group g) (β g) (st.point g)
         (challenge g) t).mpr ((groups g).1 t),
-      fun g a => (innerRow_holds (w.group g) (st.key g) (challenge g) a).mpr
+      fun a => (innerRow_holds (w.group g) (st.key g) (challenge g) a).mpr
         (congrFun (groups g).2.1 a),
-      fun g => ((outer g).mpr (groups g).2.2).1, openImage,
+      ((outer g).mpr (groups g).2.2).1⟩, openImage,
       fun g => ((outer g).mpr (groups g).2.2).2.1, openFirst,
       fun g => ((outer g).mpr (groups g).2.2).2.2, openSecond⟩, value.trans scalarRow⟩
 
@@ -439,26 +444,23 @@ omit [Field E] [Algebra Zq E] in
 /-- The digit range statement and the binary statement of the flat witness give the alphabets of
 the digit vectors, when each group has the certified base `base < q`. -/
 theorem Witness.alphabets_of_flat {base : ℕ} (uniform : ∀ g, (B.shape g).certifiedBase = base)
-    (small : base < fieldModulus) (fits : B.cells < 2 ^ μ)
+    (small : base < fieldModulus) (fits : B.cells ≤ 2 ^ μ)
     (range : RangeHolds base μ w.flat) (binary : BinaryOn B.binarySupport μ w.flat) :
     w.Alphabets where
   groups g := by
     have ranged : RangeHolds (B.shape g).certifiedBase μ (w.group g).flat := by
       rw [uniform g]
       intro x _
-      rw [← w.flat_relocate g x]
-      by_cases below : x ≤ (B.opening g).cells (B.fold g)
-      · exact range _ ((B.relocate_le g below).trans_lt fits)
-      · have last := range B.cells fits
-        rw [w.flat_of_le le_rfl] at last
-        rw [w.flat_of_le (Nat.le_of_lt (B.relocate_lt g (Nat.lt_of_not_le below)))]
-        exact last
+      by_cases below : x < (B.opening g).cells (B.fold g)
+      · rw [← w.flat_relocate g x]
+        exact range _ ((B.relocate_lt g below).trans_le fits)
+      · rw [Akita.Witness.flat_of_le _ (Nat.le_of_not_lt below), zero_mul]
+        exact range.zero
     have binaried : BinaryOn ((B.opening g).binarySupport (B.fold g)) μ (w.group g).flat :=
       fun x _ member => by
         rw [← w.flat_relocate g x]
-        exact binary _ ((B.relocate_le g (Nat.le_of_lt member.2)).trans_lt fits)
-          (B.relocate_support g member)
-    exact ((B.opening g).flatLayout (B.fold g) μ ((B.cells_le g).trans_lt fits)).alphabets
+        exact binary _ ((B.relocate_lt g member.2).trans_le fits) (B.relocate_support g member)
+    exact ((B.opening g).flatLayout (B.fold g) μ ((B.cells_le g).trans fits)).alphabets
       (by rw [uniform g]; exact small) (w.group g) ranged binaried
   openDigits := by
     have ends : B.chainStart ≤ B.openFirstStart ∧ B.secondStart ≤ B.openSecondStart ∧
@@ -474,7 +476,7 @@ variable (μ) in
 /-- The premise `encodes` of the link for `Batch.flatRelation`: a witness with the certified
 alphabets whose flat witness satisfies the relation of one fold satisfies the exact branch
 relation `Batch.Witness.Satisfies` (the hypothesis of Akita Corollary 10.32). -/
-theorem Witness.satisfies_of_flat (fits : B.cells < 2 ^ μ) (alphabets : w.Alphabets)
+theorem Witness.satisfies_of_flat (fits : B.cells ≤ 2 ^ μ) (alphabets : w.Alphabets)
     (holds : (B.flatRelation β st challenge μ fits).Holds w.flat) :
     w.Satisfies β st challenge := by
   obtain ⟨groups, openRows, value⟩ := (flatRelation_holds_iff β st challenge μ fits w).mp holds
@@ -485,7 +487,7 @@ theorem Witness.satisfies_of_flat (fits : B.cells < 2 ^ μ) (alphabets : w.Alpha
 variable (μ) in
 /-- The honest direction: the flat witness of digit vectors that satisfy the exact branch
 relation satisfies the relation of one fold (Akita Theorem 7.4, item 1, for the rows). -/
-theorem Witness.Satisfies.flat (fits : B.cells < 2 ^ μ)
+theorem Witness.Satisfies.flat (fits : B.cells ≤ 2 ^ μ)
     (satisfies : w.Satisfies β st challenge) :
     (B.flatRelation β st challenge μ fits).Holds w.flat :=
   (flatRelation_holds_iff β st challenge μ fits w).mpr
@@ -502,7 +504,7 @@ end Alphabets
 section Check
 
 variable {B} [Fintype E] (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E) (st : B.Statement E)
-  (challenge : B.Challenge) (μ : ℕ) (fits : B.cells < 2 ^ μ)
+  (challenge : B.Challenge) (μ : ℕ) (fits : B.cells ≤ 2 ^ μ)
 
 /-- The quotient-free reduction of the relation of one fold with opening groups (Akita
 Section 7.3 and Theorem 7.4), with `2^batch` places for the rows. Its bad set has at most
@@ -521,11 +523,12 @@ Akita Corollary 10.32 for one child). Each group has the certified base `base`. 
 theorem flatFold_satisfies {base : ℕ} (uniform : ∀ g, (B.shape g).certifiedBase = base)
     (small : base < fieldModulus) (batch : ℕ) (rowsFit : B.rowCount + 1 ≤ 2 ^ batch)
     (w : B.Witness) :
-    (foldCheck (flatReduction β st challenge μ fits batch rowsFit) base B.binarySupport
+    (foldCheck (flatReduction β st challenge μ fits batch rowsFit) base B.binarySupport B.compressed
       w.flat).Avoids fun result =>
       ∀ r2 v, result = some (r2, v) → v = mle r2 (lifted E w.flat) →
         w.Satisfies β st challenge :=
   (foldCheck_avoids (flatReduction β st challenge μ fits batch rowsFit) base B.binarySupport
+    B.compressed B.binarySupport_empty
     w.flat).mono fun _ checked r2 v equal opening =>
       Witness.satisfies_of_flat μ fits
         (Witness.alphabets_of_flat uniform small fits (checked r2 v equal opening).2.1

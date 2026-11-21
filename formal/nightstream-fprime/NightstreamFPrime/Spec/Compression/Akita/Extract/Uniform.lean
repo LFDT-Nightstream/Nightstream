@@ -183,17 +183,25 @@ theorem rangeCheck_bare (b μ : ℕ) (support : ℕ → Prop) [DecidablePred sup
     bare_bind_congr (sumcheckWith_bare _ _ _ _ _ μ [] claim) fun result => ?_) _ _ _ _ _
   rcases result with _ | ⟨r, value⟩ <;> rfl
 
+omit [DecidableEq E] [Algebra Zq E] in
+theorem drawBin_bare_congr {β : Type} (bin : Bool) {bad other : Finset E}
+    {next after : E → Game β} (same : ∀ ζ, bare (next ζ) = bare (after ζ)) :
+    bare (drawBin bin bad next) = bare (drawBin bin other after) := by
+  cases bin
+  · exact same 0
+  · exact bare_draw_congr same
+
 /-- The verifier of `foldCheck` is the same for each witness: the witness is in the bad sets
 only. -/
 theorem foldCheck_bare (R : Reduction E) (b : ℕ) (support : ℕ → Prop) [DecidablePred support]
-    (w other : Table) :
-    bare (foldCheck R b support w) = bare (foldCheck R b support other) := by
+    (bin : Bool) (w other : Table) :
+    bare (foldCheck R b support bin w) = bare (foldCheck R b support bin other) := by
   unfold foldCheck
   refine bare_draw_congr fun α => bare_draw_congr fun τ0 => bare_draw_congr fun τ1 =>
     bare_bind_congr (rangeCheck_bare b R.vars support w other _) fun result => ?_
   rcases result with _ | ⟨r, sClaim⟩
   · rfl
-  · exact bare_draw_congr fun ζ => bare_draw_congr fun γ =>
+  · exact drawBin_bare_congr bin fun ζ => bare_draw_congr fun γ =>
       fusedCheck_bare R.vars support w other _ _ r sClaim ζ γ
 
 end NightstreamFPrime.Spec.Compression.Akita.Extract

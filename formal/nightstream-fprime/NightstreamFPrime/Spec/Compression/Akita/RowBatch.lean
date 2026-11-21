@@ -18,6 +18,7 @@ Sections 7.2 to 7.4, Theorem 7.4 and Theorem 10.36).
   `α`, a bad set of points `α` for each witness, and the two directions between the relation and
   its field rows. `Reduction.batched_of_holds`, `Reduction.holds_of_batched` and
   `Reduction.density_accepting_le` are Akita Theorem 7.4, item 1 and the bound (122).
+- `RingRow.relocate` is a ring row with each address moved by a map.
 - `FlatRelation` has the ring rows (110) and the scalar row of Akita Figure 5 on the flat
   witness. `FlatRelation.free` is its quotient-free reduction (Akita (120)), with the bad set of
   Akita Theorem 7.4, item 2. -/
@@ -187,7 +188,7 @@ structure FlatRelation (E : Type) where
   vars : ℕ
   ring : ℕ
   row : Fin ring → RingRow
-  inside : ∀ r c j, j < (row r).degree → (row r).address c j < 2 ^ vars
+  inside : ∀ r c j x, j < (row r).degree → (row r).address c j = some x → x < 2 ^ vars
   weight : ℕ → E
   value : E
 
@@ -199,12 +200,12 @@ variable {E : Type} [CommRing E] [Algebra Zq E] (row : RingRow)
 kernels `κ^{(d_r)}_{A_{r,c},α}(j)` over the positions with `addr_{r,c}(j) = u`. -/
 noncomputable def freeWeight (α : E) (u : ℕ) : E :=
   ∑ c, ∑ j ∈ Finset.range row.degree,
-    if row.address c j = u then residueKernel (row.multiplier c) α j else 0
+    if row.address c j = some u then residueKernel (row.multiplier c) α j else 0
 
 /-- `z_r(α)` of Akita (120) is a linear form of the flat witness with the weights `freeWeight`,
 minus the value of the target. -/
 theorem reduced_eq_sum (w : Table) (α : E) {μ : ℕ}
-    (inside : ∀ c j, j < row.degree → row.address c j < 2 ^ μ) :
+    (inside : ∀ c j x, j < row.degree → row.address c j = some x → x < 2 ^ μ) :
     row.reduced w α =
       ∑ u ∈ Finset.range (2 ^ μ), algebraMap Zq E (w u) * row.freeWeight α u -
         reducedEval α row.target := by
@@ -216,11 +217,35 @@ theorem reduced_eq_sum (w : Table) (α : E) {μ : ℕ}
   rw [Finset.sum_comm (s := Finset.range (2 ^ μ))]
   refine Finset.sum_congr rfl fun j member => ?_
   simp only [mul_ite, mul_zero]
-  rw [Finset.sum_ite_eq,
-    ite_eq_left (Finset.mem_range.mpr (inside c j (Finset.mem_range.mp member)))]
-  exact mul_comm _ _
+  cases read : row.address c j with
+  | none => simp
+  | some x =>
+      simp only [Option.some.injEq, Option.elim_some]
+      rw [Finset.sum_ite_eq, ite_eq_left
+        (Finset.mem_range.mpr (inside c j x (Finset.mem_range.mp member) read))]
+      exact mul_comm _ _
 
 end RingRow
+
+theorem elim_map (o : Option ℕ) (move : ℕ → ℕ) (w : Table) :
+    (o.map move).elim 0 w = o.elim 0 fun x => w (move x) := by
+  cases o <;> rfl
+
+/-- The ring row with each address moved by `move`. -/
+def RingRow.relocate (row : RingRow) (move : ℕ → ℕ) : RingRow where
+  degree := row.degree
+  occurrences := row.occurrences
+  multiplier := row.multiplier
+  address c j := (row.address c j).map move
+  target := row.target
+
+theorem RingRow.relocate_holds (row : RingRow) (move : ℕ → ℕ) (w : Table) :
+    (row.relocate move).Holds w ↔ row.Holds fun x => w (move x) := by
+  have reads : ∀ c, (row.relocate move).read w c = row.read (fun x => w (move x)) c :=
+    fun c => congrArg ofCoeffs (funext fun j => elim_map (row.address c j) move w)
+  unfold RingRow.Holds RingRow.residual
+  simp only [reads]
+  rfl
 
 namespace FlatRelation
 

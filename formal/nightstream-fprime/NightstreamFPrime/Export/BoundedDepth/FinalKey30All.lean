@@ -77,7 +77,7 @@ structure Opening (logicalWidth : Nat)
   row : Key30.Row
   member : row ∈ Key30.rows
   shape : Claims logicalWidth publicFits
-  bound : Prefix Wire (Coord → K) total → (g : Fin 3) → ((Key30.root row).shape g).Payload
+  bound : Prefix Wire (Option Coord → K) total → (g : Fin 3) → ((Key30.root row).shape g).Payload
   tower : Key30.Tower row member K Wire Coord total
   honest : Certified ((Key30.root row).shape 0)
   factorBound : ℕ
@@ -104,7 +104,7 @@ local notation "vf" => FinalVerifier.Setup.verifier S₀ o.shape
 under the setup `laidSetup`: the conditions `Compose.Ran` of the stages before the opening, and
 the verifier `Key30.Tower.links` of the opening with the batching root at the stage
 `Compose.root`. -/
-def Opening.accepts (point : Prefix Wire (Coord → K) total) : Prop :=
+def Opening.accepts (point : Prefix Wire (Option Coord → K) total) : Prop :=
   Compose.Ran C vf o.tower.commit o.tower.value o.tower.place point ∧
     o.tower.links split (Compose.read C) (Compose.root C vf) point
 
@@ -135,13 +135,14 @@ structure Opening.Drawn (keepL : Rq Key30.terminal.innerDegree → Prop) : Prop 
   covers : o.factorBound * ((Key30.root o.row).fold 0).sourceBound ((Key30.root o.row).shape 0) +
     2 * Key30.mass 0 * o.sourceBound ≤ o.innerBound
 
-variable (prover : OracleComp (Prefix Wire (Coord → K) total) (Coord → K) (ℕ → Wire))
+variable (prover : OracleComp (Prefix Wire (Option Coord → K) total) (Option Coord → K) (ℕ → Wire))
 
 /-- The proof with witnesses that the extractor gives for the shape of `o`: the proof
 `Setup.envelope` of the table `W` of a certificate, for the statement and the claims of the first
 message of the prover. It is the bottom proof when the extractor returns no certificate. -/
-noncomputable def Opening.proof (budget : ℕ) (table : Prefix Wire (Coord → K) total → Coord → K)
-    (tape : Tape (Prefix Wire (Coord → K) total) Coord K budget total) :
+noncomputable def Opening.proof (budget : ℕ) (table : Prefix Wire (Option Coord → K) total → Option
+  Coord → K)
+    (tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget total) :
     Terminal.ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits) :=
   match Checkpoint.extract whole prover budget table tape with
   | some (.inl certificate) =>
@@ -162,14 +163,15 @@ noncomputable def Opening.breakChance (budget : ℕ) : ℝ :=
     Key30.mass Sum.inl prover o.honest o.innerBound budget
 
 /-- The bound of the final verifier for the shape of `o`:
-`(Q + 1)·(runCost + 8132/|K| + (1458 + B_1 + B_2)/q²) + (Q + 1)·(1469 + B_1 + B_2)/budget +
+`(Q + 1)·(runCost + 1623435/(4096·|K|) + (1752 + B_1 + 4·B_2)/(256·q²)) + (Q + 1)·(1469 + B_1 +
+B_2)/budget +
 breakChance`. `B_1` and `B_2` are the live blocks of the witness group of level 1 and of level 2
 of the row. The count of the retry loops is 2 for the compression argument and
 `1467 + B_1 + B_2` for the opening: 1680 for `W` of 27 variables and 1670 for `W` of 26
 variables. -/
 noncomputable def Opening.shapeBound (queries budget : ℕ) : ℝ :=
-  (queries + 1) * (FinalVerifier.Setup.runCost S₀ o.shape + (8132 / (Fintype.card K : ℝ) +
-      ((1458 + o.row.blocks₁ + o.row.blocks₂ : ℕ) : ℝ) * (1 / (fieldModulus : ℝ) ^ 2))) +
+  (queries + 1) * (FinalVerifier.Setup.runCost S₀ o.shape + (1623435 / (4096 * Fintype.card K) +
+      ((1752 + o.row.blocks₁ + 4 * o.row.blocks₂ : ℕ) : ℝ) / 256 * (1 / (fieldModulus : ℝ) ^ 2))) +
     (queries + 1) * (2 + (1467 + o.row.blocks₁ + o.row.blocks₂) : ℕ) / budget +
     o.breakChance setup packageWidths step cap control read head split prover budget
 
@@ -185,7 +187,7 @@ theorem Opening.knowledge (premises : Premises setup packageWidths)
     (blocks : setup.keyBlocks = 524288) (coords : 40 ≤ Fintype.card Coord)
     (drawn : o.Drawn setup packageWidths step cap control read head split keepL) {queries : ℕ}
     (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → K) total) Coord K budget total,
+    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget total,
         (if o.accepts setup packageWidths step cap control read head split
               (played prover table) ∧
             ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths cap control
@@ -296,14 +298,14 @@ section All
 variable {ι : Type} [Fintype ι] (kind : Wire → Option ι)
   (family : ι → Opening logicalWidth publicFits Wire Coord total)
   (split : ∀ index, (family index).tower.Split)
-  (prover : OracleComp (Prefix Wire (Coord → K) total) (Coord → K) (ℕ → Wire))
+  (prover : OracleComp (Prefix Wire (Option Coord → K) total) (Option Coord → K) (ℕ → Wire))
 
 /-- The final verifier over the Akita openings of `key30.aks` (SPEC.md Algorithm 10):
 `FinalShapes.finalAccepts` for the verifiers `Opening.accepts` of the family. It accepts a
 transcript when the statement of the first message is a statement of zero steps (step 1), or
 when the first message names the shape `kind` of the family and the verifier of this shape
 accepts. -/
-def finalAccepts : Prefix Wire (Coord → K) total → Prop :=
+def finalAccepts : Prefix Wire (Option Coord → K) total → Prop :=
   FinalShapes.finalAccepts head kind fun index =>
     (family index).accepts setup packageWidths step cap control read head (split index)
 
@@ -384,7 +386,7 @@ noncomputable def adversary :
 /-- The final verifier accepts `(i, z0, zi)` for the table of the oracle, and no `i` valid steps
 of `program` lead from `z0` to `zi` (`FinalShapes.FalseHistory`). -/
 def FalseHistory (program : Stage1.Application.Program)
-    (table : Prefix Wire (Coord → K) total → Coord → K) : Prop :=
+    (table : Prefix Wire (Option Coord → K) total → Option Coord → K) : Prop :=
   FinalShapes.FalseHistory head kind
     (fun index => (family index).accepts setup packageWidths step cap control read head
       (split index))

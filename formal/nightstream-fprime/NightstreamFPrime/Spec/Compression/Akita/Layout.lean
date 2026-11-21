@@ -76,12 +76,15 @@ variable {S : Shape} {O : OpeningShape S} {fold : Descriptor}
 
 /-- The laws of the flat layout of the witness of one fold on the cube of `μ` variables
 (Akita (75) and (76)). `flat` maps the digit vectors to the flat witness. `support` is the set
-`I_bin` of the positions of the compression digits (Akita Remark 6.2). Each coefficient of `ẑ`,
+`I_bin` of the positions of the compression digits (Akita Remark 6.2), and `compressed` states
+that the level has compression digits. Each coefficient of `ẑ`,
 `t̂_i` and `ê` is a cell of the cube, and each coefficient of the digits of `F_1`, `F_2`, `H_1` and
 `H_2` is a cell of the cube at a position of `I_bin`. -/
 structure Layout (O : OpeningShape S) (fold : Descriptor) (μ : ℕ) where
   flat : Witness O fold → Table
   support : ℕ → Prop
+  compressed : Bool
+  raw : compressed = false → ∀ x, ¬ support x
   response : ∀ w, Placed (flat w) (· < 2 ^ μ) w.response
   inner : ∀ w i, Placed (flat w) (· < 2 ^ μ) (w.inner i)
   partials : ∀ w, Placed (flat w) (· < 2 ^ μ) w.partials
@@ -138,9 +141,9 @@ theorem Layout.foldCheck_avoids (small : S.certifiedBase < fieldModulus)
     (Target : Witness O fold → Prop)
     (encodes : ∀ w : Witness O fold, w.Alphabets → R.Holds (L.flat w) → Target w)
     (w : Witness O fold) :
-    (foldCheck R S.certifiedBase L.support (L.flat w)).Avoids fun result =>
+    (foldCheck R S.certifiedBase L.support L.compressed (L.flat w)).Avoids fun result =>
       ∀ r2 v, result = some (r2, v) → v = mle r2 (lifted E (L.flat w)) → Target w :=
-  (Akita.foldCheck_avoids R S.certifiedBase L.support (L.flat w)).mono
+  (Akita.foldCheck_avoids R S.certifiedBase L.support L.compressed L.raw (L.flat w)).mono
     fun _ checked r2 v equal opening =>
       encodes w (L.alphabets small w (checked r2 v equal opening).2.1
         (checked r2 v equal opening).2.2) (checked r2 v equal opening).1
@@ -155,7 +158,7 @@ theorem foldCheck_satisfies (small : S.certifiedBase < fieldModulus)
     (encodes : ∀ w : Witness O fold, w.Alphabets → R.Holds (L.flat w) →
       w.Satisfies β st challenge)
     (w : Witness O fold) :
-    (foldCheck R S.certifiedBase L.support (L.flat w)).Avoids fun result =>
+    (foldCheck R S.certifiedBase L.support L.compressed (L.flat w)).Avoids fun result =>
       ∀ r2 v, result = some (r2, v) → v = mle r2 (lifted E (L.flat w)) →
         w.Satisfies β st challenge :=
   L.foldCheck_avoids R small _ encodes w
@@ -169,7 +172,7 @@ theorem foldCheck_traceSatisfies (small : S.certifiedBase < fieldModulus)
     (encodes : ∀ w : Witness O fold, w.Alphabets → R.Holds (L.flat w) →
       w.TraceSatisfies st challenge)
     (w : Witness O fold) :
-    (foldCheck R S.certifiedBase L.support (L.flat w)).Avoids fun result =>
+    (foldCheck R S.certifiedBase L.support L.compressed (L.flat w)).Avoids fun result =>
       ∀ r2 v, result = some (r2, v) → v = mle r2 (lifted E (L.flat w)) →
         w.TraceSatisfies st challenge :=
   L.foldCheck_avoids R small _ encodes w
@@ -182,11 +185,11 @@ theorem foldCheck_satisfies_error (small : S.certifiedBase < fieldModulus)
     (encodes : ∀ w : Witness O fold, w.Alphabets → R.Holds (L.flat w) →
       w.Satisfies β st challenge)
     (w : Witness O fold) (s : Strategy (Option (List E × E))) :
-    prob s (foldCheck R S.certifiedBase L.support (L.flat w)) (fun result =>
+    prob s (foldCheck R S.certifiedBase L.support L.compressed (L.flat w)) (fun result =>
       ¬ ∀ r2 v, result = some (r2, v) → v = mle r2 (lifted E (L.flat w)) →
-        w.Satisfies β st challenge) ≤ foldError R S.certifiedBase :=
+        w.Satisfies β st challenge) ≤ foldError R S.certifiedBase L.compressed :=
   prob_not_le s _ _ _ (foldCheck_satisfies R L small β st challenge encodes w)
-    (foldCheck_costLe R S.certifiedBase L.support (L.flat w))
+    (foldCheck_costLe R S.certifiedBase L.support L.compressed (L.flat w))
 
 /-- For each prover, the probability that the checks of a trace fold end in a true claim for a
 witness that does not satisfy the exact branch relation is at most `foldError`. -/
@@ -195,11 +198,11 @@ theorem foldCheck_traceSatisfies_error (small : S.certifiedBase < fieldModulus)
     (encodes : ∀ w : Witness O fold, w.Alphabets → R.Holds (L.flat w) →
       w.TraceSatisfies st challenge)
     (w : Witness O fold) (s : Strategy (Option (List E × E))) :
-    prob s (foldCheck R S.certifiedBase L.support (L.flat w)) (fun result =>
+    prob s (foldCheck R S.certifiedBase L.support L.compressed (L.flat w)) (fun result =>
       ¬ ∀ r2 v, result = some (r2, v) → v = mle r2 (lifted E (L.flat w)) →
-        w.TraceSatisfies st challenge) ≤ foldError R S.certifiedBase :=
+        w.TraceSatisfies st challenge) ≤ foldError R S.certifiedBase L.compressed :=
   prob_not_le s _ _ _ (foldCheck_traceSatisfies R L small st challenge encodes w)
-    (foldCheck_costLe R S.certifiedBase L.support (L.flat w))
+    (foldCheck_costLe R S.certifiedBase L.support L.compressed (L.flat w))
 
 end Link
 

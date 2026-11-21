@@ -51,6 +51,15 @@ noncomputable def tensorCosts (E : Type) [Fintype E] (ν : ℕ) : List ℝ :=
   (((1 : ℕ) : ℝ) / Fintype.card E) ::
     List.replicate ν (((2 : ℕ) : ℝ) / Fintype.card E)
 
+/-- The losses of the sites of the draws of `tensorCheck` in the Akita code: the extension
+opening point (`ExtensionOpeningPoint`, 1 for the extension of degree 2) and the rounds of the
+extension opening reduction of degree 2 (`transcript_grinding/plan.rs`, `append_eor`). -/
+def tensorLosses (ν : ℕ) : List ℕ := 1 :: List.replicate ν 2
+
+omit [Field E] [DecidableEq E] [Algebra Zq E] [Degree2 E] in
+theorem tensorLosses_length (ν : ℕ) : (tensorLosses ν).length = (tensorCosts E ν).length := by
+  simp [tensorLosses, tensorCosts]
+
 omit [Field E] [DecidableEq E] [Algebra Zq E] [Degree2 E] in
 /-- The sum of the bounds of the draws is `(κ + 2·m_max)/|E|` of Akita Theorem 5.1, item 1, for
 one claim and `κ = 1`. -/
@@ -139,6 +148,8 @@ noncomputable def Tier.tensored
     | some (r2, v) => tensorCheck ν table r2 v
   passes table result := ∃ ρ θ v, result = some (ρ, θ, v) ∧ v = θ * mle ρ (packed table)
   costs := T.costs ++ tensorCosts E ν
+  bits := T.bits ++ (tensorLosses ν).map workBits
+  foldBits := T.foldBits
   start := T.start
 
 variable [Fintype Coord] [DecidableEq Coord] [Nonempty Coord]
@@ -159,6 +170,7 @@ theorem Tier.tensored_valid (valid : T.Valid)
       StagedTo (Coord → E) (T.check wire challenge table) (T.costs ++ rest) tail) :
     (T.tensored ν).Valid where
   injective := valid.injective
+  avoid := valid.avoid
   merges := valid.merges
   sound wire challenge table :=
     (avoids_bind _ _ _).mpr ((valid.sound wire challenge table).mono fun result implies => by
@@ -174,6 +186,10 @@ theorem Tier.tensored_valid (valid : T.Valid)
     (List.mem_append.mp member).elim (valid.nonnegative cost)
       (tensorCosts_nonnegative (E := E) ν cost)
   draws := List.append_ne_nil_of_left_ne_nil valid.draws _
+  aligned := by
+    show (T.bits ++ (tensorLosses ν).map workBits).length = (T.costs ++ tensorCosts E ν).length
+    rw [List.length_append, List.length_append, List.length_map, valid.aligned,
+      tensorLosses_length (E := E)]
 
 omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] in
 /-- The verifier of the checks of a level with the tensor reduction does not read the table. -/
@@ -260,7 +276,7 @@ def Tier.TraceLinked {Brk' : Type}
     (N : Tier (Fin S'.blocks) (fun _ => Rq S'.innerDegree) (TraceClaim O' E) Brk'
       (Witness O' fold') (Weak O') Wire Coord Slot Result' Source')
     (quarter : 4 * m = S'.innerDegree) (commit : Wire → S'.Payload)
-    (point : Prefix Wire (Coord → Slot) total) : Prop :=
+    (point : Prefix Wire (Option Coord → Slot) total) : Prop :=
   T.finish ≤ point.rest.length ∧ T.Decodes point ∧
     ∃ block position pack θ v openPayload,
       T.game (fun _ => 0) point = .pure (some (pack ++ (position ++ block), θ, v)) ∧
@@ -274,8 +290,9 @@ variable {key' : Key S'} {openKey' : OpeningKey O'} {weight' : ℕ}
     (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S')) (Witness O' fold')
     (Weak O') Wire Coord Slot Result' Source'}
 
-variable {T} {accept : Prefix Wire (Coord → Slot) total → Prop}
-  {tail : Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire) Inner BreakT CandT
+variable {T} {accept : Prefix Wire (Option Coord → Slot) total → Prop}
+  {tail : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
+    BreakT CandT
     KeyT (Option (Weak O'))}
   {error : ℝ} {loops tree : ℕ}
 
@@ -304,7 +321,7 @@ theorem Tier.suffix_push_trace (valid : T.Valid)
           flatten (E := E) (unpackTable S'.innerDegree m (tableOf (tail.witness inner))))
         (fun inner other => embed (Tier.collide key' openKey'
           (2 * (2 * weight') * fold'.sourceBound S') (tail.witness inner) (tail.witness other))))
-      (∑ b, T.chance b + T.costs.sum + error) (S.blocks + 1 + loops)
+      (T.levelError + error) (S.blocks + 1 + loops)
       (2 * (S.blocks + 1) * tree) := by
   refine Tier.suffix_committed (Fintype.card_fin _) (factorBound := 2 * weight')
     (sourceBound := fold'.sourceBound S') valid next commit fits
@@ -352,7 +369,7 @@ shape of the terminal, and the pair `(θ_term, v_tensor) = (θ, ṽ)`. The segme
 `⌈log_2 B_term⌉` coordinates or more. -/
 def Linked (quarter : 4 * m = S'.innerDegree)
     (stateOf : Wire → Fin S'.blocks → Fin S'.innerRank → Rq S'.innerDegree)
-    (point : Prefix Wire (Coord → Slot) total) : Prop :=
+    (point : Prefix Wire (Option Coord → Slot) total) : Prop :=
   T.finish ≤ point.rest.length ∧ T.Decodes point ∧
     ∃ block position pack θ v,
       T.game (fun _ => 0) point = .pure (some (pack ++ (position ++ block), θ, v)) ∧
@@ -361,7 +378,7 @@ def Linked (quarter : 4 * m = S'.innerDegree)
       L.statement point = TerminalStatement.ofPoint quarter L.matrix
         (stateOf (point.wire (T.start + 1))) block position pack θ v
 
-variable {T L} {accept : Prefix Wire (Coord → Slot) total → Prop}
+variable {T L} {accept : Prefix Wire (Option Coord → Slot) total → Prop}
 
 omit [Fintype E] [DecidableEq E] in
 /-- `Terminal.suffix_after` for a terminal with the link `Terminal.Linked` (Akita
@@ -388,7 +405,7 @@ theorem suffix_linked (valid : T.Valid) (terminal : L.Valid accept) (next : L.st
           (S'.decode (blocksOf ((L.body accept).witness inner)))))
         (fun inner other =>
           L.collide ((L.body accept).witness inner) ((L.body accept).witness other)))
-      (∑ b, T.chance b + T.costs.sum + S'.blocks * slotChance L.decode)
+      (T.levelError + L.termError)
       (S.blocks + 1 + S'.blocks) (2 * (S.blocks + 1) * (S'.blocks + 1)) := by
   refine suffix_after valid terminal next units challenges
     (fun source => flatten (E := E) (unpackTable S'.innerDegree m (S'.decode source))) ?_

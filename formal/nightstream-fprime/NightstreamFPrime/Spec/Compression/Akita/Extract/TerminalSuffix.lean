@@ -14,7 +14,9 @@ proof, "Certificates", "Terminal fold" and "Checkpoints").
   `A_term·s⋆_i = t_i`, the clear partials `e_i = a_term^⊤·G·s⋆_i` and the row (130) of these blocks.
 - `Terminal.body` is the checkpoint structure of the terminal: the stage `start` is an indexed
   stage, and each later stage is plain. `Terminal.suffix` states that it is a suffix with the
-  stage error `ε_term = B_term·p` of (183), `B_term` retry loops and the tree size `1 + B_term`.
+  stage error `Terminal.termError = 2^{−g}·B_term·p`, the bound `ε_term` of (183) with the work
+  bits `g = Terminal.foldBits` of the fold challenge, `B_term` retry loops and the tree size
+  `1 + B_term`. `Terminal.slot` is the slot of the oracle answer for a block.
 - `Terminal.collide` is `Coll_ℓ` for a level before the terminal, and `Terminal.suffix_after` is
   the suffix of a level over the terminal: two certificates of the terminal with different source
   blocks give the solution `Route.kernelOf` for `A_term` with the radius (181) or (182).
@@ -46,8 +48,8 @@ Euclidean route has `Γ_term` and `S_max,term` in `route`. -/
 structure Terminal (S : Shape) (E Wire Coord Slot : Type) [CommRing E] [Module Zq E]
     (total : ℕ) (route : Route := .coefficient) where
   matrix : Matrix (Fin S.innerRank) (Fin S.blockLength × Fin S.sourceDigits) (Rq S.innerDegree)
-  read : Prefix Wire (Coord → Slot) total → TerminalStatement S E
-  partials : Prefix Wire (Coord → Slot) total → Fin S.blocks → Rq S.innerDegree
+  read : Prefix Wire (Option Coord → Slot) total → TerminalStatement S E
+  partials : Prefix Wire (Option Coord → Slot) total → Fin S.blocks → Rq S.innerDegree
   response : Wire → S.Source
   block : Fin S.blocks → Coord
   decode : Slot → Option (Rq S.innerDegree)
@@ -60,29 +62,38 @@ namespace Terminal
 variable {S : Shape} {E Wire Coord Slot : Type} [CommRing E] [Module Zq E] {total : ℕ}
   {route : Route} (L : Terminal S E Wire Coord Slot total route)
 
+/-- The coordinate of the slot of the fold challenge `c_i` in an answer of the oracle. -/
+def slot (i : Fin S.blocks) : Option Coord := some (L.block i)
+
+omit [CommRing E] [Module Zq E] in
+/-- The work bits of the fold challenges of the terminal (`terminal_fold_challenge_runs` of the
+Akita code): `FoldChallengeWork` for the `B_term` fold coordinates and the family of the route. -/
+def foldBits (_ : Terminal S E Wire Coord Slot total route) : ℕ :=
+  foldWorkBits S.blocks (setBits route.filtered S.innerDegree)
+
 /-- The set of the fold challenges `C^acc_term`: the values of the decoder. -/
 def family : Set (Rq S.innerDegree) := {challenge | ∃ slot, L.decode slot = some challenge}
 
 /-- The statement of the terminal for a transcript: the matrix `A_term`, and the public data of
 the stage input of the stage `start`. -/
-def statement (point : Prefix Wire (Coord → Slot) total) : TerminalStatement S E :=
+def statement (point : Prefix Wire (Option Coord → Slot) total) : TerminalStatement S E :=
   { L.read (point.take L.start) with matrix := L.matrix }
 
 /-- The clear partials `(e_i)_i` of a transcript. -/
-def clear (point : Prefix Wire (Coord → Slot) total) : Fin S.blocks → Rq S.innerDegree :=
+def clear (point : Prefix Wire (Option Coord → Slot) total) : Fin S.blocks → Rq S.innerDegree :=
   L.partials (point.take L.start)
 
 /-- The fold challenges `c_i` of a transcript. -/
-noncomputable def challenge (point : Prefix Wire (Coord → Slot) total) :
+noncomputable def challenge (point : Prefix Wire (Option Coord → Slot) total) :
     Fin S.blocks → Rq S.innerDegree :=
-  challengeAt (fun _ => L.decode) L.block L.start point
+  challengeAt (fun _ => L.decode) L.slot L.start point
 
-/-- The checks of the verifier of the terminal on a transcript (Akita Section 8.2): each fold
-challenge decodes, the checks (128), (129) and (130) hold for the clear partials, the fold
-challenges and the clear response `z`, and `z` has the bound `Route.Short` of the route:
-`‖z‖_∞ ≤ Z_{∞,term}` or `‖z‖_2² ≤ S_max,term`. -/
-structure Passed (point : Prefix Wire (Coord → Slot) total) : Prop where
-  decodes : DecodesAt (fun _ => L.decode) L.block L.start point
+/-- The checks of the verifier of the terminal on a transcript (Akita Section 8.2): the work bits
+of the fold challenges are zero and each fold challenge decodes, the checks (128), (129) and
+(130) hold for the clear partials, the fold challenges and the clear response `z`, and `z` has the
+bound `Route.Short` of the route: `‖z‖_∞ ≤ Z_{∞,term}` or `‖z‖_2² ≤ S_max,term`. -/
+structure Passed [Fintype Slot] (point : Prefix Wire (Option Coord → Slot) total) : Prop where
+  decodes : DecodesAt (fun _ => L.decode) L.slot L.start L.foldBits point
   accepts : (L.statement point).Accepts (L.clear point) (L.challenge point)
     (L.response (point.wire (L.start + 1)))
   short : route.Short L.bound (L.response (point.wire (L.start + 1)))
@@ -92,7 +103,7 @@ structure Passed (point : Prefix Wire (Coord → Slot) total) : Prop where
 partials of the transcript, with responses of the bound `Route.Short`, and the row (130) of
 the clear partials. The source blocks are `TerminalFork.source`, and the children give their unit
 challenge differences and bounded products. -/
-def Sourced (point : Prefix Wire (Coord → Slot) total) (witness : Option (TerminalFork S)) :
+def Sourced (point : Prefix Wire (Option Coord → Slot) total) (witness : Option (TerminalFork S)) :
     Prop :=
   ∃ fork, witness = some fork ∧ fork.Accepts L.family (L.statement point) (L.clear point) ∧
     (∀ i, route.Short L.bound (fork.first i).response ∧
@@ -105,7 +116,7 @@ variable {L} in
 `A_term·s⋆_i = t_i`, each clear partial is `e_i = a_term^⊤·G_{b_term,M_term}·s⋆_i`, and the row (130)
 holds with the partials of the source blocks, which is the condition of Akita Lemma 10.42 (ii) at
 the terminal. -/
-theorem Sourced.source {point : Prefix Wire (Coord → Slot) total} {fork : TerminalFork S}
+theorem Sourced.source {point : Prefix Wire (Option Coord → Slot) total} {fork : TerminalFork S}
     (units : UnitDifferences L.family) (sourced : L.Sourced point (some fork)) :
     (∀ i, L.matrix.mulVec (fork.source i) = (L.statement point).state i) ∧
       (∀ i, L.clear point i = traceContract (L.statement point).subfield
@@ -140,13 +151,13 @@ noncomputable def collide (witness other : Option (TerminalFork S)) :
 /-- The children of the extraction at the fold challenge of the terminal: the reference
 transcript is the first child of each block, and the transcript of the coordinate of block `i` is
 its second child (Akita Proposition 10.29, proof). -/
-noncomputable def fork (reference : Prefix Wire (Coord → Slot) total)
-    (children : Coord → Prefix Wire (Coord → Slot) total) : TerminalFork S where
+noncomputable def fork (reference : Prefix Wire (Option Coord → Slot) total)
+    (children : Option Coord → Prefix Wire (Option Coord → Slot) total) : TerminalFork S where
   first _ := ⟨L.challenge reference, L.response (reference.wire (L.start + 1))⟩
-  second i := ⟨L.challenge (children (L.block i)),
-    L.response ((children (L.block i)).wire (L.start + 1))⟩
+  second i := ⟨L.challenge (children (L.slot i)),
+    L.response ((children (L.slot i)).wire (L.start + 1))⟩
 
-variable [Fintype Slot] [Nonempty Slot] (accept : Prefix Wire (Coord → Slot) total → Prop)
+variable [Fintype Slot] [Nonempty Slot] (accept : Prefix Wire (Option Coord → Slot) total → Prop)
 
 /-- The checkpoint structure of the terminal (Akita Definition 10.16 for the stages from
 `start`). The stage `start` is indexed by the blocks, and `Comb_r` is the subtraction step of
@@ -154,15 +165,17 @@ Akita Proposition 10.29, which returns the certificate `Sourced` of the referenc
 later stage is plain, and a certificate after the stage `start` is an accepting transcript. A
 witness of `R_bind` is a solution of Module-SIS for `A_term`. -/
 noncomputable def body :
-    Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire)
-      (Prefix Wire (Coord → Slot) total × Option (TerminalFork S))
+    Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire)
+      (Prefix Wire (Option Coord → Slot) total × Option (TerminalFork S))
       (Option (route.Kernel L.matrix L.weight L.bound)) Unit (Rq S.innerDegree)
       (Option (TerminalFork S)) where
   protocol := transcript total accept
   kind level :=
-    if level ≤ L.start then .indexed ((List.finRange S.blocks).map L.block) else .plain
+    if level ≤ L.start then .indexed ((List.finRange S.blocks).map L.slot) else .plain
   key _ _ slot := L.decode slot
   weight _ _ := slotChance L.decode
+  work _ := {reply | reply none ∈ workZeros Slot L.foldBits}
+  chance _ := 1 / 2 ^ L.foldBits
   error _ := 0
   leaf point := (point, none)
   point certificate := certificate.1
@@ -190,7 +203,7 @@ structure Valid : Prop where
 variable {accept}
 
 theorem body_kind_start :
-    (L.body accept).kind L.start = .indexed ((List.finRange S.blocks).map L.block) :=
+    (L.body accept).kind L.start = .indexed ((List.finRange S.blocks).map L.slot) :=
   ite_eq_left le_rfl
 
 theorem body_kind_after {level : ℕ} (above : L.start < level) :
@@ -203,19 +216,19 @@ variable [Fintype Coord] [DecidableEq Coord]
 stage `start` (Akita Proposition 10.44, "Terminal fold", with Proposition 10.29). -/
 theorem body_lawfulFrom (valid : L.Valid accept) :
     (L.body accept).LawfulFrom (transcript total accept) L.start := by
-  have indexed : ∀ {level : ℕ} {coordinates : List Coord}, L.start ≤ level →
+  have indexed : ∀ {level : ℕ} {coordinates : List (Option Coord)}, L.start ≤ level →
       (L.body accept).kind level = .indexed coordinates →
-      level = L.start ∧ coordinates = (List.finRange S.blocks).map L.block := by
+      level = L.start ∧ coordinates = (List.finRange S.blocks).map L.slot := by
     intro level coordinates low isIndexed
     by_cases first : level ≤ L.start
     · have value : (L.body accept).kind level =
-          .indexed ((List.finRange S.blocks).map L.block) := ite_eq_left first
+          .indexed ((List.finRange S.blocks).map L.slot) := ite_eq_left first
       exact ⟨Nat.le_antisymm first low, Kind.indexed.inj (isIndexed.symm.trans value)⟩
     · have value : (L.body accept).kind level = .plain := ite_eq_right first
       exact absurd (value.symm.trans isIndexed) (by simp)
   have unchecked : ∀ {level span : ℕ}, (L.body accept).kind level ≠ .checkpoint span := by
     intro level span isCheckpoint
-    have value : (if level ≤ L.start then Kind.indexed ((List.finRange S.blocks).map L.block)
+    have value : (if level ≤ L.start then Kind.indexed ((List.finRange S.blocks).map L.slot)
         else Kind.plain) = .checkpoint span := isCheckpoint
     split at value <;> exact absurd value (by simp)
   refine {
@@ -223,6 +236,9 @@ theorem body_lawfulFrom (valid : L.Valid accept) :
     key_some := ?_
     key_mass := fun _ _ _ value _ _ _ => mass_slot_le L.decode value
     weight_nonnegative := fun _ _ => slotChance_nonnegative L.decode
+    work_accept := ?_
+    work_keep := ?_
+    work_mass := fun _ _ _ _ => mass_work_le L.foldBits
     leaf_point := fun _ => rfl
     leaf_holds := fun _ accepted =>
       ⟨accepted, fun (high : total ≤ L.start) => absurd high (Nat.not_le.mpr valid.fits)⟩
@@ -240,10 +256,23 @@ theorem body_lawfulFrom (valid : L.Valid accept) :
     obtain ⟨rfl, rfl⟩ := indexed low isIndexed
     obtain ⟨i, _, rfl⟩ := List.mem_map.mp member
     obtain ⟨_, rfl⟩ := transcript_cut found
-    obtain ⟨reply, answered, each⟩ := (valid.checked point accepted).decodes
-    show (L.decode ((transcript total accept).last (point.take (L.start + 1)) (L.block i))).isSome
+    obtain ⟨reply, answered, _, each⟩ := (valid.checked point accepted).decodes
+    show (L.decode ((transcript total accept).last (point.take (L.start + 1)) (L.slot i))).isSome
     rw [last_take_succ answered]
     exact each i
+  · intro level coordinates point deeper low isIndexed accepted found
+    obtain ⟨rfl, rfl⟩ := indexed low isIndexed
+    obtain ⟨_, rfl⟩ := transcript_cut found
+    obtain ⟨reply, answered, zero, _⟩ := (valid.checked point accepted).decodes
+    show (transcript total accept).last (point.take (L.start + 1)) none ∈ workZeros Slot L.foldBits
+    rw [last_take_succ answered]
+    exact zero
+  · intro level coordinates coordinate reply slot low isIndexed member
+    obtain ⟨rfl, rfl⟩ := indexed low isIndexed
+    obtain ⟨i, _, rfl⟩ := List.mem_map.mp member
+    show Function.update reply (L.slot i) slot none ∈ workZeros Slot L.foldBits ↔
+      reply none ∈ workZeros Slot L.foldBits
+    rw [Function.update_of_ne (show none ≠ L.slot i from (Option.some_ne_none _).symm)]
   · intro level coordinates reference family anchor deeper low isIndexed held found foundDeeper
       each
     obtain ⟨rfl, rfl⟩ := indexed low isIndexed
@@ -254,31 +283,31 @@ theorem body_lawfulFrom (valid : L.Valid accept) :
     obtain ⟨reply, answered, _⟩ := passed.decodes
     have base := last_take_succ (accept := accept) answered
     have child : ∀ i : Fin S.blocks,
-        (accept (family (L.block i)).1 ∧
-          (family (L.block i)).1.take L.start = reference.1.take L.start) ∧
-        ∃ slot, (family (L.block i)).1.reply L.start =
-            some (Function.update reply (L.block i) slot) ∧
-          L.decode slot ≠ L.decode (reply (L.block i)) := by
+        (accept (family (L.slot i)).1 ∧
+          (family (L.slot i)).1.take L.start = reference.1.take L.start) ∧
+        ∃ slot, (family (L.slot i)).1.reply L.start =
+            some (Function.update reply (L.slot i) slot) ∧
+          L.decode slot ≠ L.decode (reply (L.slot i)) := by
       intro i
       obtain ⟨heldChild, foundChild, other, slot, foundOther, last, differs⟩ :=
-        each (L.block i) (List.mem_map.mpr ⟨i, List.mem_finRange i, rfl⟩)
-      have acceptedChild : accept (family (L.block i)).1 := heldChild.1
+        each (L.slot i) (List.mem_map.mpr ⟨i, List.mem_finRange i, rfl⟩)
+      have acceptedChild : accept (family (L.slot i)).1 := heldChild.1
       obtain ⟨_, sameAnchor⟩ := transcript_cut foundChild
       refine ⟨⟨acceptedChild, sameAnchor.symm⟩, slot, ?_, ?_⟩
       · obtain ⟨_, rfl⟩ := transcript_cut foundOther
         obtain ⟨replyChild, answeredChild, _⟩ := (valid.checked _ acceptedChild).decodes
-        have last : (transcript total accept).last ((family (L.block i)).1.take (L.start + 1)) =
+        have last : (transcript total accept).last ((family (L.slot i)).1.take (L.start + 1)) =
             Function.update ((transcript total accept).last (reference.1.take (L.start + 1)))
-              (L.block i) slot := last
+              (L.slot i) slot := last
         rw [last_take_succ answeredChild, base] at last
         rw [answeredChild, last]
       · have differs : L.decode slot ≠ L.decode
-            ((transcript total accept).last (reference.1.take (L.start + 1)) (L.block i)) :=
+            ((transcript total accept).last (reference.1.take (L.start + 1)) (L.slot i)) :=
           differs
         rw [base] at differs
         exact differs
-    have same : ∀ i, L.statement (family (L.block i)).1 = L.statement reference.1 ∧
-        L.clear (family (L.block i)).1 = L.clear reference.1 := fun i => by
+    have same : ∀ i, L.statement (family (L.slot i)).1 = L.statement reference.1 ∧
+        L.clear (family (L.slot i)).1 = L.clear reference.1 := fun i => by
       unfold Terminal.statement Terminal.clear
       rw [(child i).1.2]
       exact ⟨rfl, rfl⟩
@@ -297,7 +326,8 @@ theorem body_lawfulFrom (valid : L.Valid accept) :
       agree := fun i j other => by
         obtain ⟨⟨acceptedChild, _⟩, slot, answeredChild, _⟩ := child i
         have second := (valid.checked _ acceptedChild).decodes.challenge answeredChild j
-        rw [Function.update_of_ne (fun same => other (valid.injective same)),
+        rw [Function.update_of_ne (show L.slot j ≠ L.slot i from
+            fun same => other (valid.injective (Option.some.inj same))),
           passed.decodes.challenge answered j] at second
         exact Option.some.inj second
       firstAccepts := fun _ => passed.accepts
@@ -309,14 +339,23 @@ theorem body_lawfulFrom (valid : L.Valid accept) :
       fun _ _ => rfl⟩
 
 omit [Fintype Coord] [DecidableEq Coord] in
-/-- The stage error of the terminal: `ε_term = B_term·p` of Akita (183), for the largest
-probability `p` of one fold challenge, which is `1/|C^acc_term|` for a uniform decoder. -/
+/-- The stage error of the terminal: `ε_term = B_term·p` of Akita (183) times `2^{−g}` for the
+work bits `g` of its fold challenges (Remark 10.18). -/
+noncomputable def termError : ℝ := 1 / 2 ^ L.foldBits * (S.blocks * slotChance L.decode)
+
+omit [Fintype Coord] [DecidableEq Coord] in
+/-- The stage error of the terminal: `ε_term = B_term·p` of Akita (183) times `2^{−g}` for the
+work bits `g` of its fold challenges (Remark 10.18), for the largest probability `p` of one fold
+challenge, which is `1/|C^acc_term|` for a uniform decoder. -/
 theorem body_chargeFrom (fits : L.start < total) :
-    (L.body accept).chargeFrom L.start = S.blocks * slotChance L.decode := by
-  have first : (L.body accept).charge L.start = S.blocks * slotChance L.decode := by
+    (L.body accept).chargeFrom L.start = L.termError := by
+  unfold termError
+  have first : (L.body accept).charge L.start =
+      1 / 2 ^ L.foldBits * (S.blocks * slotChance L.decode) := by
     unfold Structure.charge
     rw [ite_eq_left (show L.start < (L.body accept).protocol.stages from fits), L.body_kind_start]
-    show (((List.finRange S.blocks).map L.block).map fun _ => slotChance L.decode).sum = _
+    show 1 / 2 ^ L.foldBits *
+      (((List.finRange S.blocks).map L.slot).map fun _ => slotChance L.decode).sum = _
     simp [Function.comp_def]
   have rest : ∀ level ∈ Finset.Ico (L.start + 1) total, (L.body accept).charge level = 0 := by
     intro level member
@@ -333,7 +372,7 @@ theorem body_loopsFrom (fits : L.start < total) : (L.body accept).loopsFrom L.st
   have first : (L.body accept).loops L.start = S.blocks := by
     unfold Structure.loops
     rw [L.body_kind_start]
-    show ((List.finRange S.blocks).map L.block).length = _
+    show ((List.finRange S.blocks).map L.slot).length = _
     simp
   have rest : (L.body accept).loopsFrom (L.start + 1) = 0 :=
     Finset.sum_eq_zero fun level member => by
@@ -349,7 +388,7 @@ theorem body_treeFrom (fits : L.start < total) :
   have first : (L.body accept).arity L.start = 1 + S.blocks := by
     unfold Structure.arity
     rw [L.body_kind_start]
-    show 1 + ((List.finRange S.blocks).map L.block).length = _
+    show 1 + ((List.finRange S.blocks).map L.slot).length = _
     simp
   have rest : (L.body accept).treeFrom (L.start + 1) = 1 :=
     Finset.prod_eq_one fun level member => by
@@ -360,11 +399,11 @@ theorem body_treeFrom (fits : L.start < total) :
 
 /-- The terminal is a suffix (Akita Proposition 10.44 for the stages from the fold challenge of
 the terminal): a first certificate has an accepting transcript and the certificate `Sourced`, the
-stage error is `B_term·p`, the extractor has `B_term` retry loops, and the tree size is
+stage error is `2^{−g}·B_term·p`, the extractor has `B_term` retry loops, and the tree size is
 `1 + B_term`. -/
 theorem suffix (valid : L.Valid accept) :
-    Tier.Suffix accept L.start L.Sourced (L.body accept) (S.blocks * slotChance L.decode)
-      S.blocks (S.blocks + 1) where
+    Tier.Suffix accept L.start L.Sourced (L.body accept)
+      L.termError S.blocks (S.blocks + 1) where
   opened _ held := ⟨held.1, held.2 le_rfl⟩
   rooted point witness sourced := by
     unfold Sourced Terminal.statement Terminal.clear at sourced ⊢
@@ -397,7 +436,7 @@ theorem suffix_after {S' : Shape} {O : OpeningShape S'} {fold : Descriptor}
     (terminal : L.Valid accept) (next : L.start = T.finish) (units : UnitDifferences L.family)
     (challenges : route.Challenges L.weight L.family)
     (decoder : (Fin S.blocks → S.Source) → Source)
-    (bound : ∀ point other : Prefix Wire (Coord → Slot) total, accept point → accept other →
+    (bound : ∀ point other : Prefix Wire (Option Coord → Slot) total, accept point → accept other →
       point.take (T.start + 1) = other.take (T.start + 1) →
       (L.read (other.take L.start)).state = (L.read (point.take L.start)).state)
     (decodes : ∀ point, accept point → T.Decodes point)
@@ -408,7 +447,7 @@ theorem suffix_after {S' : Shape} {O : OpeningShape S'} {fold : Descriptor}
         (fun inner => decoder (blocksOf ((L.body accept).witness inner)))
         (fun inner other =>
           L.collide ((L.body accept).witness inner) ((L.body accept).witness other)))
-      (∑ b, T.chance b + T.costs.sum + S.blocks * slotChance L.decode)
+      (T.levelError + L.termError)
       (S'.blocks + 1 + S.blocks) (2 * (S'.blocks + 1) * (S.blocks + 1)) := by
   refine Tier.suffix_before (Fintype.card_fin _) valid (next ▸ L.suffix terminal)
     (next ▸ Nat.le_of_lt terminal.fits) (fun witness => decoder (blocksOf witness))

@@ -18,17 +18,18 @@ holds with the file.
   (`crates/akita-params/src/witness/tail.rs`). `Γ` is 13 in `R_{q,128}` and 18 in `R_{q,64}`
   (`crates/akita-challenges/src/config.rs`). The extension degree `k` is 2.
 - These numbers are choices of this file. `Level.batch` and `rootBatch` are the least `s_rel`
-  with a place for each ring row. `level₅.vars` is the least `μ` with a zero cell after the flat
-  witness. The opening shape of a trace level has `k·h_car = 1`, because its fold challenges are
+  with a place for each ring row. `level₅.vars` is the least `μ` with a place for each cell of
+  the flat witness. The opening shape of a trace level has `k·h_car = 1`, because its fold
+  challenges are
   in `R_{q,d_A}`. The fields of `terminal` for `B` are those of `level₅`, and the terminal does
   not read them.
 - The conditions on these numbers that the levels of `mixedTower_suffix` read are theorems:
   `root_sized`, `root_room`, `root_honest`, `root_points`, `level₁_sized`, `traces_sized`,
   `norms_sized`, `quarters`, `points`, `blocks_live`, `paths` and `covers`.
-- `root_degrees` gives the sum of the degrees of the ring rows of the root. The file has the end
-  `cells + δ_quot·Σ_r d_r` of the quotient digits in `output_witness_len`
-  (`tests/AkitaSchedules.lean`). The end `Batch.quotientRoom` of the model is larger by
-  `1 + δ_quot·d_D`, for the zero cell and the row `w_cells = 0`.
+- `root_degrees` gives the sum of the degrees of the ring rows of the root. The end
+  `Batch.quotientRoom = cells + δ_quot·Σ_r d_r` of the witness of the model is the end of the
+  witness of the Akita code, and the file has it with the last alignment of the code in
+  `output_witness_len` (`tests/AkitaSchedules.lean`).
 - `live_cells`: the live blocks of each level after the root and of the terminal have each cell
   that the flat witness of the level before it can use (Akita Section 4.5, (40) to (42)). -/
 
@@ -225,7 +226,7 @@ def traces : List Level := [level₂, level₃, level₄, level₅]
 
 /-- The conditions of `liftBatch` and `liftBatch_valid` on the numbers of the root: `fits`,
 `rowsFit`, `response`, `uniform` for the base 8, and `small`. -/
-theorem root_sized : root.cells < 2 ^ rootVars ∧ root.rowCount + 1 + 1 ≤ 2 ^ rootBatch ∧
+theorem root_sized : root.cells ≤ 2 ^ rootVars ∧ root.rowCount + 1 ≤ 2 ^ rootBatch ∧
     (∀ g, 2 ≤ (root.fold g).responseBase) ∧ (∀ g, (root.shape g).certifiedBase = 8) ∧
     8 < fieldModulus := by decide
 
@@ -234,7 +235,7 @@ theorem root_sized : root.cells < 2 ^ rootVars ∧ root.rowCount + 1 + 1 ≤ 2 ^
 theorem root_degrees : root.degreeSum = 5760 ∧ root.cells = 3532800 := by decide
 
 /-- The condition `room` of `liftBatch` for the root with the 22 quotient digits of Akita: the
-quotient segments end at the cell 3662337, before the `2^22` cells of the cube. -/
+witness ends at the cell 3659520, before the `2^22` cells of the cube. -/
 theorem root_room : root.quotientRoom quotientDigits ≤ 2 ^ rootVars := by decide
 
 /-- Each commitment shape of the root has the conditions `Shape.Honest`. -/
@@ -257,15 +258,15 @@ theorem root_points : ∀ g, (root.shape g).blocks = 2 ^ ![5, 4, 3] g ∧
 
 /-- The conditions of `liftFold` and `LevelSized` on the numbers of level 1: `fits`, `room`,
 `rowsFit`, `base` and `small`. -/
-theorem level₁_sized : level₁.opening.cells level₁.fold < 2 ^ level₁.vars ∧
+theorem level₁_sized : level₁.opening.cells level₁.fold ≤ 2 ^ level₁.vars ∧
     level₁.opening.quotientRoom level₁.fold quotientDigits ≤ 2 ^ level₁.vars ∧
-    level₁.opening.rowCount + 1 + 1 ≤ 2 ^ level₁.batch ∧ 2 ≤ level₁.fold.responseBase ∧
+    level₁.opening.rowCount + 1 ≤ 2 ^ level₁.batch ∧ 2 ≤ level₁.fold.responseBase ∧
     level₁.shape.certifiedBase < fieldModulus := by decide
 
 /-- The conditions of `committedTrace`, `committedTraceSq` and `LevelSized` on the numbers of a
 trace level: `fits`, `rowsFit`, `base` and `small`. -/
-theorem traces_sized : ∀ L ∈ traces, L.opening.cells L.fold < 2 ^ L.vars ∧
-    L.opening.traceRowCount + 1 + 1 ≤ 2 ^ L.batch ∧ 2 ≤ L.fold.responseBase ∧
+theorem traces_sized : ∀ L ∈ traces, L.opening.cells L.fold ≤ 2 ^ L.vars ∧
+    L.opening.traceRowCount + 1 ≤ 2 ^ L.batch ∧ 2 ≤ L.fold.responseBase ∧
     L.shape.certifiedBase < fieldModulus := by decide
 
 /-- The conditions `room` and `noWrap` of `NormSized` for the levels 3 to 5. -/
@@ -308,22 +309,22 @@ theorem blocks_live : (level₁.shape.blocks ≤ 2 ^ 5 ∧ 4 + (6 + (7 + 5)) = r
     (level₅.shape.blocks ≤ 2 ^ 3 ∧ 5 + (8 + 3) = level₄.tail) ∧
     (terminal.blocks ≤ 2 ^ 3 ∧ 5 + (8 + 3) = level₅.tail) := by decide
 
-/-- The live blocks of each receiver have each cell that the flat witness of its sender can use:
-the end of the quotient digits of the root and of level 1, and the zero cell of the levels 2 to
-5. An honest table is 0 after these cells, so it is the table that the live blocks decode to
-(Akita Section 4.5, (40) to (42)). -/
+/-- The live blocks of each receiver have each cell that the witness of its sender can use: the
+end of the quotient digits of the root and of level 1, and the end of the flat witness of the
+levels 2 to 5. An honest table is 0 from these cells, so it is the table that the live blocks
+decode to (Akita Section 4.5, (40) to (42)). -/
 theorem live_cells :
     root.quotientRoom quotientDigits ≤
         level₁.shape.blocks * (level₁.shape.blockLength * level₁.shape.innerDegree) ∧
       level₁.opening.quotientRoom level₁.fold quotientDigits ≤
         level₂.shape.blocks * (level₂.shape.blockLength * level₂.shape.innerDegree) ∧
-      level₂.opening.cells level₂.fold + 1 ≤
+      level₂.opening.cells level₂.fold ≤
         level₃.shape.blocks * (level₃.shape.blockLength * level₃.shape.innerDegree) ∧
-      level₃.opening.cells level₃.fold + 1 ≤
+      level₃.opening.cells level₃.fold ≤
         level₄.shape.blocks * (level₄.shape.blockLength * level₄.shape.innerDegree) ∧
-      level₄.opening.cells level₄.fold + 1 ≤
+      level₄.opening.cells level₄.fold ≤
         level₅.shape.blocks * (level₅.shape.blockLength * level₅.shape.innerDegree) ∧
-      level₅.opening.cells level₅.fold + 1 ≤
+      level₅.opening.cells level₅.fold ≤
         terminal.blocks * (terminal.blockLength * terminal.innerDegree) := by decide
 
 /-- The compression maps of `B` and of `D` at the levels 1 to 3 and the compression maps of `D`

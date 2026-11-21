@@ -8,16 +8,14 @@ commits to, and their completeness (ePrint 2026/1983, revision of 2026-10-15, Se
 - `Batch.ofFlat` reads the digit vectors of the groups from a table in the order of
   `Batch.Witness.flat`, and `Batch.flat_ofFlat` states that their flat witness is the table on
   the cells before `Batch.cells`.
-- `Batch.lockedRelation` adds the ring row `w_cells = 0` to `Batch.flatRelation`, as
-  `lockedRelation` for one group. `Batch.lockedReduction` is its quotient-free reduction.
-- `Batch.satisfies_of_locked` gives `Batch.Witness.Satisfies` of the digit vectors `Batch.ofFlat`
-  of a table with `Batch.lockedRelation`, the digit range statement and the binary statement.
-- `Batch.lockedFold_satisfies` is `lockedFold_satisfies` for the groups: on a path of `foldCheck`
+- `Batch.satisfies_of_table` gives `Batch.Witness.Satisfies` of the digit vectors `Batch.ofFlat`
+  of a table with `Batch.flatRelation`, the digit range statement and the binary statement.
+- `Batch.tableFold_satisfies` is `tableFold_satisfies` for the groups: on a path of `foldCheck`
   that avoids the bad sets, a true final claim for the table gives `Batch.Witness.Satisfies` of
   the digit vectors `Batch.ofFlat` of the table.
 - `Batch.Witness.Alphabets.rangeHolds` and `Batch.Witness.Alphabets.binaryOn` give the digit
   range statement and the binary statement of the flat witness from the alphabets, and
-  `Batch.flatFold_winsTo` and `Batch.lockedFold_winsTo` are the completeness of the checks. -/
+  `Batch.flatFold_winsTo` is the completeness of the checks. -/
 
 namespace NightstreamFPrime.Spec.Compression.Akita
 
@@ -123,67 +121,10 @@ theorem flat_ofFlat (table : Table) {x : ℕ} (small : x < B.cells) :
 section Rows
 
 variable {E : Type} [Field E] [Algebra Zq E] (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E)
-  (st : B.Statement E) (challenge : B.Challenge) (μ : ℕ) (fits : B.cells < 2 ^ μ)
+  (st : B.Statement E) (challenge : B.Challenge) (μ : ℕ) (fits : B.cells ≤ 2 ^ μ)
 
-/-- The ring rows of `Batch.flatRows`, and the row `w_cells = 0` in `R_{q,d_D}`. -/
-noncomputable def lockedRows : Fin (B.rowCount + 1) → RingRow :=
-  Fin.append (B.flatRows β st challenge) fun _ : Fin 1 => (zeroForm B.openDegree B.cells).row 0
-
-theorem lockedRows_below (r : Fin (B.rowCount + 1)) :
-    (B.lockedRows β st challenge r).Below B.cells := by
-  revert r
-  exact (forall_append (RingRow.Below · B.cells) _ _).mpr
-    ⟨B.flatRows_below β st challenge,
-      fun _ => Form.Below.row (f := zeroForm B.openDegree B.cells) (fun _ _ => le_rfl) 0⟩
-
-theorem lockedRows_degree_le (r : Fin (B.rowCount + 1)) :
-    (B.lockedRows β st challenge r).degree ≤ B.largestDegree := by
-  revert r
-  exact (forall_append (RingRow.degree · ≤ B.largestDegree) _ _).mpr
-    ⟨B.flatRows_degree_le β st challenge,
-      fun _ => le_max_of_le_right (le_max_left B.openDegree (chainDegree B.chain))⟩
-
-theorem lockedRows_degree_sum :
-    ∑ r, (B.lockedRows β st challenge r).degree = B.degreeSum + B.openDegree := by
-  unfold lockedRows
-  rw [sum_append RingRow.degree, B.flatRows_degree_sum]
-  rfl
-
-/-- The relation of one fold with opening groups for a table that the next level commits to: the
-rows and the scalar row of `Batch.flatRelation`, and the row `w_cells = 0`. -/
-noncomputable def lockedRelation : FlatRelation E where
-  vars := μ
-  ring := B.rowCount + 1
-  row := B.lockedRows β st challenge
-  inside r c j _ := (B.lockedRows_below β st challenge r c j).trans_lt fits
-  weight := B.scalarWeight β st μ
-  value := st.value
-
-variable {B β st challenge μ fits}
-
-theorem lockedRelation_holds {table : Table}
-    (holds : (B.lockedRelation β st challenge μ fits).Holds table) :
-    table B.cells = 0 ∧ (B.flatRelation β st challenge μ fits).Holds table := by
-  have rows : ∀ r, (Fin.append (B.flatRows β st challenge)
-      (fun _ : Fin 1 => (zeroForm B.openDegree B.cells).row 0) r).Holds table := holds.1
-  obtain ⟨flat, zero⟩ := (forall_append (RingRow.Holds · table) (B.flatRows β st challenge)
-    (fun _ : Fin 1 => (zeroForm B.openDegree B.cells).row 0)).mp rows
-  exact ⟨zero_of_zeroForm (zero 0), flat, holds.2⟩
-
-/-- A table with `Batch.flatRelation` and the cell `cells` equal to 0 satisfies
-`Batch.lockedRelation`. -/
-theorem lockedRelation_of_flat {table : Table} (zero : table B.cells = 0)
-    (holds : (B.flatRelation β st challenge μ fits).Holds table) :
-    (B.lockedRelation β st challenge μ fits).Holds table := by
-  refine ⟨(forall_append (RingRow.Holds · table) (B.flatRows β st challenge)
-    (fun _ : Fin 1 => (zeroForm B.openDegree B.cells).row 0)).mpr ⟨holds.1, fun _ =>
-      ((zeroForm B.openDegree B.cells).row_holds 0 table).mpr ?_⟩, holds.2⟩
-  show (∑ _c : Unit, (1 : Rq B.openDegree) * ofCoeffs fun _ => table B.cells) = 0
-  rw [zero, ofCoeffs_eq (x := 0) fun j _ => (coeff_zero j).symm]
-  simp
-
-/-- Two tables with the same cells up to `cells` satisfy `Batch.flatRelation` together. -/
-theorem flatRelation_holds_congr {table other : Table} (same : ∀ x ≤ B.cells, table x = other x)
+/-- Two tables with the same cells before `cells` satisfy `Batch.flatRelation` together. -/
+theorem flatRelation_holds_congr {table other : Table} (same : ∀ x < B.cells, table x = other x)
     (holds : (B.flatRelation β st challenge μ fits).Holds table) :
     (B.flatRelation β st challenge μ fits).Holds other := by
   refine ⟨fun r => RingRow.holds_congr (B.flatRows_below β st challenge r) same (holds.1 r), ?_⟩
@@ -191,9 +132,10 @@ theorem flatRelation_holds_congr {table other : Table} (same : ∀ x ≤ B.cells
   refine Finset.sum_congr rfl fun u _ => ?_
   show algebraMap Zq E (other u) * B.scalarWeight β st μ u =
     algebraMap Zq E (table u) * B.scalarWeight β st μ u
-  by_cases inside : u ≤ B.cells
+  by_cases inside : u < B.cells
   · rw [same u inside]
-  · rw [B.scalarWeight_of_lt β st μ (Nat.lt_of_not_le inside), mul_zero, mul_zero]
+  · rw [B.scalarWeight_of_le β st μ (B.chainStart_le_cells.trans (Nat.le_of_not_lt inside)),
+      mul_zero, mul_zero]
 
 end Rows
 
@@ -273,45 +215,35 @@ section Check
 
 variable {B} {E : Type} [Field E] [Fintype E] [Algebra Zq E]
   (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E) (st : B.Statement E) (challenge : B.Challenge)
-  (μ : ℕ) (fits : B.cells < 2 ^ μ)
-
-/-- The quotient-free reduction of `Batch.lockedRelation` (Akita Section 7.3 and Theorem 7.4),
-with `2^batch` places for the rows. Its bad set has at most `d_max − 1` points. -/
-noncomputable def lockedReduction (batch : ℕ) (rowsFit : B.rowCount + 1 + 1 ≤ 2 ^ batch) :
-    Reduction E :=
-  (B.lockedRelation β st challenge μ fits).free (algebraMap Zq E).injective B.largestDegree batch
-    (B.lockedRows_degree_le β st challenge) rowsFit
+  (μ : ℕ) (fits : B.cells ≤ 2 ^ μ)
 
 variable {base : ℕ}
 
 omit [Fintype E] in
-/-- A table with `Batch.lockedRelation`, the digit range statement and the binary statement has
-digit vectors `Batch.ofFlat` with the exact branch relation `Batch.Witness.Satisfies`. Each group
-has the certified base `base`. The table can have each value in the cells after `cells`. -/
-theorem satisfies_of_locked (uniform : ∀ g, (B.shape g).certifiedBase = base)
+/-- A table with `Batch.flatRelation`, the digit range statement on the cells before `cells` and
+the binary statement on `I_bin` has digit vectors `Batch.ofFlat` with the exact branch relation
+`Batch.Witness.Satisfies`. Each group has the certified base `base`, and `zero`: the value 0 is in
+the range of `Q_sq`. The table can have each value from the cell `cells`. -/
+theorem satisfies_of_table (uniform : ∀ g, (B.shape g).certifiedBase = base)
     (small : base < fieldModulus) {table : Table}
-    (relation : (B.lockedRelation β st challenge μ fits).Holds table)
-    (range : RangeHolds base μ table) (binary : BinaryOn B.binarySupport μ table) :
+    (relation : (B.flatRelation β st challenge μ fits).Holds table)
+    (range : ∀ x < B.cells, rangeSq base (table x * (table x + 1)) = 0)
+    (zero : rangeSq base 0 = 0) (binary : ∀ x, B.binarySupport x → table x * (table x + 1) = 0) :
     (B.ofFlat table).Satisfies β st challenge := by
-  obtain ⟨zero, flat⟩ := lockedRelation_holds relation
-  have same : ∀ x ≤ B.cells, table x = (B.ofFlat table).flat x := fun x below => by
-    rcases Nat.lt_or_eq_of_le below with inside | rfl
-    · exact (B.flat_ofFlat table inside).symm
-    · rw [zero, Witness.flat_of_le _ le_rfl]
-  have ranged : RangeHolds base μ (B.ofFlat table).flat := fun x inside => by
-    by_cases below : x ≤ B.cells
+  have same : ∀ x < B.cells, table x = (B.ofFlat table).flat x :=
+    fun x inside => (B.flat_ofFlat table inside).symm
+  have ranged : RangeHolds base μ (B.ofFlat table).flat := fun x _ => by
+    by_cases below : x < B.cells
     · rw [← same x below]
-      exact range x inside
-    · have last := range B.cells fits
-      rw [zero] at last
-      rw [Witness.flat_of_le _ (Nat.le_of_lt (Nat.lt_of_not_le below))]
-      exact last
-  have binaried : BinaryOn B.binarySupport μ (B.ofFlat table).flat := fun x inside member => by
-    rw [← same x (Nat.le_of_lt member.2)]
-    exact binary x inside member
+      exact range x below
+    · rw [Witness.flat_of_le _ (Nat.le_of_not_lt below), zero_mul]
+      exact zero
+  have binaried : BinaryOn B.binarySupport μ (B.ofFlat table).flat := fun x _ member => by
+    rw [← same x member.2]
+    exact binary x member
   exact Witness.satisfies_of_flat μ fits
     (Witness.alphabets_of_flat uniform small fits ranged binaried)
-    (flatRelation_holds_congr same flat)
+    (Batch.flatRelation_holds_congr B β st challenge μ fits same relation)
 
 variable [DecidableEq E]
 
@@ -320,17 +252,19 @@ variable [DecidableEq E]
 for the table gives the exact branch relation `Batch.Witness.Satisfies` of the digit vectors
 `Batch.ofFlat` of the table (the hypothesis of Akita Corollary 10.32 for one child). Each group
 has the certified base `base`. -/
-theorem lockedFold_satisfies (uniform : ∀ g, (B.shape g).certifiedBase = base)
-    (small : base < fieldModulus) (batch : ℕ) (rowsFit : B.rowCount + 1 + 1 ≤ 2 ^ batch)
+theorem tableFold_satisfies (uniform : ∀ g, (B.shape g).certifiedBase = base)
+    (small : base < fieldModulus) (batch : ℕ) (rowsFit : B.rowCount + 1 ≤ 2 ^ batch)
     (table : Table) :
-    (foldCheck (lockedReduction β st challenge μ fits batch rowsFit) base B.binarySupport
-      table).Avoids fun result =>
+    (foldCheck (flatReduction β st challenge μ fits batch rowsFit) base B.binarySupport
+      B.compressed table).Avoids fun result =>
       ∀ r2 v, result = some (r2, v) → v = mle r2 (lifted E table) →
         (B.ofFlat table).Satisfies β st challenge :=
-  (foldCheck_avoids (lockedReduction β st challenge μ fits batch rowsFit) base B.binarySupport
-    table).mono fun _ checked r2 v equal opening =>
-      satisfies_of_locked β st challenge μ fits uniform small (checked r2 v equal opening).1
-        (checked r2 v equal opening).2.1 (checked r2 v equal opening).2.2
+  (foldCheck_avoids (flatReduction β st challenge μ fits batch rowsFit) base B.binarySupport
+    B.compressed B.binarySupport_empty table).mono fun _ checked r2 v equal opening =>
+      satisfies_of_table β st challenge μ fits uniform small (checked r2 v equal opening).1
+        (fun x inside => (checked r2 v equal opening).2.1 x (inside.trans_le fits))
+        (checked r2 v equal opening).2.1.zero
+        (fun x member => (checked r2 v equal opening).2.2 x (member.2.trans_le fits) member)
 
 variable {β st challenge μ fits} {w : B.Witness} (admits : Type → Prop)
 
@@ -342,24 +276,10 @@ theorem flatFold_winsTo (scalar : admits E) (range : ∀ n, n ≤ rangeWidth bas
     (two : 2 ≤ base) (small : base < fieldModulus) (batch : ℕ)
     (rowsFit : B.rowCount + 1 ≤ 2 ^ batch) (satisfies : w.Satisfies β st challenge) :
     WinsTo admits (foldCheck (flatReduction β st challenge μ fits batch rowsFit) base
-      B.binarySupport w.flat) (foldDraws μ base) true fun result _ _ =>
+      B.binarySupport B.compressed w.flat) (foldDraws μ base B.compressed) true fun result _ _ =>
         ∃ r2 : List E, r2.length = μ ∧ result = some (r2, mle r2 (lifted E w.flat)) :=
   foldCheck_winsTo admits (flatReduction β st challenge μ fits batch rowsFit) base scalar range
     cubic _ (satisfies.flat μ fits) (satisfies.alphabets.rangeHolds uniform two small μ)
-    (satisfies.alphabets.binaryOn uniform two μ)
-
-/-- `Batch.flatFold_winsTo` for the checks of a fold with opening groups whose flat witness the
-next level commits to. -/
-theorem lockedFold_winsTo (scalar : admits E) (range : ∀ n, n ≤ rangeWidth base → admits (Fin n → E))
-    (cubic : admits (Fin (3 + 1) → E)) (uniform : ∀ g, (B.shape g).certifiedBase = base)
-    (two : 2 ≤ base) (small : base < fieldModulus) (batch : ℕ)
-    (rowsFit : B.rowCount + 1 + 1 ≤ 2 ^ batch) (satisfies : w.Satisfies β st challenge) :
-    WinsTo admits (foldCheck (lockedReduction β st challenge μ fits batch rowsFit) base
-      B.binarySupport w.flat) (foldDraws μ base) true fun result _ _ =>
-        ∃ r2 : List E, r2.length = μ ∧ result = some (r2, mle r2 (lifted E w.flat)) :=
-  foldCheck_winsTo admits (lockedReduction β st challenge μ fits batch rowsFit) base scalar range
-    cubic _ (lockedRelation_of_flat (w.flat_of_le le_rfl) (satisfies.flat μ fits))
-    (satisfies.alphabets.rangeHolds uniform two small μ)
     (satisfies.alphabets.binaryOn uniform two μ)
 
 end Check

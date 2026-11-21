@@ -125,11 +125,11 @@ structure Full (fits : Type → Prop) (claim : Wire → Claim O E) (claim' : Wir
     ∃ wire, witnessOf wire = value ∧ read M wire 0 = message
 
 variable {β : Module.Basis (Fin O.planes) Zq E} {key : Key S} {openKey : OpeningKey O}
-  {claim : Wire → Claim O E} {μ : ℕ} {cells : O.cells fold < 2 ^ μ} {batch : ℕ}
-  {rowsFit : O.rowCount + 1 + 1 ≤ 2 ^ batch} {block : Fin S.blocks → Coord}
+  {claim : Wire → Claim O E} {μ : ℕ} {cells : O.cells fold ≤ 2 ^ μ} {batch : ℕ}
+  {rowsFit : O.rowCount + 1 ≤ 2 ^ batch} {block : Fin S.blocks → Coord}
   {decode : E → Option (Rq O.carrierDegree)} {read : Reader Wire} {weight : ℕ}
   {β' : Module.Basis (Fin O'.planes) Zq E} {key' : Key S'} {openKey' : OpeningKey O'}
-  {claim' : Wire → Claim O' E} {μ' : ℕ} {cells' : O'.cells fold' < 2 ^ μ'} {batch' : ℕ}
+  {claim' : Wire → Claim O' E} {μ' : ℕ} {cells' : O'.cells fold' ≤ 2 ^ μ'} {batch' : ℕ}
   {rowsFit' : O'.rowCount + 1 ≤ 2 ^ batch'} {block' : Fin S'.blocks → Coord}
   {decode' : E → Option (Rq O'.carrierDegree)} {weight' : ℕ} {payloadOf : Wire → S'.Payload}
   {witnessOf : Wire → Witness O' fold'}
@@ -181,28 +181,32 @@ theorem packingPair_complete (fits : Type → Prop)
       Encodable fold'.responseBase fold'.responseDigits
         (response O' challenge' (commit key'
           (honest β openKey point fold challenge (commit key source).2).flat).2.source))
-    (table : Prefix Wire (Coord → E) (Tier.finish second) → Coord → E)
-    (decodes : ∀ input i, (decode (table input (block i))).isSome)
-    (decodes' : ∀ input i, (decode' (table input (block' i))).isSome) :
+    (table : Prefix Wire (Option Coord → E) (Tier.finish second) → Option Coord → E)
+    (decodes : ∀ input i, (decode (table input (some (block i)))).isSome)
+    (decodes' : ∀ input i, (decode' (table input (some (block' i)))).isSome)
+    (worked : ∀ input, table input none ∈ workZeros E 57) :
     ∃ proof : ℕ → Wire, claim (proof 0) = honestClaim β key openKey source point ∧
       pairAccepts first second payloadOf witnessOf
         ((Structure.protocol chain).final (.done proof) table) := by
   have stages : Tier.finish second =
-      foldDraws μ S.certifiedBase + 1 + (foldDraws μ' S'.certifiedBase + 1) := by
+      foldDraws μ S.certifiedBase (O.compressed fold) + 1 + (foldDraws μ' S'.certifiedBase
+        (O'.compressed fold') + 1) := by
     rw [Tier.finish_eq, Tier.finish_eq]
-    show 0 + ((foldCosts E _ μ batch _).length + 1) + ((foldCosts E _ μ' batch' _).length + 1) = _
+    show 0 + ((foldCosts E _ μ batch _ _).length + 1) + ((foldCosts E _ μ' batch' _ _).length + 1)
+      = _
     rw [foldCosts_length, foldCosts_length]
     omega
   obtain ⟨accept, accepts⟩ : ∃ accept, accept = pairAccepts first second payloadOf witnessOf :=
     ⟨_, rfl⟩
   obtain ⟨wire0, root⟩ := full.root (honestClaim β key openKey source point)
   obtain ⟨reply0, answered0⟩ : ∃ reply, reply = answer table wire0 [] := ⟨_, rfl⟩
-  have decoded0 : ∀ i, decode (reply0 (block i)) = some ((decode (reply0 (block i))).getD 0) :=
+  have decoded0 : ∀ i, decode (reply0 (some (block i))) = some ((decode (reply0 (some (block
+    i)))).getD 0) :=
     fun i => decoded (by
       rw [answered0, answer_eq table wire0 (Nat.zero_le _)]
       exact decodes _ i)
   obtain ⟨c, challenged⟩ : ∃ c : Fin S.blocks → Rq O.carrierDegree,
-      c = fun i => (decode (reply0 (block i))).getD 0 := ⟨_, rfl⟩
+      c = fun i => (decode (reply0 (some (block i)))).getD 0 := ⟨_, rfl⟩
   have member : ∀ i, ∃ slot, decode slot = some (c i) := fun i =>
     ⟨_, by rw [challenged]; exact decoded0 i⟩
   have satisfies : (honest β openKey point fold c (commit key source).2).Satisfies β
@@ -214,7 +218,7 @@ theorem packingPair_complete (fits : Type → Prop)
   obtain ⟨next, nexts⟩ : ∃ next : List E → Claim O' E, next = fun r =>
       honestClaim β' key' openKey' flat (Point.ofSegments O' (((r.drop p).drop t).drop s)
         (((r.drop p).drop t).take s) (r.take p) ((r.drop p).take t)) := ⟨_, rfl⟩
-  have wins := lockedFold_winsTo (cells := cells) fits scalar range cubic two small batch rowsFit
+  have wins := flatFold_winsTo (cells := cells) fits scalar range cubic two small batch rowsFit
     satisfies
   rw [← flattened] at wins
   have free : ∀ (index : ℕ) (M : Type) [Nonempty M] (message : M)
@@ -236,7 +240,7 @@ theorem packingPair_complete (fits : Type → Prop)
       exact ⟨wire, ⟨fun zero => absurd zero start, fun _ r v same => absurd ⟨r, v, same⟩ ended⟩,
         sent⟩
   obtain ⟨wire1, moves, _, counted, ⟨paid, on, last⟩, ended, r2, measured, rfl⟩ :=
-    play read fits wins
+    play read fits view wins
       (fun index after wire => (index = 0 → payloadOf wire = (commit key' flat).1) ∧
         (index ≠ 0 → ∀ r v, after = Game.pure (some (r, v)) → claim' wire = next r))
       (fun index after => (free index E 0 after scalar).imp fun _ kept => kept.1) free
@@ -244,7 +248,8 @@ theorem packingPair_complete (fits : Type → Prop)
       (fun wire moves => payloadOf wire = (commit key' flat).1 ∧
         OnPath accept table wire0 ((reply0, wire) :: moves) ∧
         ∀ r v, moves ≠ [] →
-          position read (Tier.check first wire0 c flat) wire moves = Game.pure (some (r, v)) →
+          position read (Tier.check first wire0 c flat) wire
+            (moves.map fun move => (view move.1, move.2)) = Game.pure (some (r, v)) →
           ∃ init final, moves = init ++ [final] ∧ claim' final.2 = next r)
       (fun wire kept => ⟨kept.1 rfl, by
         have on := (onPath_nil accept table wire0).snoc
@@ -258,20 +263,20 @@ theorem packingPair_complete (fits : Type → Prop)
     rintro rfl
     exact absurd counted.symm (Nat.succ_ne_zero _)) ended
   rw [List.length_append, List.length_singleton] at counted
-  obtain ⟨early, earlier⟩ : ∃ early : List ((Coord → E) × Wire),
+  obtain ⟨early, earlier⟩ : ∃ early : List ((Option Coord → E) × Wire),
       early = (reply0, wire1) :: (init ++ [final]) := ⟨_, rfl⟩
   rw [← earlier] at on
-  have long : early.length = foldDraws μ S.certifiedBase + 1 := by
+  have long : early.length = foldDraws μ S.certifiedBase (O.compressed fold) + 1 := by
     rw [earlier, List.length_cons, List.length_append, List.length_singleton, counted]
   have short : early.length ≤ Tier.finish second := by omega
   obtain ⟨reply1, answered1⟩ : ∃ reply, reply = answer table wire0 early := ⟨_, rfl⟩
   have decoded1 : ∀ i,
-      decode' (reply1 (block' i)) = some ((decode' (reply1 (block' i))).getD 0) :=
+      decode' (reply1 (some (block' i))) = some ((decode' (reply1 (some (block' i)))).getD 0) :=
     fun i => decoded (by
       rw [answered1, answer_eq table wire0 short]
       exact decodes' _ i)
   obtain ⟨c', challenged'⟩ : ∃ c' : Fin S'.blocks → Rq O'.carrierDegree,
-      c' = fun i => (decode' (reply1 (block' i))).getD 0 := ⟨_, rfl⟩
+      c' = fun i => (decode' (reply1 (some (block' i)))).getD 0 := ⟨_, rfl⟩
   have member' : ∀ i, ∃ slot, decode' slot = some (c' i) := fun i =>
     ⟨_, by rw [challenged']; exact decoded1 i⟩
   obtain ⟨digits, digited⟩ : ∃ digits : Witness O' fold',
@@ -284,7 +289,7 @@ theorem packingPair_complete (fits : Type → Prop)
   have wins' := flatFold_winsTo (cells := cells') fits scalar range' cubic two' small' batch'
     rowsFit' satisfies'
   obtain ⟨wire2, moves', _, counted', ⟨held, on'⟩, ended', r3, _, rfl⟩ :=
-    play read fits wins'
+    play read fits view wins'
       (fun index _ wire => index = 0 → witnessOf wire = digits)
       (fun index after => by
         obtain ⟨wire, held, _⟩ := full.digits digits E 0 scalar
@@ -313,7 +318,7 @@ theorem packingPair_complete (fits : Type → Prop)
     ((transcript (Tier.finish second) (pairAccepts first second payloadOf witnessOf)).final
       (.done proof) table)
   rw [← accepts, complete]
-  obtain ⟨stage, staged⟩ : ∃ stage : Prefix Wire (Coord → E) (Tier.finish second),
+  obtain ⟨stage, staged⟩ : ∃ stage : Prefix Wire (Option Coord → E) (Tier.finish second),
       stage = ⟨wire0, early ++ (reply1, wire2) :: moves', bounded⟩ := ⟨_, rfl⟩
   rw [← staged]
   have rest : stage.rest = early ++ (reply1, wire2) :: moves' := by rw [staged]
@@ -326,23 +331,25 @@ theorem packingPair_complete (fits : Type → Prop)
     simp
   have finished : Tier.finish first = early.length := by
     rw [Tier.finish_eq]
-    show 0 + ((foldCosts E _ μ batch _).length + 1) = _
+    show 0 + ((foldCosts E _ μ batch _ _).length + 1) = _
     rw [foldCosts_length, long]
     omega
   have rooted : stage.wire 0 = wire0 := by rw [staged]; rfl
   have game : ∀ candidate, Tier.game first candidate stage =
-      position read (Tier.check first wire0 c candidate) wire1 (init ++ [final]) := by
+      position read (Tier.check first wire0 c candidate) wire1
+        ((init ++ [final]).map fun move => (view move.1, move.2)) := by
     intro candidate
     have moved : (stage.rest.take (Tier.finish first)).drop (0 + 1) = init ++ [final] := by
       rw [rest, List.take_left' finished.symm, earlier]
       rfl
     have fold : Tier.challenge first stage = c := by
       funext i
-      show ((stage.reply 0).bind fun reply => decode (reply (block i))).getD 0 = c i
+      show ((stage.reply 0).bind fun reply => decode (reply (some (block i)))).getD 0 = c i
       rw [stage.reply_of (index := 0) head rfl, challenged]
       rfl
     show position read (Tier.check first (stage.wire 0) (Tier.challenge first stage) candidate)
-      (stage.wire (0 + 1)) ((stage.rest.take (Tier.finish first)).drop (0 + 1)) = _
+      (stage.wire (0 + 1)) (((stage.rest.take (Tier.finish first)).drop (0 + 1)).map
+        fun move => (view move.1, move.2)) = _
     rw [moved, fold, rooted, stage.wire_of (index := 0 + 1) head rfl]
   have linkWire : stage.wire (Tier.finish first) = final.2 := by
     refine stage.wire_of middle ?_
@@ -363,10 +370,21 @@ theorem packingPair_complete (fits : Type → Prop)
       exact Witness.flat_of_le _ (covered.trans large)
   have joined : r2.take p ++ ((r2.drop p).take t ++ (((r2.drop p).drop t).take s ++
       ((r2.drop p).drop t).drop s)) = r2 := by simp
+  have path : stage.rest = (early ++ (reply1, wire2) :: moves') ++ [] := by
+    rw [rest, List.append_nil]
+  have ends₁ := Tier.finish_eq first
+  have ends₂ := Tier.finish_eq second
+  have starts₂ : Tier.start second = Tier.finish first := rfl
+  have capped : (Tier.Capped first) ∧ Tier.Capped second :=
+    ⟨⟨foldWorkBits_le _ _, map_workBits_le _⟩, ⟨foldWorkBits_le _ _, map_workBits_le _⟩⟩
+  have zero0 : reply0 none ∈ workZeros E (Tier.foldBits first) :=
+    Tier.path_worked on' path worked (index := 0) (by rw [whole]; omega) capped.1.1 reply0
+      (stage.reply_of (index := 0) head rfl)
   rw [accepts]
   refine ⟨⟨by rw [rest, finished, List.length_append]; omega,
-    ⟨reply0, stage.reply_of (index := 0) head rfl, fun i =>
-      Option.isSome_iff_exists.mpr ⟨_, decoded0 i⟩⟩,
+    ⟨⟨reply0, stage.reply_of (index := 0) head rfl, zero0, fun i =>
+      Option.isSome_iff_exists.mpr ⟨_, decoded0 i⟩⟩, fun index inside =>
+        Tier.path_worked on' path worked (by rw [whole]; omega) (capped.1.getD index)⟩,
     ((r2.drop p).drop t).drop s, ((r2.drop p).drop t).take s, r2.take p, (r2.drop p).take t,
     mle r2 (lifted E flat), ?_, blocked, lengthed, strided, degreed, ?_, ?_, ?_⟩, ?_⟩
   · rw [game, joined]
@@ -385,23 +403,29 @@ theorem packingPair_complete (fits : Type → Prop)
     have fold : Tier.challenge second stage = c' := by
       funext i
       show ((stage.reply (Tier.finish first)).bind fun reply =>
-        decode' (reply (block' i))).getD 0 = c' i
+        decode' (reply (some (block' i)))).getD 0 = c' i
       rw [answered, challenged']
       rfl
     have moved : (stage.rest.take (Tier.finish second)).drop (Tier.finish first + 1) =
         moves' := by
       rw [List.take_of_length_le (by rw [rest, whole]), rest, List.append_cons]
       exact List.drop_left' (by rw [List.length_append, List.length_singleton, finished])
-    refine ⟨by rw [rest, whole], ⟨reply1, answered, fun i =>
-      Option.isSome_iff_exists.mpr ⟨_, decoded1 i⟩⟩,
+    have zero1 : reply1 none ∈ workZeros E (Tier.foldBits second) :=
+      Tier.path_worked on' path worked (index := Tier.finish first) (by rw [whole]; omega)
+        capped.2.1 reply1 answered
+    refine ⟨by rw [rest, whole], ⟨⟨reply1, answered, zero1, fun i =>
+      Option.isSome_iff_exists.mpr ⟨_, decoded1 i⟩⟩, fun index inside =>
+        Tier.path_worked on' path worked (by rw [whole]; omega) (capped.2.getD index)⟩,
       some (r3, mle r3 (lifted E (witnessOf (stage.wire (Tier.finish first + 1))).flat)), ?_,
       r3, _, rfl, rfl⟩
-    have game' : position read (Tier.check second final.2 c' digits) wire2 moves' =
-        Game.pure (some (r3, mle r3 (lifted E digits.flat))) := ended'
+    have game' : position read (Tier.check second final.2 c' digits) wire2
+        (moves'.map fun move => (view move.1, move.2)) =
+          Game.pure (some (r3, mle r3 (lifted E digits.flat))) := ended'
     show position read (Tier.check second (stage.wire (Tier.finish first))
       (Tier.challenge second stage) (witnessOf (stage.wire (Tier.finish first + 1))))
       (stage.wire (Tier.finish first + 1))
-      ((stage.rest.take (Tier.finish second)).drop (Tier.finish first + 1)) = _
+      (((stage.rest.take (Tier.finish second)).drop (Tier.finish first + 1)).map
+        fun move => (view move.1, move.2)) = _
     rw [moved, fold, linkWire, stage.wire_of rest (congrArg (· + 1) finished), held]
     exact game'
 

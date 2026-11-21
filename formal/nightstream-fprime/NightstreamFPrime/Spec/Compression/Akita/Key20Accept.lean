@@ -151,15 +151,16 @@ the zero tables of the key polynomial, `W` and `V` (`Key20.tower_complete` with 
 `liftFit_zero` and `traceFit_zero`). `inside`: the fold challenge of the terminal is a stage of
 the transcript. -/
 theorem zero_accepts {total : ℕ} (inside : Tier.finish fifth < total)
-    (accept : Prefix (Wire E) (Coord → E) total → Prop)
-    (table : Prefix (Wire E) (Coord → E) total → Coord → E)
-    (decodes : ∀ input b, (decode b.1 (table input (block b))).isSome)
-    (decodes₁ : ∀ input i, (decode₁ (table input (block₁ i))).isSome)
-    (decodes₂ : ∀ input i, (decode₂ (table input (block₂ i))).isSome)
-    (decodes₃ : ∀ input i, (decode₃ (table input (block₃ i))).isSome)
-    (decodes₄ : ∀ input i, (decode₄ (table input (block₄ i))).isSome)
-    (decodes₅ : ∀ input i, (decode₅ (table input (block₅ i))).isSome)
-    (decodesL : ∀ input i, (decodeL (table input (blockL i))).isSome) :
+    (accept : Prefix (Wire E) (Option Coord → E) total → Prop)
+    (table : Prefix (Wire E) (Option Coord → E) total → Option Coord → E)
+    (decodes : ∀ input b, (decode b.1 (table input (some (block b)))).isSome)
+    (decodes₁ : ∀ input i, (decode₁ (table input (some (block₁ i)))).isSome)
+    (decodes₂ : ∀ input i, (decode₂ (table input (some (block₂ i)))).isSome)
+    (decodes₃ : ∀ input i, (decode₃ (table input (some (block₃ i)))).isSome)
+    (decodes₄ : ∀ input i, (decode₄ (table input (some (block₄ i)))).isSome)
+    (decodes₅ : ∀ input i, (decode₅ (table input (some (block₅ i)))).isSome)
+    (decodesL : ∀ input i, (decodeL (table input (some (blockL i)))).isSome)
+    (worked : ∀ input, table input none ∈ workZeros E 57) :
     ∃ proof : ℕ → Wire E,
       towerLinks (weight₃ := weight₃) (weight₄ := weight₄) (weight₅ := weight₅)
         Route.coefficient (Route.euclidean norm₃.operator norm₃.limit)
@@ -229,7 +230,7 @@ theorem zero_accepts {total : ℕ} (inside : Tier.finish fifth < total)
       ⟨{ base with state := target.1, statement := target.2.1, partials := target.2.2 }, rfl⟩)
     (Page.carries Note.response fun target => ⟨{ base with response := target }, rfl⟩)
     rfl inside (fun _ => rfl) (fun _ => rfl) table decodes decodes₁ decodes₂ decodes₃ decodes₄
-    decodes₅ decodesL
+    decodes₅ decodesL worked
     (onPath_nil accept table (⟨base, fun _ => (fun _ => 0, 0)⟩ : Wire E)) rfl
     (tables := fun _ => 0) (fun _ _ _ => rfl) (by rw [based]; rfl)
     (fun g => by rw [based]; exact List.length_replicate) (by rw [based]; rfl)

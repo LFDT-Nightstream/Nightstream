@@ -19,9 +19,9 @@ the decoder of a committed table is `OpeningShape.ofFlat`.
   direction.
 - `traceReduction` is the quotient-free reduction of `traceRelation`, and `traceFold_satisfies` is
   `foldCheck_traceSatisfies` for `Witness.flat`.
-- `lockedTraceRelation` adds the ring row `w_cells = 0` for a table that the next level commits
-  to, and `lockedTraceFold_satisfies` gives the exact branch relation of the digit vectors
-  `ofFlat` of the table.
+- `traceSatisfies_of_table` and `traceTableFold_satisfies` give the exact branch relation of the
+  digit vectors `ofFlat` of a table that the next level commits to. The rows read only cells
+  before `OpeningShape.cells`, so the table can have each value from this cell.
 
 The quotient-lift route is not in this file. -/
 
@@ -54,13 +54,13 @@ noncomputable def traceContractForm (subfield : E →+* Rq S.innerDegree)
   multiplier col := subfield (position col.1.1) *
     ((S.sourceBase : Rq S.innerDegree) ^ (col.1.2 : ℕ) *
       (fold.responseBase : Rq S.innerDegree) ^ (col.2 : ℕ))
-  address col := O.responseCell fold col
+  address col := S.responseCell fold col
 
 /-- The row (103) of Akita Figure 5, in `R_{q,d_A}`. -/
 noncomputable def traceEvaluationRow (st : TraceStatement O E)
     (challenge : Fin S.blocks → Rq S.innerDegree) : RingRow :=
   ((tracePartialForm O fold challenge).sub
-    (traceContractForm O fold st.subfield st.position)).row 0
+    (traceContractForm fold st.subfield st.position)).row 0
 
 /-- Row `a` of `Σ_i c_i·G_{b_1,n_A}·t̂_i`: the occurrence `(i, u)` has the multiplier `c_i·b_1^u`
 and reads digit `u` of row `a` of `t̂_i`. -/
@@ -73,14 +73,14 @@ noncomputable def traceImageForm (challenge : Fin S.blocks → Rq S.innerDegree)
 /-- Row `a` of the inner row (104) of Akita Figure 5 with `c^A_i = c_i`, in `R_{q,d_A}`. -/
 noncomputable def traceInnerRow (key : Key S) (challenge : Fin S.blocks → Rq S.innerDegree)
     (a : Fin S.innerRank) : RingRow :=
-  ((responseForm O fold key a).sub (traceImageForm O fold challenge a)).row 0
+  ((responseForm fold key a).sub (traceImageForm O fold challenge a)).row 0
 
 /-- The weight of the cell `x` in the scalar row (101) of Akita Figure 5: the sum of
 `θ·χ_blk(i)·b_1^u·T_{ρ_pack}(X^j)` over the digits `u` of the coordinates `j` of the partials `i`
 that are at `x`. -/
 noncomputable def traceScalarWeight (st : TraceStatement O E) (x : ℕ) : E :=
   ∑ entry : Fin S.blocks × Fin S.innerDegree × Fin S.openingDigits,
-    if O.partialPosition fold entry.1 entry.2.2 entry.2.1 = x then
+    if O.partialPosition fold entry.1 entry.2.2 entry.2.1 = some x then
       st.scale * (st.block entry.1 * ((S.openingBase : Zq) ^ (entry.2.2 : ℕ) •
         st.functional (AdjoinRoot.root (modulus S.innerDegree) ^ (entry.2.1 : ℕ))))
     else 0
@@ -112,15 +112,17 @@ theorem carriedRows_below (key : Key S) (openKey : OpeningKey O) (payload : S.Pa
     (forall_append (RingRow.Below · (O.cells fold)) _ _).mpr ⟨?_,
     (forall_append (RingRow.Below · (O.cells fold)) _ _).mpr ⟨?_, ?_⟩⟩⟩⟩⟩
   · exact imageRow_below S.chain _ _ _
-      (fun _ => Form.ofMatrix_below _ (fun _ _ => O.sliceCell_le fold _ _ _) _)
-      (O.firstCell_le fold)
+      (fun _ => Form.ofMatrix_below _ (fun _ _ _ => O.sliceCell_lt fold _ _ _) _)
+      (fun _ _ => O.firstCell_lt fold _)
   · exact imageRow_below O.chain _ _ _
-      (fun _ => Form.ofMatrix_below _ (fun _ _ => O.partialCell_le fold _ _) _)
-      (O.openFirstCell_le fold)
-  · exact firstRow_below S.chain _ _ _ (O.firstCell_le fold) (O.secondCell_le fold)
-  · exact firstRow_below O.chain _ _ _ (O.openFirstCell_le fold) (O.openSecondCell_le fold)
-  · exact secondRow_below S.chain _ _ _ (O.secondCell_le fold)
-  · exact secondRow_below O.chain _ _ _ (O.openSecondCell_le fold)
+      (fun _ => Form.ofMatrix_below _ (fun _ _ _ => O.partialCell_lt fold _ _) _)
+      (fun _ _ => O.openFirstCell_lt fold _)
+  · exact firstRow_below S.chain _ _ _ (fun _ _ => O.firstCell_lt fold _)
+      (fun _ _ => O.secondCell_lt fold _)
+  · exact firstRow_below O.chain _ _ _ (fun _ _ => O.openFirstCell_lt fold _)
+      (fun _ _ => O.openSecondCell_lt fold _)
+  · exact secondRow_below S.chain _ _ _ (fun _ _ => O.secondCell_lt fold _)
+  · exact secondRow_below O.chain _ _ _ (fun _ _ => O.openSecondCell_lt fold _)
 
 theorem carriedRows_degree_le (key : Key S) (openKey : OpeningKey O) (payload : S.Payload)
     (openPayload : O.Payload) (r : Fin O.carriedCount) :
@@ -163,11 +165,12 @@ theorem traceRows_below (st : TraceStatement O E) (challenge : Fin S.blocks → 
     (forall_append (RingRow.Below · (O.cells fold)) _ _).mpr ⟨fun a => ?_,
       carriedRows_below O fold st.key st.openKey st.payload st.openPayload⟩⟩
   · exact (Form.Below.sub (f := tracePartialForm O fold challenge)
-      (g := traceContractForm O fold st.subfield st.position)
-      (fun _ _ => O.partialPosition_le fold _ _ _) (fun _ _ => O.responseCell_le fold _ _)).row 0
-  · exact (Form.Below.sub (f := responseForm O fold st.key a)
+      (g := traceContractForm fold st.subfield st.position)
+      (fun _ _ _ => O.partialPosition_lt fold _ _ _) (fun _ _ _ => O.responseCell_lt fold _ _)).row
+        0
+  · exact (Form.Below.sub (f := responseForm fold st.key a)
       (g := traceImageForm O fold challenge a)
-      (fun _ _ => O.responseCell_le fold _ _) (fun _ _ => O.innerCell_le fold _ _ _ _)).row 0
+      (fun _ _ _ => O.responseCell_lt fold _ _) (fun _ _ _ => O.innerCell_lt fold _ _ _ _)).row 0
 
 theorem traceRows_degree_le (st : TraceStatement O E)
     (challenge : Fin S.blocks → Rq S.innerDegree) (r : Fin O.traceRowCount) :
@@ -184,12 +187,12 @@ theorem traceRows_degree_le (st : TraceStatement O E)
 ring rows `traceRows` and the scalar row (101). The cube has `μ` variables, with
 `cells < 2^μ`. -/
 noncomputable def traceRelation (st : TraceStatement O E)
-    (challenge : Fin S.blocks → Rq S.innerDegree) (μ : ℕ) (fits : O.cells fold < 2 ^ μ) :
+    (challenge : Fin S.blocks → Rq S.innerDegree) (μ : ℕ) (fits : O.cells fold ≤ 2 ^ μ) :
     FlatRelation E where
   vars := μ
   ring := O.traceRowCount
   row := traceRows O fold st challenge
-  inside r c j _ := (traceRows_below O fold st challenge r c j).trans_lt fits
+  inside r c j _ _ read := (traceRows_below O fold st challenge r c j _ read).trans_le fits
   weight := traceScalarWeight O fold st
   value := st.value
 
@@ -204,7 +207,7 @@ theorem tracePartialForm_value (challenge : Fin S.blocks → Rq S.innerDegree) :
       ∑ i, challenge i * O.tracePartial w.partials i := by
   have partials : ∀ i, O.tracePartial w.partials i = ∑ u : Fin S.openingDigits,
       (S.openingBase : Rq S.innerDegree) ^ (u : ℕ) *
-        ofCoeffs fun j => w.flat (O.partialPosition fold i u j) :=
+        ofCoeffs fun j => (O.partialPosition fold i u j).elim 0 w.flat :=
     fun i => ext_coeff fun j small => by
       rw [OpeningShape.tracePartial, coeff_ofCoeffs _ small, ← w.sum_flat_partialPosition i j,
         coeff_sum]
@@ -212,14 +215,14 @@ theorem tracePartialForm_value (challenge : Fin S.blocks → Rq S.innerDegree) :
         rw [coeff_natCast_pow_mul, coeff_ofCoeffs _ small]
   show (∑ entry : Fin S.blocks × Fin S.openingDigits,
     challenge entry.1 * (S.openingBase : Rq S.innerDegree) ^ (entry.2 : ℕ) *
-      ofCoeffs fun j => w.flat (O.partialPosition fold entry.1 entry.2 j)) = _
+      ofCoeffs fun j => (O.partialPosition fold entry.1 entry.2 j).elim 0 w.flat) = _
   rw [Fintype.sum_prod_type]
   simp only [partials, Finset.mul_sum, mul_assoc]
 
 omit [Algebra Zq E] in
 theorem traceContractForm_value (subfield : E →+* Rq S.innerDegree)
     (position : Fin S.blockLength → E) :
-    (traceContractForm O fold subfield position).value w.flat =
+    (traceContractForm fold subfield position).value w.flat =
       traceContract subfield position
         (gadget S.sourceBase (gadget fold.responseBase w.response)) := by
   rw [traceContractForm, Form.value_mk _ _ w.flat fun col =>
@@ -297,19 +300,21 @@ theorem carriedRows_holds_iff (key : Key S) (openKey : OpeningKey O) (payload : 
     exact rows.mpr ⟨outerImage, openImage, outerFirst, openFirst, outerSecond, openSecond⟩
 
 /-- The scalar row of the flat witness is the left side of the scalar row (101) of Akita. -/
-theorem traceScalarWeight_sum (st : TraceStatement O E) (μ : ℕ) (fits : O.cells fold < 2 ^ μ) :
+theorem traceScalarWeight_sum (st : TraceStatement O E) (μ : ℕ) (fits : O.cells fold ≤ 2 ^ μ) :
     ∑ x ∈ Finset.range (2 ^ μ), algebraMap Zq E (w.flat x) * traceScalarWeight O fold st x =
       st.scalar (O.tracePartial w.partials) := by
   have functional : ∀ i, st.functional (O.tracePartial w.partials i) =
       ∑ j : Fin S.innerDegree, ∑ u : Fin S.openingDigits,
-        ((S.openingBase : Zq) ^ (u : ℕ) * w.flat (O.partialPosition fold i u j)) •
+        ((S.openingBase : Zq) ^ (u : ℕ) * (O.partialPosition fold i u j).elim 0 w.flat) •
           st.functional (AdjoinRoot.root (modulus S.innerDegree) ^ (j : ℕ)) := fun i => by
     rw [OpeningShape.tracePartial, ofCoeffs_eq_sum, map_sum, Finset.sum_range]
     refine Finset.sum_congr rfl fun j _ => ?_
     rw [map_smul, ← w.sum_flat_partialPosition i j, Finset.sum_smul]
   unfold traceScalarWeight
-  rw [sum_mul_indicator _ _ _ _ fun entry => (O.partialPosition_le fold _ _ _).trans_lt fits]
-  simp only [Fintype.sum_prod_type, TraceStatement.scalar, functional, Finset.mul_sum]
+  rw [sum_mul_indicator _ _ _ _ fun entry _ read => (O.partialPosition_lt fold _ _ _ read).trans_le
+    fits]
+  simp only [elim_algebraMap, Fintype.sum_prod_type, TraceStatement.scalar, functional,
+    Finset.mul_sum]
   refine Finset.sum_congr rfl fun i _ => Finset.sum_congr rfl fun j _ =>
     Finset.sum_congr rfl fun u _ => ?_
   simp only [Algebra.smul_def, map_mul]
@@ -320,7 +325,7 @@ end Values
 section Link
 
 variable (st : TraceStatement O E) (challenge : Fin S.blocks → Rq S.innerDegree) (μ : ℕ)
-  (fits : O.cells fold < 2 ^ μ)
+  (fits : O.cells fold ≤ 2 ^ μ)
 
 /-- The flat witness satisfies the relation of one trace fold when the digit vectors satisfy the
 rows (103), (104), (105) and (106) with their rows (47) or (48), and the scalar row (101), of
@@ -377,59 +382,19 @@ theorem Witness.TraceSatisfies.flat {w : Witness O fold}
 
 variable (O) (fold) (st) (challenge)
 
-/-- The weight of the scalar row (101) is 0 at each cell after `cells`. -/
-theorem traceScalarWeight_of_lt {x : ℕ} (large : O.cells fold < x) :
+/-- The weight of the scalar row (101) is 0 from the offset `chainStart`. -/
+theorem traceScalarWeight_of_le {x : ℕ} (large : O.chainStart fold ≤ x) :
     traceScalarWeight O fold st x = 0 :=
   Finset.sum_eq_zero fun entry _ => ite_eq_right fun same => by
-    have below := O.partialPosition_le fold entry.1 entry.2.2 entry.2.1
+    have below := O.partialPosition_lt_innerStart fold entry.1 entry.2.2 entry.2.1 same
+    unfold OpeningShape.chainStart at large
     omega
-
-/-- The ring rows of `traceRows`, and the row `w_cells = 0`. -/
-noncomputable def lockedTraceRows : Fin (O.traceRowCount + 1) → RingRow :=
-  Fin.append (traceRows O fold st challenge) fun _ : Fin 1 =>
-    (zeroForm O.carrierDegree (O.cells fold)).row 0
-
-theorem lockedTraceRows_below (r : Fin (O.traceRowCount + 1)) :
-    (lockedTraceRows O fold st challenge r).Below (O.cells fold) := by
-  revert r
-  exact (forall_append (RingRow.Below · (O.cells fold)) _ _).mpr
-    ⟨traceRows_below O fold st challenge,
-      fun _ => Form.Below.row (f := zeroForm O.carrierDegree (O.cells fold))
-        (fun _ _ => le_rfl) 0⟩
-
-theorem lockedTraceRows_degree_le (r : Fin (O.traceRowCount + 1)) :
-    (lockedTraceRows O fold st challenge r).degree ≤ O.largestDegree := by
-  revert r
-  exact (forall_append (RingRow.degree · ≤ O.largestDegree) _ _).mpr
-    ⟨traceRows_degree_le O fold st challenge,
-      fun _ => le_max_of_le_left (le_max_left O.carrierDegree S.innerDegree)⟩
-
-/-- The relation of one trace fold for a table that the next level commits to: the rows and the
-scalar row of `traceRelation`, and the row `w_cells = 0`. -/
-noncomputable def lockedTraceRelation : FlatRelation E where
-  vars := μ
-  ring := O.traceRowCount + 1
-  row := lockedTraceRows O fold st challenge
-  inside r c j _ := (lockedTraceRows_below O fold st challenge r c j).trans_lt fits
-  weight := traceScalarWeight O fold st
-  value := st.value
 
 variable {O fold st challenge μ fits}
 
-theorem lockedTraceRelation_holds {table : Table}
-    (holds : (lockedTraceRelation O fold st challenge μ fits).Holds table) :
-    table (O.cells fold) = 0 ∧ (traceRelation O fold st challenge μ fits).Holds table := by
-  have rows : ∀ r, (Fin.append (traceRows O fold st challenge)
-      (fun _ : Fin 1 => (zeroForm O.carrierDegree (O.cells fold)).row 0) r).Holds table :=
-    holds.1
-  obtain ⟨flat, zero⟩ := (forall_append (RingRow.Holds · table)
-    (traceRows O fold st challenge)
-    (fun _ : Fin 1 => (zeroForm O.carrierDegree (O.cells fold)).row 0)).mp rows
-  exact ⟨zero_of_zeroForm (zero 0), flat, holds.2⟩
-
-/-- Two tables with the same cells up to `cells` satisfy `traceRelation` together. -/
+/-- Two tables with the same cells before `cells` satisfy `traceRelation` together. -/
 theorem traceRelation_holds_congr {table other : Table}
-    (same : ∀ x ≤ O.cells fold, table x = other x)
+    (same : ∀ x < O.cells fold, table x = other x)
     (holds : (traceRelation O fold st challenge μ fits).Holds table) :
     (traceRelation O fold st challenge μ fits).Holds other := by
   refine ⟨fun r => RingRow.holds_congr (traceRows_below O fold st challenge r) same (holds.1 r),
@@ -438,9 +403,10 @@ theorem traceRelation_holds_congr {table other : Table}
   refine Finset.sum_congr rfl fun u _ => ?_
   show algebraMap Zq E (other u) * traceScalarWeight O fold st u =
     algebraMap Zq E (table u) * traceScalarWeight O fold st u
-  by_cases inside : u ≤ O.cells fold
+  by_cases inside : u < O.cells fold
   · rw [same u inside]
-  · rw [traceScalarWeight_of_lt O fold st (Nat.lt_of_not_le inside), mul_zero, mul_zero]
+  · rw [traceScalarWeight_of_le O fold st
+      ((O.chainStart_le_cells fold).trans (Nat.le_of_not_lt inside)), mul_zero, mul_zero]
 
 variable [Fintype E] (st challenge μ fits)
 
@@ -450,12 +416,6 @@ noncomputable def traceReduction (batch : ℕ) (rowsFit : O.traceRowCount + 1 �
     Reduction E :=
   (traceRelation O fold st challenge μ fits).free (algebraMap Zq E).injective O.largestDegree
     batch (traceRows_degree_le O fold st challenge) rowsFit
-
-/-- The quotient-free reduction of `lockedTraceRelation`, with `2^batch` places for the rows. -/
-noncomputable def lockedTraceReduction (batch : ℕ)
-    (rowsFit : O.traceRowCount + 1 + 1 ≤ 2 ^ batch) : Reduction E :=
-  (lockedTraceRelation O fold st challenge μ fits).free (algebraMap Zq E).injective
-    O.largestDegree batch (lockedTraceRows_degree_le O fold st challenge) rowsFit
 
 variable [DecidableEq E]
 
@@ -467,7 +427,7 @@ child). -/
 theorem traceFold_satisfies (small : S.certifiedBase < fieldModulus) (batch : ℕ)
     (rowsFit : O.traceRowCount + 1 ≤ 2 ^ batch) (w : Witness O fold) :
     (foldCheck (traceReduction st challenge μ fits batch rowsFit) S.certifiedBase
-      (O.binarySupport fold) w.flat).Avoids fun result =>
+      (O.binarySupport fold) (O.compressed fold) w.flat).Avoids fun result =>
       ∀ r2 v, result = some (r2, v) → v = mle r2 (lifted E w.flat) →
         w.TraceSatisfies st challenge :=
   foldCheck_traceSatisfies (traceReduction st challenge μ fits batch rowsFit)
@@ -476,48 +436,44 @@ theorem traceFold_satisfies (small : S.certifiedBase < fieldModulus) (batch : �
 
 omit [DecidableEq E] in
 /-- The exact branch relation `Witness.TraceSatisfies` of the digit vectors `ofFlat` of a table
-with the relation of `lockedTraceReduction`, the digit range statement and the binary
-statement. -/
-theorem lockedTrace_satisfies (small : S.certifiedBase < fieldModulus) (batch : ℕ)
-    (rowsFit : O.traceRowCount + 1 + 1 ≤ 2 ^ batch) {table : Table}
-    (relation : (lockedTraceReduction (E := E) st challenge μ fits batch rowsFit).Holds table)
+with the relation of `traceReduction`, the digit range statement and the binary statement. The
+table can have each value from the cell `cells`. -/
+theorem traceSatisfies_of_table (small : S.certifiedBase < fieldModulus) (batch : ℕ)
+    (rowsFit : O.traceRowCount + 1 ≤ 2 ^ batch) {table : Table}
+    (relation : (traceReduction (E := E) st challenge μ fits batch rowsFit).Holds table)
     (range : RangeHolds S.certifiedBase μ table)
     (binary : BinaryOn (O.binarySupport fold) μ table) :
     (O.ofFlat fold table).TraceSatisfies st challenge := by
-  obtain ⟨zero, flat⟩ := lockedTraceRelation_holds relation
-  have same : ∀ x ≤ O.cells fold, table x = (O.ofFlat fold table).flat x := fun x below => by
-    rcases Nat.lt_or_eq_of_le below with inside | rfl
-    · exact (O.flat_ofFlat fold table inside).symm
-    · rw [zero, Witness.flat_of_le _ le_rfl]
+  have same : ∀ x < O.cells fold, table x = (O.ofFlat fold table).flat x :=
+    fun x inside => (O.flat_ofFlat fold table inside).symm
   have ranged : RangeHolds S.certifiedBase μ (O.ofFlat fold table).flat := fun x inside => by
-    by_cases below : x ≤ O.cells fold
+    by_cases below : x < O.cells fold
     · rw [← same x below]
       exact range x inside
-    · have last := range (O.cells fold) fits
-      rw [zero] at last
-      rw [Witness.flat_of_le _ (Nat.le_of_lt (Nat.lt_of_not_le below))]
-      exact last
+    · rw [Witness.flat_of_le _ (Nat.le_of_not_lt below), zero_mul]
+      exact range.zero
   have binaried : BinaryOn (O.binarySupport fold) μ (O.ofFlat fold table).flat :=
     fun x inside member => by
-      rw [← same x (Nat.le_of_lt member.2)]
+      rw [← same x member.2]
       exact binary x inside member
   exact Witness.traceSatisfies_of_flat μ fits
     ((O.flatLayout fold μ fits).alphabets small _ ranged binaried)
-    (traceRelation_holds_congr same flat)
+    (traceRelation_holds_congr same relation)
 
 /-- Akita Lemma 10.42 (i) for the table of a successor source of a trace fold, with
 `foldCheck_avoids`: on a path of `foldCheck` that avoids the bad sets, a final claim that is true
 for the table gives the exact branch relation `Witness.TraceSatisfies` of the digit vectors
 `ofFlat` of the table (the hypothesis of Akita Corollary 10.32 for one child). -/
-theorem lockedTraceFold_satisfies (small : S.certifiedBase < fieldModulus) (batch : ℕ)
-    (rowsFit : O.traceRowCount + 1 + 1 ≤ 2 ^ batch) (table : Table) :
-    (foldCheck (lockedTraceReduction st challenge μ fits batch rowsFit) S.certifiedBase
-      (O.binarySupport fold) table).Avoids fun result =>
+theorem traceTableFold_satisfies (small : S.certifiedBase < fieldModulus) (batch : ℕ)
+    (rowsFit : O.traceRowCount + 1 ≤ 2 ^ batch) (table : Table) :
+    (foldCheck (traceReduction st challenge μ fits batch rowsFit) S.certifiedBase
+      (O.binarySupport fold) (O.compressed fold) table).Avoids fun result =>
       ∀ r2 v, result = some (r2, v) → v = mle r2 (lifted E table) →
         (O.ofFlat fold table).TraceSatisfies st challenge :=
-  (foldCheck_avoids (lockedTraceReduction st challenge μ fits batch rowsFit)
-    S.certifiedBase (O.binarySupport fold) table).mono fun _ checked r2 v equal opening =>
-      lockedTrace_satisfies st challenge μ fits small batch rowsFit
+  (foldCheck_avoids (traceReduction st challenge μ fits batch rowsFit)
+    S.certifiedBase (O.binarySupport fold) (O.compressed fold) (O.binarySupport_empty fold)
+      table).mono fun _ checked r2 v equal opening =>
+      traceSatisfies_of_table st challenge μ fits small batch rowsFit
         (checked r2 v equal opening).1 (checked r2 v equal opening).2.1
         (checked r2 v equal opening).2.2
 

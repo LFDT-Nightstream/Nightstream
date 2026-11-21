@@ -9,6 +9,9 @@ Claims.Akita.checkpoint_extraction	lawful.segment	And
 Claims.Akita.checkpoint_extraction	lawful.key_some	Eq
 Claims.Akita.checkpoint_extraction	lawful.key_mass	LE.le
 Claims.Akita.checkpoint_extraction	lawful.weight_nonnegative	LE.le
+Claims.Akita.checkpoint_extraction	lawful.work_accept	Membership.mem
+Claims.Akita.checkpoint_extraction	lawful.work_keep	Iff
+Claims.Akita.checkpoint_extraction	lawful.work_mass	LE.le
 Claims.Akita.checkpoint_extraction	lawful.leaf_point	Eq
 Claims.Akita.checkpoint_extraction	lawful.leaf_holds	Spec.Checkpoint.Structure.holds
 Claims.Akita.checkpoint_extraction	lawful.plain_holds	Spec.Checkpoint.Structure.holds
@@ -41,6 +44,9 @@ Claims.Akita.checkpoint_sound	lawful.segment	And
 Claims.Akita.checkpoint_sound	lawful.key_some	Eq
 Claims.Akita.checkpoint_sound	lawful.key_mass	LE.le
 Claims.Akita.checkpoint_sound	lawful.weight_nonnegative	LE.le
+Claims.Akita.checkpoint_sound	lawful.work_accept	Membership.mem
+Claims.Akita.checkpoint_sound	lawful.work_keep	Iff
+Claims.Akita.checkpoint_sound	lawful.work_mass	LE.le
 Claims.Akita.checkpoint_sound	lawful.leaf_point	Eq
 Claims.Akita.checkpoint_sound	lawful.leaf_holds	Spec.Checkpoint.Structure.holds
 Claims.Akita.checkpoint_sound	lawful.plain_holds	Spec.Checkpoint.Structure.holds
@@ -223,6 +229,7 @@ Claims.Akita.key20_opening_accepts	decodes₃	Eq
 Claims.Akita.key20_opening_accepts	decodes₄	Eq
 Claims.Akita.key20_opening_accepts	decodes₅	Eq
 Claims.Akita.key20_opening_accepts	decodesL	Eq
+Claims.Akita.key20_opening_accepts	worked	Membership.mem
 Claims.Akita.key20_opening_bound	nonemptyCoord	Nonempty
 Claims.Akita.key20_opening_bound	finiteWire	Finite
 Claims.Akita.key20_opening_bound	drawn.injective	Function.Injective

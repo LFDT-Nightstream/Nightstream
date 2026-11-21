@@ -127,7 +127,7 @@ structure Opening (logicalWidth : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth) (Wire Coord : Type) (total : ℕ) where
   shape : Claims logicalWidth publicFits
-  bound : Prefix Wire (Coord → K) total → (g : Fin 3) → (root.shape g).Payload
+  bound : Prefix Wire (Option Coord → K) total → (g : Fin 3) → (root.shape g).Payload
   β : ∀ g, Module.Basis (Fin (root.planes g)) Zq K
   key : (g : Fin 3) → Key (root.shape g)
   openKey : root.OpenKey
@@ -233,7 +233,7 @@ local notation "fifth" =>
 
 /-- The final verifier for the proofs with steps of the shape of `o`: the verifier
 `towerAccepts` of `FinalKey20.sound` under the setup `laidSetup`. -/
-def Opening.accepts : Prefix Wire (Coord → K) total → Prop :=
+def Opening.accepts : Prefix Wire (Option Coord → K) total → Prop :=
   towerAccepts (weight₃ := o.weight₃) (weight₄ := o.weight₄) (weight₅ := o.weight₅) C vf
     Route.coefficient (Route.euclidean norm₃.operator norm₃.limit)
     (Route.euclidean norm₄.operator norm₄.limit) (Route.euclidean norm₅.operator norm₅.limit)
@@ -313,7 +313,8 @@ structure Opening.Sized (p : ℝ) : Prop where
     o.innerBound
 
 /-- The conditions `Compose.Sized` of the final verifier for the shape of `o`, and the suffix of
-its Akita opening with 142 retry loops and the sum of the stage errors at most `6318/|K| + 135·p`
+its Akita opening with 142 retry loops and the sum of the stage errors at most `317735/(1024·|K|) +
+49/8·p`
 (`FinalAkita.mixed_ready` for the numbers of `Key20.lean`, with `Key20.towerError_le`).
 `blocks`: the key polynomial has 512 blocks. `coords`: an answer of the oracle has 28 slots. -/
 theorem Opening.ready {p : ℝ} (premises : Premises setup packageWidths)
@@ -323,7 +324,7 @@ theorem Opening.ready {p : ℝ} (premises : Premises setup packageWidths)
       Tier.Suffix (o.accepts setup packageWidths step cap control read head) (Compose.root C vf)
         (OpensAt (Compose.root C vf) o.commit o.value o.place o.key o.mass)
         (o.tower setup packageWidths step cap control read head) error loops tree ∧
-      error ≤ 6318 / (Fintype.card K : ℝ) + 135 * p ∧ 2 + loops = 144 := by
+      error ≤ 317735 / (1024 * Fintype.card K) + 49 / 8 * p ∧ 2 + loops = 144 := by
   have use := laidSetup_use setup o.shape sized.laid blocks
   obtain ⟨-, -, -, span⟩ := key20_points S₀ o.shape use
   have slots : 22 ≤ Fintype.card Coord := (by decide : 22 ≤ 28).trans coords
@@ -379,13 +380,14 @@ theorem Opening.ready {p : ℝ} (premises : Premises setup packageWidths)
       (start := Compose.root C vf) sized.chance sized.chance₁ sized.chance₂ sized.chance₃
       sized.chance₄ sized.chance₅ sized.chanceL, by decide⟩
 
-variable (prover : OracleComp (Prefix Wire (Coord → K) total) (Coord → K) (ℕ → Wire))
+variable (prover : OracleComp (Prefix Wire (Option Coord → K) total) (Option Coord → K) (ℕ → Wire))
 
 /-- The proof with witnesses that the extractor gives for the shape of `o`: the proof
 `Setup.envelope` of the table `W` of a certificate, for the statement and the claims of the first
 message of the prover. It is the bottom proof when the extractor returns no certificate. -/
-noncomputable def Opening.proof (budget : ℕ) (table : Prefix Wire (Coord → K) total → Coord → K)
-    (tape : Tape (Prefix Wire (Coord → K) total) Coord K budget total) :
+noncomputable def Opening.proof (budget : ℕ) (table : Prefix Wire (Option Coord → K) total → Option
+  Coord → K)
+    (tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget total) :
     Terminal.ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits) :=
   match Checkpoint.extract whole prover budget table tape with
   | some (.inl certificate) =>
@@ -408,21 +410,22 @@ noncomputable def Opening.breakChance (budget : ℕ) : ℝ :=
 /-- Knowledge soundness of the final verifier for the shape of `o` (Akita Theorem 10.17). For
 each prover with at most `Q` queries to the oracle, the probability that the verifier
 `Opening.accepts` accepts and `Verifies` rejects the proof `Opening.proof` of the extractor is at
-most `(Q + 1)·(runCost + 6318/|K| + 135·p) + (Q + 1)·144/budget + breakChance`. The probability
+most `(Q + 1)·(runCost + 317735/(1024·|K|) + 49/8·p) + (Q + 1)·144/budget + breakChance`. The
+probability
 is over the table of the oracle and the tape of the extractor. The terms are those of
 `FinalKey20.sound`. -/
 theorem Opening.knowledge {p : ℝ} (premises : Premises setup packageWidths)
     (blocks : setup.keyBlocks = 512) (coords : 28 ≤ Fintype.card Coord)
     (sized : o.Sized setup packageWidths step cap control read head p) {queries : ℕ}
     (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → K) total) Coord K budget total,
+    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget total,
         (if o.accepts setup packageWidths step cap control read head (played prover table) ∧
             ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths cap control
               (head (played prover table).first).statement
               (o.proof setup packageWidths step cap control read head prover budget table tape)
           then (1 : ℝ) else 0) ≤
       (queries + 1) * (FinalVerifier.Setup.runCost S₀ o.shape +
-          (6318 / (Fintype.card K : ℝ) + 135 * p)) +
+          (317735 / (1024 * Fintype.card K) + 49 / 8 * p)) +
         (queries + 1) * (144 : ℕ) / budget +
         o.breakChance setup packageWidths step cap control read head prover budget := by
   obtain ⟨composed, error, loops, tree, later, small, count⟩ :=
@@ -482,19 +485,20 @@ a transcript when the statement of the first message is a statement of zero step
 when the first message names the shape `kind` of the family and the verifier `Opening.accepts`
 of this shape accepts. A first message with a shape outside the family has `kind` equal to
 `none`. -/
-def finalAccepts (point : Prefix Wire (Coord → K) total) : Prop :=
+def finalAccepts (point : Prefix Wire (Option Coord → K) total) : Prop :=
   (Terminal.StatementValid (head point.first).statement ∧
       (head point.first).statement.iteration = 0 ∧
       (head point.first).statement.zi = (head point.first).statement.z0) ∨
     ∃ index, kind point.first = some index ∧
       (family index).accepts setup packageWidths step cap control read head point
 
-variable (prover : OracleComp (Prefix Wire (Coord → K) total) (Coord → K) (ℕ → Wire))
+variable (prover : OracleComp (Prefix Wire (Option Coord → K) total) (Option Coord → K) (ℕ → Wire))
 
 /-- The proof with witnesses of the extractor for the final verifier: the bottom proof for a
 statement of zero steps, and `Opening.proof` of the shape that the first message names. -/
-noncomputable def finalProof (budget : ℕ) (table : Prefix Wire (Coord → K) total → Coord → K)
-    (tape : Tape (Prefix Wire (Coord → K) total) Coord K budget total) :
+noncomputable def finalProof (budget : ℕ) (table : Prefix Wire (Option Coord → K) total → Option
+  Coord → K)
+    (tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget total) :
     Terminal.ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits) :=
   if Terminal.StatementValid (head (prover.run table 0)).statement ∧
       (head (prover.run table 0)).statement.iteration = 0 ∧
@@ -509,13 +513,14 @@ noncomputable def finalProof (budget : ℕ) (table : Prefix Wire (Coord → K) t
 variable [Finite Wire]
 
 /-- The bound of the final verifier for the shapes of the family: the sum over the shapes of
-`(Q + 1)·(runCost + 6318/|K| + 135·p) + (Q + 1)·144/budget + breakChance`. The terms of a shape
+`(Q + 1)·(runCost + 317735/(1024·|K|) + 49/8·p) + (Q + 1)·144/budget + breakChance`. The terms of a
+shape
 are those of `FinalKey20.sound` for its setup `laidSetup` and its opening, and the sum is the
 union bound over the shapes. -/
 noncomputable def shapesBound (p : ℝ) (queries budget : ℕ) : ℝ :=
   ∑ index, ((queries + 1) *
       (FinalVerifier.Setup.runCost (laidSetup setup (family index).shape) (family index).shape +
-        (6318 / (Fintype.card K : ℝ) + 135 * p)) +
+        (317735 / (1024 * Fintype.card K) + 49 / 8 * p)) +
     (queries + 1) * (144 : ℕ) / budget +
     (family index).breakChance setup packageWidths step cap control read head prover budget)
 
@@ -530,7 +535,7 @@ theorem knowledge_all {p : ℝ} (premises : Premises setup packageWidths)
     (sized : ∀ index,
       (family index).Sized setup packageWidths step cap control read head p) {queries : ℕ}
     (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → K) total) Coord K budget total,
+    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget total,
         (if finalAccepts setup packageWidths step cap control read head kind family
               (played prover table) ∧
             ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths cap control
@@ -582,7 +587,8 @@ theorem knowledge_all {p : ℝ} (premises : Premises setup packageWidths)
 family and for the proof of zero steps. For each prover with at most `Q` queries to the oracle,
 the probability that `finalAccepts` accepts and no proof with witnesses satisfies `Verifies` for
 the statement of the first message is at most `shapesBound`: the sum over the shapes of the
-family of `(Q + 1)·(runCost + 6318/|K| + 135·p) + (Q + 1)·144/budget + breakChance`. `blocks`: the
+family of `(Q + 1)·(runCost + 317735/(1024·|K|) + 49/8·p) + (Q + 1)·144/budget + breakChance`.
+`blocks`: the
 key polynomial has 512 blocks. `coords`: an answer of the oracle has 28 slots. `sized`: the
 hypotheses of `FinalKey20.sound` on the opening of each shape. -/
 theorem sound_all {p : ℝ} (premises : Premises setup packageWidths)
@@ -599,7 +605,7 @@ theorem sound_all {p : ℝ} (premises : Premises setup packageWidths)
       shapesBound setup packageWidths step cap control read head family prover p queries
         budget := by
   have flat (value : ℝ) : value =
-      𝔼 _tape : Tape (Prefix Wire (Coord → K) total) Coord K budget total, value :=
+      𝔼 _tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget total, value :=
     (Finset.expect_const Finset.univ_nonempty value).symm
   refine le_trans (Finset.expect_le_expect fun table _ => ?_)
     (knowledge_all setup packageWidths step cap control read head kind family prover premises

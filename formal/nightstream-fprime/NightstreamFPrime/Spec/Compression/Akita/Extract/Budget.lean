@@ -73,17 +73,18 @@ noncomputable def interactiveError (field : ℕ) : List LevelError → ℝ
   | level :: rest => level.value field + interactiveError field rest
 
 /-- The numbers of a level with the checks `foldCheck` (Akita (189) after `ε_cw,h`). -/
-def foldLevel (blocks : ℕ) (chance : ℝ) (badBound vars batch base : ℕ) : LevelError where
+def foldLevel (blocks : ℕ) (chance : ℝ) (badBound vars batch base : ℕ) (bin : Bool) :
+    LevelError where
   blocks := blocks
-  numerator := badBound + batch + vars + rangeNumerator vars base + 1 + 1 + 3 * vars
+  numerator := badBound + batch + vars + rangeNumerator vars base + binDraws bin + 1 + 3 * vars
   chance := chance
 
 /-- The stage errors `r·p + ε_fold` of a level with the checks `foldCheck`, as
 `Tier.suffix_push` and `Tier.suffix_last` have them, are the value of `foldLevel`. -/
 theorem foldLevel_value {E : Type} [Field E] [Fintype E] [Algebra Zq E] (R : Reduction E)
-    (blocks base : ℕ) (chance : ℝ) :
-    blocks * chance + foldError R base =
-      (foldLevel blocks chance R.badBound R.vars R.batch base).value (Fintype.card E) := by
+    (blocks base : ℕ) (bin : Bool) (chance : ℝ) :
+    blocks * chance + foldError R base bin =
+      (foldLevel blocks chance R.badBound R.vars R.batch base bin).value (Fintype.card E) := by
   rw [foldError_eq]
   rfl
 
@@ -141,9 +142,10 @@ namespace Tier
 
 variable {Wire Coord Slot : Type} {total : ℕ} [Fintype Slot] [Nonempty Slot] [Fintype Coord]
   [DecidableEq Coord] {Inner BreakT CandT KeyT Wit : Type}
-  {accept : Prefix Wire (Coord → Slot) total → Prop} {start : ℕ}
-  {Opens : Prefix Wire (Coord → Slot) total → Wit → Prop}
-  {body : Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire) Inner BreakT CandT
+  {accept : Prefix Wire (Option Coord → Slot) total → Prop} {start : ℕ}
+  {Opens : Prefix Wire (Option Coord → Slot) total → Wit → Prop}
+  {body : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
+    BreakT CandT
     KeyT Wit}
   {error : ℝ} {loops tree : ℕ}
 
@@ -160,11 +162,11 @@ most `Q ≤ Q_max` queries makes the verifier accept with no output of the extra
 probability of at most `2^{−λ} + (Q + 1)·loops/budget`. -/
 theorem Suffix.extraction_le_strength (suffix : Suffix accept start Opens body error loops tree)
     (root : start = 0)
-    (prover : OracleComp (Prefix Wire (Coord → Slot) total) (Coord → Slot) (ℕ → Wire))
+    (prover : OracleComp (Prefix Wire (Option Coord → Slot) total) (Option Coord → Slot) (ℕ → Wire))
     {queries queryMax : ℕ} (bounded : prover.QueryBound queries) (within : queries ≤ queryMax)
     {strength : ℝ} (budgeted : (queryMax + 1) * error ≤ (2 : ℝ) ^ (-strength)) {budget : ℕ}
     (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → Slot) total) Coord Slot budget
+    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot budget
           body.protocol.stages,
         (if body.protocol.accept (body.protocol.final prover table) ∧
           Checkpoint.extract body prover budget table tape = none then (1 : ℝ) else 0) ≤

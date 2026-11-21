@@ -8,7 +8,9 @@ import NightstreamFPrime.Spec.Compression.Akita.Shapes
 of its rows has the numbers of its Lean shape and of its Lean opening descriptor
 (`Spec/Compression/Akita/Shapes.lean`). Each group of each level of `key20.aks` and its terminal
 have the numbers of `Spec/Compression/Akita/Key20.lean`, and each group of each level of each row
-of `key30.aks` and its terminal have the numbers of `Spec/Compression/Akita/Key30.lean`. Each
+of `key30.aks` and its terminal have the numbers of `Spec/Compression/Akita/Key30.lean`. The count
+`output_witness_len` of a level is the end of its witness in the model with the last alignment of
+the Akita code, and each alignment of the code before it is empty (`segmentsAligned`). Each
 matrix `A`, `B` and `D` of `key20.aks` and `A` of its terminal is below an instance of the list
 `Key20.instances` (`Spec/Compression/Akita/Key20Instances.lean`), and each instance of the list
 after the two compression maps has the degree, the rank, the width, the norm and the priced bound
@@ -149,14 +151,52 @@ def entry (S : Shape) (O : OpeningShape S) (fold : Descriptor) (norm : Option Ke
 /-- The count of the columns of `D` for a group. -/
 def columns (S : Shape) (O : OpeningShape S) : ℕ := S.blocks * O.subcolumns * S.openingDigits
 
-/-- The count of cells of the next witness of a level with quotients: the cells of the flat
-witness and `digits` cells for each coefficient of each ring row, in blocks of `align` cells.
-`degrees` is the sum of the degrees of the ring rows of the level. The Akita code (revision
-`d50f700f`, `crates/akita-params/src/witness.rs`) has the largest degree `d_A` of the groups for
-`align` at a level with two groups or more, and each end is then a count of ring elements of the
-next level. -/
-def lifted (cells degrees align : ℕ) (digits : ℕ := Key20.quotientDigits) : ℕ :=
-  (cells + digits * degrees + align - 1) / align * align
+/-- The count of cells of the next witness of a level with quotients: the end `quotientRoom` of
+the witness of Akita (76) in the model, and then the zeros of the last alignment of the Akita code
+(revision `d50f700f`, `crates/akita-params/src/witness.rs` and `witness/tail.rs`), to a multiple
+of `align`. -/
+def aligned (room align : ℕ) : ℕ := (room + align - 1) / align * align
+
+/-- The least ring degree of the rows of a fold before its compression rows: the block of the
+alignments of the Akita code before the compression digits, and the last alignment of a level
+with one group. -/
+def block {S : Shape} (O : OpeningShape S) : ℕ :=
+  min (min O.carrierDegree S.innerDegree) (min S.outerDegree O.openDegree)
+
+/-- The block of a fold with opening groups: the least ring degree of their rows. -/
+def groupsBlock {n : ℕ} (B : Batch (Fin n)) : ℕ :=
+  (List.finRange n).foldr (fun g least => min least (block (B.opening g))) B.openDegree
+
+/-- The last alignment of a level with two groups or more in the Akita code: the largest `d_A` of
+the groups. -/
+def groupsAlign {n : ℕ} (B : Batch (Fin n)) : ℕ :=
+  (List.finRange n).foldr (fun g most => max most (B.shape g).innerDegree) 0
+
+/-- The Akita code aligns the witness of a level before its compression digits to `block`, before
+the digits of the first maps to `first`, and before the digits of the second maps to `second`
+(`crates/akita-params/src/witness/tail.rs`). The model has no zeros there, so these positions of
+`gaps` are multiples of these degrees. -/
+def gapsAligned (G : Gaps) (block first second : ℕ) : Bool :=
+  (G.main + G.mainCells) % block == 0 && (G.main + G.mainCells) % first == 0 &&
+    (G.middle + G.mainCells + G.middleCells) % second == 0
+
+/-- The alignments of the Akita code before the last one are empty at each level of the two files
+with compression digits. The trace levels have no quotient digits (`gaps` with no digit). The
+maps have the degrees 64 and 32 (`Key20.maps`). -/
+def segmentsAligned : Bool :=
+  open Key20 in
+  gapsAligned (root.gaps quotientDigits) (groupsBlock root) 64 32 &&
+    gapsAligned (level₁.opening.gaps level₁.fold quotientDigits) (block level₁.opening) 64 32 &&
+    [level₂, level₃].all (fun L => gapsAligned (L.opening.gaps L.fold 0) (block L.opening) 64 32) &&
+    Key30.rows.all (fun r =>
+      gapsAligned ((Key30.root r).gaps Key30.quotientDigits₀) (groupsBlock (Key30.root r)) 64 32 &&
+        gapsAligned ((Key30.level₁ r).gaps Key30.quotientDigits) (groupsBlock (Key30.level₁ r))
+          64 32 &&
+        gapsAligned ((Key30.level₂ r).opening.gaps (Key30.level₂ r).fold Key30.quotientDigits)
+          (block (Key30.level₂ r).opening) 64 32) &&
+    gapsAligned (Key30.level₃.opening.gaps Key30.level₃.fold Key30.quotientDigits)
+      (block Key30.level₃.opening) 64 32 &&
+    gapsAligned (Key30.level₄.opening.gaps Key30.level₄.fold 0) (block Key30.level₄.opening) 64 32
 
 /-- The numbers of the levels of `Key20.lean`: for each level the numbers of its groups, the
 width of `D`, the count of cells of its next witness and its count `μ` of variables. -/
@@ -168,31 +208,30 @@ def tower : List (List (List ℕ) × List ℕ) :=
       [columns L.shape L.opening, L.opening.cells L.fold, L.vars])
   [(groups.map fun g => entry (root.shape g) (root.opening g) (root.fold g) none,
       [(groups.map fun g => columns (root.shape g) (root.opening g)).sum,
-        lifted root.cells root.degreeSum level₁.shape.innerDegree, rootVars]),
+        aligned (root.quotientRoom quotientDigits) (groupsAlign root), rootVars]),
     ([entry level₁.shape level₁.opening level₁.fold none],
       [columns level₁.shape level₁.opening,
-        lifted (level₁.opening.cells level₁.fold) level₁.opening.degreeSum
-          level₂.shape.innerDegree, level₁.vars]),
+        aligned (level₁.opening.quotientRoom level₁.fold quotientDigits) (block level₁.opening),
+        level₁.vars]),
     trace level₂ none, trace level₃ norm₃, trace level₄ norm₄, trace level₅ norm₅]
 
-/-- The numbers of the levels of a row of `Key30.lean`, in the form of `tower`. The root and the
-level 1 have groups, and the largest degree `d_A` of their groups is 2048 and 512. -/
+/-- The numbers of the levels of a row of `Key30.lean`, in the form of `tower`. -/
 def tower30 (r : Key30.Row) : List (List (List ℕ) × List ℕ) :=
   open Key30 in
-  let groups {n : ℕ} (B : Batch (Fin n)) (digits align vars : ℕ) :=
+  let groups {n : ℕ} (B : Batch (Fin n)) (digits vars : ℕ) :=
     ((List.finRange n).map fun g => entry (B.shape g) (B.opening g) (B.fold g) none,
       [((List.finRange n).map fun g => columns (B.shape g) (B.opening g)).sum,
-        lifted B.cells B.degreeSum align digits, vars])
-  let packing (L : Key20.Level) (next : ℕ) :=
+        aligned (B.quotientRoom digits) (groupsAlign B), vars])
+  let packing (L : Key20.Level) :=
     ([entry L.shape L.opening L.fold none],
       [columns L.shape L.opening,
-        lifted (L.opening.cells L.fold) L.opening.degreeSum next quotientDigits, L.vars])
+        aligned (L.opening.quotientRoom L.fold quotientDigits) (block L.opening), L.vars])
   let trace (L : Key20.Level) (norm : Option Key20.Squared) :=
     ([entry L.shape L.opening L.fold norm],
       [columns L.shape L.opening, L.opening.cells L.fold, L.vars])
-  [groups (root r) quotientDigits₀ 2048 rootVars, groups (level₁ r) quotientDigits 512 vars₁,
-    packing (level₂ r) level₃.shape.innerDegree, packing level₃ level₄.shape.innerDegree,
-    trace level₄ none, trace level₅ norm₅, trace level₆ norm₆]
+  [groups (root r) quotientDigits₀ rootVars, groups (level₁ r) quotientDigits vars₁,
+    packing (level₂ r), packing level₃, trace level₄ none, trace level₅ norm₅,
+    trace level₆ norm₆]
 
 /-- The numbers of a terminal in the fields of `fileTerminal`. -/
 def terminalNumbers (S : Shape) (norm : Key20.Squared) : List ℕ :=
@@ -215,14 +254,14 @@ def fileEntry (params group : Json) : Except String (List ℕ) := do
     payload, payload, vars] ++ norm
 
 /-- The fields of the levels of a schedule for `tower`. The count of variables of a level is that
-of the last group of the next level, which is the group of its witness, and for the last level it is the least count for the cells of the
-terminal and a zero cell. -/
+of the last group of the next level, which is the group of its witness, and for the last level it
+is the least count for the cells of the terminal. -/
 def fileTower (schedule : Json) : Except String (List (List (List ℕ) × List ℕ)) := do
   let folds := (← (← schedule.getObjVal? "recursive_folds").getArr?).toList
   let vars ← folds.mapM fun fold => do
     let groups ← (← field fold ["params", "groups", "entries"]).getArr?
     nat (← (groups.back?.map pure).getD (throw "no group")) ["profile", "group", "num_vars"]
-  let last := Nat.clog 2 ((← nat schedule ["terminal", "input_witness_len"]) + 1)
+  let last := Nat.clog 2 (← nat schedule ["terminal", "input_witness_len"])
   (((← schedule.getObjVal? "root") :: folds).zip (vars ++ [last])).mapM fun (level, next) => do
     let params ← level.getObjVal? "params"
     let groups ← (← field params ["groups", "entries"]).getArr?
@@ -322,6 +361,8 @@ def instancesHold (path : System.FilePath) (listed : List (ℕ × ℕ × ℕ × 
 #eval towerHolds "../../crates/ns-compress/artifacts/key30.aks" <| Key30.rows.map fun r =>
   (tower30 r, terminalNumbers Key30.terminal Key30.normTerminal)
 #eval setupHolds "../../crates/ns-compress/artifacts/key30.aks"
+#eval (do unless segmentsAligned do throw <| IO.userError "an alignment of the code is not empty"
+  : IO Unit)
 #eval instancesHold "../../crates/ns-compress/artifacts/key20.aks" (Key20.instances.map (·.key))
 #eval instancesHold "../../crates/ns-compress/artifacts/key30.aks" (Key30.instances.map (·.key))
 

@@ -84,14 +84,14 @@ theorem sourceClaim_value (shape : S.Bounded) (table : Table) (block position pa
       live cell (Nat.mul_le_of_le_div _ _ _ (Nat.le_of_not_lt inside))]
 
 /-- The table that the next level commits to after a packing fold on the quotient-lift route: the
-flat witness of the honest prover for the source blocks, the point and the fold challenges, and
-then the digits of the quotients of its ring rows (Akita (76) and Figure 4, step 3). -/
+flat witness of the honest prover for the source blocks, the point and the fold challenges, with
+the digits of the quotients of its ring rows at the places of Akita (76) (Figure 4, step 3). -/
 noncomputable def liftNext (β : Module.Basis (Fin O.planes) Zq E) (key : Key S)
-    (openKey : OpeningKey O) (fold : Descriptor) (μ : ℕ) (cells : O.cells fold < 2 ^ μ)
+    (openKey : OpeningKey O) (fold : Descriptor) (μ : ℕ) (cells : O.cells fold ≤ 2 ^ μ)
     (digits : ℕ) (source : Fin S.blocks → S.Source) (point : Point O E)
     (challenge : Fin S.blocks → Rq O.carrierDegree) : Table :=
-  (lockedRelation O fold β ((sourceClaim β key openKey source point).statement key openKey)
-    challenge μ cells).completion S.certifiedBase digits (O.cells fold + 1)
+  (flatRelation O fold β ((sourceClaim β key openKey source point).statement key openKey)
+    challenge μ cells).completion (O.gaps fold digits) S.certifiedBase digits
     (honest β openKey point fold challenge (commitSource key source).2).flat
 
 /-- The fit conditions of the honest prover of a packing fold for the source blocks `source`
@@ -100,7 +100,7 @@ the family, the response `z = Σ_i ι(c_i)·s_i` satisfies `Enc`, and `after` ho
 `liftNext`. Akita Theorem 10.9 has the probability that a response does not fit in the term `ξ_h`
 of (155). -/
 def LiftFit (β : Module.Basis (Fin O.planes) Zq E) (key : Key S) (openKey : OpeningKey O)
-    (fold : Descriptor) (μ : ℕ) (cells : O.cells fold < 2 ^ μ) (digits : ℕ)
+    (fold : Descriptor) (μ : ℕ) (cells : O.cells fold ≤ 2 ^ μ) (digits : ℕ)
     (decode : E → Option (Rq O.carrierDegree)) (source : Fin S.blocks → S.Source)
     (after : Table → Prop) : Prop :=
   ∀ (point : Point O E) (challenge : Fin S.blocks → Rq O.carrierDegree),
@@ -109,8 +109,8 @@ def LiftFit (β : Module.Basis (Fin O.planes) Zq E) (key : Key S) (openKey : Ope
       after (liftNext β key openKey fold μ cells digits source point challenge)
 
 variable [Fintype E] [DecidableEq E] {Wire Coord : Type} {claim : Wire → Claim O E} {μ : ℕ}
-  {cells : O.cells fold < 2 ^ μ} {digits : ℕ} {room : O.quotientRoom fold digits ≤ 2 ^ μ}
-  {batch : ℕ} {rowsFit : O.rowCount + 1 + 1 ≤ 2 ^ batch} {block : Fin S.blocks → Coord}
+  {cells : O.cells fold ≤ 2 ^ μ} {digits : ℕ} {room : O.quotientRoom fold digits ≤ 2 ^ μ}
+  {batch : ℕ} {rowsFit : O.rowCount + 1 ≤ 2 ^ batch} {block : Fin S.blocks → Coord}
   {decode : E → Option (Rq O.carrierDegree)} {read : Reader Wire} {weight start : ℕ}
 
 /-- The honest prover of the checks of a packing level on the quotient-lift route (Akita
@@ -140,7 +140,7 @@ theorem liftLevel_wins {sendable : (M : Type) → M → Prop} {slots width cap :
       WinsAt sendable slots
         ((liftFold β key openKey claim μ cells digits room batch rowsFit block decode read weight
           start).check wire c (liftNext β key openKey fold μ cells digits source point c))
-        (foldDraws μ S.certifiedBase) 0 fun result _ place => place ≤ 1 ∧
+        (foldDraws μ S.certifiedBase (O.compressed fold)) 0 fun result _ place => place ≤ 1 ∧
           ∃ r2 : List E, r2.length = μ ∧ result = some (r2, mle r2
             (lifted E (liftNext β key openKey fold μ cells digits source point c))) := by
   obtain ⟨encodable, later⟩ := fit point c member
@@ -151,8 +151,9 @@ theorem liftLevel_wins {sendable : (M : Type) → M → Prop} {slots width cap :
     (rowsFit := rowsFit) (block := block) (decode := decode) (read := read) (weight := weight)
     (start := start) sends range four base covers positive satisfies
   rw [ready] at wins
-  exact ⟨later, fun x large => FlatRelation.completion_of_le _ _
-    ((lockedRelation_quotientEnd β _ c μ cells digits).trans_le large), wins⟩
+  exact ⟨later, fun x large => FlatRelation.completion_of_le _
+    (flatRelation_counts β _ c μ cells digits) _
+    ((flatRelation_quotientEnd β _ c μ cells digits).trans_le large), wins⟩
 
 end Claim
 
@@ -164,27 +165,27 @@ variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree
   {O₄ : OpeningShape S₄} {fold₄ : Descriptor} {S₅ : Shape} {O₅ : OpeningShape S₅}
   {fold₅ : Descriptor} {S₆ : Shape}
   {Wire Coord : Type} [Fintype Coord] [DecidableEq Coord] {total : ℕ}
-  {accept : Prefix Wire (Coord → E) total → Prop} {read : Reader Wire} {start : ℕ}
+  {accept : Prefix Wire (Option Coord → E) total → Prop} {read : Reader Wire} {start : ℕ}
   {β₁ : Module.Basis (Fin O₁.planes) Zq E} {key₁ : Key S₁} {openKey₁ : OpeningKey O₁}
-  {claim₁ : Wire → Claim O₁ E} {μ₁ : ℕ} {fits₁ : O₁.cells fold₁ < 2 ^ μ₁} {digits₁ : ℕ}
+  {claim₁ : Wire → Claim O₁ E} {μ₁ : ℕ} {fits₁ : O₁.cells fold₁ ≤ 2 ^ μ₁} {digits₁ : ℕ}
   {room₁ : O₁.quotientRoom fold₁ digits₁ ≤ 2 ^ μ₁} {batch₁ : ℕ}
-  {rowsFit₁ : O₁.rowCount + 1 + 1 ≤ 2 ^ batch₁} {block₁ : Fin S₁.blocks → Coord}
+  {rowsFit₁ : O₁.rowCount + 1 ≤ 2 ^ batch₁} {block₁ : Fin S₁.blocks → Coord}
   {decode₁ : E → Option (Rq O₁.carrierDegree)} {weight₁ ν₁ : ℕ}
   {key₂ : Key S₂} {openKey₂ : OpeningKey O₂} {claim₂ : Wire → TraceClaim O₂ E}
-  {μ₂ : ℕ} {fits₂ : O₂.cells fold₂ < 2 ^ μ₂} {batch₂ : ℕ}
-  {rowsFit₂ : O₂.traceRowCount + 1 + 1 ≤ 2 ^ batch₂} {block₂ : Fin S₂.blocks → Coord}
+  {μ₂ : ℕ} {fits₂ : O₂.cells fold₂ ≤ 2 ^ μ₂} {batch₂ : ℕ}
+  {rowsFit₂ : O₂.traceRowCount + 1 ≤ 2 ^ batch₂} {block₂ : Fin S₂.blocks → Coord}
   {decode₂ : E → Option (Rq S₂.innerDegree)} {weight₂ ν₂ m₂ : ℕ}
   {key₃ : Key S₃} {openKey₃ : OpeningKey O₃} {claim₃ : Wire → TraceClaim O₃ E}
-  {μ₃ : ℕ} {fits₃ : O₃.cells fold₃ < 2 ^ μ₃} {batch₃ : ℕ}
-  {rowsFit₃ : O₃.traceRowCount + 1 + 1 ≤ 2 ^ batch₃} {block₃ : Fin S₃.blocks → Coord}
+  {μ₃ : ℕ} {fits₃ : O₃.cells fold₃ ≤ 2 ^ μ₃} {batch₃ : ℕ}
+  {rowsFit₃ : O₃.traceRowCount + 1 ≤ 2 ^ batch₃} {block₃ : Fin S₃.blocks → Coord}
   {decode₃ : E → Option (Rq S₃.innerDegree)} {weight₃ ν₃ m₃ : ℕ}
   {key₄ : Key S₄} {openKey₄ : OpeningKey O₄} {claim₄ : Wire → TraceClaim O₄ E}
-  {μ₄ : ℕ} {fits₄ : O₄.cells fold₄ < 2 ^ μ₄} {batch₄ : ℕ}
-  {rowsFit₄ : O₄.traceRowCount + 1 + 1 ≤ 2 ^ batch₄} {block₄ : Fin S₄.blocks → Coord}
+  {μ₄ : ℕ} {fits₄ : O₄.cells fold₄ ≤ 2 ^ μ₄} {batch₄ : ℕ}
+  {rowsFit₄ : O₄.traceRowCount + 1 ≤ 2 ^ batch₄} {block₄ : Fin S₄.blocks → Coord}
   {decode₄ : E → Option (Rq S₄.innerDegree)} {weight₄ ν₄ m₄ : ℕ}
   {key₅ : Key S₅} {openKey₅ : OpeningKey O₅} {claim₅ : Wire → TraceClaim O₅ E}
-  {μ₅ : ℕ} {fits₅ : O₅.cells fold₅ < 2 ^ μ₅} {batch₅ : ℕ}
-  {rowsFit₅ : O₅.traceRowCount + 1 + 1 ≤ 2 ^ batch₅} {block₅ : Fin S₅.blocks → Coord}
+  {μ₅ : ℕ} {fits₅ : O₅.cells fold₅ ≤ 2 ^ μ₅} {batch₅ : ℕ}
+  {rowsFit₅ : O₅.traceRowCount + 1 ≤ 2 ^ batch₅} {block₅ : Fin S₅.blocks → Coord}
   {decode₅ : E → Option (Rq S₅.innerDegree)} {weight₅ ν₅ m₅ : ℕ}
   {operator₃ limit₃ operator₄ limit₄ operator₅ limit₅ operatorL limitL : ℕ}
   {L : Terminal S₆ E Wire Coord E total (.euclidean operatorL limitL)} {m₆ : ℕ}
@@ -229,7 +230,8 @@ link `Terminal.Linked` and the checks `Terminal.Passed`. `shape₁`, `radix₁`,
 segments of the shape of the level 2, and the live blocks of the level 2 have each cell before the
 end of the quotient digits of the level 1 (Akita Section 4.5, (40) to (42)). `carries₁`: a wire
 message can have the commitment and the claim of the level 2. `decodes₁`: each slot of the table of
-the oracle decodes to a fold challenge of the level 1. `fit`: the fit conditions `LiftFit` of the
+the oracle decodes to a fold challenge of the level 1, and `worked`: each work slot of the table
+has 57 zero work bits. `fit`: the fit conditions `LiftFit` of the
 level 1, `TraceFit` of the levels 2 to 5, and `‖z‖_2² ≤ S_max,term` at the terminal. The other
 hypotheses are those of `traceTower_complete`. -/
 theorem packTower_complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
@@ -278,14 +280,15 @@ theorem packTower_complete {sendable : (M : Type) → M → Prop} {slots width c
     (next : L.start = Tier.finish fifth) (inside : L.start < total)
     (reads : ∀ point, L.read point = statementOf (point.wire L.start))
     (clears : ∀ point, L.partials point = partialsOf (point.wire L.start))
-    (table : Prefix Wire (Coord → E) total → Coord → E)
-    (decodes₁ : ∀ input i, (decode₁ (table input (block₁ i))).isSome)
-    (decodes₂ : ∀ input i, (decode₂ (table input (block₂ i))).isSome)
-    (decodes₃ : ∀ input i, (decode₃ (table input (block₃ i))).isSome)
-    (decodes₄ : ∀ input i, (decode₄ (table input (block₄ i))).isSome)
-    (decodes₅ : ∀ input i, (decode₅ (table input (block₅ i))).isSome)
-    (decodesL : ∀ input i, (L.decode (table input (L.block i))).isSome)
-    {wire₀ : Wire} {early : List ((Coord → E) × Wire)} (on : OnPath accept table wire₀ early)
+    (table : Prefix Wire (Option Coord → E) total → Option Coord → E)
+    (decodes₁ : ∀ input i, (decode₁ (table input (some (block₁ i)))).isSome)
+    (decodes₂ : ∀ input i, (decode₂ (table input (some (block₂ i)))).isSome)
+    (decodes₃ : ∀ input i, (decode₃ (table input (some (block₃ i)))).isSome)
+    (decodes₄ : ∀ input i, (decode₄ (table input (some (block₄ i)))).isSome)
+    (decodes₅ : ∀ input i, (decode₅ (table input (some (block₅ i)))).isSome)
+    (decodesL : ∀ input i, (L.decode (table input (L.slot i))).isSome)
+    (worked : ∀ input, table input none ∈ workZeros E 57)
+    {wire₀ : Wire} {early : List ((Option Coord → E) × Wire)} (on : OnPath accept table wire₀ early)
     (starts : early.length = start) {source : Fin S₁.blocks → S₁.Source} {point : Point O₁ E}
     (ready : claim₁ (lastWire wire₀ early) = sourceClaim β₁ key₁ openKey₁ source point)
     (fit : LiftFit β₁ key₁ openKey₁ fold₁ μ₁ fits₁ digits₁ decode₁ source fun w₁ =>
@@ -300,7 +303,7 @@ theorem packTower_complete {sendable : (M : Type) → M → Prop} {slots width c
       ∀ c : Fin S₆.blocks → Rq S₆.innerDegree, (∀ i, ∃ slot, L.decode slot = some (c i)) →
         vecNormSq (traceResponse c (traceSource quarter₆ (packed w₅ : ℕ → E))) ≤ limitL) :
     ∃ later, OnPath accept table wire₀ (early ++ later) ∧ (early ++ later).length = total ∧
-      ∀ stage : Prefix Wire (Coord → E) total, stage.first = wire₀ →
+      ∀ stage : Prefix Wire (Option Coord → E) total, stage.first = wire₀ →
         stage.rest = early ++ later →
         Tier.TraceLinked first second quarter₂ commit₂ stage ∧
         Tier.TraceLinked second third quarter₃ commit₃ stage ∧
@@ -332,8 +335,9 @@ theorem packTower_complete {sendable : (M : Type) → M → Prop} {slots width c
   obtain ⟨later₁, blockSeg, positionSeg, packSeg, θ, packs, positions, long, on₁, len₁, ready₂,
       linked₁⟩ :=
     traceLink (B := base₁) (ν := ν₁) (Next := second) (commit' := commit₂) carries₁ sends
-      (Nat.le_of_succ_le four) on starts fin₁ decodes₁
-      (fun _ _ table other => foldCheck_bare _ _ _ table other) (foldCosts_length E _ _ _ _)
+      (Nat.le_of_succ_le four) on starts fin₁ decodes₁ worked
+      ⟨foldWorkBits_le _ _, map_workBits_le _⟩
+      (fun _ _ table other => foldCheck_bare _ _ _ _ table other) (foldCosts_length E _ _ _ _ _)
       (Nat.lt_of_succ_lt (Nat.lt_of_succ_lt room)) _
       (wins₁.mono fun _ _ _ kept => ⟨kept.1, kept.2.imp fun _ both => ⟨both.1.trans vars₁, both.2⟩⟩)
       rfl quarter₂ key₂ openKey₂ source₂.pack source₂.length source₂.blocks point₁
@@ -344,7 +348,7 @@ theorem packTower_complete {sendable : (M : Type) → M → Prop} {slots width c
     source₄ source₅ source₆ sized₂ sized₃ sized₄ sized₅ vars₂ vars₃ vars₄ vars₅ point₂ point₃
     point₄ point₅ covered₂ covered₃ covered₄ covered₅ normRoom₃ normRoom₄ normRoom₅ wide₃ wide₄ wide₅ capped₃
     capped₄ capped₅ next inside reads clears table decodes₂ decodes₃ decodes₄ decodes₅ decodesL
-    on₁ len₁ packs positions long live₂ ready₂ fit₂
+    worked on₁ len₁ packs positions long live₂ ready₂ fit₂
   refine ⟨later₁ ++ later, by rwa [← List.append_assoc], by rwa [← List.append_assoc],
     fun stage rooted shape => ⟨linked₁ stage rooted ⟨later, by rw [shape, List.append_assoc]⟩,
       each stage rooted (by rw [shape, List.append_assoc])⟩⟩

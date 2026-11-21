@@ -43,22 +43,22 @@ variable {S₂ : Shape} {O₂ : OpeningShape S₂} {fold₂ : Descriptor} {S₃ 
   {O₃ : OpeningShape S₃} {fold₃ : Descriptor} {S₄ : Shape} {O₄ : OpeningShape S₄}
   {fold₄ : Descriptor} {S₅ : Shape} {O₅ : OpeningShape S₅} {fold₅ : Descriptor} {S₆ : Shape}
   {Wire Coord : Type} [Fintype Coord] [DecidableEq Coord] {total : ℕ}
-  {accept : Prefix Wire (Coord → E) total → Prop} {read : Reader Wire} {start : ℕ}
+  {accept : Prefix Wire (Option Coord → E) total → Prop} {read : Reader Wire} {start : ℕ}
   {key₂ : Key S₂} {openKey₂ : OpeningKey O₂} {claim₂ : Wire → TraceClaim O₂ E}
-  {μ₂ : ℕ} {fits₂ : O₂.cells fold₂ < 2 ^ μ₂} {batch₂ : ℕ}
-  {rowsFit₂ : O₂.traceRowCount + 1 + 1 ≤ 2 ^ batch₂} {block₂ : Fin S₂.blocks → Coord}
+  {μ₂ : ℕ} {fits₂ : O₂.cells fold₂ ≤ 2 ^ μ₂} {batch₂ : ℕ}
+  {rowsFit₂ : O₂.traceRowCount + 1 ≤ 2 ^ batch₂} {block₂ : Fin S₂.blocks → Coord}
   {decode₂ : E → Option (Rq S₂.innerDegree)} {weight₂ ν₂ m₂ : ℕ}
   {key₃ : Key S₃} {openKey₃ : OpeningKey O₃} {claim₃ : Wire → TraceClaim O₃ E}
-  {μ₃ : ℕ} {fits₃ : O₃.cells fold₃ < 2 ^ μ₃} {batch₃ : ℕ}
-  {rowsFit₃ : O₃.traceRowCount + 1 + 1 ≤ 2 ^ batch₃} {block₃ : Fin S₃.blocks → Coord}
+  {μ₃ : ℕ} {fits₃ : O₃.cells fold₃ ≤ 2 ^ μ₃} {batch₃ : ℕ}
+  {rowsFit₃ : O₃.traceRowCount + 1 ≤ 2 ^ batch₃} {block₃ : Fin S₃.blocks → Coord}
   {decode₃ : E → Option (Rq S₃.innerDegree)} {weight₃ ν₃ m₃ : ℕ}
   {key₄ : Key S₄} {openKey₄ : OpeningKey O₄} {claim₄ : Wire → TraceClaim O₄ E}
-  {μ₄ : ℕ} {fits₄ : O₄.cells fold₄ < 2 ^ μ₄} {batch₄ : ℕ}
-  {rowsFit₄ : O₄.traceRowCount + 1 + 1 ≤ 2 ^ batch₄} {block₄ : Fin S₄.blocks → Coord}
+  {μ₄ : ℕ} {fits₄ : O₄.cells fold₄ ≤ 2 ^ μ₄} {batch₄ : ℕ}
+  {rowsFit₄ : O₄.traceRowCount + 1 ≤ 2 ^ batch₄} {block₄ : Fin S₄.blocks → Coord}
   {decode₄ : E → Option (Rq S₄.innerDegree)} {weight₄ ν₄ m₄ : ℕ}
   {key₅ : Key S₅} {openKey₅ : OpeningKey O₅} {claim₅ : Wire → TraceClaim O₅ E}
-  {μ₅ : ℕ} {fits₅ : O₅.cells fold₅ < 2 ^ μ₅} {batch₅ : ℕ}
-  {rowsFit₅ : O₅.traceRowCount + 1 + 1 ≤ 2 ^ batch₅} {block₅ : Fin S₅.blocks → Coord}
+  {μ₅ : ℕ} {fits₅ : O₅.cells fold₅ ≤ 2 ^ μ₅} {batch₅ : ℕ}
+  {rowsFit₅ : O₅.traceRowCount + 1 ≤ 2 ^ batch₅} {block₅ : Fin S₅.blocks → Coord}
   {decode₅ : E → Option (Rq S₅.innerDegree)} {weight₅ ν₅ m₅ : ℕ}
   {operator₃ limit₃ operator₄ limit₄ operator₅ limit₅ operatorL limitL : ℕ}
   {L : Terminal S₆ E Wire Coord E total (.euclidean operatorL limitL)} {m₆ : ℕ}
@@ -107,7 +107,8 @@ next shape, and the live blocks of the next shape have each cell of the flat wit
 and a message can have each message of the checks and the energy. `next`, `inside`, `reads`, `clears`: the fold challenge
 of the terminal is the stage after the level 5, and the terminal reads its statement and its clear
 partials from the message before it. `decodes`: each slot of the table of the oracle decodes to a
-fold challenge. `fit`: the fit conditions `TraceFit` of the levels 2 to 5, and `‖z‖_2² ≤ S_max,term`
+fold challenge, and `worked`: each work slot of the table has 57 zero work bits. `fit`: the fit
+conditions `TraceFit` of the levels 2 to 5, and `‖z‖_2² ≤ S_max,term`
 at the terminal, for each fold challenge vector of the families (Akita Definition 10.5). -/
 theorem traceTower_complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
     (sends : Sends sendable E width cap) (four : 4 ≤ width) (room : 3 < slots)
@@ -142,13 +143,14 @@ theorem traceTower_complete {sendable : (M : Type) → M → Prop} {slots width 
     (next : L.start = Tier.finish fifth) (inside : L.start < total)
     (reads : ∀ point, L.read point = statementOf (point.wire L.start))
     (clears : ∀ point, L.partials point = partialsOf (point.wire L.start))
-    (table : Prefix Wire (Coord → E) total → Coord → E)
-    (decodes₂ : ∀ input i, (decode₂ (table input (block₂ i))).isSome)
-    (decodes₃ : ∀ input i, (decode₃ (table input (block₃ i))).isSome)
-    (decodes₄ : ∀ input i, (decode₄ (table input (block₄ i))).isSome)
-    (decodes₅ : ∀ input i, (decode₅ (table input (block₅ i))).isSome)
-    (decodesL : ∀ input i, (L.decode (table input (L.block i))).isSome)
-    {first : Wire} {early : List ((Coord → E) × Wire)} (on : OnPath accept table first early)
+    (table : Prefix Wire (Option Coord → E) total → Option Coord → E)
+    (decodes₂ : ∀ input i, (decode₂ (table input (some (block₂ i)))).isSome)
+    (decodes₃ : ∀ input i, (decode₃ (table input (some (block₃ i)))).isSome)
+    (decodes₄ : ∀ input i, (decode₄ (table input (some (block₄ i)))).isSome)
+    (decodes₅ : ∀ input i, (decode₅ (table input (some (block₅ i)))).isSome)
+    (decodesL : ∀ input i, (L.decode (table input (L.slot i))).isSome)
+    (worked : ∀ input, table input none ∈ workZeros E 57)
+    {first : Wire} {early : List ((Option Coord → E) × Wire)} (on : OnPath accept table first early)
     (starts : early.length = start) {g : ℕ → E} {block position pack : List E} {θ : E}
     (packs : pack.length = p₂) (positions : position.length = s₂) (blocks : k₂ ≤ block.length)
     (live : ∀ cell, S₂.blocks * (S₂.blockLength * (2 * m₂)) ≤ cell → g cell = 0)
@@ -164,7 +166,7 @@ theorem traceTower_complete {sendable : (M : Type) → M → Prop} {slots width 
       ∀ c : Fin S₆.blocks → Rq S₆.innerDegree, (∀ i, ∃ slot, L.decode slot = some (c i)) →
         vecNormSq (traceResponse c (traceSource quarter₆ (packed w₅ : ℕ → E))) ≤ limitL) :
     ∃ later, OnPath accept table first (early ++ later) ∧ (early ++ later).length = total ∧
-      ∀ stage : Prefix Wire (Coord → E) total, stage.first = first →
+      ∀ stage : Prefix Wire (Option Coord → E) total, stage.first = first →
         stage.rest = early ++ later →
         Tier.TraceLinked second third quarter₃ commit₃ stage ∧
         Tier.TraceLinked third fourth quarter₄ commit₄ stage ∧
@@ -204,9 +206,9 @@ theorem traceTower_complete {sendable : (M : Type) → M → Prop} {slots width 
   obtain ⟨later₂, blockSeg₃, positionSeg₃, packSeg₃, θ₃, rfl, rfl, long₃, on₂, len₂, ready₃,
       linked₂⟩ :=
     traceLink (B := base₂) (ν := ν₂) (Next := third) (commit' := commit₃) carries₂ sends
-      three on starts fin₂ decodes₂
+      three on starts fin₂ decodes₂ worked ⟨foldWorkBits_le _ _, map_workBits_le _⟩
       (fun wire challenge table other => committedTrace_uniform wire challenge table other)
-      (foldCosts_length E _ _ _ _) several _ wins₂ rfl quarter₃ key₃ openKey₃
+      (foldCosts_length E _ _ _ _ _) several _ wins₂ rfl quarter₃ key₃ openKey₃
       source₃.pack source₃.length source₃.blocks point₂
   have live₃ := fun cell (large : S₃.blocks * (S₃.blockLength * (2 * m₃)) ≤ cell) =>
     packed_of_le (E := E) zero₂ (covered₂.trans (Nat.mul_le_mul_left 2 large))
@@ -222,7 +224,7 @@ theorem traceTower_complete {sendable : (M : Type) → M → Prop} {slots width 
   obtain ⟨later₃, blockSeg₄, positionSeg₄, packSeg₄, θ₄, rfl, rfl, long₄, on₃, len₃, ready₄,
       linked₃⟩ :=
     traceLink (B := base₃) (ν := ν₃) (Next := fourth) (commit' := commit₄) carries₃ sends
-      three on₂ len₂ fin₃ decodes₃
+      three on₂ len₂ fin₃ decodes₃ worked ⟨foldWorkBits_le _ _, map_workBits_le _⟩
       (fun wire challenge table other => committedTraceSq_uniform wire challenge table other)
       committedTraceSq_costs_length several _ wins₃ rfl quarter₄ key₄ openKey₄
       source₄.pack source₄.length source₄.blocks point₃
@@ -240,7 +242,7 @@ theorem traceTower_complete {sendable : (M : Type) → M → Prop} {slots width 
   obtain ⟨later₄, blockSeg₅, positionSeg₅, packSeg₅, θ₅, rfl, rfl, long₅, on₄, len₄, ready₅,
       linked₄⟩ :=
     traceLink (B := base₄) (ν := ν₄) (Next := fifth) (commit' := commit₅) carries₄ sends
-      three on₃ len₃ fin₄ decodes₄
+      three on₃ len₃ fin₄ decodes₄ worked ⟨foldWorkBits_le _ _, map_workBits_le _⟩
       (fun wire challenge table other => committedTraceSq_uniform wire challenge table other)
       committedTraceSq_costs_length several _ wins₄ rfl quarter₅ key₅ openKey₅
       source₅.pack source₅.length source₅.blocks point₄
@@ -258,14 +260,14 @@ theorem traceTower_complete {sendable : (M : Type) → M → Prop} {slots width 
   obtain ⟨later₅, blockSeg₆, positionSeg₆, packSeg₆, θ₆, rfl, rfl, long₆, on₅, len₅, stated,
       cleared, linked₅⟩ :=
     terminalLink (B := base₅) (ν := ν₅) (L := L) (stateOf := stateOf) carries₅ sends three
-      on₄ len₄ fin₅ decodes₅
+      on₄ len₄ fin₅ decodes₅ worked ⟨foldWorkBits_le _ _, map_workBits_le _⟩
       (fun wire challenge table other => committedTraceSq_uniform wire challenge table other)
       committedTraceSq_costs_length several _ wins₅ next reads quarter₆
       source₆.pack source₆.length source₆.blocks point₅
   have live₆ := fun cell (large : S₆.blocks * (S₆.blockLength * (2 * m₆)) ≤ cell) =>
     packed_of_le (E := E) zero₅ (covered₅.trans (Nat.mul_le_mul_left 2 large))
   obtain ⟨last, onL, whole, passed⟩ := terminal_passed carriesL on₅ len₅ inside reads clears
-    decodesL quarter₆ source₆.shape source₆.unit
+    decodesL worked quarter₆ source₆.shape source₆.unit
     (source₆.blocks.trans (Nat.pow_le_pow_right (by decide) long₆)) source₆.length source₆.pack
     live₆ stated cleared fitL
   have joined : early ++ (later₂ ++ (later₃ ++ (later₄ ++ (later₅ ++ last)))) =

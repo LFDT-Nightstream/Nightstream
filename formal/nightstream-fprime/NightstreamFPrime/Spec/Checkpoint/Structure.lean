@@ -29,12 +29,15 @@ checkpoint or plain stage. `holds level` is the certificate set `Y_level`, `brea
 of the witnesses of `R_bind`, `combine` is `Comb_r`, `candidate` is `Cand_ℓ`, `good` is `Good_ℓ`,
 `collide` is `Coll_ℓ`, `refuted level ξ w` is `D(ξ; w) = 1` in the segment of the checkpoint
 `level`, `bad` is `Bad_j(ξ; w)`, and `witness` is `Wit`. `point` is the transcript prefix that a
-certificate records. -/
+certificate records. `work level` is the set of the answers whose work-predicate bits are zero,
+and `chance level` is `2^{−g_r}` (Remark 10.18, Proposition 10.3). -/
 structure Structure (Point Coord Slot Proof Cert Break Cand Key Witness : Type) where
   protocol : Protocol Point (Coord → Slot) Proof
   kind : ℕ → Kind Coord
   key : ℕ → Coord → Slot → Option Key
   weight : ℕ → Coord → ℝ
+  work : ℕ → Set (Coord → Slot)
+  chance : ℕ → ℝ
   error : ℕ → ℝ
   leaf : Point → Cert
   point : Cert → Point
@@ -75,6 +78,18 @@ structure Lawful [Fintype Coord] [DecidableEq Coord] [Fintype Slot] : Prop where
     mass {slot | structure_.key level coordinate slot = some value} ≤
       structure_.weight level coordinate
   weight_nonnegative : ∀ level coordinate, 0 ≤ structure_.weight level coordinate
+  /-- Remark 10.18 at an indexed stage: the verifier requires the work bits to be zero. -/
+  work_accept : ∀ level coordinates point deeper, structure_.kind level = .indexed coordinates →
+    structure_.protocol.accept point → structure_.protocol.cut (level + 1) point = some deeper →
+    structure_.protocol.last deeper ∈ structure_.work level
+  /-- The work bits are not in the slot of a coordinate of an indexed stage. -/
+  work_keep : ∀ level coordinates coordinate reply slot,
+    structure_.kind level = .indexed coordinates → coordinate ∈ coordinates →
+    (Function.update reply coordinate slot ∈ structure_.work level ↔
+      reply ∈ structure_.work level)
+  /-- The work bits are zero with probability at most `2^{−g_r}`. -/
+  work_mass : ∀ level coordinates, structure_.kind level = .indexed coordinates →
+    mass (structure_.work level) ≤ structure_.chance level
   /-- Item (ii): `Y_{m+1}` is the set of the accepting transcripts. -/
   leaf_point : ∀ point, structure_.point (structure_.leaf point) = point
   leaf_holds : ∀ point, structure_.protocol.accept point →
@@ -141,13 +156,15 @@ structure Lawful [Fintype Coord] [DecidableEq Coord] [Fintype Slot] : Prop where
     structure_.protocol.cut 0 (structure_.point certificate) = some statement →
     structure_.relation statement (structure_.witness certificate)
 
-/-- The stage error `ε_r`: `e_r = Σ_u 1/|S_{r,u}|` for an indexed stage. In the model of one
-squeeze run, this is also the weight (159) of a stage input of stage `r`, because one query
-reads all coordinates. -/
+/-- The stage error `ε_r`: `e_r = 2^{−g_r}·Σ_u 1/|S_{r,u}|` for an indexed stage. In the model of
+one squeeze run, this is also the weight (159) of a stage input of stage `r`, because one query
+reads all coordinates. The factor `2^{−g_r}` is that of Remark 10.18: the extractor keeps the work
+bits when it forks a coordinate, so a fork fails only at an answer with zero work bits. -/
 noncomputable def charge (level : ℕ) : ℝ :=
   if level < structure_.protocol.stages then
     match structure_.kind level with
-    | .indexed coordinates => (coordinates.map (structure_.weight level)).sum
+    | .indexed coordinates =>
+        structure_.chance level * (coordinates.map (structure_.weight level)).sum
     | _ => structure_.error level
   else 0
 
@@ -194,7 +211,9 @@ theorem charge_nonnegative [Fintype Coord] [DecidableEq Coord] [Fintype Slot]
   unfold charge
   split
   · split
-    · refine List.sum_nonneg fun value member => ?_
+    · rename_i coordinates indexed
+      refine mul_nonneg ((RandomOracle.mass_nonnegative _).trans
+        (lawful.work_mass level coordinates indexed)) (List.sum_nonneg fun value member => ?_)
       obtain ⟨coordinate, _, rfl⟩ := List.mem_map.mp member
       exact lawful.weight_nonnegative level coordinate
     · exact lawful.error_nonnegative level

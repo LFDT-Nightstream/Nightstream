@@ -13,7 +13,10 @@ revision of 2026-10-15, Proposition 10.44 with its proof, and Lemma 10.42).
   transcript: the stage `start` has the fold challenges, and the next stages have the draws of the
   checks. The message before the stage `start` has the claim of the level. `Source` is the type of
   the successor source `σ`: the data that the next level, or the proof, gives for the flat witness
-  of this fold. `digits` is the decoder of the schedule from `σ` to the digit vectors.
+  of this fold. `digits` is the decoder of the schedule from `σ` to the digit vectors. `bits`
+  has the work bits of each draw of the checks and `foldBits` the work bits of the fold
+  challenges (Akita (146), `FoldChallengeWork` of the Akita code). `Tier.Decodes` requires the work
+  slot of each of these stages to have its work bits zero.
 - `Tier.fork` is the indexed stage of the fold challenges over a structure `mid` of the later
   stages, with `Comb_r` of Akita Corollary 10.32. `Tier.segment` is the checkpoint segment of the
   checks, with the candidate `source`.
@@ -76,31 +79,35 @@ end Keys
 section Challenge
 
 variable {Wire Coord Slot Block : Type} {Ring : Block → Type} {total : ℕ}
-  (decode : (b : Block) → Slot → Option (Ring b)) (block : Block → Coord) (start : ℕ)
+  (decode : (b : Block) → Slot → Option (Ring b)) (block : Block → Option Coord) (start : ℕ)
 
 /-- The fold challenges of a stage input, from the answer of the stage `start`. `decode b` gives
 the challenge of the coordinate `b` from a slot, and `block b` is the coordinate of the answer
 that has this slot. -/
-noncomputable def challengeAt [∀ b, Zero (Ring b)] (point : Prefix Wire (Coord → Slot) total)
+noncomputable def challengeAt [∀ b, Zero (Ring b)] (point : Prefix Wire (Option Coord → Slot) total)
     (b : Block) : Ring b :=
   ((point.reply start).bind fun reply => decode b (reply (block b))).getD 0
 
-/-- The answer of the stage `start` gives a fold challenge for each coordinate. -/
-def DecodesAt (point : Prefix Wire (Coord → Slot) total) : Prop :=
-  ∃ reply, point.reply start = some reply ∧ ∀ b, (decode b (reply (block b))).isSome
+/-- The verifier accepts the answer of the stage `start`: its work slot has `bits` zero work bits
+(Akita (146), `FoldChallengeWork` of the code), and it gives a fold challenge for each
+coordinate. -/
+def DecodesAt [Fintype Slot] (bits : ℕ) (point : Prefix Wire (Option Coord → Slot) total) : Prop :=
+  ∃ reply, point.reply start = some reply ∧ reply none ∈ workZeros Slot bits ∧
+    ∀ b, (decode b (reply (block b))).isSome
 
 variable {decode block start} in
-theorem DecodesAt.challenge [∀ b, Zero (Ring b)] {point : Prefix Wire (Coord → Slot) total}
-    {reply : Coord → Slot} (answered : point.reply start = some reply)
-    (decodes : DecodesAt decode block start point) (b : Block) :
+theorem DecodesAt.challenge [∀ b, Zero (Ring b)] [Fintype Slot] {bits : ℕ}
+    {point : Prefix Wire (Option Coord → Slot) total}
+    {reply : Option Coord → Slot} (answered : point.reply start = some reply)
+    (decodes : DecodesAt decode block start bits point) (b : Block) :
     decode b (reply (block b)) = some (challengeAt decode block start point b) := by
-  obtain ⟨other, same, each⟩ := decodes
+  obtain ⟨other, same, _, each⟩ := decodes
   obtain rfl := Option.some.inj (same.symm.trans answered)
   obtain ⟨value, decoded⟩ := Option.isSome_iff_exists.mp (each b)
   simp [challengeAt, answered, decoded]
 
 theorem challengeAt_take [∀ b, Zero (Ring b)] {level : ℕ} (above : start < level)
-    (point : Prefix Wire (Coord → Slot) total) :
+    (point : Prefix Wire (Option Coord → Slot) total) :
     challengeAt decode block start (point.take level) = challengeAt decode block start point := by
   funext b
   simp only [challengeAt, Prefix.reply_take above]
@@ -251,7 +258,9 @@ end Packing
 opening method, and `claim` reads the claim of the level from the message before the stage
 `start`. `block b` is the coordinate of the answer of the oracle that has the slot of the fold
 challenge of the coordinate `b`, and `decode b` gives the challenge of a slot, or `none` for a
-slot that the verifier rejects. `read` decodes the messages of the proof. `digits` maps a
+slot that the verifier rejects. `foldBits` has the work bits of the fold challenges
+(`FoldChallengeWork` of the Akita code), and `bits` has the work bits of each draw of the
+checks (Akita (146)). `read` decodes the messages of the proof. `digits` maps a
 successor source to the digit vectors of the fold. `check wire c σ` is the game of the checks of
 the verifier for the claim of `wire`, the fold challenges `c` and the source `σ`, `passes σ` is the
 truth of its final claim for `σ`, and `costs` has one bound for each of its draws. -/
@@ -259,13 +268,15 @@ structure Tier (Block : Type) (Ring : Block → Type)
     (Stmt Brk Wit Weak Wire Coord Slot Result Source : Type) where
   method : Method Block Ring Stmt Brk Wit Weak
   claim : Wire → Stmt
-  block : Block → Coord
+  block : Block → Option Coord
   decode : (b : Block) → Slot → Option (Ring b)
   read : Reader Wire
   digits : Source → Wit
   check : Wire → ((b : Block) → Ring b) → Source → Game Result
   passes : Source → Result → Prop
   costs : List ℝ
+  bits : List ℕ
+  foldBits : ℕ
   start : ℕ
 
 namespace Tier
@@ -288,28 +299,34 @@ omit [∀ b, Zero (Ring b)] in
 def family (b : Block) : Set (Ring b) := {challenge | ∃ slot, T.decode b slot = some challenge}
 
 /-- The fold challenges of a stage input, from the answer of the stage `start`. -/
-noncomputable def challenge (point : Prefix Wire (Coord → Slot) total) : (b : Block) → Ring b :=
+noncomputable def challenge (point : Prefix Wire (Option Coord → Slot) total) : (b : Block) → Ring
+  b :=
   challengeAt T.decode T.block T.start point
 
 omit [∀ b, Zero (Ring b)] in
-/-- The answer of the stage `start` gives a fold challenge for each coordinate. -/
-def Decodes (point : Prefix Wire (Coord → Slot) total) : Prop :=
-  DecodesAt T.decode T.block T.start point
+/-- The verifier accepts the work slots and the fold challenges of the level: the answer of the
+stage `start` has zero work bits and a fold challenge for each coordinate, and the answer of each
+stage of the checks has zero work bits (Akita (146)). -/
+def Decodes [Fintype Slot] (point : Prefix Wire (Option Coord → Slot) total) : Prop :=
+  DecodesAt T.decode T.block T.start T.foldBits point ∧
+    ∀ index < T.costs.length, ∀ reply, point.reply (T.start + 1 + index) = some reply →
+      reply none ∈ workZeros Slot (T.bits.getD index 0)
 
 omit [∀ b, Zero (Ring b)] in
 /-- The relation of the extraction: a weak opening of the claim of the level (Akita
 Definition 10.22) for the method of the level. -/
-def Opens (point : Prefix Wire (Coord → Slot) total) (opening : Option Weak) : Prop :=
+def Opens (point : Prefix Wire (Option Coord → Slot) total) (opening : Option Weak) : Prop :=
   ∃ ω, opening = some ω ∧ T.method.Opens ω (T.claim (point.wire T.start))
 
 variable {T} in
-theorem Decodes.challenge {point : Prefix Wire (Coord → Slot) total} {reply : Coord → Slot}
+theorem Decodes.challenge [Fintype Slot] {point : Prefix Wire (Option Coord → Slot) total}
+    {reply : Option Coord → Slot}
     (answered : point.reply T.start = some reply) (decodes : T.Decodes point) (b : Block) :
     T.decode b (reply (T.block b)) = some (T.challenge point b) :=
-  DecodesAt.challenge answered decodes b
+  DecodesAt.challenge answered decodes.1 b
 
 theorem challenge_take {level : ℕ} (above : T.start < level)
-    (point : Prefix Wire (Coord → Slot) total) :
+    (point : Prefix Wire (Option Coord → Slot) total) :
     T.challenge (point.take level) = T.challenge point :=
   challengeAt_take T.decode T.block T.start above point
 
@@ -319,6 +336,7 @@ vectors (Akita Proposition 10.44, "Checkpoints"). -/
 noncomputable def segment : Segment Wire Coord Slot Result Source total where
   start := T.start + 1
   costs := T.costs
+  bits := T.bits
   read := T.read
   check anchor source := T.check (anchor.wire T.start) (T.challenge anchor) source
   passes _ := T.passes
@@ -337,13 +355,14 @@ variable [Fintype Coord] [DecidableEq Coord]
 
 /-- The game of the checks for the source `source`, after the answers and the messages of a
 stage input through the last stage of the level. -/
-noncomputable def game (source : Source) (point : Prefix Wire (Coord → Slot) total) :
+noncomputable def game (source : Source) (point : Prefix Wire (Option Coord → Slot) total) :
     Game Result :=
   position T.read (T.check (point.wire T.start) (T.challenge point) source)
-    (point.wire (T.start + 1)) ((point.rest.take T.finish).drop (T.start + 1))
+    (point.wire (T.start + 1))
+    (((point.rest.take T.finish).drop (T.start + 1)).map fun move => (view move.1, move.2))
 
 omit [Nonempty Slot] in
-theorem segment_game (source : Source) (point : Prefix Wire (Coord → Slot) total) :
+theorem segment_game (source : Source) (point : Prefix Wire (Option Coord → Slot) total) :
     T.segment.game source point = T.game source point := by
   show position T.read (T.check ((point.take (T.start + 1)).wire T.start)
     (T.challenge (point.take (T.start + 1))) source) _ _ = _
@@ -351,25 +370,28 @@ theorem segment_game (source : Source) (point : Prefix Wire (Coord → Slot) tot
   rfl
 
 /-- The condition of Akita Lemma 10.42 (ii) on a transcript and a source: the transcript has the
-stages of the level, each fold challenge decodes, and the game of the checks for the source ends
-in a final claim that is true for the source. -/
-def Passed (source : Source) (point : Prefix Wire (Coord → Slot) total) : Prop :=
+stages of the level, the verifier accepts its work slots and fold challenges, and the game of the
+checks for the source ends in a final claim that is true for the source. -/
+def Passed (source : Source) (point : Prefix Wire (Option Coord → Slot) total) : Prop :=
   T.finish ≤ point.rest.length ∧ T.Decodes point ∧
     ∃ result, T.game source point = .pure result ∧ T.passes source result
 
 /-- The conditions on the data of one level. `injective`: the coordinates of the fold challenges
-are different. `merges`: Akita Corollary 10.32 for the method and the challenge families. `sound`:
-on a path of the game that avoids the bad sets, a true final claim gives the exact branch relation
-of the digit vectors of the source. `staged` and `nonnegative`: the bounds `costs` of the draws.
-`draws`: the game has a draw. -/
+are different. `avoid`: no fold challenge is in the work slot. `merges`: Akita Corollary 10.32 for
+the method and the challenge families. `sound`: on a path of the game that avoids the bad sets, a
+true final claim gives the exact branch relation of the digit vectors of the source. `staged` and
+`nonnegative`: the bounds `costs` of the draws. `draws`: the game has a draw. `aligned`: each draw
+has its work bits. -/
 structure Valid : Prop where
   injective : Function.Injective T.block
+  avoid : ∀ b, T.block b ≠ none
   merges : T.method.Sound T.family
   sound : ∀ wire challenge source, (T.check wire challenge source).Avoids fun result =>
     T.passes source result → T.method.Satisfies (T.digits source) (T.claim wire) challenge
   staged : ∀ wire challenge source, Staged (Coord → Slot) (T.check wire challenge source) T.costs
   nonnegative : ∀ cost ∈ T.costs, 0 ≤ cost
   draws : T.costs ≠ []
+  aligned : T.bits.length = T.costs.length
 
 variable {T} in
 omit [Nonempty Slot] in
@@ -378,12 +400,14 @@ theorem Valid.segment (valid : T.Valid) : (T.segment (total := total)).Valid whe
   staged _ _ := valid.staged _ _ _
   nonnegative := valid.nonnegative
   draws := valid.draws
+  aligned := valid.aligned
 
 section Fork
 
 variable [Fintype Block] {Inner BreakM CandM KeyM WitM : Type}
-  (accept : Prefix Wire (Coord → Slot) total → Prop)
-  (mid : Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire) Inner BreakM CandM
+  (accept : Prefix Wire (Option Coord → Slot) total → Prop)
+  (mid : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
+    BreakM CandM
     KeyM WitM)
   (source : Inner → Source)
 
@@ -392,7 +416,8 @@ omit [Fintype Slot] [Nonempty Slot] [Fintype Coord] [DecidableEq Coord] [Fintype
 for the children of Akita Definition 10.30 (ii). The reference transcript is the first child of
 each coordinate, and the transcript of the coordinate `b` is its second child. The digit vectors
 of a child are those of its successor source. -/
-noncomputable def combine (reference : Opened Weak Inner) (children : Coord → Opened Weak Inner) :
+noncomputable def combine (reference : Opened Weak Inner)
+    (children : Option Coord → Opened Weak Inner) :
     Opened Weak Inner ⊕ (Brk ⊕ BreakM) :=
   (T.method.merge (T.claim ((mid.point reference.inner).wire T.start))
     (fun _ => (T.challenge (mid.point reference.inner), T.digits (source reference.inner)))
@@ -406,7 +431,8 @@ the later stages (Akita Definition 10.16 (iv) with Corollary 10.32). The stage h
 for each fold coordinate. A certificate at the stage `start` is an accepting transcript with a
 weak opening of the claim of the level. -/
 noncomputable def fork :
-    Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire) (Opened Weak Inner)
+    Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) (Opened Weak
+      Inner)
       (Brk ⊕ BreakM) CandM ((Σ b, Ring b) ⊕ KeyM) (Option Weak) where
   protocol := transcript total accept
   kind level :=
@@ -420,6 +446,9 @@ noncomputable def fork :
   weight level coordinate :=
     if level ≤ T.start then Function.extend T.block T.chance (fun _ => 0) coordinate
     else mid.weight level coordinate
+  work level :=
+    if level ≤ T.start then {reply | reply none ∈ workZeros Slot T.foldBits} else mid.work level
+  chance level := if level ≤ T.start then 1 / 2 ^ T.foldBits else mid.chance level
   error := mid.error
   leaf point := ⟨mid.leaf point, none⟩
   point certificate := mid.point certificate.inner
@@ -474,7 +503,7 @@ theorem fork_holds (level : ℕ) (certificate : Opened Weak Inner) :
 
 omit [Fintype Coord] [DecidableEq Coord] in
 theorem fork_combine (level : ℕ) (reference : Opened Weak Inner)
-    (children : Coord → Opened Weak Inner) :
+    (children : Option Coord → Opened Weak Inner) :
     (T.fork accept mid source).combine level reference children =
       if level ≤ T.start then T.combine mid source reference children
       else Sum.map (fun inner => ⟨inner, none⟩) Sum.inr
@@ -499,7 +528,8 @@ theorem fork_key_block (injective : Function.Injective T.block) (b : Block) (slo
   rw [ite_eq_left le_rfl, injective.extend_apply]
 
 omit [Fintype Coord] [DecidableEq Coord] in
-theorem fork_key_above {level : ℕ} (above : T.start < level) (coordinate : Coord) (slot : Slot) :
+theorem fork_key_above {level : ℕ} (above : T.start < level) (coordinate : Option Coord)
+    (slot : Slot) :
     (T.fork accept mid source).key level coordinate slot =
       (mid.key level coordinate slot).map Sum.inr :=
   ite_eq_right (Nat.not_le.mpr above)
@@ -512,7 +542,7 @@ theorem fork_weight_block (injective : Function.Injective T.block) (b : Block) :
   rw [ite_eq_left le_rfl, injective.extend_apply]
 
 omit [Fintype Coord] [DecidableEq Coord] in
-theorem fork_weight_above {level : ℕ} (above : T.start < level) (coordinate : Coord) :
+theorem fork_weight_above {level : ℕ} (above : T.start < level) (coordinate : Option Coord) :
     (T.fork accept mid source).weight level coordinate = mid.weight level coordinate :=
   ite_eq_right (Nat.not_le.mpr above)
 
@@ -527,7 +557,7 @@ theorem fork_kind_start :
   ite_eq_left le_rfl
 
 omit [Fintype Coord] [DecidableEq Coord] in
-theorem fork_kind_indexed {level : ℕ} {coordinates : List Coord} (low : T.start ≤ level)
+theorem fork_kind_indexed {level : ℕ} {coordinates : List (Option Coord)} (low : T.start ≤ level)
     (isIndexed : (T.fork accept mid source).kind level = .indexed coordinates) :
     (level = T.start ∧ coordinates = Finset.univ.toList.map T.block) ∨
       (T.start < level ∧ mid.kind level = .indexed coordinates) := by
@@ -564,8 +594,8 @@ omit [Fintype Block] in
 Corollary 10.32). -/
 theorem combine_opens (injective : Function.Injective T.block)
     (merges : T.method.Sound T.family) (fed : T.Forked accept mid source)
-    (reference : Opened Weak Inner) (family : Coord → Opened Weak Inner)
-    (anchor deeper : Prefix Wire (Coord → Slot) total)
+    (reference : Opened Weak Inner) (family : Option Coord → Opened Weak Inner)
+    (anchor deeper : Prefix Wire (Option Coord → Slot) total)
     (held : mid.holds (T.start + 1) reference.inner)
     (found : (transcript total accept).cut T.start (mid.point reference.inner) = some anchor)
     (foundDeeper :
@@ -592,7 +622,7 @@ theorem combine_opens (injective : Function.Injective T.block)
   have decodes := fed.decodes _ accepted
   obtain ⟨_, rfl⟩ := transcript_cut found
   obtain ⟨_, rfl⟩ := transcript_cut foundDeeper
-  obtain ⟨reply, answered, _⟩ := id decodes
+  obtain ⟨reply, answered, _⟩ := id decodes.1
   have base := last_take_succ (accept := accept) answered
   have child : ∀ b : Block,
       (T.Decodes (mid.point (family (T.block b)).inner) ∧
@@ -613,7 +643,7 @@ theorem combine_opens (injective : Function.Injective T.block)
     rw [sameWire] at goodChild
     refine ⟨⟨fed.decodes _ acceptedChild, goodChild⟩, slot, ?_, ?_⟩
     · obtain ⟨_, rfl⟩ := transcript_cut foundOther
-      obtain ⟨replyChild, answeredChild, _⟩ := fed.decodes _ acceptedChild
+      obtain ⟨replyChild, answeredChild, _⟩ := (fed.decodes _ acceptedChild).1
       rw [last_take_succ answeredChild, base] at last
       rw [answeredChild, last]
     · rw [base] at differs
@@ -649,7 +679,7 @@ theorem combine_opens (injective : Function.Injective T.block)
 
 /-- The indexed stage of the fold challenges over the later stages satisfies the conditions of
 Akita Definition 10.16 from the stage `start`. -/
-theorem fork_lawfulFrom (injective : Function.Injective T.block)
+theorem fork_lawfulFrom (injective : Function.Injective T.block) (avoid : ∀ b, T.block b ≠ none)
     (merges : T.method.Sound T.family) (fed : T.Forked accept mid source) :
     (T.fork accept mid source).LawfulFrom (transcript total accept) T.start := by
   have fits := fed.fits
@@ -658,6 +688,9 @@ theorem fork_lawfulFrom (injective : Function.Injective T.block)
     key_some := ?_
     key_mass := ?_
     weight_nonnegative := ?_
+    work_accept := ?_
+    work_keep := ?_
+    work_mass := ?_
     leaf_point := fun point => fed.lawful.leaf_point point
     leaf_holds := fun point accepted =>
       (T.fork_holds_above fits _).mpr (fed.lawful.leaf_holds point accepted)
@@ -680,7 +713,7 @@ theorem fork_lawfulFrom (injective : Function.Injective T.block)
     rcases T.fork_kind_indexed low isIndexed with ⟨rfl, rfl⟩ | ⟨above, isMid⟩
     · obtain ⟨b, _, rfl⟩ := List.mem_map.mp member
       obtain ⟨_, rfl⟩ := transcript_cut found
-      obtain ⟨reply, answered, each⟩ := fed.decodes point accepted
+      obtain ⟨⟨reply, answered, _, each⟩, _⟩ := fed.decodes point accepted
       rw [T.fork_key_block injective, last_take_succ answered, Option.isSome_map,
         Option.isSome_map]
       exact each b
@@ -717,6 +750,47 @@ theorem fork_lawfulFrom (injective : Function.Injective T.block)
       · rw [Function.extend_apply' _ _ _ reached]
     · rw [T.fork_weight_above (Nat.lt_of_not_le below)]
       exact fed.lawful.weight_nonnegative level coordinate
+  · intro level coordinates point deeper low isIndexed accepted found
+    rcases T.fork_kind_indexed low isIndexed with ⟨rfl, rfl⟩ | ⟨above, isMid⟩
+    · show _ ∈ (if T.start ≤ T.start then {reply : Option Coord → Slot |
+        reply none ∈ workZeros Slot T.foldBits} else mid.work T.start)
+      rw [ite_eq_left le_rfl]
+      obtain ⟨_, rfl⟩ := transcript_cut found
+      obtain ⟨⟨reply, answered, zero, _⟩, _⟩ := fed.decodes point accepted
+      show (transcript total accept).last (point.take (T.start + 1)) none ∈ workZeros Slot
+        T.foldBits
+      rw [last_take_succ answered]
+      exact zero
+    · show _ ∈ (if level ≤ T.start then {reply : Option Coord → Slot |
+        reply none ∈ workZeros Slot T.foldBits} else mid.work level)
+      rw [ite_eq_right (Nat.not_le.mpr above)]
+      exact fed.lawful.work_accept level coordinates point deeper above isMid accepted found
+  · intro level coordinates coordinate reply slot low isIndexed member
+    rcases T.fork_kind_indexed low isIndexed with ⟨rfl, rfl⟩ | ⟨above, isMid⟩
+    · show _ ∈ (if T.start ≤ T.start then {reply : Option Coord → Slot |
+          reply none ∈ workZeros Slot T.foldBits} else mid.work T.start) ↔
+        _ ∈ (if T.start ≤ T.start then {reply : Option Coord → Slot |
+          reply none ∈ workZeros Slot T.foldBits} else mid.work T.start)
+      rw [ite_eq_left le_rfl]
+      obtain ⟨b, _, rfl⟩ := List.mem_map.mp member
+      show Function.update reply (T.block b) slot none ∈ workZeros Slot T.foldBits ↔
+        reply none ∈ workZeros Slot T.foldBits
+      rw [Function.update_of_ne (avoid b).symm]
+    · show _ ∈ (if level ≤ T.start then {reply : Option Coord → Slot |
+          reply none ∈ workZeros Slot T.foldBits} else mid.work level) ↔
+        _ ∈ (if level ≤ T.start then {reply : Option Coord → Slot |
+          reply none ∈ workZeros Slot T.foldBits} else mid.work level)
+      rw [ite_eq_right (Nat.not_le.mpr above)]
+      exact fed.lawful.work_keep level coordinates coordinate reply slot above isMid member
+  · intro level coordinates low isIndexed
+    show mass (if level ≤ T.start then {reply : Option Coord → Slot |
+        reply none ∈ workZeros Slot T.foldBits} else mid.work level) ≤
+      (if level ≤ T.start then 1 / 2 ^ T.foldBits else mid.chance level)
+    rcases T.fork_kind_indexed low isIndexed with ⟨rfl, rfl⟩ | ⟨above, isMid⟩
+    · rw [ite_eq_left le_rfl, ite_eq_left le_rfl]
+      exact mass_work_le T.foldBits
+    · rw [ite_eq_right (Nat.not_le.mpr above), ite_eq_right (Nat.not_le.mpr above)]
+      exact fed.lawful.work_mass level coordinates above isMid
   · intro level certificate low isPlain held
     obtain ⟨above, isMid⟩ := T.fork_kind_plain isPlain
     exact (T.fork_holds_above above certificate).mpr (fed.lawful.plain_holds level
@@ -780,8 +854,9 @@ theorem fork_lawfulFrom (injective : Function.Injective T.block)
 end Fork
 
 variable [Fintype Block] {Inner BreakT CandT KeyT WitT : Type}
-  (accept : Prefix Wire (Coord → Slot) total → Prop)
-  (tail : Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire) Inner BreakT CandT
+  (accept : Prefix Wire (Option Coord → Slot) total → Prop)
+  (tail : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
+    BreakT CandT
     KeyT WitT)
   (source : Inner → Source) (clash : Inner → Inner → BreakT)
 
@@ -790,7 +865,8 @@ Definition 10.16 for the stages from `start`): the indexed stage `fork` of the f
 over the checkpoint segment `segment` of the checks. The candidate of the checkpoint is the
 successor source `source` of a certificate of the later stages, and `clash` is `Coll_ℓ`. -/
 noncomputable def over :
-    Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire) (Opened Weak Inner)
+    Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) (Opened Weak
+      Inner)
       (Brk ⊕ BreakT) (Source ⊕ CandT) ((Σ b, Ring b) ⊕ KeyT) (Option Weak) :=
   T.fork accept (T.segment.over accept tail source clash fun _ _ => True) source
 
@@ -822,8 +898,8 @@ theorem Fed.segment (fed : T.Fed accept tail source clash) :
   fits := fed.fits
   lawful := fed.lawful
   passed inner held := by
-    obtain ⟨_, _, result, ended, passed⟩ := fed.passed inner held
-    exact ⟨result, (T.segment_game _ _).trans ended, passed⟩
+    obtain ⟨_, decodes, result, ended, passed⟩ := fed.passed inner held
+    exact ⟨⟨result, (T.segment_game _ _).trans ended, passed⟩, decodes.2⟩
   clash := fed.clash
 
 variable {T} in
@@ -851,7 +927,7 @@ theorem Fed.forked (valid : T.Valid) (fed : T.Fed accept tail source clash) :
 first stage (Akita Proposition 10.44 for the stages from one level). -/
 theorem over_lawfulFrom (valid : T.Valid) (fed : T.Fed accept tail source clash) :
     (T.over accept tail source clash).LawfulFrom (transcript total accept) T.start :=
-  T.fork_lawfulFrom valid.injective valid.merges (fed.forked valid)
+  T.fork_lawfulFrom valid.injective valid.avoid valid.merges (fed.forked valid)
 
 /-- Akita Proposition 10.44 (i) for the stages from one level: a first certificate of the level
 has an accepting transcript and a weak opening of the claim of the level. -/

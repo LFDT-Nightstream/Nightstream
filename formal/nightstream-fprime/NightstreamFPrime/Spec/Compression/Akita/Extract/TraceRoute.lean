@@ -120,8 +120,9 @@ variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {S' : Shape} {O' :
   {T : Tier (Fin S.blocks) (fun _ => Ring) Stmt Brk (Witness O fold) (Weak O) Wire Coord Slot
     (Option (List E × E × E)) Table}
   {total : ℕ} [Fintype Slot] [Nonempty Slot] [Fintype Coord] [DecidableEq Coord]
-  {Inner BreakT CandT KeyT : Type} {m : ℕ} {accept : Prefix Wire (Coord → Slot) total → Prop}
-  {tail : Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire) Inner BreakT CandT
+  {Inner BreakT CandT KeyT : Type} {m : ℕ} {accept : Prefix Wire (Option Coord → Slot) total → Prop}
+  {tail : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
+    BreakT CandT
     KeyT (Option (Weak O'))}
   {error : ℝ} {loops tree : ℕ}
 
@@ -155,7 +156,7 @@ theorem Tier.suffix_push_traceSq {operator' limit' : ℕ}
           flatten (E := E) (unpackTable S'.innerDegree m (tableOf (tail.witness inner))))
         (fun inner other => embed (Tier.collideSq key' openKey' (64 * operator' ^ 2 * limit')
           (tail.witness inner) (tail.witness other))))
-      (∑ b, T.chance b + T.costs.sum + error) (S.blocks + 1 + loops)
+      (T.levelError + error) (S.blocks + 1 + loops)
       (2 * (S.blocks + 1) * tree) := by
   have opened : ∀ point ω, accept point → N.Opens point (some ω) →
       (ω.TraceOpens (2 * weight') (fold'.sourceBound S')
@@ -223,7 +224,7 @@ theorem Tier.suffix_push_route {route : Route}
           flatten (E := E) (unpackTable S'.innerDegree m (tableOf (tail.witness inner))))
         (fun inner other => embed (route.collide key' openKey' weight' (fold'.sourceBound S')
           (tail.witness inner) (tail.witness other))))
-      (∑ b, T.chance b + T.costs.sum + error) (S.blocks + 1 + loops)
+      (T.levelError + error) (S.blocks + 1 + loops)
       (2 * (S.blocks + 1) * tree) := by
   cases route with
   | coefficient =>

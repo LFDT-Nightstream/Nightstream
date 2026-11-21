@@ -108,7 +108,7 @@ claim holds for the table of its group. -/
 def OpensAt (start : ℕ) (commit : Wire → (g : Fin count) → (B.shape g).Payload)
     (value : Wire → Fin count → E) (place : Wire → Fin count → List E)
     (key : (g : Fin count) → Key (B.shape g)) (mass : Fin count → ℕ)
-    (point : Prefix Wire (Coord → E) total) (opening : Option B.Weak) : Prop :=
+    (point : Prefix Wire (Option Coord → E) total) (opening : Option B.Weak) : Prop :=
   (∃ ω, opening = some ω ∧ ∀ g, (ω.certified g).Opens (2 * mass g)
     ((B.fold g).sourceBound (B.shape g)) (key g) (commit (point.wire start) g)
     ((B.shape g).decode (ω.certified g).source)) ∧
@@ -137,7 +137,7 @@ structure Compose (P : Verifier.Params Zq E) (B : Batch (Fin 3)) (Wire Coord Lea
   lead : Wire → Table → Game (Option Lead)
   statement : Wire → Lead → Verifier.Statement P
   good : Wire → Table → Prop
-  bound : Prefix Wire (Coord → E) total → (g : Fin 3) → (B.shape g).Payload
+  bound : Prefix Wire (Option Coord → E) total → (g : Fin 3) → (B.shape g).Payload
 
 namespace Compose
 
@@ -154,6 +154,7 @@ noncomputable def front :
     Segment Wire Coord E (Option (Lead × (Fin P.lookups → Zq))) (Table × Table) total where
   start := C.start
   costs := C.leadCosts ++ [Verifier.tauError P]
+  bits := List.replicate (C.leadCosts ++ [Verifier.tauError P]).length 0
   read := C.read
   check anchor tables := Verifier.led P (C.lead (anchor.wire 0) tables.2) tables.2
   passes anchor tables result := tables.1 = keyBase P → ∃ value τ, result = some (value, τ) ∧
@@ -164,12 +165,12 @@ noncomputable def front :
 /-- The value of `lead` and the lookup challenges of a transcript: the result of the game of the
 checkpoint of `W`. The game does not read the tables (`Sized.lead_bare`, `Verifier.front_bare`),
 so the tables are zero here. -/
-noncomputable def ran (point : Prefix Wire (Coord → E) total) :
+noncomputable def ran (point : Prefix Wire (Option Coord → E) total) :
     Option (Lead × (Fin P.lookups → Zq)) :=
   finished (C.front.game 0 point)
 
 omit [DecidableEq E] in
-theorem ran_take (point : Prefix Wire (Coord → E) total) :
+theorem ran_take (point : Prefix Wire (Option Coord → E) total) :
     C.ran (point.take C.front.finish) = C.ran point := by
   unfold ran
   rw [Segment.game_take_finish]
@@ -200,6 +201,7 @@ noncomputable def back :
     Segment Wire Coord E (Option (Verifier.Finals E)) (Fin 3 → Table) total where
   start := C.front.finish
   costs := Verifier.backCosts vf
+  bits := List.replicate (Verifier.backCosts vf).length 0
   read := C.read
   check anchor tables := C.backCheck vf (anchor.wire 0) tables (C.ran anchor)
   passes _ tables result := ∃ claims, result = some claims ∧ (tables 0 = keyBase P →
@@ -257,6 +259,7 @@ theorem front_valid (sized : C.Sized vf) : C.front.Valid where
     · rw [List.mem_singleton.mp last]
       exact Verifier.tauError_nonneg
   draws := List.append_ne_nil_of_right_ne_nil _ (List.cons_ne_nil _ _)
+  aligned := List.length_replicate ..
 
 /-- Definition 10.16 (vii)(a) for the checkpoint of `(W, V)`: for tables with an error, on each
 path that avoids the bad sets an opening claim is false. -/
@@ -280,22 +283,37 @@ theorem back_valid [Nonempty Coord] (sized : C.Sized vf) : (C.back vf).Valid whe
         (exists_fair_slots sized.column) sized.wf _ _ _ _
   nonnegative := Verifier.backCosts_nonnegative vf
   draws := List.cons_ne_nil _ _
+  aligned := List.length_replicate ..
+
+omit [Field E] [DecidableEq E] [Algebra Zq E] [Fintype Coord] [DecidableEq Coord] in
+/-- The stages of the compression argument have no work bits: each work slot passes. -/
+theorem worked_none {Result Cand : Type} {G : Segment Wire Coord E Result Cand total}
+    (none : G.bits = List.replicate G.costs.length 0)
+    (point : Prefix Wire (Option Coord → E) total) : G.Worked point := fun index _ _ _ => by
+  have zero : G.bits.getD index 0 = 0 := by
+    rw [none, List.getD_eq_getElem?_getD]
+    rcases found : (List.replicate G.costs.length 0)[index]? with _ | g
+    · rfl
+    · exact List.eq_of_mem_replicate (List.mem_of_getElem? found)
+  rw [zero, workZeros_zero]
+  exact Finset.mem_univ _
 
 omit [DecidableEq E] in
 /-- The game of the checkpoint of `W` ends in the same result for each candidate. -/
 theorem front_game (sized : C.Sized vf) (tables : Table × Table)
-    {point : Prefix Wire (Coord → E) total} {result : Option (Lead × (Fin P.lookups → Zq))}
+    {point : Prefix Wire (Option Coord → E) total} {result : Option (Lead × (Fin P.lookups → Zq))}
     (ended : C.front.game 0 point = .pure result) : C.front.game tables point = .pure result :=
   ended_of_bare C.read (Verifier.led_bare (sized.lead_bare _ _ _) _ _) ended
 
 /-- The game of the checkpoint of `(W, V)` ends in the same result for each candidate. -/
-theorem back_game (tables other : Fin 3 → Table) {point : Prefix Wire (Coord → E) total}
+theorem back_game (tables other : Fin 3 → Table) {point : Prefix Wire (Option Coord → E) total}
     {result : Option (Verifier.Finals E)} (ended : (C.back vf).game other point = .pure result) :
     (C.back vf).game tables point = .pure result :=
   ended_of_bare C.read (C.backCheck_bare vf _ _ _ _) ended
 
-variable {Inner BreakT CandT KeyT : Type} {accept : Prefix Wire (Coord → E) total → Prop}
-  {body : Structure (Prefix Wire (Coord → E) total) Coord E (ℕ → Wire) Inner BreakT CandT KeyT
+variable {Inner BreakT CandT KeyT : Type} {accept : Prefix Wire (Option Coord → E) total → Prop}
+  {body : Structure (Prefix Wire (Option Coord → E) total) (Option Coord) E (ℕ → Wire) Inner BreakT
+    CandT KeyT
     (Option B.Weak)}
   {key : (g : Fin 3) → Key (B.shape g)} {openKey : B.OpenKey} {mass : Fin 3 → ℕ}
   {commit : Wire → (g : Fin 3) → (B.shape g).Payload} {value : Wire → Fin 3 → E}
@@ -310,7 +328,7 @@ Akita opening are the commitments that the stage input of the stage after `τ` f
 are these claims. The games do not read the tables (`Verifier.back_bare`), so the tables are zero
 here. -/
 structure Ran (commit : Wire → (g : Fin 3) → (B.shape g).Payload) (value : Wire → Fin 3 → E)
-    (place : Wire → Fin 3 → List E) (point : Prefix Wire (Coord → E) total) : Prop where
+    (place : Wire → Fin 3 → List E) (point : Prefix Wire (Option Coord → E) total) : Prop where
   led : ∃ value τ, C.front.game 0 point = .pure (some (value, τ))
   bound : commit (point.wire (C.root vf)) = C.bound (point.take C.front.finish)
   ended : ∃ claims, (C.back vf).game (fun _ _ => 0) point = .pure (some claims) ∧
@@ -320,7 +338,7 @@ structure Ran (commit : Wire → (g : Fin 3) → (B.shape g).Payload) (value : W
 /-- The relation of a first certificate of the stages after `τ`: certified decommitments of the
 three commitments of the stage input, and the test of the checkpoint of `(W, V)`. -/
 def Middle (key : (g : Fin 3) → Key (B.shape g)) (mass : Fin 3 → ℕ)
-    (point : Prefix Wire (Coord → E) total) (opening : Option B.Weak) : Prop :=
+    (point : Prefix Wire (Option Coord → E) total) (opening : Option B.Weak) : Prop :=
   Decommits key mass (fun _ => True) (C.bound (point.take C.front.finish)) opening ∧
     (C.back vf).test (point.take C.front.finish) (Batch.tablesOf opening)
 
@@ -329,14 +347,15 @@ omit [Fintype E] [DecidableEq E] [Fintype Coord] [DecidableEq Coord] in
 the commitments of the key polynomial and of `W` of the stage input, and `good` for the table of
 `W` when the table of the key polynomial is the table of `Params.key`. -/
 def Extracted (key : (g : Fin 3) → Key (B.shape g)) (mass : Fin 3 → ℕ)
-    (point : Prefix Wire (Coord → E) total) (opening : Option B.Weak) : Prop :=
+    (point : Prefix Wire (Option Coord → E) total) (opening : Option B.Weak) : Prop :=
   Decommits key mass (· ≠ 2) (C.bound (point.take C.start)) opening ∧
     (Batch.tablesOf opening 0 = keyBase P → C.good (point.wire 0) (Batch.tablesOf opening 1))
 
 /-- The checkpoint structure of the stages after `τ`: the checkpoint of `(W, V)` over the
 structure `body` of the Akita opening. -/
-noncomputable def backChain (accept : Prefix Wire (Coord → E) total → Prop)
-    (body : Structure (Prefix Wire (Coord → E) total) Coord E (ℕ → Wire) Inner BreakT CandT KeyT
+noncomputable def backChain (accept : Prefix Wire (Option Coord → E) total → Prop)
+    (body : Structure (Prefix Wire (Option Coord → E) total) (Option Coord) E (ℕ → Wire) Inner
+      BreakT CandT KeyT
       (Option B.Weak))
     (key : (g : Fin 3) → Key (B.shape g)) (openKey : B.OpenKey) (mass : Fin 3 → ℕ)
     (embed : B.LevelBreak key openKey
@@ -350,8 +369,9 @@ noncomputable def backChain (accept : Prefix Wire (Coord → E) total → Prop)
 checkpoint of `(W, V)` over the structure `body` of the Akita opening. A witness of `R_bind` is
 a witness of `R_bind` of `body`, and `embed` maps a solution of Module-SIS for a matrix of a
 group to it. -/
-noncomputable def chain (accept : Prefix Wire (Coord → E) total → Prop)
-    (body : Structure (Prefix Wire (Coord → E) total) Coord E (ℕ → Wire) Inner BreakT CandT KeyT
+noncomputable def chain (accept : Prefix Wire (Option Coord → E) total → Prop)
+    (body : Structure (Prefix Wire (Option Coord → E) total) (Option Coord) E (ℕ → Wire) Inner
+      BreakT CandT KeyT
       (Option B.Weak))
     (key : (g : Fin 3) → Key (B.shape g)) (openKey : B.OpenKey) (mass : Fin 3 → ℕ)
     (embed : B.LevelBreak key openKey
@@ -414,7 +434,8 @@ theorem suffix [Nonempty Coord] (sized : C.Sized vf)
     (fun point opening accepted opens good => ⟨decommits point opening accepted opens, good⟩)
     (fun point opening accepted opens => by
       obtain ⟨claims, ended, places, values⟩ := (ran point accepted).ended
-      refine ⟨some claims, back_game _ _ ended, claims, rfl, fun honest => ?_⟩
+      refine ⟨⟨some claims, back_game _ _ ended, claims, rfl, fun honest => ?_⟩,
+        worked_none rfl point⟩
       have claimed := opens.2
       rw [Prefix.wire_take le_rfl, places, values] at claimed
       have keyClaim : mle claims.key.1 (lifted E (Batch.tablesOf opening 0)) = claims.key.2 :=
@@ -446,7 +467,7 @@ theorem suffix [Nonempty Coord] (sized : C.Sized vf)
       rwa [Prefix.wire_take (Nat.zero_le _)] at good⟩)
     (fun point opening accepted opens => by
       obtain ⟨value, τ, ended⟩ := (ran point accepted).led
-      refine ⟨some (value, τ), front_game sized _ ended, fun honest => ?_⟩
+      refine ⟨⟨some (value, τ), front_game sized _ ended, fun honest => ?_⟩, worked_none rfl point⟩
       obtain ⟨value', τ', found, apart, clean⟩ := opens.2 honest
       have same : some (value', τ') = some (value, τ) := by
         rw [← found, C.ran_take]
@@ -468,9 +489,11 @@ theorem suffix [Nonempty Coord] (sized : C.Sized vf)
           (by decide) fun one => different (Prod.ext zero one))
       · exact embedded _ ((early point opening opens).collide_isSome openKey right (g := 0)
           (by decide) zero))
-  have costs : (C.leadCosts ++ [Verifier.tauError P]).sum +
-      ((Verifier.backCosts vf).sum + error) = C.leadCosts.sum + Verifier.runCost vf + error := by
-    rw [List.sum_append, List.sum_singleton, ← Verifier.backCosts_sum]
+  have costs : (credit (C.leadCosts ++ [Verifier.tauError P])
+      (List.replicate (C.leadCosts ++ [Verifier.tauError P]).length 0)).sum +
+      ((credit (Verifier.backCosts vf) (List.replicate (Verifier.backCosts vf).length 0)).sum +
+        error) = C.leadCosts.sum + Verifier.runCost vf + error := by
+    rw [credit_zero, credit_zero, List.sum_append, List.sum_singleton, ← Verifier.backCosts_sum]
     ring
   have count : 1 + (1 + loops) = 2 + loops := by omega
   have size : 2 * (2 * tree) = 4 * tree := by omega
@@ -482,7 +505,7 @@ omit [Field E] [Algebra Zq E] [Fintype E] [DecidableEq E] [Fintype Coord] [Decid
 table of `Params.key` gives `good` for its table of `W`, or its decommitment of the key
 commitment and `honest` give a solution of Module-SIS for a matrix of the key group
 (Akita Corollary 10.25). -/
-theorem Extracted.relation_or_collision {point : Prefix Wire (Coord → E) total}
+theorem Extracted.relation_or_collision {point : Prefix Wire (Option Coord → E) total}
     {opening : Option B.Weak} (extracted : C.Extracted key mass point opening)
     {honest : Certified (B.shape 0)} {factorBound sourceBound innerBound : ℕ}
     (registered : honest.Opens factorBound sourceBound (key 0) (C.bound (point.take C.start) 0)
@@ -507,7 +530,7 @@ variable [Nonempty Coord] (sized : C.Sized vf)
   (later : Tier.Suffix accept (C.root vf) (OpensAt (C.root vf) commit value place key mass) body
     error loops tree)
   (first : C.start = 0)
-  (prover : OracleComp (Prefix Wire (Coord → E) total) (Coord → E) (ℕ → Wire))
+  (prover : OracleComp (Prefix Wire (Option Coord → E) total) (Option Coord → E) (ℕ → Wire))
 
 local notation "whole" => chain C vf accept body key openKey mass embed
 
@@ -517,8 +540,9 @@ include sized ran embedded later first
 (Akita Theorem 10.17): the verifier accepts the transcript of the prover, and the output is a
 first certificate with `Extracted` for the first message of the prover, or a witness of `R_bind`
 of the Akita opening. -/
-theorem extract_sound (budget : ℕ) (table : Prefix Wire (Coord → E) total → Coord → E)
-    (tape : Tape (Prefix Wire (Coord → E) total) Coord E budget (Structure.protocol whole).stages)
+theorem extract_sound (budget : ℕ) (table : Prefix Wire (Option Coord → E) total → Option Coord → E)
+    (tape : Tape (Prefix Wire (Option Coord → E) total) (Option Coord) E budget (Structure.protocol
+      whole).stages)
     (out : Inner ⊕ BreakT) (result : Checkpoint.extract whole prover budget table tape = some out) :
     accept ((Structure.protocol whole).final prover table) ∧
       Sum.elim
@@ -537,7 +561,7 @@ the bounds of the draws of `Verifier.front` and `Verifier.back`, and `error` and
 stage errors and the retry loops of the Akita opening. -/
 theorem extraction_le {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ}
     (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → E) total) Coord E budget
+    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → E) total) (Option Coord) E budget
           (Structure.protocol whole).stages,
         (if accept ((Structure.protocol whole).final prover table) ∧
           Checkpoint.extract whole prover budget table tape = none then (1 : ℝ) else 0) ≤
@@ -549,7 +573,7 @@ theorem extraction_le {queries : ℕ} (bounded : prover.QueryBound queries) {bud
 `K̂ + (Q + 1)·(K̂ − 1)` with `K̂ = 4·tree` for the tree size `tree` of the Akita opening (Akita
 Theorem 10.17, the cost). -/
 theorem runs_le {queries : ℕ} (bounded : prover.QueryBound queries) (budget : ℕ) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → E) total) Coord E budget
+    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → E) total) (Option Coord) E budget
           (Structure.protocol whole).stages,
         (extractRuns whole prover budget table tape : ℝ) ≤
       (4 * tree : ℕ) + (queries + 1) * ((4 * tree : ℕ) - 1) :=

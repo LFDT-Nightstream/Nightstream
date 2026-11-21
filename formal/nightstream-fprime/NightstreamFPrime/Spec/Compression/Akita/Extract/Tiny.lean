@@ -163,11 +163,11 @@ noncomputable def basis (blocks blockLength : ℕ) :
     Module.Basis (Fin (opening blocks blockLength).planes) Zq Zq :=
   Module.Basis.singleton (Fin 1) Zq
 
-theorem cells_first : (opening 1 1).cells fold < 2 ^ 9 := by decide
+theorem cells_first : (opening 1 1).cells fold ≤ 2 ^ 9 := by decide
 
-theorem cells_second : (opening 3 128).cells fold < 2 ^ 14 := by decide
+theorem cells_second : (opening 3 128).cells fold ≤ 2 ^ 14 := by decide
 
-theorem rows_first : (opening 1 1).rowCount + 1 + 1 ≤ 2 ^ 3 := by decide
+theorem rows_first : (opening 1 1).rowCount + 1 ≤ 2 ^ 3 := by decide
 
 theorem rows_second : (opening 3 128).rowCount + 1 ≤ 2 ^ 3 := by decide
 
@@ -196,10 +196,12 @@ theorem surjective_castLE {n : ℕ} (small : n ≤ 4) :
       simp⟩⟩
 
 /-- `packingPair_complete` for the small instance, with no hypothesis on the parameters: for each
-matrices, each table, each opening point and each table of the oracle, the verifier accepts the
-transcript of a proof with the claim of the honest prover. -/
+matrices, each table, each opening point and each table of the oracle whose work slots have 57
+zero work bits, the verifier accepts the transcript of a proof with the claim of the honest
+prover. -/
 theorem complete (source : Table) (point : Point (opening 1 1) Zq)
-    (table : Prefix Wire (Coord → Zq) (Tier.finish second) → Coord → Zq) :
+    (table : Prefix Wire (Option Coord → Zq) (Tier.finish second) → Option Coord → Zq)
+    (worked : ∀ input, table input none ∈ workZeros Zq 57) :
     ∃ proof : ℕ → Wire,
       (proof 0).root = honestClaim (basis 1 1) key openKey source point ∧
         pairAccepts first second Letter.payload Letter.digits
@@ -215,28 +217,23 @@ theorem complete (source : Table) (point : Point (opening 1 1) Zq)
     (shape_honest (by decide)) radix le_rfl (show PathFits 1 (1 * 1) none from trivial)
     (by decide) (by decide) (p := 0) (t := 0) (s := 7) (k := 2) rfl rfl rfl (by decide) rfl
     (by decide) source point
-    (fun _ _ => encodable _) (fun _ _ _ _ => encodable _) table (fun _ _ => rfl) fun _ _ => rfl
+    (fun _ _ => encodable _) (fun _ _ _ _ => encodable _) table (fun _ _ => rfl) (fun _ _ => rfl)
+    worked
 
 /-- `packingPair_extraction_le` for the small instance, with no hypothesis on the parameters
 (Akita Theorem 10.17 for two levels): the bound holds for each prover, and by `complete` its
 event has the transcripts of the honest prover. -/
-theorem extraction_le (statement : Statement (opening 1 1) Zq)
-    (challenge : Fin (shape 1 1).blocks → Rq (opening 1 1).carrierDegree)
-    (statement' : Statement (opening 3 128) Zq)
-    (challenge' : Fin (shape 3 128).blocks → Rq (opening 3 128).carrierDegree)
-    (prover : OracleComp (Prefix Wire (Coord → Zq) (Tier.finish second)) (Coord → Zq) (ℕ → Wire))
+theorem extraction_le
+    (prover : OracleComp (Prefix Wire (Option Coord → Zq) (Tier.finish second)) (Option Coord → Zq)
+      (ℕ → Wire))
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → Zq) (Tier.finish second)) Coord Zq budget
+    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → Zq) (Tier.finish second)) (Option Coord) Zq
+          budget
           (Structure.protocol chain).stages,
         (if pairAccepts first second Letter.payload Letter.digits
             ((Structure.protocol chain).final prover table) ∧
           Checkpoint.extract chain prover budget table tape = none then (1 : ℝ) else 0) ≤
-      (queries + 1) * (∑ b, Tier.chance first b +
-          foldError (lockedReduction (basis 1 1) statement challenge 9 cells_first 3 rows_first)
-            (shape 1 1).certifiedBase +
-          (∑ b, Tier.chance second b +
-            foldError (flatReduction (basis 3 128) statement' challenge' 14 cells_second 3
-              rows_second) (shape 3 128).certifiedBase)) +
+      (queries + 1) * (Tier.levelError first + Tier.levelError second) +
         (queries + 1) * ((shape 1 1).blocks + 1 + ((shape 3 128).blocks + 1) : ℕ) / budget :=
   packingPair_extraction_le (S := shape 1 1) (O := opening 1 1) (fold := fold)
     (S' := shape 3 128) (O' := opening 3 128) (fold' := fold) (E := Zq) (Wire := Wire)
@@ -248,8 +245,7 @@ theorem extraction_le (statement : Statement (opening 1 1) Zq)
     (commit := Letter.payload) (witnessOf := Letter.digits) (peak := 1) (peak' := 1)
     (fun left right _ => Subsingleton.elim (α := Fin 1) left right) decode_units decode_sparse
     (by decide) (by decide) (by simp) (by simp) (Fin.castLE_injective _) decode_units
-    decode_sparse (by decide) (by decide) (by simp) (by simp) statement challenge statement'
-    challenge' prover bounded positive
+    decode_sparse (by decide) (by decide) (by simp) (by simp) prover bounded positive
 
 end Extract.Tiny
 

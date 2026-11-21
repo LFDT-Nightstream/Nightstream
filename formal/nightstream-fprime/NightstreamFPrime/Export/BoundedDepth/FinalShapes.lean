@@ -51,18 +51,18 @@ variable {logicalWidth : Nat}
   (control : AppState → AppWitness → Fin 2) {Wire Coord : Type} {total : ℕ}
   (head : Wire → First logicalWidth publicFits)
   [Fintype Coord] [DecidableEq Coord] {ι : Type} [Fintype ι]
-  (kind : Wire → Option ι) (accepts : ι → Prefix Wire (Coord → K) total → Prop)
-  (proofs : ι → (budget : ℕ) → (Prefix Wire (Coord → K) total → Coord → K) →
-    Tape (Prefix Wire (Coord → K) total) Coord K budget total →
+  (kind : Wire → Option ι) (accepts : ι → Prefix Wire (Option Coord → K) total → Prop)
+  (proofs : ι → (budget : ℕ) → (Prefix Wire (Option Coord → K) total → Option Coord → K) →
+    Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget total →
       Terminal.ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits))
-  (prover : OracleComp (Prefix Wire (Coord → K) total) (Coord → K) (ℕ → Wire))
+  (prover : OracleComp (Prefix Wire (Option Coord → K) total) (Option Coord → K) (ℕ → Wire))
 
 /-- The final verifier over a family of verifiers of the proofs with steps (SPEC.md
 Algorithm 10). It accepts a transcript when the statement of the first message is a statement of
 zero steps (step 1), or when the first message names the shape `kind` of the family and the
 verifier `accepts` of this shape accepts. A first message with a shape outside the family has
 `kind` equal to `none`. -/
-def finalAccepts (point : Prefix Wire (Coord → K) total) : Prop :=
+def finalAccepts (point : Prefix Wire (Option Coord → K) total) : Prop :=
   (Terminal.StatementValid (head point.first).statement ∧
       (head point.first).statement.iteration = 0 ∧
       (head point.first).statement.zi = (head point.first).statement.z0) ∨
@@ -70,8 +70,9 @@ def finalAccepts (point : Prefix Wire (Coord → K) total) : Prop :=
 
 /-- The proof with witnesses of the extractor for the final verifier: the bottom proof for a
 statement of zero steps, and the proof `proofs` of the shape that the first message names. -/
-noncomputable def finalProof (budget : ℕ) (table : Prefix Wire (Coord → K) total → Coord → K)
-    (tape : Tape (Prefix Wire (Coord → K) total) Coord K budget total) :
+noncomputable def finalProof (budget : ℕ) (table : Prefix Wire (Option Coord → K) total → Option
+  Coord → K)
+    (tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget total) :
     Terminal.ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits) :=
   if Terminal.StatementValid (head (prover.run table 0)).statement ∧
       (head (prover.run table 0)).statement.iteration = 0 ∧
@@ -91,12 +92,12 @@ of each shape for its verifier and its proof. A statement of zero steps adds no 
 draw, and `Verifies` accepts its proof (`FinalVerifier.verifies_of_bottom`). -/
 theorem knowledge_all {bounds : ι → ℝ}
     (each : ∀ index,
-      𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → K) total) Coord K budget total,
+      𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget total,
         (if accepts index (played prover table) ∧
             ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths cap control
               (head (played prover table).first).statement (proofs index budget table tape)
           then (1 : ℝ) else 0) ≤ bounds index) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → K) total) Coord K budget total,
+    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget total,
         (if finalAccepts head kind accepts (played prover table) ∧
             ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths cap control
               (head (played prover table).first).statement
@@ -139,7 +140,7 @@ with witnesses satisfies `Verifies` for the statement of the first message is at
 the bounds of the shapes. `each`: the bound of each shape for its verifier and its proof. -/
 theorem sound_all {bounds : ι → ℝ}
     (each : ∀ index,
-      𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → K) total) Coord K budget total,
+      𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget total,
         (if accepts index (played prover table) ∧
             ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths cap control
               (head (played prover table).first).statement (proofs index budget table tape)
@@ -151,7 +152,7 @@ theorem sound_all {bounds : ι → ℝ}
           then (1 : ℝ) else 0) ≤
       ∑ index, bounds index := by
   have flat (value : ℝ) : value =
-      𝔼 _tape : Tape (Prefix Wire (Coord → K) total) Coord K budget total, value :=
+      𝔼 _tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget total, value :=
     (Finset.expect_const Finset.univ_nonempty value).symm
   refine le_trans (Finset.expect_le_expect fun table _ => ?_)
     (knowledge_all setup packageWidths step cap control head kind accepts proofs prover budget
@@ -169,8 +170,8 @@ extractor, with the uniform law. Its output is the accepted statement with the p
 of the extractor, and otherwise the bottom proof of `(0, [], [])`. -/
 noncomputable def adversary :
     HyperNova.ReverseStages.IvcAdversary (IvcSecurity.Output logicalWidth publicFits) where
-  Tape := (Prefix Wire (Coord → K) total → Coord → K) ×
-    Tape (Prefix Wire (Coord → K) total) Coord K budget total
+  Tape := (Prefix Wire (Option Coord → K) total → Option Coord → K) ×
+    Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget total
   tape := Compression.Game.uniform _
   output sample :=
     if finalAccepts head kind accepts (played prover sample.1) then
@@ -181,14 +182,14 @@ noncomputable def adversary :
 /-- The final verifier accepts `(i, z0, zi)` for the table of the oracle, and no `i` valid steps
 of `program`, each with a witness of the word count of the program, lead from `z0` to `zi`. -/
 def FalseHistory (program : Stage1.Application.Program)
-    (table : Prefix Wire (Coord → K) total → Coord → K) : Prop :=
+    (table : Prefix Wire (Option Coord → K) total → Option Coord → K) : Prop :=
   finalAccepts head kind accepts (played prover table) ∧
     ¬ IvcWalk.Reaches program (head (played prover table).first).statement
 
 /-- The final verifier accepts for the table of the oracle, and `Verifies` rejects the proof
 `finalProof` of the extractor for the tape: the event of `knowledge_all`. -/
-def Rejected (sample : (Prefix Wire (Coord → K) total → Coord → K) ×
-    Tape (Prefix Wire (Coord → K) total) Coord K budget total) : Prop :=
+def Rejected (sample : (Prefix Wire (Option Coord → K) total → Option Coord → K) ×
+    Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget total) : Prop :=
   finalAccepts head kind accepts (played prover sample.1) ∧
     ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths cap control
       (head (played prover sample.1).first).statement
@@ -203,14 +204,14 @@ local notation "rejects" =>
 the bounds of the shapes (`knowledge_all` under the uniform law). -/
 theorem rejected_le {bounds : ι → ℝ}
     (each : ∀ index,
-      𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → K) total) Coord K budget total,
+      𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget total,
         (if accepts index (played prover table) ∧
             ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths cap control
               (head (played prover table).first).statement (proofs index budget table tape)
           then (1 : ℝ) else 0) ≤ bounds index) :
     ((ivc).tape.toOuterMeasure {sample | rejects sample}).toReal ≤ ∑ index, bounds index := by
-  refine (uniform_event (Sample := (Prefix Wire (Coord → K) total → Coord → K) ×
-    Tape (Prefix Wire (Coord → K) total) Coord K budget total) _).trans_le
+  refine (uniform_event (Sample := (Prefix Wire (Option Coord → K) total → Option Coord → K) ×
+    Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget total) _).trans_le
     (le_trans (le_of_eq ?_) (knowledge_all setup packageWidths step cap control head kind accepts
       proofs prover budget each))
   rw [← Finset.univ_product_univ, Finset.expect_product]
@@ -263,7 +264,7 @@ proof, at the widths of the packages. `depthBound`: each accepted statement has 
 steps. -/
 theorem history_sound {bounds : ι → ℝ}
     (each : ∀ index,
-      𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → K) total) Coord K budget total,
+      𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget total,
         (if accepts index (played prover table) ∧
             ¬ Verifies setup.ajtai setup.circuitKeys step complete.packageWidth cap control
               (head (played prover table).first).statement (proofs index budget table tape)
@@ -336,7 +337,7 @@ are not a history of the accepted statement is at most the sum of the bounds of 
 (`IvcSecurity.extraction_bound`). -/
 theorem history_knowledge {bounds : ι → ℝ}
     (each : ∀ index,
-      𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → K) total) Coord K budget total,
+      𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget total,
         (if accepts index (played prover table) ∧
             ¬ Verifies setup.ajtai setup.circuitKeys step complete.packageWidth cap control
               (head (played prover table).first).statement (proofs index budget table tape)

@@ -115,7 +115,7 @@ theorem links :
 
 variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree2 E]
   {Wire Coord : Type} [Fintype Coord] [DecidableEq Coord] {total : ℕ}
-  {accept : Prefix Wire (Coord → E) total → Prop} {read : Reader Wire} {start : ℕ}
+  {accept : Prefix Wire (Option Coord → E) total → Prop} {read : Reader Wire} {start : ℕ}
   {key₂ : Key level₂.shape} {openKey₂ : OpeningKey level₂.opening}
   {claim₂ : Wire → TraceClaim level₂.opening E} {block₂ : Fin level₂.shape.blocks → Coord}
   {decode₂ : E → Option (Rq level₂.shape.innerDegree)} {weight₂ : ℕ}
@@ -157,7 +157,7 @@ local notation "fifth" =>
     weight₅ norm₅.operator norm₅.limit (Tier.finish fourth)) level₅.tail
 
 local notation "linked" =>
-  fun stage : Prefix Wire (Coord → E) total =>
+  fun stage : Prefix Wire (Option Coord → E) total =>
     Tier.TraceLinked second third (And.left (And.right quarters)) commit₃ stage ∧
     Tier.TraceLinked third fourth (And.left (And.right (And.right quarters))) commit₄ stage ∧
     Tier.TraceLinked fourth fifth (And.left (And.right (And.right (And.right quarters)))) commit₅
@@ -167,7 +167,8 @@ local notation "linked" =>
 
 /-- Akita Theorem 10.9 for the trace levels 2 to 5 and the terminal of the schedule `key20.aks`,
 without the probability that a response does not fit (`Extract.traceTower_complete`): for each
-table of the oracle whose slots decode to fold challenges, and each transcript prefix on its path
+table of the oracle whose slots decode to fold challenges and whose work slots have 57 zero work
+bits (Akita Remark 10.18, `workZeros`), and each transcript prefix on its path
 whose last message has the claim `honestTraceClaim` of the level 2 for a packed polynomial `g`
 and a point with the segments of the lengths 6, 9 and 5 or more, later messages exist such that
 the complete transcript has the links `Tier.TraceLinked` of the levels 2 to 5, the link
@@ -190,13 +191,14 @@ theorem traceTower_complete {sendable : (M : Type) → M → Prop} {slots width 
     (next : Terminal.start L = Tier.finish fifth) (inside : Terminal.start L < total)
     (reads : ∀ point, Terminal.read L point = statementOf (point.wire (Terminal.start L)))
     (clears : ∀ point, Terminal.partials L point = partialsOf (point.wire (Terminal.start L)))
-    (table : Prefix Wire (Coord → E) total → Coord → E)
-    (decodes₂ : ∀ input i, (decode₂ (table input (block₂ i))).isSome)
-    (decodes₃ : ∀ input i, (decode₃ (table input (block₃ i))).isSome)
-    (decodes₄ : ∀ input i, (decode₄ (table input (block₄ i))).isSome)
-    (decodes₅ : ∀ input i, (decode₅ (table input (block₅ i))).isSome)
-    (decodesL : ∀ input i, (Terminal.decode L (table input (Terminal.block L i))).isSome)
-    {first : Wire} {early : List ((Coord → E) × Wire)} (on : OnPath accept table first early)
+    (table : Prefix Wire (Option Coord → E) total → Option Coord → E)
+    (decodes₂ : ∀ input i, (decode₂ (table input (some (block₂ i)))).isSome)
+    (decodes₃ : ∀ input i, (decode₃ (table input (some (block₃ i)))).isSome)
+    (decodes₄ : ∀ input i, (decode₄ (table input (some (block₄ i)))).isSome)
+    (decodes₅ : ∀ input i, (decode₅ (table input (some (block₅ i)))).isSome)
+    (decodesL : ∀ input i, (Terminal.decode L (table input (some (Terminal.block L i)))).isSome)
+    (worked : ∀ input, table input none ∈ workZeros E 57)
+    {first : Wire} {early : List ((Option Coord → E) × Wire)} (on : OnPath accept table first early)
     (starts : early.length = start) {g : ℕ → E} {block position pack : List E} {θ : E}
     (packs : pack.length = 6) (positions : position.length = 9) (blocks : 5 ≤ block.length)
     (live : ∀ cell, level₂.shape.blocks * (level₂.shape.blockLength * (2 * 32)) ≤ cell →
@@ -217,7 +219,7 @@ theorem traceTower_complete {sendable : (M : Type) → M → Prop} {slots width 
           (And.right (And.right (And.right (And.right quarters)))) (packed w₅ : ℕ → E))) ≤
           normTerminal.limit) :
     ∃ later, OnPath accept table first (early ++ later) ∧ (early ++ later).length = total ∧
-      ∀ stage : Prefix Wire (Coord → E) total, stage.first = first →
+      ∀ stage : Prefix Wire (Option Coord → E) total, stage.first = first →
         stage.rest = early ++ later → linked stage :=
   Extract.traceTower_complete sends (by omega) room carries₂ carries₃ carries₄ carries₅ carriesL
     quarters.1 quarters.2.1 quarters.2.2.1 quarters.2.2.2.1 quarters.2.2.2.2 source₂ source₃
@@ -232,11 +234,12 @@ theorem traceTower_complete {sendable : (M : Type) → M → Prop} {slots width 
     ((by decide : norm₃.limit ≤ 3029804899).trans capped)
     ((by decide : norm₄.limit ≤ 3029804899).trans capped)
     ((by decide : norm₅.limit ≤ 3029804899).trans capped) next inside reads clears table decodes₂
-    decodes₃ decodes₄ decodes₅ decodesL on starts packs positions blocks live ready fit
+    decodes₃ decodes₄ decodes₅ decodesL worked on starts packs positions blocks live ready fit
 
 /-- `traceTower_complete` for a proof whose first message has the claim of the level 2, which
 has its fold challenges at the stage 0: for each table of the oracle whose slots decode to fold
-challenges, a proof exists such that its first message has the claim `honestTraceClaim` and its
+challenges and whose work slots have 57 zero work bits, a proof exists such that its first message
+has the claim `honestTraceClaim` and its
 complete transcript has the links of the levels 2 to 5 and of the terminal and the checks
 `Terminal.Passed`. `full`: a wire message can have this claim. The other hypotheses are those of
 `traceTower_complete`. -/
@@ -252,12 +255,13 @@ theorem traceTower_accepts {sendable : (M : Type) → M → Prop} {slots width c
     (next : Terminal.start L = Tier.finish fifth) (inside : Terminal.start L < total)
     (reads : ∀ point, Terminal.read L point = statementOf (point.wire (Terminal.start L)))
     (clears : ∀ point, Terminal.partials L point = partialsOf (point.wire (Terminal.start L)))
-    (table : Prefix Wire (Coord → E) total → Coord → E)
-    (decodes₂ : ∀ input i, (decode₂ (table input (block₂ i))).isSome)
-    (decodes₃ : ∀ input i, (decode₃ (table input (block₃ i))).isSome)
-    (decodes₄ : ∀ input i, (decode₄ (table input (block₄ i))).isSome)
-    (decodes₅ : ∀ input i, (decode₅ (table input (block₅ i))).isSome)
-    (decodesL : ∀ input i, (Terminal.decode L (table input (Terminal.block L i))).isSome)
+    (table : Prefix Wire (Option Coord → E) total → Option Coord → E)
+    (decodes₂ : ∀ input i, (decode₂ (table input (some (block₂ i)))).isSome)
+    (decodes₃ : ∀ input i, (decode₃ (table input (some (block₃ i)))).isSome)
+    (decodes₄ : ∀ input i, (decode₄ (table input (some (block₄ i)))).isSome)
+    (decodes₅ : ∀ input i, (decode₅ (table input (some (block₅ i)))).isSome)
+    (decodesL : ∀ input i, (Terminal.decode L (table input (some (Terminal.block L i)))).isSome)
+    (worked : ∀ input, table input none ∈ workZeros E 57)
     {g : ℕ → E} {block position pack : List E} {θ : E} (packs : pack.length = 6)
     (positions : position.length = 9) (blocks : 5 ≤ block.length)
     (live : ∀ cell, level₂.shape.blocks * (level₂.shape.blockLength * (2 * 32)) ≤ cell →
@@ -284,7 +288,7 @@ theorem traceTower_accepts {sendable : (M : Type) → M → Prop} {slots width c
   obtain ⟨wire, said⟩ := full
   obtain ⟨later, on, whole, each⟩ := traceTower_complete sends wide capped room carries₂ carries₃
     carries₄ carries₅ carriesL next inside reads clears table decodes₂ decodes₃ decodes₄ decodes₅
-    decodesL (onPath_nil accept table wire) origin.symm packs positions blocks live said fit
+    decodesL worked (onPath_nil accept table wire) origin.symm packs positions blocks live said fit
   obtain ⟨proof, zero, holds⟩ := OnPath.accepts (holds := linked) on whole each
   exact ⟨proof, zero ▸ said, holds⟩
 

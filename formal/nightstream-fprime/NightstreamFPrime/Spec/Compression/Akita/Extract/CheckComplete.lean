@@ -15,13 +15,13 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceNorm
   `z̃(r_virt)`, `s̃(r_virt)` and `w̃(r_2)`.
 - `energy_response` gives `Σ_u (z^Z_u)² = ‖G_{b_z,m_A}·ẑ‖_2²` in `Z_q` for the flat witness of
   digit vectors, so the cap of the honest prover is a bound on `‖z‖_2²`.
-- `lockedTraceFold_winsTo` is the completeness of the checks of a committed trace fold.
+- `traceFold_winsTo` is the completeness of the checks of a committed trace fold.
 - `Tier.tensored_winsAt` adds the tensor reduction, and `committedTrace_winsAt` and
   `committedTraceSq_winsAt` are the completeness of the checks of the levels `committedTrace` and
   `committedTraceSq`.
 - `liftFold_winsAt` and `liftBatch_winsAt` are the completeness of the checks of the levels
-  `liftFold` and `liftBatch` on the quotient-lift route, for the flat witness with the digits of
-  the quotients (Akita Lemma 7.1, item 1). -/
+  `liftFold` and `liftBatch` on the quotient-lift route, for the witness of Akita (76) with the
+  digits of the quotients (Akita Lemma 7.1, item 1). -/
 
 set_option autoImplicit false
 
@@ -81,18 +81,20 @@ structure Sends (sendable : (M : Type) → M → Prop) (E : Type) (width cap : �
 
 /-- The number of the draws of `foldCheckSq`: the draws of `foldCheck`, `ζ_norm` and
 `η_norm`. -/
-def foldDrawsSq (μ b : ℕ) : ℕ :=
-  0 + μ + 1 + 1 + 1 + treeDraws μ (μ + 1) (rangeArities b) + 1 + 1 + 1
+def foldDrawsSq (μ b : ℕ) (bin : Bool) : ℕ :=
+  0 + μ + 1 + binDraws bin + 1 + treeDraws μ (μ + 1) (rangeArities b) + 1 + 1 + 1
 
 /-- The largest number of field elements in one message of `foldCheckSq` before its fused
 sum-check. -/
 def rangeWidthSq (b : ℕ) : ℕ :=
   max (max (rangeLeaf b + 1) 2 + 1) (treeWidth (rangeArities b) 1)
 
-theorem foldCostsSq_length (E : Type) [Fintype E] (badBound vars batch base : ℕ) :
-    (foldCostsSq E badBound vars batch base).length = foldDrawsSq vars base := by
+theorem foldCostsSq_length (E : Type) [Fintype E] (badBound vars batch base : ℕ)
+    (bin : Bool) :
+    (foldCostsSq E badBound vars batch base bin).length = foldDrawsSq vars base bin := by
   simp only [foldCostsSq, rangeCostsSq, foldDrawsSq, List.length_cons, List.length_append,
-    List.length_replicate, ← treeCosts_length E vars (vars + 1) (rangeArities base) 1]
+    List.length_replicate, binCosts_length, ← treeCosts_length E vars (vars + 1) (rangeArities
+      base) 1]
   omega
 
 section Checks
@@ -261,23 +263,34 @@ theorem normLeafStage_winsAt {width cap : ℕ} (sends : Sends sendable E width c
   rw [ite_eq_left last]
   exact ended final length
 
+omit [DecidableEq E] [Algebra Zq E] in
+/-- The prover wins after `drawBin` when it wins for each coefficient `ζ_bin`. -/
+theorem drawBin_winsAt {β : Type} (bin : Bool) {bad : Finset E} {next : E → Game β} {rest : ℕ}
+    {tail : β → ℕ → ℕ → Prop} (each : ∀ ζ, WinsAt sendable slots (next ζ) rest 0 tail) :
+    WinsAt sendable slots (drawBin bin bad next) (rest + binDraws bin) 0 tail := by
+  cases bin
+  · exact each 0
+  · exact each
+
 /-- The completeness of the checks of one fold on the Euclidean route (Akita Theorem 10.9 with
 Sections 6.2 and 6.3): for a witness with the relation, the digit range statement, the binary
 statement and `Σ_{u < 2^{μ'}} (z^Z_u)² = E_resp ≤ S_max` in `Z_q`, the prover has a message for
 each draw sequence, and `foldCheckSq` ends in the claim `(r_2, w̃(r_2))`. -/
 theorem foldCheckSq_winsAt {width cap : ℕ} (sends : Sends sendable E width cap)
     (room : 0 < slots) (R : Reduction E) (b : ℕ) (wide : rangeWidthSq b ≤ width)
-    (four : 4 ≤ width) (support : ℕ → Prop) [DecidablePred support] {limit claimed : ℕ}
+    (four : 4 ≤ width) (support : ℕ → Prop) [DecidablePred support] {bin : Bool}
+    {limit claimed : ℕ}
     (kernel : ℕ → ℕ → Zq) {w : Table} (holds : R.Holds w) (ranged : RangeHolds b R.vars w)
     (binary : BinaryOn support R.vars w) (small : claimed ≤ limit) (capped : claimed ≤ cap)
     (energy : ∑ u ∈ Finset.range (2 ^ R.vars), normTable R.vars kernel w u ^ 2 =
       (claimed : Zq)) :
-    WinsAt sendable slots (foldCheckSq R b support limit kernel w) (foldDrawsSq R.vars b) 0
+    WinsAt sendable slots (foldCheckSq R b support bin limit kernel w)
+      (foldDrawsSq R.vars b bin) 0
       fun result _ place => place ≤ 1 ∧
         ∃ r2 : List E, r2.length = R.vars ∧ result = some (r2, mle r2 (lifted E w)) := by
   intro α τ0 τ1
   refine (winsAt_bind sendable slots _ _ _ _ _).mpr (rangeTree_winsAt sends room (rangeLeaf b)
-    R.vars w _ (R.vars + 1) (0 + R.vars + 1 + 1 + 1) _
+    R.vars w _ (R.vars + 1) (0 + R.vars + 1 + binDraws bin + 1) _
     (fun nodes weights point claim => normLeafStage_winsAt sends room
       ((le_max_left _ _).trans wide) kernel support w small capped energy _ _
       (fun final length => ?_) nodes weights point claim)
@@ -286,7 +299,9 @@ theorem foldCheckSq_winsAt {width cap : ℕ} (sends : Sends sendable E width cap
   swap
   · rw [root_sum b w (List.ofFn τ0)]
     exact (mle_rangeResidual_eq_zero ranged _ List.length_ofFn).symm
-  intro η ζ γ
+  intro η
+  refine drawBin_winsAt bin fun ζ => ?_
+  intro γ
   refine (winsAt_of_fresh (admits := fun M => ∀ message : M, sendable M message)
     (fun _ message all => all message) (fusedCheck_winsTo _ sends.scalar
       (fun message => sends.vector _ message four) R.vars support w _ _ final _ ζ γ 0 ?_)
@@ -314,20 +329,7 @@ section Trace
 
 variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {E : Type} [Field E]
   [Algebra Zq E] {st : TraceStatement O E} {challenge : Fin S.blocks → Rq S.innerDegree} {μ : ℕ}
-  {cells : O.cells fold < 2 ^ μ}
-
-/-- A table with `traceRelation` and the cell `cells` equal to 0 satisfies
-`lockedTraceRelation`. -/
-theorem lockedTraceRelation_of_flat {table : Table} (zero : table (O.cells fold) = 0)
-    (holds : (traceRelation O fold st challenge μ cells).Holds table) :
-    (lockedTraceRelation O fold st challenge μ cells).Holds table := by
-  refine ⟨(forall_append (RingRow.Holds · table) (traceRows O fold st challenge)
-    (fun _ : Fin 1 => (zeroForm O.carrierDegree (O.cells fold)).row 0)).mpr
-    ⟨holds.1, fun _ => ((zeroForm O.carrierDegree (O.cells fold)).row_holds 0 table).mpr ?_⟩,
-    holds.2⟩
-  show (∑ _c : Unit, (1 : Rq O.carrierDegree) * ofCoeffs fun _ => table (O.cells fold)) = 0
-  rw [zero, ofCoeffs_eq (x := 0) fun j _ => (coeff_zero j).symm]
-  simp
+  {cells : O.cells fold ≤ 2 ^ μ}
 
 variable [Fintype E] [DecidableEq E]
 
@@ -335,18 +337,19 @@ variable [Fintype E] [DecidableEq E]
 (Akita Lemma 10.7 with Theorem 10.9): for digit vectors with the exact branch relation, the
 prover has a message for each draw sequence, and the checks end in the claim `(r_2, w̃(r_2))` for
 the flat witness. -/
-theorem lockedTraceFold_winsTo (admits : Type → Prop) (scalar : admits E)
+theorem traceFold_winsTo (admits : Type → Prop) (scalar : admits E)
     (range : ∀ n, n ≤ rangeWidth S.certifiedBase → admits (Fin n → E)) (cubic : admits (Fin (3 + 1) → E))
     (two : 2 ≤ S.certifiedBase) (small : S.certifiedBase < fieldModulus) (batch : ℕ)
-    (rowsFit : O.traceRowCount + 1 + 1 ≤ 2 ^ batch) {w : Witness O fold}
+    (rowsFit : O.traceRowCount + 1 ≤ 2 ^ batch) {w : Witness O fold}
     (satisfies : w.TraceSatisfies st challenge) :
-    WinsTo admits (foldCheck (lockedTraceReduction st challenge μ cells batch rowsFit)
-      S.certifiedBase (O.binarySupport fold) w.flat) (foldDraws μ S.certifiedBase) true
+    WinsTo admits (foldCheck (traceReduction st challenge μ cells batch rowsFit)
+      S.certifiedBase (O.binarySupport fold) (O.compressed fold) w.flat) (foldDraws μ
+        S.certifiedBase (O.compressed fold)) true
       fun result _ _ =>
         ∃ r2 : List E, r2.length = μ ∧ result = some (r2, mle r2 (lifted E w.flat)) :=
-  foldCheck_winsTo admits (lockedTraceReduction st challenge μ cells batch rowsFit)
+  foldCheck_winsTo admits (traceReduction st challenge μ cells batch rowsFit)
     S.certifiedBase scalar range cubic _
-    (lockedTraceRelation_of_flat (w.flat_of_le le_rfl) (satisfies.flat μ cells))
+    (satisfies.flat μ cells)
     (satisfies.alphabets.rangeHolds two small μ) (satisfies.alphabets.binaryOn two μ)
 
 end Trace
@@ -388,7 +391,7 @@ theorem Tier.tensored_winsAt [Degree2 E] {Ring Stmt Brk : Type}
       (by simpa using long)) room
 
 variable {key : Key S} {openKey : OpeningKey O} {claim : Wire → TraceClaim O E} {μ : ℕ}
-  {cells : O.cells fold < 2 ^ μ} {batch : ℕ} {rowsFit : O.traceRowCount + 1 + 1 ≤ 2 ^ batch}
+  {cells : O.cells fold ≤ 2 ^ μ} {batch : ℕ} {rowsFit : O.traceRowCount + 1 ≤ 2 ^ batch}
   {block : Fin S.blocks → Coord} {decode : E → Option (Rq S.innerDegree)} {read : Reader Wire}
   {weight start : ℕ}
 
@@ -402,12 +405,13 @@ theorem committedTrace_winsAt (sends : Sends sendable E width cap)
     (satisfies : w.TraceSatisfies ((claim wire).statement key openKey) challenge) :
     WinsAt sendable slots
       ((committedTrace (fold := fold) key openKey claim μ cells batch rowsFit block decode read
-        weight start).check wire challenge w.flat) (foldDraws μ S.certifiedBase) 0
+        weight start).check wire challenge w.flat) (foldDraws μ S.certifiedBase (O.compressed
+          fold)) 0
       fun result _ place => place ≤ 1 ∧
         ∃ r2 : List E, r2.length = μ ∧ result = some (r2, mle r2 (lifted E w.flat)) :=
   winsAt_of_fresh (admits := fun M => ∀ message : M, sendable M message)
     (fun _ message all => all message)
-    (lockedTraceFold_winsTo _ sends.scalar
+    (traceFold_winsTo _ sends.scalar
       (fun _ small message => sends.vector _ message (small.trans wide))
       (fun message => sends.vector _ message four) two small batch rowsFit satisfies) room
 
@@ -427,22 +431,23 @@ theorem committedTraceSq_winsAt (sends : Sends sendable E width cap)
     WinsAt sendable slots
       ((committedTraceSq (fold := fold) key openKey claim μ cells batch rowsFit block decode
         read weight operator limit start).check wire challenge w.flat)
-      (foldDrawsSq μ S.certifiedBase) 0
+      (foldDrawsSq μ S.certifiedBase (O.compressed fold)) 0
       fun result _ place => place ≤ 1 ∧
         ∃ r2 : List E, r2.length = μ ∧ result = some (r2, mle r2 (lifted E w.flat)) :=
   foldCheckSq_winsAt sends room
-    (lockedTraceReduction ((claim wire).statement key openKey) challenge μ cells batch rowsFit)
+    (traceReduction ((claim wire).statement key openKey) challenge μ cells batch rowsFit)
     S.certifiedBase wide four _ _
-    (lockedTraceRelation_of_flat (w.flat_of_le le_rfl) (satisfies.flat μ cells))
+    (satisfies.flat μ cells)
     (satisfies.alphabets.rangeHolds two small μ) (satisfies.alphabets.binaryOn two μ) short
     (short.trans capped)
-    (energy_response w (Nat.le_of_lt (Nat.lt_of_le_of_lt (O.responseCells_le_cells fold) cells))
+    (energy_response w ((O.responseCells_le_cells fold).trans cells)
       normRoom)
 
 theorem committedTraceSq_costs_length {operator limit : ℕ} :
     (committedTraceSq (fold := fold) key openKey claim μ cells batch rowsFit block decode read
-      weight operator limit start).costs.length = foldDrawsSq μ S.certifiedBase :=
-  foldCostsSq_length E _ _ _ _
+      weight operator limit start).costs.length = foldDrawsSq μ S.certifiedBase (O.compressed fold)
+        :=
+  foldCostsSq_length E _ _ _ _ _
 
 end Levels
 
@@ -451,9 +456,9 @@ section Lift
 variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {E : Type} [Field E] [Fintype E]
   [DecidableEq E] [Algebra Zq E] {Wire Coord : Type} {sendable : (M : Type) → M → Prop}
   {slots width cap : ℕ} {β : Module.Basis (Fin O.planes) Zq E} {key : Key S}
-  {openKey : OpeningKey O} {claim : Wire → Claim O E} {μ : ℕ} {cells : O.cells fold < 2 ^ μ}
+  {openKey : OpeningKey O} {claim : Wire → Claim O E} {μ : ℕ} {cells : O.cells fold ≤ 2 ^ μ}
   {digits : ℕ} {room : O.quotientRoom fold digits ≤ 2 ^ μ} {batch : ℕ}
-  {rowsFit : O.rowCount + 1 + 1 ≤ 2 ^ batch} {block : Fin S.blocks → Coord}
+  {rowsFit : O.rowCount + 1 ≤ 2 ^ batch} {block : Fin S.blocks → Coord}
   {decode : E → Option (Rq O.carrierDegree)} {read : Reader Wire} {weight start : ℕ}
 
 /-- The completeness of the checks of the level `liftFold` (Akita Lemma 7.1, item 1, with
@@ -473,12 +478,12 @@ theorem liftFold_winsAt (sends : Sends sendable E width cap)
     WinsAt sendable slots
       ((liftFold β key openKey claim μ cells digits room batch rowsFit block decode read weight
         start).check wire challenge
-        ((lockedRelation O fold β ((claim wire).statement key openKey) challenge μ
-          cells).completion S.certifiedBase digits (O.cells fold + 1) w.flat))
-      (foldDraws μ S.certifiedBase) 0 fun result _ place => place ≤ 1 ∧
+        ((flatRelation O fold β ((claim wire).statement key openKey) challenge μ
+          cells).completion (O.gaps fold digits) S.certifiedBase digits w.flat))
+      (foldDraws μ S.certifiedBase (O.compressed fold)) 0 fun result _ place => place ≤ 1 ∧
         ∃ r2 : List E, r2.length = μ ∧ result = some (r2, mle r2 (lifted E
-          ((lockedRelation O fold β ((claim wire).statement key openKey) challenge μ
-            cells).completion S.certifiedBase digits (O.cells fold + 1) w.flat))) :=
+          ((flatRelation O fold β ((claim wire).statement key openKey) challenge μ
+            cells).completion (O.gaps fold digits) S.certifiedBase digits w.flat))) :=
   winsAt_of_fresh (admits := fun M => ∀ message : M, sendable M message)
     (fun _ message all => all message)
     (liftedFold_winsTo _ sends.scalar
@@ -493,9 +498,9 @@ section Groups
 variable {n : ℕ} {B : Batch (Fin n)} {E : Type} [Field E] [Fintype E] [DecidableEq E]
   [Algebra Zq E] {Wire Coord : Type} {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
   {β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E} {key : (g : Fin n) → Key (B.shape g)}
-  {openKey : B.OpenKey} {claim : Wire → B.Claim E} {μ : ℕ} {cells : B.cells < 2 ^ μ}
+  {openKey : B.OpenKey} {claim : Wire → B.Claim E} {μ : ℕ} {cells : B.cells ≤ 2 ^ μ}
   {base digits : ℕ} {room : B.quotientRoom digits ≤ 2 ^ μ} {batch : ℕ}
-  {rowsFit : B.rowCount + 1 + 1 ≤ 2 ^ batch} {block : B.Block → Coord}
+  {rowsFit : B.rowCount + 1 ≤ 2 ^ batch} {block : B.Block → Coord}
   {decode : (g : Fin n) → E → Option (Rq (B.carrierDegree g))} {read : Reader Wire}
   {mass : Fin n → ℕ} {start : ℕ}
 
@@ -515,12 +520,12 @@ theorem liftBatch_winsAt (sends : Sends sendable E width cap) (wide : rangeWidth
     WinsAt sendable slots
       ((liftBatch β key openKey claim μ cells base digits room batch rowsFit block decode read
         mass start).check wire challenge
-        ((B.lockedRelation β ((claim wire).statement key openKey) (fun g i => challenge ⟨g, i⟩)
-          μ cells).completion base digits (B.cells + 1) w.flat))
-      (foldDraws μ base) 0 fun result _ place => place ≤ 1 ∧
+        ((B.flatRelation β ((claim wire).statement key openKey) (fun g i => challenge ⟨g, i⟩)
+          μ cells).completion (B.gaps digits) base digits w.flat))
+      (foldDraws μ base B.compressed) 0 fun result _ place => place ≤ 1 ∧
         ∃ r2 : List E, r2.length = μ ∧ result = some (r2, mle r2 (lifted E
-          ((B.lockedRelation β ((claim wire).statement key openKey)
-            (fun g i => challenge ⟨g, i⟩) μ cells).completion base digits (B.cells + 1)
+          ((B.flatRelation β ((claim wire).statement key openKey)
+            (fun g i => challenge ⟨g, i⟩) μ cells).completion (B.gaps digits) base digits
             w.flat))) :=
   winsAt_of_fresh (admits := fun M => ∀ message : M, sendable M message)
     (fun _ message all => all message)

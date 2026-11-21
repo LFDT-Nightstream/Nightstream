@@ -60,7 +60,7 @@ variable {logicalWidth : Nat}
   (control : AppState → AppWitness → Fin 2) (shape : Claims logicalWidth publicFits)
   {Wire Coord : Type} {total : ℕ} (read : Reader Wire)
   (head : Wire → First logicalWidth publicFits)
-  (bound : Prefix Wire (Coord → K) total → (g : Fin 3) → (root.shape g).Payload)
+  (bound : Prefix Wire (Option Coord → K) total → (g : Fin 3) → (root.shape g).Payload)
   [Fintype Coord] [DecidableEq Coord] [Nonempty Coord]
   {β : ∀ g, Module.Basis (Fin (root.planes g)) Zq K} {key : (g : Fin 3) → Key (root.shape g)}
   {openKey : root.OpenKey} {claim : Wire → root.Claim K} {block : root.Block → Coord}
@@ -216,7 +216,7 @@ omit [Nonempty Coord] in
 /-- On a transcript with the conditions `Compose.Ran` of the final verifier with `Use`, the points
 of the three claims of the Akita opening have 20, 16 and 16 coordinates
 (`Compose.Ran.lengths`, `key20_points`). -/
-theorem Use.points (use : Use setup shape) {point : Prefix Wire (Coord → K) total}
+theorem Use.points (use : Use setup shape) {point : Prefix Wire (Option Coord → K) total}
     (ran : Compose.Ran C vf commit value place point) :
     ∀ g, (place (point.wire (Compose.root C vf)) g).length = ![20, 16, 16] g := by
   obtain ⟨key, w, v, -⟩ := key20_points setup shape use
@@ -232,7 +232,8 @@ theorem Use.points (use : Use setup shape) {point : Prefix Wire (Coord → K) to
 (`FinalAkita.mixed_sound` for the numbers of `Key20.lean`). For each prover with at most `Q`
 queries to the oracle, the probability that the verifier `towerAccepts` accepts and no proof with
 witnesses satisfies `Verifies` for the statement of the first message is at most
-`(Q + 1)·(runCost + 6318/|K| + 135·p) + (Q + 1)·144/budget + breakChance`. `p` is a bound of the
+`(Q + 1)·(runCost + 317735/(1024·|K|) + 49/8·p) + (Q + 1)·144/budget + breakChance`. `p` is a bound
+of the
 slot probability of each challenge family (`Key20.towerError_le`), and 144 is the count of the
 retry loops: 2 for the compression argument and 142 for the opening. `breakChance` is the
 probability that the extractor returns a solution of Module-SIS for the key commitment, for a
@@ -284,19 +285,19 @@ theorem sound [Finite Wire] {peak : Fin 3 → ℕ} (premises : Premises setup pa
     (chance₂ : slotChance decode₂ ≤ p) (chance₃ : slotChance decode₃ ≤ p)
     (chance₄ : slotChance decode₄ ≤ p) (chance₅ : slotChance decode₅ ≤ p)
     (chanceL : slotChance (Terminal.decode L) ≤ p)
-    (prover : OracleComp (Prefix Wire (Coord → K) total) (Coord → K) (ℕ → Wire))
+    (prover : OracleComp (Prefix Wire (Option Coord → K) total) (Option Coord → K) (ℕ → Wire))
     {honest : Certified (root.shape 0)} {factorBound sourceBound innerBound : ℕ}
     (registered : ∀ anchor, honest.Opens factorBound sourceBound (key 0) (bound anchor 0)
       (keyBase (setup.params shape)))
     (covers : factorBound * (root.fold 0).sourceBound (root.shape 0) + 2 * mass 0 * sourceBound ≤
       innerBound)
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 _tape : Tape (Prefix Wire (Coord → K) total) Coord K budget
+    𝔼 table, 𝔼 _tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget
           (Structure.protocol whole).stages,
         (if accepts ((Structure.protocol whole).final prover table) ∧
             ¬ Proved setup packageWidths step cap control head
               (((Structure.protocol whole).input prover table 0).wire 0) then (1 : ℝ) else 0) ≤
-      (queries + 1) * (setup.runCost shape + (6318 / (Fintype.card K : ℝ) + 135 * p)) +
+      (queries + 1) * (setup.runCost shape + (317735 / (1024 * Fintype.card K) + 49 / 8 * p)) +
         (queries + 1) * (144 : ℕ) / budget +
         breakChance setup packageWidths step cap control shape read head bound accepts opening
           key openKey mass Sum.inl prover honest innerBound budget := by
@@ -375,7 +376,7 @@ after the lookup challenges. `next`, `inside`, `reads`, `clears`: the stage of t
 its messages. `fit`: the fit conditions of `Key20.tower_complete` for the tables of the key
 polynomial, `W` and the honest inverses of each lookup challenges that are no table values. -/
 theorem complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
-    {accept : Prefix Wire (Coord → K) total → Prop}
+    {accept : Prefix Wire (Option Coord → K) total → Prop}
     {statementOf : Wire → TerminalStatement Key20.terminal K}
     {partialsOf : Wire → Fin Key20.terminal.blocks → Rq Key20.terminal.innerDegree}
     (use : Use setup shape) (sends : Sends sendable K width cap) (wide : 8 ≤ width)
@@ -396,19 +397,20 @@ theorem complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
     (next : Terminal.start L = Tier.finish fifth) (inside : Terminal.start L < total)
     (reads : ∀ point, Terminal.read L point = statementOf (point.wire (Terminal.start L)))
     (clears : ∀ point, Terminal.partials L point = partialsOf (point.wire (Terminal.start L)))
-    (table : Prefix Wire (Coord → K) total → Coord → K)
-    (calm : ∀ input, sample (Coord → K) (Fin (setup.params shape).lookups → Zq) (table input) ∉
-      Compression.Verifier.tableHit (setup.params shape))
+    (table : Prefix Wire (Option Coord → K) total → Option Coord → K)
+    (calm : ∀ input, sample (Coord → K) (Fin (setup.params shape).lookups → Zq)
+      (view (table input)) ∉ Compression.Verifier.tableHit (setup.params shape))
     (regular : ∀ input,
-      sample (Coord → K) (Compression.Verifier.Challenges (setup.params shape)) (table input) ∉
-        Compression.Verifier.omegaBad (setup.params shape))
-    (decodes : ∀ input b, (decode b.1 (table input (block b))).isSome)
-    (decodes₁ : ∀ input i, (decode₁ (table input (block₁ i))).isSome)
-    (decodes₂ : ∀ input i, (decode₂ (table input (block₂ i))).isSome)
-    (decodes₃ : ∀ input i, (decode₃ (table input (block₃ i))).isSome)
-    (decodes₄ : ∀ input i, (decode₄ (table input (block₄ i))).isSome)
-    (decodes₅ : ∀ input i, (decode₅ (table input (block₅ i))).isSome)
-    (decodesL : ∀ input i, (Terminal.decode L (table input (Terminal.block L i))).isSome)
+      sample (Coord → K) (Compression.Verifier.Challenges (setup.params shape))
+        (view (table input)) ∉ Compression.Verifier.omegaBad (setup.params shape))
+    (decodes : ∀ input b, (decode b.1 (table input (some (block b)))).isSome)
+    (decodes₁ : ∀ input i, (decode₁ (table input (some (block₁ i)))).isSome)
+    (decodes₂ : ∀ input i, (decode₂ (table input (some (block₂ i)))).isSome)
+    (decodes₃ : ∀ input i, (decode₃ (table input (some (block₃ i)))).isSome)
+    (decodes₄ : ∀ input i, (decode₄ (table input (some (block₄ i)))).isSome)
+    (decodes₅ : ∀ input i, (decode₅ (table input (some (block₅ i)))).isSome)
+    (decodesL : ∀ input i, (Terminal.decode L (table input (some (Terminal.block L i)))).isSome)
+    (worked : ∀ input, table input none ∈ workZeros K 57)
     (given : Wire)
     (checks : FinalVerifier.Checks mode (head given).statement ((head given).claims shape))
     (gate : setup.Gate ((head given).claims shape)) (W : Table)
@@ -422,11 +424,11 @@ theorem complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
             (setup.claimsOf (head given).statement ((head given).claims shape) probe) ∧
           Compression.Verifier.Relation (setup.params shape)
             (setup.claimsOf (head given).statement ((head given).claims shape) probe) W)
-    (bound₀ : ∀ anchor : Prefix Wire (Coord → K) total, anchor.first = given →
+    (bound₀ : ∀ anchor : Prefix Wire (Option Coord → K) total, anchor.first = given →
       bound anchor 0 = (Compression.Akita.commit (key 0) (keyBase (setup.params shape))).1)
-    (bound₁ : ∀ anchor : Prefix Wire (Coord → K) total, anchor.first = given →
+    (bound₁ : ∀ anchor : Prefix Wire (Option Coord → K) total, anchor.first = given →
       bound anchor 1 = (Compression.Akita.commit (key 1) W).1)
-    (bound₂ : ∀ anchor : Prefix Wire (Coord → K) total,
+    (bound₂ : ∀ anchor : Prefix Wire (Option Coord → K) total,
       bound anchor 2 = commit (anchor.wire (Compose.front C).finish) 2)
     (fit : ∀ τ, Compression.Verifier.Apart (setup.params shape) τ →
       BatchFit β key openKey rootVars (And.left root_sized) 8 quotientDigits decode
@@ -488,7 +490,7 @@ theorem complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
     (fun τ apart moves on length committed lengths valued =>
       Key20.tower_complete sends wide capped room carriesR carries₀ carries₁ carries₂ carries₃
         carries₄ carries₅ carriesL next inside reads clears table decodes decodes₁ decodes₂
-        decodes₃ decodes₄ decodes₅ decodesL on length
+        decodes₃ decodes₄ decodes₅ decodesL worked on length
         (tables := ![keyBase (setup.params shape), W,
           Compression.Verifier.honestInverses (setup.params shape) W τ])
         (fun g cell large => by

@@ -39,6 +39,15 @@ structure LawfulFrom [Fintype Coord] [DecidableEq Coord] [Fintype Slot]
     mass {slot | structure_.key level coordinate slot = some value} ≤
       structure_.weight level coordinate
   weight_nonnegative : ∀ level coordinate, 0 ≤ structure_.weight level coordinate
+  work_accept : ∀ level coordinates point deeper, start ≤ level →
+    structure_.kind level = .indexed coordinates → protocol.accept point →
+    protocol.cut (level + 1) point = some deeper → protocol.last deeper ∈ structure_.work level
+  work_keep : ∀ level coordinates coordinate reply slot, start ≤ level →
+    structure_.kind level = .indexed coordinates → coordinate ∈ coordinates →
+    (Function.update reply coordinate slot ∈ structure_.work level ↔
+      reply ∈ structure_.work level)
+  work_mass : ∀ level coordinates, start ≤ level → structure_.kind level = .indexed coordinates →
+    mass (structure_.work level) ≤ structure_.chance level
   leaf_point : ∀ point, structure_.point (structure_.leaf point) = point
   leaf_holds : ∀ point, protocol.accept point →
     structure_.holds protocol.stages (structure_.leaf point)
@@ -107,6 +116,11 @@ theorem LawfulFrom.lawful [Fintype Coord] [DecidableEq Coord] [Fintype Slot]
   key_mass level coordinates coordinate value :=
     from_.key_mass level coordinates coordinate value (Nat.zero_le _)
   weight_nonnegative := from_.weight_nonnegative
+  work_accept level coordinates point deeper :=
+    from_.work_accept level coordinates point deeper (Nat.zero_le _)
+  work_keep level coordinates coordinate reply slot :=
+    from_.work_keep level coordinates coordinate reply slot (Nat.zero_le _)
+  work_mass level coordinates := from_.work_mass level coordinates (Nat.zero_le _)
   leaf_point := from_.leaf_point
   leaf_holds := from_.leaf_holds
   plain_holds level certificate := from_.plain_holds level certificate (Nat.zero_le _)
@@ -146,6 +160,8 @@ def finish (protocol : Protocol Point (Coord → Slot) Proof) :
   kind _ := .plain
   key _ _ _ := none
   weight _ _ := 0
+  work _ := Set.univ
+  chance _ := 1
   error _ := 0
   leaf point := point
   point certificate := certificate
@@ -167,6 +183,9 @@ theorem finish_lawfulFrom [Fintype Coord] [DecidableEq Coord] [Fintype Slot]
   key_some _ _ _ _ _ _ isIndexed := absurd isIndexed (by simp [finish])
   key_mass _ _ _ _ _ isIndexed := absurd isIndexed (by simp [finish])
   weight_nonnegative _ _ := le_rfl
+  work_accept _ _ _ _ _ isIndexed := absurd isIndexed (by simp [finish])
+  work_keep _ _ _ _ _ _ isIndexed := absurd isIndexed (by simp [finish])
+  work_mass _ _ _ isIndexed := absurd isIndexed (by simp [finish])
   leaf_point _ := rfl
   leaf_holds _ accepted := accepted
   plain_holds _ _ _ _ held := held

@@ -12,14 +12,16 @@ import NightstreamFPrime.Spec.Compression.Akita.Layout
   the view of `t̂` in `R_{q,d_B}`.
 - `OpeningShape.responseCell`, `OpeningShape.partialCell`, `OpeningShape.outerCell` and the four
   functions for the compression digits give the position of one coefficient in the flat witness.
-  A coefficient index that is not in the segment gives the position `OpeningShape.cells`, which
-  has the cell 0. `OpeningShape.partialPosition`, `OpeningShape.innerCell` and
-  `OpeningShape.sliceCell` are the positions that the rows of Akita Figure 5 read.
+  A coefficient index that is not in the segment gives `none`: a row has the coefficient 0 there
+  and does not read the witness (Akita (109)). `OpeningShape.partialPosition`,
+  `OpeningShape.innerCell` and `OpeningShape.sliceCell` are the positions that the rows of Akita
+  Figure 5 read.
 - `OpeningShape.flatLayout` is the `Layout` of `Witness.flat` on a cube with
   `OpeningShape.cells < 2^μ`, with the set `I_bin = OpeningShape.binarySupport`.
 
-Akita Appendix L.2 puts zeros between the segments for alignment and lets the cube be full. This
-file has no alignment zeros, and it needs one zero cell after the last segment. -/
+Akita Appendix L.2 puts zeros between the segments for alignment. The levels of the schedule files
+have no such zeros before their last segment (`tests/AkitaSchedules.lean`), and this file has
+none. -/
 
 namespace NightstreamFPrime.Spec.Compression.Akita
 
@@ -123,6 +125,12 @@ def responseCode : (Fin S.blockLength × Fin S.sourceDigits) × Fin fold.respons
 def responseCells : ℕ :=
   S.blockLength * S.sourceDigits * fold.responseDigits * S.innerDegree
 
+/-- The position of coefficient `k` of an element of `ẑ` (Akita (347)), and `none` for a
+coefficient index outside the element. -/
+def responseCell (col : (Fin S.blockLength × Fin S.sourceDigits) × Fin fold.responseDigits)
+    (k : ℕ) : Option ℕ :=
+  if k < S.innerDegree then some (S.responseCode fold col * S.innerDegree + k) else none
+
 /-- The index `((i·n_A + a)·(d_A/d_B) + y)·δ_open + u` of the element `(a, y, u)` of the view of
 `t̂_i` in `R_{q,d_B}` (Akita (346) with `(D, d) = (d_A, d_B)`). -/
 def innerCode : Fin S.blocks × S.OuterColumn ≃
@@ -170,127 +178,167 @@ def openSecondStart : ℕ := O.secondStart fold + secondCells S.chain
 /-- The number of cells of the flat witness before the zero suffix. -/
 def cells : ℕ := O.openSecondStart fold + secondCells O.chain
 
-/-- The position of coefficient `k` of an element of `ẑ` (Akita (347)). -/
-def responseCell (col : (Fin S.blockLength × Fin S.sourceDigits) × Fin fold.responseDigits)
-    (k : ℕ) : ℕ :=
-  if k < S.innerDegree then S.responseCode fold col * S.innerDegree + k else O.cells fold
+theorem chainStart_le_cells : O.chainStart fold ≤ O.cells fold := by
+  unfold cells openSecondStart secondStart openFirstStart
+  omega
 
 /-- The position of coefficient `k` of an element of `ê` (Akita (346)). -/
-def partialCell (col : O.OpenColumn) (k : ℕ) : ℕ :=
-  if k < O.openDegree then S.responseCells fold + (O.partialCode col * O.openDegree + k)
-  else O.cells fold
+def partialCell (col : O.OpenColumn) (k : ℕ) : Option ℕ :=
+  if k < O.openDegree then some (S.responseCells fold + (O.partialCode col * O.openDegree + k))
+  else none
 
 /-- The position of digit `u` of coordinate `position` of partial `i`: coefficient
-`position mod d_D` of the subcolumn `position / d_D`. -/
-def partialPosition (i : Fin S.blocks) (u : Fin S.openingDigits) (position : ℕ) : ℕ :=
+`position mod d_D` of the subcolumn `position / d_D`, and `none` after the last subcolumn. -/
+def partialPosition (i : Fin S.blocks) (u : Fin S.openingDigits) (position : ℕ) : Option ℕ :=
   if inside : position / O.openDegree < O.subcolumns then
     O.partialCell fold (i, ⟨position / O.openDegree, inside⟩, u) (position % O.openDegree)
-  else O.cells fold
+  else none
 
 /-- The position of coefficient `k` of an element of the view of `t̂_i` in `R_{q,d_B}`
 (Akita (346)). -/
-def outerCell (i : Fin S.blocks) (col : S.OuterColumn) (k : ℕ) : ℕ :=
-  if k < S.outerDegree then O.innerStart fold + (S.innerCode (i, col) * S.outerDegree + k)
-  else O.cells fold
+def outerCell (i : Fin S.blocks) (col : S.OuterColumn) (k : ℕ) : Option ℕ :=
+  if k < S.outerDegree then some (O.innerStart fold + (S.innerCode (i, col) * S.outerDegree + k))
+  else none
 
 /-- The position of coefficient `k` of digit `u` of row `a` of `t̂_i` in `R_{q,d_A}`: coefficient
 `k mod d_B` of the subcolumn `k / d_B`. -/
-def innerCell (i : Fin S.blocks) (a : Fin S.innerRank) (u : Fin S.openingDigits) (k : ℕ) : ℕ :=
+def innerCell (i : Fin S.blocks) (a : Fin S.innerRank) (u : Fin S.openingDigits) (k : ℕ) :
+    Option ℕ :=
   if inside : k / S.outerDegree < S.ratio then
     O.outerCell fold i (a, ⟨k / S.outerDegree, inside⟩, u) (k % S.outerDegree)
-  else O.cells fold
+  else none
 
-/-- The position of coefficient `k` of an element of the input of slice `s` of `B` (Akita (44)).
-An element after the last block of the slice has the zero cell. -/
-def sliceCell (s : Fin S.slices) (entry : Fin S.sliceLength × S.OuterColumn) (k : ℕ) : ℕ :=
+/-- The position of coefficient `k` of an element of the input of slice `s` of `B` (Akita (44)),
+and `none` for an element after the last block of the slice. -/
+def sliceCell (s : Fin S.slices) (entry : Fin S.sliceLength × S.OuterColumn) (k : ℕ) :
+    Option ℕ :=
   if inside : S.sliceStart s + entry.1 < S.sliceStart ((s : ℕ) + 1) then
     O.outerCell fold ⟨S.sliceStart s + entry.1,
       inside.trans_le (S.sliceStart_le (Nat.succ_le_of_lt s.isLt))⟩ entry.2 k
-  else O.cells fold
+  else none
 
 /-- The position of entry `position` of the digit sequence of `F_1`. -/
-def firstCell (position : ℕ) : ℕ :=
-  if position < firstCells S.chain then O.chainStart fold + position else O.cells fold
+def firstCell (position : ℕ) : Option ℕ :=
+  if position < firstCells S.chain then some (O.chainStart fold + position) else none
 
 /-- The position of entry `position` of the digit sequence of `H_1`. -/
-def openFirstCell (position : ℕ) : ℕ :=
-  if position < firstCells O.chain then O.openFirstStart fold + position else O.cells fold
+def openFirstCell (position : ℕ) : Option ℕ :=
+  if position < firstCells O.chain then some (O.openFirstStart fold + position) else none
 
 /-- The position of entry `position` of the digit sequence of `F_2`. -/
-def secondCell (position : ℕ) : ℕ :=
-  if position < secondCells S.chain then O.secondStart fold + position else O.cells fold
+def secondCell (position : ℕ) : Option ℕ :=
+  if position < secondCells S.chain then some (O.secondStart fold + position) else none
 
 /-- The position of entry `position` of the digit sequence of `H_2`. -/
-def openSecondCell (position : ℕ) : ℕ :=
-  if position < secondCells O.chain then O.openSecondStart fold + position else O.cells fold
+def openSecondCell (position : ℕ) : Option ℕ :=
+  if position < secondCells O.chain then some (O.openSecondStart fold + position) else none
 
-theorem responseCell_le
-    (col : (Fin S.blockLength × Fin S.sourceDigits) × Fin fold.responseDigits) (k : ℕ) :
-    O.responseCell fold col k ≤ O.cells fold := by
-  unfold responseCell
-  split
+theorem responseCell_lt
+    (col : (Fin S.blockLength × Fin S.sourceDigits) × Fin fold.responseDigits) (k : ℕ) {x : ℕ}
+    (read : S.responseCell fold col k = some x) : x < O.cells fold := by
+  unfold Shape.responseCell at read
+  split at read
   · rename_i small
+    cases read
     have inside := cell_lt (S.responseCode fold col) small
     unfold cells openSecondStart secondStart openFirstStart chainStart innerStart
       Shape.responseCells
     omega
-  · exact le_rfl
+  · cases read
 
-theorem partialCell_le (col : O.OpenColumn) (k : ℕ) : O.partialCell fold col k ≤ O.cells fold := by
-  unfold partialCell
-  split
+theorem partialCell_lt (col : O.OpenColumn) (k : ℕ) {x : ℕ}
+    (read : O.partialCell fold col k = some x) : x < O.cells fold := by
+  unfold partialCell at read
+  split at read
   · rename_i small
+    cases read
     have inside := cell_lt (O.partialCode col) small
     unfold cells openSecondStart secondStart openFirstStart chainStart innerStart partialCells
     omega
-  · exact le_rfl
+  · cases read
 
-theorem partialPosition_le (i : Fin S.blocks) (u : Fin S.openingDigits) (position : ℕ) :
-    O.partialPosition fold i u position ≤ O.cells fold := by
-  unfold partialPosition
-  split
-  · exact O.partialCell_le fold _ _
-  · exact le_rfl
+theorem partialPosition_lt (i : Fin S.blocks) (u : Fin S.openingDigits) (position : ℕ) {x : ℕ}
+    (read : O.partialPosition fold i u position = some x) : x < O.cells fold := by
+  unfold partialPosition at read
+  split at read
+  · exact O.partialCell_lt fold _ _ read
+  · cases read
 
-theorem outerCell_le (i : Fin S.blocks) (col : S.OuterColumn) (k : ℕ) :
-    O.outerCell fold i col k ≤ O.cells fold := by
-  unfold outerCell
-  split
+/-- A coordinate of a partial is in the segment `ê`, before the offset `innerStart`. -/
+theorem partialPosition_lt_innerStart (i : Fin S.blocks) (u : Fin S.openingDigits)
+    (position : ℕ) {x : ℕ} (read : O.partialPosition fold i u position = some x) :
+    x < O.innerStart fold := by
+  unfold partialPosition partialCell at read
+  split at read
+  · split at read
+    · rename_i inside small
+      cases read
+      have cell := cell_lt (O.partialCode (i, ⟨position / O.openDegree, inside⟩, u)) small
+      unfold innerStart partialCells
+      omega
+    · cases read
+  · cases read
+
+theorem outerCell_lt (i : Fin S.blocks) (col : S.OuterColumn) (k : ℕ) {x : ℕ}
+    (read : O.outerCell fold i col k = some x) : x < O.cells fold := by
+  unfold outerCell at read
+  split at read
   · rename_i small
+    cases read
     have inside := cell_lt (S.innerCode (i, col)) small
     unfold cells openSecondStart secondStart openFirstStart chainStart Shape.innerCells
     omega
-  · exact le_rfl
+  · cases read
 
-theorem innerCell_le (i : Fin S.blocks) (a : Fin S.innerRank) (u : Fin S.openingDigits) (k : ℕ) :
-    O.innerCell fold i a u k ≤ O.cells fold := by
-  unfold innerCell
-  split
-  · exact O.outerCell_le fold _ _ _
-  · exact le_rfl
+theorem innerCell_lt (i : Fin S.blocks) (a : Fin S.innerRank) (u : Fin S.openingDigits) (k : ℕ)
+    {x : ℕ} (read : O.innerCell fold i a u k = some x) : x < O.cells fold := by
+  unfold innerCell at read
+  split at read
+  · exact O.outerCell_lt fold _ _ _ read
+  · cases read
 
-theorem sliceCell_le (s : Fin S.slices) (entry : Fin S.sliceLength × S.OuterColumn) (k : ℕ) :
-    O.sliceCell fold s entry k ≤ O.cells fold := by
-  unfold sliceCell
-  split
-  · exact O.outerCell_le fold _ _ _
-  · exact le_rfl
+theorem sliceCell_lt (s : Fin S.slices) (entry : Fin S.sliceLength × S.OuterColumn) (k : ℕ)
+    {x : ℕ} (read : O.sliceCell fold s entry k = some x) : x < O.cells fold := by
+  unfold sliceCell at read
+  split at read
+  · exact O.outerCell_lt fold _ _ _ read
+  · cases read
 
-theorem firstCell_le (position : ℕ) : O.firstCell fold position ≤ O.cells fold := by
-  unfold firstCell cells openSecondStart secondStart openFirstStart
-  split <;> omega
+theorem firstCell_lt (position : ℕ) {x : ℕ} (read : O.firstCell fold position = some x) :
+    x < O.cells fold := by
+  unfold firstCell at read
+  split at read
+  · cases read
+    unfold cells openSecondStart secondStart openFirstStart
+    omega
+  · cases read
 
-theorem openFirstCell_le (position : ℕ) : O.openFirstCell fold position ≤ O.cells fold := by
-  unfold openFirstCell cells openSecondStart secondStart
-  split <;> omega
+theorem openFirstCell_lt (position : ℕ) {x : ℕ} (read : O.openFirstCell fold position = some x) :
+    x < O.cells fold := by
+  unfold openFirstCell at read
+  split at read
+  · cases read
+    unfold cells openSecondStart secondStart
+    omega
+  · cases read
 
-theorem secondCell_le (position : ℕ) : O.secondCell fold position ≤ O.cells fold := by
-  unfold secondCell cells openSecondStart
-  split <;> omega
+theorem secondCell_lt (position : ℕ) {x : ℕ} (read : O.secondCell fold position = some x) :
+    x < O.cells fold := by
+  unfold secondCell at read
+  split at read
+  · cases read
+    unfold cells openSecondStart
+    omega
+  · cases read
 
-theorem openSecondCell_le (position : ℕ) : O.openSecondCell fold position ≤ O.cells fold := by
-  unfold openSecondCell cells
-  split <;> omega
+theorem openSecondCell_lt (position : ℕ) {x : ℕ}
+    (read : O.openSecondCell fold position = some x) : x < O.cells fold := by
+  unfold openSecondCell at read
+  split at read
+  · cases read
+    unfold cells
+    omega
+  · cases read
 
 /-- The set `I_bin` of the positions of the compression digits (Akita Remark 6.2): the positions
 from the first digit of `F_1` to the last digit of `H_2`. -/
@@ -298,6 +346,16 @@ def binarySupport (x : ℕ) : Prop := O.chainStart fold ≤ x ∧ x < O.cells fo
 
 instance : DecidablePred (O.binarySupport fold) :=
   fun _ => inferInstanceAs (Decidable (_ ∧ _))
+
+/-- The level has compression digits: the set `I_bin` is not empty. A level with the payload mode
+`Raw` in the schedule file has no compression digits. -/
+def compressed : Bool := decide (O.chainStart fold < O.cells fold)
+
+theorem binarySupport_empty (raw : O.compressed fold = false) (x : ℕ) :
+    ¬ O.binarySupport fold x := by
+  have none := of_decide_eq_false raw
+  unfold binarySupport
+  omega
 
 end OpeningShape
 
@@ -373,24 +431,25 @@ theorem flat_of_le {x : ℕ} (large : O.cells fold ≤ x) : w.flat x = 0 := by
 
 theorem flat_responseCell
     (col : (Fin S.blockLength × Fin S.sourceDigits) × Fin fold.responseDigits) {k : ℕ}
-    (small : k < S.innerDegree) : w.flat (O.responseCell fold col k) = coeff (w.response col) k := by
-  rw [OpeningShape.responseCell, ite_eq_left small, w.flat_response (cell_lt _ small),
-    cellsOf_apply _ _ _ small]
+    (small : k < S.innerDegree) :
+    (S.responseCell fold col k).elim 0 w.flat = coeff (w.response col) k := by
+  rw [Shape.responseCell, ite_eq_left small, Option.elim_some,
+    w.flat_response (cell_lt _ small), cellsOf_apply _ _ _ small]
 
 theorem flat_partialCell (col : O.OpenColumn) {k : ℕ} (small : k < O.openDegree) :
-    w.flat (O.partialCell fold col k) = coeff (w.partials col) k := by
-  rw [OpeningShape.partialCell, ite_eq_left small, w.flat_partial (cell_lt _ small),
-    cellsOf_apply _ _ _ small]
+    (O.partialCell fold col k).elim 0 w.flat = coeff (w.partials col) k := by
+  rw [OpeningShape.partialCell, ite_eq_left small, Option.elim_some,
+    w.flat_partial (cell_lt _ small), cellsOf_apply _ _ _ small]
 
 theorem flat_outerCell (i : Fin S.blocks) (col : S.OuterColumn) {k : ℕ}
     (small : k < S.outerDegree) :
-    w.flat (O.outerCell fold i col k) = coeff (S.outerView (w.inner i) col) k := by
-  rw [OpeningShape.outerCell, ite_eq_left small, w.flat_inner (cell_lt _ small),
+    (O.outerCell fold i col k).elim 0 w.flat = coeff (S.outerView (w.inner i) col) k := by
+  rw [OpeningShape.outerCell, ite_eq_left small, Option.elim_some, w.flat_inner (cell_lt _ small),
     cellsOf_apply _ _ _ small]
 
 theorem flat_innerCell (i : Fin S.blocks) (a : Fin S.innerRank) (u : Fin S.openingDigits) {k : ℕ}
     (small : k < S.innerDegree) :
-    w.flat (O.innerCell fold i a u k) = coeff (w.inner i (a, u)) k := by
+    (O.innerCell fold i a u k).elim 0 w.flat = coeff (w.inner i (a, u)) k := by
   have positive := NeZero.pos S.outerDegree
   rw [OpeningShape.innerCell, dite_eq_left (show k / S.outerDegree < S.ratio from
       Nat.div_lt_div_of_lt_of_dvd S.divides small),
@@ -399,70 +458,72 @@ theorem flat_innerCell (i : Fin S.blocks) (a : Fin S.innerRank) (u : Fin S.openi
 
 /-- The cells of an element of the input of a slice of `B` give this element (Akita (44)). -/
 theorem read_sliceCell (s : Fin S.slices) (entry : Fin S.sliceLength × S.OuterColumn) :
-    ofCoeffs (fun k => w.flat (O.sliceCell fold s entry k)) = S.sliceInput w.inner s entry := by
+    ofCoeffs (fun k => (O.sliceCell fold s entry k).elim 0 w.flat) =
+      S.sliceInput w.inner s entry := by
   by_cases inside : S.sliceStart s + entry.1 < S.sliceStart ((s : ℕ) + 1)
   · simp only [OpeningShape.sliceCell, Shape.sliceInput, inside, ↓reduceDIte]
     exact ofCoeffs_eq fun k small => w.flat_outerCell _ _ small
-  · simp only [OpeningShape.sliceCell, Shape.sliceInput, inside, ↓reduceDIte]
-    exact ofCoeffs_eq fun k _ => (w.flat_of_le le_rfl).trans (coeff_zero k).symm
+  · simp only [OpeningShape.sliceCell, Shape.sliceInput, inside, ↓reduceDIte, Option.elim_none]
+    exact ofCoeffs_eq fun k _ => (coeff_zero k).symm
 
 /-- Coordinate `position` of partial `i` is the recomposition in base `b_1` of its digits in the
 flat witness (Akita (58) and (346)). -/
 theorem sum_flat_partialPosition (i : Fin S.blocks) (position : ℕ) :
     ∑ u : Fin S.openingDigits,
-        (S.openingBase : Zq) ^ (u : ℕ) * w.flat (O.partialPosition fold i u position) =
+        (S.openingBase : Zq) ^ (u : ℕ) * (O.partialPosition fold i u position).elim 0 w.flat =
       sequence (gadget S.openingBase fun entry : Fin O.subcolumns × Fin S.openingDigits =>
         w.partials (i, entry)) position := by
   have positive := NeZero.pos O.openDegree
   by_cases inside : position / O.openDegree < O.subcolumns
   · simp only [sequence, OpeningShape.partialPosition, inside, ↓reduceDIte, gadget, coeff_sum,
       coeff_natCast_pow_mul, w.flat_partialCell _ (Nat.mod_lt position positive)]
-  · simp only [sequence, OpeningShape.partialPosition, inside, ↓reduceDIte, w.flat_of_le le_rfl,
+  · simp only [sequence, OpeningShape.partialPosition, inside, ↓reduceDIte, Option.elim_none,
       mul_zero, Finset.sum_const_zero]
 
 theorem coeff_partialPlane (i : Fin S.blocks) (t : Fin O.planes) (j : Fin O.carrierDegree) :
     coeff (O.partialPlane w.partials i t) j = ∑ u : Fin S.openingDigits,
       (S.openingBase : Zq) ^ (u : ℕ) *
-        w.flat (O.partialPosition fold i u (t * O.carrierDegree + j)) := by
+        (O.partialPosition fold i u (t * O.carrierDegree + j)).elim 0 w.flat := by
   rw [OpeningShape.partialPlane, coeff_ofCoeffs _ j.isLt, w.sum_flat_partialPosition]
 
 theorem flat_firstCell (position : ℕ) :
-    w.flat (O.firstCell fold position) = PathDigits.firstTable S.chain w.chain position := by
+    (O.firstCell fold position).elim 0 w.flat = PathDigits.firstTable S.chain w.chain position := by
   unfold OpeningShape.firstCell
   split
   · rename_i small
     exact w.flat_first small
   · rename_i large
-    rw [w.flat_of_le le_rfl, PathDigits.firstTable_of_le _ _ _ (Nat.le_of_not_lt large)]
+    exact (PathDigits.firstTable_of_le _ _ _ (Nat.le_of_not_lt large)).symm
 
 theorem flat_openFirstCell (position : ℕ) :
-    w.flat (O.openFirstCell fold position) =
+    (O.openFirstCell fold position).elim 0 w.flat =
       PathDigits.firstTable O.chain w.openChain position := by
   unfold OpeningShape.openFirstCell
   split
   · rename_i small
     exact w.flat_openFirst small
   · rename_i large
-    rw [w.flat_of_le le_rfl, PathDigits.firstTable_of_le _ _ _ (Nat.le_of_not_lt large)]
+    exact (PathDigits.firstTable_of_le _ _ _ (Nat.le_of_not_lt large)).symm
 
 theorem flat_secondCell (position : ℕ) :
-    w.flat (O.secondCell fold position) = PathDigits.secondTable S.chain w.chain position := by
+    (O.secondCell fold position).elim 0 w.flat =
+      PathDigits.secondTable S.chain w.chain position := by
   unfold OpeningShape.secondCell
   split
   · rename_i small
     exact w.flat_second small
   · rename_i large
-    rw [w.flat_of_le le_rfl, PathDigits.secondTable_of_le _ _ _ (Nat.le_of_not_lt large)]
+    exact (PathDigits.secondTable_of_le _ _ _ (Nat.le_of_not_lt large)).symm
 
 theorem flat_openSecondCell (position : ℕ) :
-    w.flat (O.openSecondCell fold position) =
+    (O.openSecondCell fold position).elim 0 w.flat =
       PathDigits.secondTable O.chain w.openChain position := by
   unfold OpeningShape.openSecondCell
   split
   · rename_i small
     exact w.flat_openSecond small
   · rename_i large
-    rw [w.flat_of_le le_rfl, PathDigits.secondTable_of_le _ _ _ (Nat.le_of_not_lt large)]
+    exact (PathDigits.secondTable_of_le _ _ _ (Nat.le_of_not_lt large)).symm
 
 end Witness
 
@@ -472,19 +533,31 @@ variable {S : Shape} (O : OpeningShape S) (fold : Descriptor)
 
 /-- The layout of `Witness.flat` on the cube of `μ` variables, for `cells < 2^μ` (Akita (75) and
 (76)). The set `I_bin` is `binarySupport`. -/
-@[reducible] noncomputable def flatLayout (μ : ℕ) (fits : O.cells fold < 2 ^ μ) :
+@[reducible] noncomputable def flatLayout (μ : ℕ) (fits : O.cells fold ≤ 2 ^ μ) :
     Layout O fold μ where
   flat := Witness.flat
   support := O.binarySupport fold
-  response w col k small :=
-    ⟨O.responseCell fold col k, (O.responseCell_le fold col k).trans_lt fits,
-      w.flat_responseCell col small⟩
-  inner w i entry k small :=
-    ⟨O.innerCell fold i entry.1 entry.2 k, (O.innerCell_le fold i entry.1 entry.2 k).trans_lt fits,
-      w.flat_innerCell i entry.1 entry.2 small⟩
-  partials w col k small :=
-    ⟨O.partialCell fold col k, (O.partialCell_le fold col k).trans_lt fits,
-      w.flat_partialCell col small⟩
+  compressed := O.compressed fold
+  raw := O.binarySupport_empty fold
+  response w col k small := by
+    obtain ⟨x, read⟩ := Option.isSome_iff_exists.mp
+      (show (S.responseCell fold col k).isSome by simp [Shape.responseCell, small])
+    exact ⟨x, (O.responseCell_lt fold col k read).trans_le fits,
+      (congrArg (Option.elim · 0 w.flat) read).symm.trans (w.flat_responseCell col small)⟩
+  inner w i entry k small := by
+    have positive := NeZero.pos S.outerDegree
+    have inside : k / S.outerDegree < S.ratio := Nat.div_lt_div_of_lt_of_dvd S.divides small
+    obtain ⟨x, read⟩ := Option.isSome_iff_exists.mp
+      (show (O.innerCell fold i entry.1 entry.2 k).isSome by
+        simp [innerCell, inside, outerCell, Nat.mod_lt k positive])
+    exact ⟨x, (O.innerCell_lt fold i entry.1 entry.2 k read).trans_le fits,
+      (congrArg (Option.elim · 0 w.flat) read).symm.trans (w.flat_innerCell i entry.1 entry.2
+        small)⟩
+  partials w col k small := by
+    obtain ⟨x, read⟩ := Option.isSome_iff_exists.mp
+      (show (O.partialCell fold col k).isSome by simp [partialCell, small])
+    exact ⟨x, (O.partialCell_lt fold col k read).trans_le fits,
+      (congrArg (Option.elim · 0 w.flat) read).symm.trans (w.flat_partialCell col small)⟩
   chain w := PathDigits.placed_of_tables S.chain w.chain (O.chainStart fold) (O.secondStart fold)
     (fun x small => ⟨by
       unfold binarySupport cells openSecondStart secondStart openFirstStart at *

@@ -207,7 +207,7 @@ local notation "second" =>
     (Tier.finish first)
 
 local notation "third" =>
-  Tier.tensored (slimFold o.β₃ o.key₃ o.openKey₃ o.claim₃ level₃.vars (And.left level₃_sized)
+  Tier.tensored (liftFold o.β₃ o.key₃ o.openKey₃ o.claim₃ level₃.vars (And.left level₃_sized)
     quotientDigits (And.left (And.right level₃_sized)) level₃.batch
     (And.left (And.right (And.right level₃_sized))) o.block₃ draw₃ read 51
     (Tier.finish second)) level₃.tail
@@ -235,7 +235,7 @@ local notation "sixth" =>
 `draw` of the families of the Akita code. The families are `(31, 0)` for each group of the root
 and of the level 1 and for the level 4, `(31, 10)` for the levels 2 and 3, and `(31, 11)` with
 the filters `keep₅` and `keep₆` for the levels 5 and 6. -/
-def Tower.links : Prefix Wire (Coord → E) total → Prop :=
+def Tower.links : Prefix Wire (Option Coord → E) total → Prop :=
   offLinks (weight₅ := 53) (weight₆ := 53) (route₄ := Route.coefficient)
     (route₅ := Route.euclidean norm₅.operator norm₅.limit)
     (route₆ := Route.euclidean norm₆.operator norm₆.limit) zeroth first second third fourth fifth
@@ -248,7 +248,7 @@ def Tower.links : Prefix Wire (Coord → E) total → Prop :=
 batching root at the stage `start`. A first certificate has a weak opening of the three groups
 of the root, and a witness of `R_bind` is a solution of Module-SIS for a matrix of a group, of a
 level, or for `A_term`. -/
-noncomputable def Tower.body (accept : Prefix Wire (Coord → E) total → Prop) :=
+noncomputable def Tower.body (accept : Prefix Wire (Option Coord → E) total → Prop) :=
   offRoot (weight₅ := 53) (weight₆ := 53) (route₄ := Route.coefficient)
     (route₅ := Route.euclidean norm₅.operator norm₅.limit)
     (route₆ := Route.euclidean norm₆.operator norm₆.limit) accept zeroth first second third
@@ -287,7 +287,7 @@ structure Tower.Drawn (keepL : Rq Key30.terminal.innerDegree → Prop) : Prop wh
     MulBound normTerminal.operator c
 
 variable {o split read start} {keepL : Rq Key30.terminal.innerDegree → Prop}
-  {accept : Prefix Wire (Coord → E) total → Prop}
+  {accept : Prefix Wire (Option Coord → E) total → Prop}
 
 omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] in
 /-- The stage of the batching root is a stage of the transcript: the stages of the levels and the
@@ -315,15 +315,15 @@ theorem Tower.Drawn.fits (drawn : o.Drawn split read start keepL) : start ≤ to
 with the decoders `draw`: the stages of `Tower.body` are a suffix from the stage `start` under
 each verifier that accepts only with `Tower.links`, with `1467 + B_1 + B_2` retry loops, the tree
 size `54400647168·(129 + B_1)·(B_2 + 1)`, and a sum of the stage errors of at most
-`8132/|E| + (1458 + B_1 + B_2)/q²` (`tower_suffix` and `towerError_le` with
+`1623435/(4096·|E|) + (1752 + B_1 + 4·B_2)/(256·q²)` (`tower_suffix` and `towerError_le` with
 `Key20.slotChance_draw`). `slots`: an answer of the oracle has 28 slots. -/
 theorem Tower.suffix (drawn : o.Drawn split read start keepL) (slots : 28 ≤ Fintype.card Coord)
     (linked : ∀ point, accept point → o.links split read start point) :
     ∃ error, Tier.Suffix accept start (OpensAt start o.commit o.value o.place o.key mass)
         (o.body split read start accept) error (1467 + r.blocks₁ + r.blocks₂)
         (54400647168 * ((129 + r.blocks₁) * (r.blocks₂ + 1))) ∧
-      error ≤ 8132 / (Fintype.card E : ℝ) +
-        ((1458 + r.blocks₁ + r.blocks₂ : ℕ) : ℝ) * (1 / (fieldModulus : ℝ) ^ 2) := by
+      error ≤ 1623435 / (4096 * Fintype.card E) +
+        ((1752 + r.blocks₁ + 4 * r.blocks₂ : ℕ) : ℝ) / 256 * (1 / (fieldModulus : ℝ) ^ 2) := by
   have registered : Batch.Registered (o.key₁ 0) o.registry o.flat o.reference := by
     obtain ⟨table, payload, padded, decommitment⟩ := drawn.registered
     rw [payload, padded, decommitment]
@@ -393,7 +393,7 @@ theorem Tower.suffix (drawn : o.Drawn split read start keepL) (slots : 28 ≤ Fi
 variable (o split read) in
 /-- The verifier of the opening of a row of `key30.aks` with the batching root at the stage 0:
 `Tower.links` at the stage 0. -/
-def Tower.accepts : Prefix Wire (Coord → E) total → Prop := o.links split read 0
+def Tower.accepts : Prefix Wire (Option Coord → E) total → Prop := o.links split read 0
 
 local notation "whole" => Tower.body o split read 0 (Tower.accepts o split read)
 
@@ -404,9 +404,10 @@ each group of the root, with `κ̄_1 = 2ω` and `β̄_∞ = Δ^cert_f`, to a tab
 value at the claimed point (`OpensAt`). Each other output is a solution of Module-SIS for a
 matrix of a group, of a level, or for `A_term`. -/
 theorem Tower.extract_sound (drawn : o.Drawn split read 0 keepL) (slots : 28 ≤ Fintype.card Coord)
-    (prover : OracleComp (Prefix Wire (Coord → E) total) (Coord → E) (ℕ → Wire)) (budget : ℕ)
-    (table : Prefix Wire (Coord → E) total → Coord → E)
-    (tape : Tape (Prefix Wire (Coord → E) total) Coord E budget
+    (prover : OracleComp (Prefix Wire (Option Coord → E) total) (Option Coord → E) (ℕ → Wire))
+      (budget : ℕ)
+    (table : Prefix Wire (Option Coord → E) total → Option Coord → E)
+    (tape : Tape (Prefix Wire (Option Coord → E) total) (Option Coord) E budget
       (Structure.protocol whole).stages) :
     ∀ out ∈ Checkpoint.extract whole prover budget table tape,
       o.accepts split read ((Structure.protocol whole).final prover table) ∧
@@ -426,20 +427,22 @@ variable [Finite Wire]
 row of `key30.aks` with the decoders `draw`. For each prover with at most `Q` queries to the
 table of the stage answers, the probability that `Tower.accepts` accepts and the extractor
 returns no output is at most
-`(Q + 1)·(8132/|E| + (1458 + B_1 + B_2)/q²) + (Q + 1)·(1467 + B_1 + B_2)/budget`, with
+`(Q + 1)·(1623435/(4096·|E|) + (1752 + B_1 + 4·B_2)/(256·q²)) + (Q + 1)·(1467 + B_1 + B_2)/budget`,
+with
 `|E| = q²` (`Key20.card_field`). The probability is over the uniform table and the tape of the
 extractor. The bound has no term for the probability that the output is a solution of
 Module-SIS. -/
 theorem Tower.extraction_le (drawn : o.Drawn split read 0 keepL) (slots : 28 ≤ Fintype.card Coord)
-    (prover : OracleComp (Prefix Wire (Coord → E) total) (Coord → E) (ℕ → Wire)) {queries : ℕ}
+    (prover : OracleComp (Prefix Wire (Option Coord → E) total) (Option Coord → E) (ℕ → Wire))
+      {queries : ℕ}
     (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → E) total) Coord E budget
+    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → E) total) (Option Coord) E budget
           (Structure.protocol whole).stages,
         (if o.accepts split read ((Structure.protocol whole).final prover table) ∧
           Checkpoint.extract whole prover budget table tape = none
             then (1 : ℝ) else 0) ≤
-      (queries + 1) * (8132 / (Fintype.card E : ℝ) +
-          ((1458 + r.blocks₁ + r.blocks₂ : ℕ) : ℝ) * (1 / (fieldModulus : ℝ) ^ 2)) +
+      (queries + 1) * (1623435 / (4096 * Fintype.card E) +
+          ((1752 + r.blocks₁ + 4 * r.blocks₂ : ℕ) : ℝ) / 256 * (1 / (fieldModulus : ℝ) ^ 2)) +
         (queries + 1) * (1467 + r.blocks₁ + r.blocks₂ : ℕ) / budget := by
   obtain ⟨_, suffix, small⟩ := Tower.suffix drawn slots fun _ accepted => accepted
   have bound := suffix.extraction_le rfl prover bounded positive

@@ -54,7 +54,7 @@ variable {logicalWidth : Nat}
   (control : AppState → AppWitness → Fin 2) (shape : Claims logicalWidth publicFits)
   {Wire Coord : Type} {total : ℕ} (read : Reader Wire)
   (head : Wire → First logicalWidth publicFits) {r : Key30.Row} {member : r ∈ rows}
-  (bound : Prefix Wire (Coord → K) total → (g : Fin 3) → ((root r).shape g).Payload)
+  (bound : Prefix Wire (Option Coord → K) total → (g : Fin 3) → ((root r).shape g).Payload)
   [Fintype Coord] [DecidableEq Coord] [Nonempty Coord]
   {β : ∀ g, Module.Basis (Fin ((root r).planes g)) Zq K}
   {key : (g : Fin 3) → Key ((root r).shape g)} {openKey : (root r).OpenKey}
@@ -124,7 +124,7 @@ local notation "second" =>
     weight₂ (Tier.finish first)
 
 local notation "third" =>
-  Tier.tensored (slimFold β₃ key₃ openKey₃ claim₃ level₃.vars (And.left level₃_sized)
+  Tier.tensored (liftFold β₃ key₃ openKey₃ claim₃ level₃.vars (And.left level₃_sized)
     quotientDigits (And.left (And.right level₃_sized)) level₃.batch
     (And.left (And.right (And.right level₃_sized))) block₃ decode₃ (Compose.read C) weight₃
     (Tier.finish second)) level₃.tail
@@ -222,7 +222,7 @@ omit [Nonempty Coord] in
 /-- On a transcript with the conditions `Compose.Ran` of the final verifier with `Use`, the points
 of the three claims of the Akita opening have 30, 27 or 26, and 28 coordinates
 (`Compose.Ran.lengths`, `key30_points`). -/
-theorem Use.points (use : Use setup shape r) {point : Prefix Wire (Coord → K) total}
+theorem Use.points (use : Use setup shape r) {point : Prefix Wire (Option Coord → K) total}
     (ran : Compose.Ran C vf commit value place point) :
     ∀ g, (place (point.wire (Compose.root C vf)) g).length = ![30, r.vars, 28] g := by
   obtain ⟨key, v, -, w⟩ := key30_points setup shape use
@@ -238,7 +238,8 @@ theorem Use.points (use : Use setup shape r) {point : Prefix Wire (Coord → K) 
 (`FinalAkita.final_sound` with `Key30.tower_suffix`). For each prover with at most `Q` queries to
 the oracle, the probability that the verifier accepts and no proof with witnesses satisfies
 `Verifies` for the statement of the first message is at most
-`(Q + 1)·(runCost + 8132/|K| + (1458 + B_1 + B_2)·p) + (Q + 1)·(1469 + B_1 + B_2)/budget +
+`(Q + 1)·(runCost + 1623435/(4096·|K|) + (1752 + B_1 + 4·B_2)/256·p) + (Q + 1)·(1469 + B_1 +
+B_2)/budget +
 breakChance`. The verifier `offAccepts` accepts with the conditions `Compose.Ran` and the links
 `offLinks` of the opening with an offloaded root. `p` is a bound of the slot probability of each challenge
 family (`Key30.towerError_le`), and `1469 + B_1 + B_2` is the count of the retry loops: 2 for the
@@ -299,20 +300,20 @@ theorem sound [Finite Wire] {peak : Fin 3 → ℕ} {peak₁ : Fin 2 → ℕ}
     (chance₃ : slotChance decode₃ ≤ p) (chance₄ : slotChance decode₄ ≤ p)
     (chance₅ : slotChance decode₅ ≤ p) (chance₆ : slotChance decode₆ ≤ p)
     (chanceL : slotChance (Terminal.decode L) ≤ p)
-    (prover : OracleComp (Prefix Wire (Coord → K) total) (Coord → K) (ℕ → Wire))
+    (prover : OracleComp (Prefix Wire (Option Coord → K) total) (Option Coord → K) (ℕ → Wire))
     {honest : Certified ((root r).shape 0)} {factorBound sourceBound innerBound : ℕ}
     (registered : ∀ anchor, honest.Opens factorBound sourceBound (key 0) (bound anchor 0)
       (keyBase (setup.params shape)))
     (covers : factorBound * ((root r).fold 0).sourceBound ((root r).shape 0) +
       2 * mass 0 * sourceBound ≤ innerBound)
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 _tape : Tape (Prefix Wire (Coord → K) total) Coord K budget
+    𝔼 table, 𝔼 _tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget
           (Structure.protocol whole).stages,
         (if accepts ((Structure.protocol whole).final prover table) ∧
             ¬ Proved setup packageWidths step cap control head
               (((Structure.protocol whole).input prover table 0).wire 0) then (1 : ℝ) else 0) ≤
-      (queries + 1) * (setup.runCost shape + (8132 / (Fintype.card K : ℝ) +
-          ((1458 + r.blocks₁ + r.blocks₂ : ℕ) : ℝ) * p)) +
+      (queries + 1) * (setup.runCost shape + (1623435 / (4096 * Fintype.card K) +
+          ((1752 + r.blocks₁ + 4 * r.blocks₂ : ℕ) : ℝ) / 256 * p)) +
         (queries + 1) * (2 + (1467 + r.blocks₁ + r.blocks₂) : ℕ) / budget +
         breakChance setup packageWidths step cap control shape read head bound accepts opening
           key openKey mass Sum.inl prover honest innerBound budget := by

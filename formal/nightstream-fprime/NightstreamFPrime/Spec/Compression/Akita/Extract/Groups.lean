@@ -91,11 +91,13 @@ theorem Tier.pinned_valid [∀ b, Zero (Ring b)] [Fintype Slot] [Nonempty Slot] 
     (fixed : ∀ ω claim, T.method.Opens ω claim → ¬ Pin ω claim → T.method.broken (fix ω claim)) :
     (T.pinned Pin fix).Valid where
   injective := valid.injective
+  avoid := valid.avoid
   merges := Method.pinned_sound valid.merges fixed
   sound := valid.sound
   staged := valid.staged
   nonnegative := valid.nonnegative
   draws := valid.draws
+  aligned := valid.aligned
 
 end Pinned
 
@@ -190,8 +192,9 @@ variable {count : ℕ} {B : Batch (Fin count)} {E : Type} [Field E] [Fintype E] 
   {T : Tier B.Block (fun b => Rq (B.carrierDegree b.1)) (B.Claim E)
     (B.LevelBreak key openKey fun g => 2 * (2 * mass g) * (B.fold g).sourceBound (B.shape g))
     B.Witness B.Weak Wire Coord Slot Result Source}
-  {Inner BreakT CandT KeyT : Type} {accept : Prefix Wire (Coord → Slot) total → Prop}
-  {body : Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire) Inner BreakT CandT
+  {Inner BreakT CandT KeyT : Type} {accept : Prefix Wire (Option Coord → Slot) total → Prop}
+  {body : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
+    BreakT CandT
     KeyT (Option B.Weak)}
   {error : ℝ} {loops tree : ℕ}
 
@@ -235,7 +238,7 @@ theorem root_suffix_pinned (start : ℕ) (read : Reader Wire) (value : Wire → 
             ((B.shape g).decode (ω.certified g).source)) ∧ Pin opening) ∧
           (fun g => mle (place ((point.take start).wire start) g)
             (lifted E (Batch.tablesOf opening g))) = value ((point.take start).wire start))
-      (1 / Fintype.card E + error) (1 + loops) (2 * tree) := by
+      (1 / Fintype.card E / 2 ^ Root.rootBits count + error) (1 + loops) (2 * tree) := by
   have certified : ∀ point opening, accept point → T.Opens point opening →
       ∃ ω, opening = some ω ∧ ∀ g, (ω.certified g).Opens (2 * mass g)
         ((B.fold g).sourceBound (B.shape g)) (key g) (commit (point.wire start) g)
@@ -263,9 +266,9 @@ theorem root_suffix_pinned (start : ℕ) (read : Reader Wire) (value : Wire → 
       rw [same]
       exact kept)
     (fun point opening accepted opens => ?_) ?_
-  · obtain ⟨long, _, weight, target, places⟩ := linked point accepted
+  · obtain ⟨long, _, weight, target, places, worked⟩ := linked point accepted
     refine ⟨long, ⟨certified point opening accepted opens,
-      (opened point opening accepted opens).2⟩, ?_⟩
+      (opened point opening accepted opens).2⟩, ?_, worked⟩
     obtain ⟨⟨ω, rfl, weak⟩, _⟩ := opened point opening accepted opens
     have row := weak.value
     unfold Batch.scalar at row
@@ -294,7 +297,8 @@ theorem root_suffix_pinned (start : ℕ) (read : Reader Wire) (value : Wire → 
     obtain ⟨ω', rfl, right⟩ := certified other opening' accepted' opens'
     have sameWire : other.wire start = point.wire start := by
       have taken : (other.take start).wire start = (point.take start).wire start :=
-        congrArg (fun anchor : Prefix Wire (Coord → Slot) total => anchor.wire start) same.symm
+        congrArg (fun anchor : Prefix Wire (Option Coord → Slot) total => anchor.wire start)
+          same.symm
       rwa [Prefix.wire_take le_rfl, Prefix.wire_take le_rfl] at taken
     obtain ⟨g, differs⟩ := Function.ne_iff.mp different
     refine embedded _ ?_
@@ -325,7 +329,8 @@ verifier setup, the point `ρ_S` and the value `s_{ρ_S}`, and the group 1 has t
 `commit` of the message after the fold challenge of `T`, the point `r_2` and the value `v_W`. -/
 def Tier.Offloaded (commits : Wire → (g : Fin 2) → (B.shape g).Payload) (value : Wire → Fin 2 → E)
     (place : Wire → Fin 2 → List E) (registry : (B.shape 0).Payload)
-    (commit : Wire → (B.shape 1).Payload) (point : Prefix Wire (Coord → Slot) total) : Prop :=
+    (commit : Wire → (B.shape 1).Payload) (point : Prefix Wire (Option Coord → Slot) total) : Prop
+      :=
   T.finish ≤ point.rest.length ∧ T.Decodes point ∧
     ∃ r2 v ρ s, T.game (fun _ => 0) point = .pure (some ((r2, v), (ρ, s))) ∧
       place (point.wire T.finish) = ![ρ, r2] ∧ value (point.wire T.finish) = ![s, v] ∧
@@ -341,8 +346,9 @@ noncomputable def groupCollide {G : Type} {B : Batch G} (g : G) (key : Key (B.sh
   | some ω, some ω' => tableCollision key innerBound (ω.certified g) (ω'.certified g)
   | _, _ => none
 
-variable {T} {accept : Prefix Wire (Coord → Slot) total → Prop}
-  {tail : Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire) Inner BreakT CandT
+variable {T} {accept : Prefix Wire (Option Coord → Slot) total → Prop}
+  {tail : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
+    BreakT CandT
     KeyT (Option B.Weak)}
   {error : ℝ} {loops tree : ℕ}
 
@@ -382,7 +388,7 @@ theorem Tier.suffix_push_offloaded {blocks : ℕ} (count : Fintype.card Block = 
       (T.over accept tail (fun inner => Batch.tablesOf (tail.witness inner) 1)
         (fun inner other => embed (groupCollide 1 (key 1) _ (tail.witness inner)
           (tail.witness other))))
-      (∑ b, T.chance b + T.costs.sum + error) (blocks + 1 + loops)
+      (T.levelError + error) (blocks + 1 + loops)
       (2 * (blocks + 1) * tree) := by
   refine Tier.suffix_before count valid later fits (fun opening => Batch.tablesOf opening 1)
     (fun opening other => embed (groupCollide 1 (key 1) _ opening other))

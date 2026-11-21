@@ -135,14 +135,14 @@ variable {n : ℕ} {B : Batch (Fin n)} {E : Type} [Field E] [Algebra Zq E]
 
 /-- The table that the level 1 commits to after a fold with opening groups on the quotient-lift
 route: the flat witness of the honest prover for the tables, the points, the weights and the
-fold challenges, and then the digits of the quotients of its ring rows (Akita (76) and Figure 4,
-step 3). -/
+fold challenges, with the digits of the quotients of its ring rows at the places of Akita (76)
+(Figure 4, step 3). -/
 noncomputable def batchNext (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E)
-    (key : (g : Fin n) → Key (B.shape g)) (openKey : B.OpenKey) (μ : ℕ) (cells : B.cells < 2 ^ μ)
+    (key : (g : Fin n) → Key (B.shape g)) (openKey : B.OpenKey) (μ : ℕ) (cells : B.cells ≤ 2 ^ μ)
     (base digits : ℕ) (table : Fin n → Table) (point : (g : Fin n) → Point (B.opening g) E)
     (weight : Fin n → E) (challenge : B.Challenge) : Table :=
-  (B.lockedRelation β ((Batch.honestClaim β key openKey table point weight).statement key openKey)
-    challenge μ cells).completion base digits (B.cells + 1)
+  (B.flatRelation β ((Batch.honestClaim β key openKey table point weight).statement key openKey)
+    challenge μ cells).completion (B.gaps digits) base digits
     (Batch.honest β openKey point challenge fun g => (commit (key g) (table g)).2).flat
 
 /-- The fit conditions of the honest prover of a fold with opening groups for the tables `table`
@@ -151,7 +151,7 @@ fold challenge vector of the families, the response `z_g = Σ_i ι(c_{g,i})·s_{
 satisfies `Enc`, and `after` holds for the table `batchNext`. Akita Theorem 10.9 has the
 probability that a response does not fit in the term `ξ_h` of (155). -/
 def BatchFit (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E)
-    (key : (g : Fin n) → Key (B.shape g)) (openKey : B.OpenKey) (μ : ℕ) (cells : B.cells < 2 ^ μ)
+    (key : (g : Fin n) → Key (B.shape g)) (openKey : B.OpenKey) (μ : ℕ) (cells : B.cells ≤ 2 ^ μ)
     (base digits : ℕ) (decode : (g : Fin n) → E → Option (Rq (B.carrierDegree g)))
     (table : Fin n → Table) (after : Table → Prop) : Prop :=
   ∀ (point : (g : Fin n) → Point (B.opening g) E) (weight : Fin n → E) (challenge : B.Challenge),
@@ -162,9 +162,9 @@ def BatchFit (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E)
 
 variable [Fintype E] [DecidableEq E] {Wire Coord : Type}
   {β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E} {key : (g : Fin n) → Key (B.shape g)}
-  {openKey : B.OpenKey} {claim : Wire → B.Claim E} {μ : ℕ} {cells : B.cells < 2 ^ μ}
+  {openKey : B.OpenKey} {claim : Wire → B.Claim E} {μ : ℕ} {cells : B.cells ≤ 2 ^ μ}
   {base digits : ℕ} {room : B.quotientRoom digits ≤ 2 ^ μ} {batch : ℕ}
-  {rowsFit : B.rowCount + 1 + 1 ≤ 2 ^ batch} {block : B.Block → Coord}
+  {rowsFit : B.rowCount + 1 ≤ 2 ^ batch} {block : B.Block → Coord}
   {decode : (g : Fin n) → E → Option (Rq (B.carrierDegree g))} {read : Reader Wire}
   {mass : Fin n → ℕ} {start : ℕ}
 
@@ -200,7 +200,7 @@ theorem batchLevel_wins {sendable : (M : Type) → M → Prop} {slots width cap 
         ((liftBatch β key openKey claim μ cells base digits room batch rowsFit block decode read
           mass start).check wire c
           (batchNext β key openKey μ cells base digits table point weight fun g i => c ⟨g, i⟩))
-        (foldDraws μ base) 0 fun result _ place => place ≤ 1 ∧
+        (foldDraws μ base B.compressed) 0 fun result _ place => place ≤ 1 ∧
           ∃ r2 : List E, r2.length = μ ∧ result = some (r2, mle r2 (lifted E
             (batchNext β key openKey μ cells base digits table point weight
               fun g i => c ⟨g, i⟩))) := by
@@ -212,8 +212,9 @@ theorem batchLevel_wins {sendable : (M : Type) → M → Prop} {slots width cap 
     (rowsFit := rowsFit) (block := block) (decode := decode) (read := read) (mass := mass)
     (start := start) sends range four uniform digit covers positive satisfies
   rw [ready] at wins
-  exact ⟨later, fun x large => FlatRelation.completion_of_le _ _
-    ((Batch.lockedRelation_quotientEnd β _ _ μ cells digits).trans_le large), wins⟩
+  exact ⟨later, fun x large => FlatRelation.completion_of_le _
+    (Batch.flatRelation_counts β _ _ μ cells digits) _
+    ((Batch.flatRelation_quotientEnd β _ _ μ cells digits).trans_le large), wins⟩
 
 end Groups
 
@@ -222,8 +223,8 @@ section Link
 variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] {Block : Type}
   {Ring : Block → Type} {Stmt Brk Wit Wk Wire Coord : Type} [∀ b, Zero (Ring b)]
   [Fintype Coord] [DecidableEq Coord] {total : ℕ}
-  {accept : Prefix Wire (Coord → E) total → Prop}
-  {table : Prefix Wire (Coord → E) total → Coord → E}
+  {accept : Prefix Wire (Option Coord → E) total → Prop}
+  {table : Prefix Wire (Option Coord → E) total → Option Coord → E}
   {T : Tier Block Ring Stmt Brk Wit Wk Wire Coord E (Option (List E × E)) Table}
   {S' : Shape} {O' : OpeningShape S'} {fold' : Descriptor} {Result' Source' : Type}
   {key' : Key S'} {openKey' : OpeningKey O'} {weight' : ℕ}
@@ -245,9 +246,10 @@ point `r_2`. `p`, `t` and `s` are the lengths of the segments `r_pack`, `r_tail`
 transcript with the prefix has the link `Tier.Linked` to `Next`. -/
 theorem packLink
     (carries : Carries sendable slots T.read fun wire => (commit' wire, Next.claim wire))
-    {first : Wire} {early : List ((Coord → E) × Wire)} (on : OnPath accept table first early)
+    {first : Wire} {early : List ((Option Coord → E) × Wire)} (on : OnPath accept table first early)
     (starts : early.length = T.start) (fits : T.finish ≤ total)
     (decodes : ∀ input b, (T.decode b (table input (T.block b))).isSome)
+    (worked : ∀ input, table input none ∈ workZeros E 57) (capped : T.Capped)
     (uniform : ∀ wire challenge table other,
       bare (T.check wire challenge table) = bare (T.check wire challenge other))
     {draws μ : ℕ} (count : T.costs.length = draws) (source : Table)
@@ -260,18 +262,18 @@ theorem packLink
     (degree' : O'.carrierDegree = 2 ^ t) (length' : S'.blockLength = 2 ^ s)
     (blocks' : S'.blocks ≤ 2 ^ k) (vars : μ = p + (t + (s + k)))
     (live : ∀ cell, S'.blocks * (S'.blockLength * S'.innerDegree) ≤ cell → source cell = 0) :
-    ∃ (later : List ((Coord → E) × Wire)) (point : Point O' E),
+    ∃ (later : List ((Option Coord → E) × Wire)) (point : Point O' E),
       OnPath accept table first (early ++ later) ∧ (early ++ later).length = Next.start ∧
       Next.claim (lastWire first (early ++ later)) =
         sourceClaim β' key' openKey' (fun i => S'.embed (S'.pack source i)) point ∧
-      ∀ stage : Prefix Wire (Coord → E) total, stage.first = first →
+      ∀ stage : Prefix Wire (Option Coord → E) total, stage.first = first →
         (∃ rest, stage.rest = (early ++ later) ++ rest) → T.Linked Next commit' stage := by
   subst count
   obtain ⟨pointOf, pointed⟩ : ∃ pointOf : List E → Point O' E, pointOf = fun r =>
       Point.ofSegments O' (((r.drop p).drop t).drop s) (((r.drop p).drop t).take s) (r.take p)
         ((r.drop p).take t) := ⟨_, rfl⟩
   obtain ⟨wire, moves, result, counted, ⟨r2, long, rfl⟩, on', held, last, ended, facts⟩ :=
-    Tier.run (T := T) carries on starts fits decodes source wins fun _ game =>
+    Tier.run (T := T) carries on starts fits decodes worked capped source wins fun _ game =>
       ((commitSource key' fun i => S'.embed (S'.pack source i)).1,
         match game with
         | .pure (some (r, _)) =>
@@ -321,32 +323,32 @@ variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree
   {fold₃ : Descriptor} {S₄ : Shape} {O₄ : OpeningShape S₄} {fold₄ : Descriptor} {S₅ : Shape}
   {O₅ : OpeningShape S₅} {fold₅ : Descriptor} {S₆ : Shape}
   {Wire Coord : Type} [Fintype Coord] [DecidableEq Coord] {total : ℕ}
-  {accept : Prefix Wire (Coord → E) total → Prop} {read : Reader Wire} {start : ℕ}
+  {accept : Prefix Wire (Option Coord → E) total → Prop} {read : Reader Wire} {start : ℕ}
   {β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E} {key : (g : Fin count) → Key (B.shape g)}
-  {openKey : B.OpenKey} {claim : Wire → B.Claim E} {μ : ℕ} {fits : B.cells < 2 ^ μ}
+  {openKey : B.OpenKey} {claim : Wire → B.Claim E} {μ : ℕ} {fits : B.cells ≤ 2 ^ μ}
   {base digits : ℕ} {room₀ : B.quotientRoom digits ≤ 2 ^ μ} {batch : ℕ}
-  {rowsFit : B.rowCount + 1 + 1 ≤ 2 ^ batch} {block : B.Block → Coord}
+  {rowsFit : B.rowCount + 1 ≤ 2 ^ batch} {block : B.Block → Coord}
   {decode : (g : Fin count) → E → Option (Rq (B.carrierDegree g))} {mass : Fin count → ℕ}
   {β₁ : Module.Basis (Fin O₁.planes) Zq E} {key₁ : Key S₁} {openKey₁ : OpeningKey O₁}
-  {claim₁ : Wire → Claim O₁ E} {μ₁ : ℕ} {fits₁ : O₁.cells fold₁ < 2 ^ μ₁} {digits₁ : ℕ}
+  {claim₁ : Wire → Claim O₁ E} {μ₁ : ℕ} {fits₁ : O₁.cells fold₁ ≤ 2 ^ μ₁} {digits₁ : ℕ}
   {room₁ : O₁.quotientRoom fold₁ digits₁ ≤ 2 ^ μ₁} {batch₁ : ℕ}
-  {rowsFit₁ : O₁.rowCount + 1 + 1 ≤ 2 ^ batch₁} {block₁ : Fin S₁.blocks → Coord}
+  {rowsFit₁ : O₁.rowCount + 1 ≤ 2 ^ batch₁} {block₁ : Fin S₁.blocks → Coord}
   {decode₁ : E → Option (Rq O₁.carrierDegree)} {weight₁ ν₁ : ℕ}
   {key₂ : Key S₂} {openKey₂ : OpeningKey O₂} {claim₂ : Wire → TraceClaim O₂ E}
-  {μ₂ : ℕ} {fits₂ : O₂.cells fold₂ < 2 ^ μ₂} {batch₂ : ℕ}
-  {rowsFit₂ : O₂.traceRowCount + 1 + 1 ≤ 2 ^ batch₂} {block₂ : Fin S₂.blocks → Coord}
+  {μ₂ : ℕ} {fits₂ : O₂.cells fold₂ ≤ 2 ^ μ₂} {batch₂ : ℕ}
+  {rowsFit₂ : O₂.traceRowCount + 1 ≤ 2 ^ batch₂} {block₂ : Fin S₂.blocks → Coord}
   {decode₂ : E → Option (Rq S₂.innerDegree)} {weight₂ ν₂ m₂ : ℕ}
   {key₃ : Key S₃} {openKey₃ : OpeningKey O₃} {claim₃ : Wire → TraceClaim O₃ E}
-  {μ₃ : ℕ} {fits₃ : O₃.cells fold₃ < 2 ^ μ₃} {batch₃ : ℕ}
-  {rowsFit₃ : O₃.traceRowCount + 1 + 1 ≤ 2 ^ batch₃} {block₃ : Fin S₃.blocks → Coord}
+  {μ₃ : ℕ} {fits₃ : O₃.cells fold₃ ≤ 2 ^ μ₃} {batch₃ : ℕ}
+  {rowsFit₃ : O₃.traceRowCount + 1 ≤ 2 ^ batch₃} {block₃ : Fin S₃.blocks → Coord}
   {decode₃ : E → Option (Rq S₃.innerDegree)} {weight₃ ν₃ m₃ : ℕ}
   {key₄ : Key S₄} {openKey₄ : OpeningKey O₄} {claim₄ : Wire → TraceClaim O₄ E}
-  {μ₄ : ℕ} {fits₄ : O₄.cells fold₄ < 2 ^ μ₄} {batch₄ : ℕ}
-  {rowsFit₄ : O₄.traceRowCount + 1 + 1 ≤ 2 ^ batch₄} {block₄ : Fin S₄.blocks → Coord}
+  {μ₄ : ℕ} {fits₄ : O₄.cells fold₄ ≤ 2 ^ μ₄} {batch₄ : ℕ}
+  {rowsFit₄ : O₄.traceRowCount + 1 ≤ 2 ^ batch₄} {block₄ : Fin S₄.blocks → Coord}
   {decode₄ : E → Option (Rq S₄.innerDegree)} {weight₄ ν₄ m₄ : ℕ}
   {key₅ : Key S₅} {openKey₅ : OpeningKey O₅} {claim₅ : Wire → TraceClaim O₅ E}
-  {μ₅ : ℕ} {fits₅ : O₅.cells fold₅ < 2 ^ μ₅} {batch₅ : ℕ}
-  {rowsFit₅ : O₅.traceRowCount + 1 + 1 ≤ 2 ^ batch₅} {block₅ : Fin S₅.blocks → Coord}
+  {μ₅ : ℕ} {fits₅ : O₅.cells fold₅ ≤ 2 ^ μ₅} {batch₅ : ℕ}
+  {rowsFit₅ : O₅.traceRowCount + 1 ≤ 2 ^ batch₅} {block₅ : Fin S₅.blocks → Coord}
   {decode₅ : E → Option (Rq S₅.innerDegree)} {weight₅ ν₅ m₅ : ℕ}
   {operator₃ limit₃ operator₄ limit₄ operator₅ limit₅ operatorL limitL : ℕ}
   {L : Terminal S₆ E Wire Coord E total (.euclidean operatorL limitL)} {m₆ : ℕ}
@@ -462,15 +464,16 @@ theorem tower_complete {sendable : (M : Type) → M → Prop} {slots width cap :
     (next : L.start = Tier.finish fifth) (inside : L.start < total)
     (reads : ∀ point, L.read point = statementOf (point.wire L.start))
     (clears : ∀ point, L.partials point = partialsOf (point.wire L.start))
-    (table : Prefix Wire (Coord → E) total → Coord → E)
-    (decodes₀ : ∀ input b, (decode b.1 (table input (block b))).isSome)
-    (decodes₁ : ∀ input i, (decode₁ (table input (block₁ i))).isSome)
-    (decodes₂ : ∀ input i, (decode₂ (table input (block₂ i))).isSome)
-    (decodes₃ : ∀ input i, (decode₃ (table input (block₃ i))).isSome)
-    (decodes₄ : ∀ input i, (decode₄ (table input (block₄ i))).isSome)
-    (decodes₅ : ∀ input i, (decode₅ (table input (block₅ i))).isSome)
-    (decodesL : ∀ input i, (L.decode (table input (L.block i))).isSome)
-    {wire₀ : Wire} {early : List ((Coord → E) × Wire)} (on : OnPath accept table wire₀ early)
+    (table : Prefix Wire (Option Coord → E) total → Option Coord → E)
+    (decodes₀ : ∀ input b, (decode b.1 (table input (some (block b)))).isSome)
+    (decodes₁ : ∀ input i, (decode₁ (table input (some (block₁ i)))).isSome)
+    (decodes₂ : ∀ input i, (decode₂ (table input (some (block₂ i)))).isSome)
+    (decodes₃ : ∀ input i, (decode₃ (table input (some (block₃ i)))).isSome)
+    (decodes₄ : ∀ input i, (decode₄ (table input (some (block₄ i)))).isSome)
+    (decodes₅ : ∀ input i, (decode₅ (table input (some (block₅ i)))).isSome)
+    (decodesL : ∀ input i, (L.decode (table input (L.slot i))).isSome)
+    (worked : ∀ input, table input none ∈ workZeros E 57)
+    {wire₀ : Wire} {early : List ((Option Coord → E) × Wire)} (on : OnPath accept table wire₀ early)
     (starts : early.length = start) {tables : Fin count → Table}
     {blockOf positionOf packOf tailOf : Fin count → List E}
     (blocks₀ : ∀ g, (B.shape g).blocks ≤ 2 ^ (blockOf g).length)
@@ -498,7 +501,7 @@ theorem tower_complete {sendable : (M : Type) → M → Prop} {slots width cap :
       ∀ c : Fin S₆.blocks → Rq S₆.innerDegree, (∀ i, ∃ slot, L.decode slot = some (c i)) →
         vecNormSq (traceResponse c (traceSource quarter₆ (packed w₅ : ℕ → E))) ≤ limitL) :
     ∃ later, OnPath accept table wire₀ (early ++ later) ∧ (early ++ later).length = total ∧
-      ∀ stage : Prefix Wire (Coord → E) total, stage.first = wire₀ →
+      ∀ stage : Prefix Wire (Option Coord → E) total, stage.first = wire₀ →
         stage.rest = early ++ later →
         towerLinks (weight₃ := weight₃) (weight₄ := weight₄) (weight₅ := weight₅) .coefficient
           (.euclidean operator₃ limit₃) (.euclidean operator₄ limit₄)
@@ -527,7 +530,7 @@ theorem tower_complete {sendable : (M : Type) → M → Prop} {slots width cap :
       fin₀
   obtain ⟨reply, answered⟩ : ∃ reply, reply = answer table wire₀ early := ⟨_, rfl⟩
   obtain ⟨weights, weighed⟩ : ∃ weights : Fin count → E,
-      weights = sample (Coord → E) (Fin count → E) reply := ⟨_, rfl⟩
+      weights = sample (Coord → E) (Fin count → E) (view reply) := ⟨_, rfl⟩
   obtain ⟨points, pointed⟩ : ∃ points : (g : Fin count) → Point (B.opening g) E,
       points = fun g => Point.ofSegments (B.opening g) (blockOf g) (positionOf g) (packOf g)
         (tailOf g) := ⟨_, rfl⟩
@@ -548,7 +551,8 @@ theorem tower_complete {sendable : (M : Type) → M → Prop} {slots width cap :
     (by rw [lastWire_concat]; exact claimed) fit member₀
   obtain ⟨later₀, place₁, on₀, len₀, ready₁, linked₀⟩ :=
     packLink (T := zeroth) (Next := first) (commit' := commit₁) carries₀ onR lenR fin₀ decodes₀
-      (fun _ _ table other => foldCheck_bare _ _ _ table other) (foldCosts_length E _ _ _ _) _
+      worked ⟨foldWorkBits_le _ _, map_workBits_le _⟩
+      (fun _ _ table other => foldCheck_bare _ _ _ _ table other) (foldCosts_length E _ _ _ _ _) _
       (wins₀.mono fun _ _ _ kept => kept.2) rfl shape₁ β₁ stride₁ degree₁ length₁ blocks₁ point₀
       fun cell large => zero₀ cell (covered₀.trans large)
   obtain ⟨later, onL, whole, each⟩ := packTower_complete (start := Tier.finish zeroth) sends four
@@ -557,7 +561,7 @@ theorem tower_complete {sendable : (M : Type) → M → Prop} {slots width cap :
     source₅ source₆ sized₂ sized₃ sized₄ sized₅ vars₁ vars₂ vars₃ vars₄ vars₅ point₁ point₂
     point₃ point₄ point₅ covered₁ covered₂ covered₃ covered₄ covered₅ normRoom₃ normRoom₄
     normRoom₅ wide₃ wide₄ wide₅ capped₃ capped₄ capped₅ next inside reads clears table decodes₁ decodes₂ decodes₃
-    decodes₄ decodes₅ decodesL on₀ len₀ ready₁ fit₁
+    decodes₄ decodes₅ decodesL worked on₀ len₀ ready₁ fit₁
   have joined : early ++ (reply, wireR) :: (later₀ ++ later) =
       early ++ [(reply, wireR)] ++ later₀ ++ later := by
     simp only [List.append_assoc, List.cons_append, List.nil_append]
@@ -570,13 +574,17 @@ theorem tower_complete {sendable : (M : Type) → M → Prop} {slots width cap :
     stage.wire_of shape (congrArg (· + 1) starts.symm)
   have drawn : (claimsRoot (Coord := Coord) (Slot := E) (total := total) start read value
       place).weights stage = weights := by
-    show ((stage.reply start).map (sample (Coord → E) (Fin count → E))).getD 0 = weights
+    show ((stage.reply start).map fun reply =>
+      sample (Coord → E) (Fin count → E) (view reply)).getD 0 = weights
     rw [stage.reply_of shape starts.symm, weighed]
     rfl
+  have zeroRoot : reply none ∈ workZeros E (Root.rootBits count) := by
+    rw [answered, answer_eq table wire₀ (by omega)]
+    exact workZeros_anti E (Root.rootBits_le count) (worked _)
   refine ⟨by rw [shape, List.length_append, List.length_cons, starts]; omega, ⟨?_, ?_, ?_,
     fun g => ⟨blockOf g, positionOf g, packOf g, tailOf g, blocks₀ g, lengths₀ g, strides₀ g,
-      degrees₀ g, ?_, ?_⟩⟩, linked₀ stage rooted ⟨later, shape.trans joined⟩,
-    each stage rooted (shape.trans joined)⟩
+      degrees₀ g, ?_, ?_⟩, reply, stage.reply_of shape starts.symm, zeroRoot⟩,
+    linked₀ stage rooted ⟨later, shape.trans joined⟩, each stage rooted (shape.trans joined)⟩
   · show (claim (stage.wire (start + 1))).payload = commit (stage.wire start)
     rw [after, claimed, before, committed]
     rfl

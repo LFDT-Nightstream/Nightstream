@@ -116,6 +116,14 @@ theorem vecNormInf_gadget_le_of_range [Fintype ι] {δ certified : ℕ} (b : ℕ
 variables: `Q_sq(w(x)·(w(x) + 1)) = 0` at each index `x`. -/
 def RangeHolds (b μ : ℕ) (w : Table) : Prop := ∀ x < 2 ^ μ, rangeSq b (w x * (w x + 1)) = 0
 
+/-- With the digit range statement, the value 0 is a root of `Q_sq`: some cell is a root, so
+`b⋆/2 ≥ 1`, and `j = 0` gives the factor `0 − 0·1`. -/
+theorem RangeHolds.zero {b μ : ℕ} {w : Table} (range : RangeHolds b μ w) : rangeSq b 0 = 0 := by
+  obtain ⟨j, member, -⟩ := Finset.prod_eq_zero_iff.mp (range 0 (Nat.two_pow_pos μ))
+  exact Finset.prod_eq_zero (i := 0)
+    (Finset.mem_range.mpr (Nat.lt_of_le_of_lt (Nat.zero_le j) (Finset.mem_range.mp member)))
+    (by simp)
+
 /-- The digit range statement puts each cell of the witness in `A_{b⋆}`. -/
 theorem rangeHolds_iff {b : ℕ} (small : b < fieldModulus) (μ : ℕ) (w : Table) :
     RangeHolds b μ w ↔ ∀ x < 2 ^ μ,

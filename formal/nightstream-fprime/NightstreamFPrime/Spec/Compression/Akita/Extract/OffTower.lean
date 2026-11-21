@@ -50,7 +50,7 @@ variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree
   {openKey₃ : OpeningKey O₃} {weight₃ : ℕ} {key₄ : Key S₄} {openKey₄ : OpeningKey O₄}
   {weight₄ : ℕ} {key₅ : Key S₅} {openKey₅ : OpeningKey O₅} {weight₅ : ℕ} {key₆ : Key S₆}
   {openKey₆ : OpeningKey O₆} {weight₆ : ℕ} {route₄ route₅ route₆ routeL : Route}
-  (accept : Prefix Wire (Coord → E) total → Prop)
+  (accept : Prefix Wire (Option Coord → E) total → Prop)
   (T₀ : Tier B.Block (fun b => Rq (B.carrierDegree b.1)) (B.Claim E)
     (B.LevelBreak key openKey fun g => 2 * (2 * mass g) * (B.fold g).sourceBound (B.shape g))
     B.Witness B.Weak Wire Coord E (Option ((List E × E) × (List E × E))) Table)
@@ -198,7 +198,7 @@ def offLinks (registry : (B₁.shape 0).Payload) (commit₁ : Wire → (B₁.sha
     (quarter₆ : 4 * m₆ = S₆.innerDegree) (quarter₇ : 4 * m₇ = S₇.innerDegree)
     (commit₄ : Wire → S₄.Payload) (commit₅ : Wire → S₅.Payload) (commit₆ : Wire → S₆.Payload)
     (stateOf : Wire → Fin S₇.blocks → Fin S₇.innerRank → Rq S₇.innerDegree)
-    (point : Prefix Wire (Coord → E) total) : Prop :=
+    (point : Prefix Wire (Option Coord → E) total) : Prop :=
   (start < point.rest.length ∧
     RootLinked T₀ start commit value place
       ((claimsRoot (Coord := Coord) (Slot := E) (total := total) start read value
@@ -286,11 +286,12 @@ theorem offTower_suffix {blocks blocks₁ : ℕ} (card : Fintype.card B.Block = 
     Tier.Suffix accept start (OpensAt start commit value place key mass)
       (offRoot (route₄ := route₄) (route₅ := route₅) (route₆ := route₆) accept T₀ T₁ T₂ T₃ T₄ T₅
         T₆ L m₄ m₅ m₆ m₇ start read commit value place commits values places flat)
-      (1 / Fintype.card E + (∑ b, T₀.chance b + T₀.costs.sum + (1 / Fintype.card E +
-        (∑ b, T₁.chance b + T₁.costs.sum + (∑ b, T₂.chance b + T₂.costs.sum +
-          (∑ b, T₃.chance b + T₃.costs.sum + (∑ b, T₄.chance b + T₄.costs.sum +
-            (∑ b, T₅.chance b + T₅.costs.sum + (∑ b, T₆.chance b + T₆.costs.sum +
-              S₇.blocks * slotChance L.decode)))))))))
+      (1 / Fintype.card E / 2 ^ Root.rootBits count + (T₀.levelError +
+        (1 / Fintype.card E / 2 ^ Root.rootBits 2 +
+        (T₁.levelError + (T₂.levelError +
+          (T₃.levelError + (T₄.levelError +
+            (T₅.levelError + (T₆.levelError +
+              L.termError)))))))))
       (1 + (blocks + 1 + (1 + (blocks₁ + 1 + (S₂.blocks + 1 + (S₃.blocks + 1 + (S₄.blocks + 1 +
         (S₅.blocks + 1 + (S₆.blocks + 1 + S₇.blocks)))))))))
       (2 * (2 * (blocks + 1) * (2 * (2 * (blocks₁ + 1) * (2 * (S₂.blocks + 1) *
@@ -382,7 +383,7 @@ def offAccepts (registry : (B₁.shape 0).Payload) (commit₁ : Wire → (B₁.s
     (quarter₆ : 4 * m₆ = S₆.innerDegree) (quarter₇ : 4 * m₇ = S₇.innerDegree)
     (commit₄ : Wire → S₄.Payload) (commit₅ : Wire → S₅.Payload) (commit₆ : Wire → S₆.Payload)
     (stateOf : Wire → Fin S₇.blocks → Fin S₇.innerRank → Rq S₇.innerDegree)
-    (point : Prefix Wire (Coord → E) total) : Prop :=
+    (point : Prefix Wire (Option Coord → E) total) : Prop :=
   C.Ran vf commit value place point ∧
     offLinks T₀ T₁ T₂ T₃ T₄ T₅ T₆ L (C.root vf) C.read commit value place commits values places
       registry commit₁ commit₂ commit₃ quarter₄ quarter₅ quarter₆ quarter₇ commit₄ commit₅ commit₆

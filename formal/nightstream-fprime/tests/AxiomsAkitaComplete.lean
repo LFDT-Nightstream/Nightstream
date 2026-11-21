@@ -68,8 +68,6 @@ with reject sets and a checkpoint segment (`Reject`), the two parts of the verif
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.rangeTree_winsAt
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.normLeafStage_winsAt
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.foldCheckSq_winsAt
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.lockedTraceRelation_of_flat
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.lockedTraceFold_winsTo
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tier.tensored_winsAt
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.committedTrace_winsAt
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.committedTraceSq_winsAt
@@ -153,7 +151,6 @@ with reject sets and a checkpoint segment (`Reject`), the two parts of the verif
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.vecNormSq_zero
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.sequence_zero
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.cellsOf_zero
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.join_zero
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.concat_zero
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.binaryDigit_zero
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.binaryDecompose_zero
@@ -223,3 +220,9 @@ with reject sets and a checkpoint segment (`Reject`), the two parts of the verif
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Compose.Ran.lengths
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Compose.run
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Compose.accepts
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Compose.worked_none
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.OnPath.answers
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tier.Capped
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tier.Capped.getD
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tier.path_worked
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.path_answers

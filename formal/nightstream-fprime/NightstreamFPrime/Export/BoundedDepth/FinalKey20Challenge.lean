@@ -247,7 +247,8 @@ section All
 
 variable {ι : Type} [Fintype ι] (kind : Wire → Option ι)
   (family : ι → Opening logicalWidth publicFits Wire Coord total)
-  (prover : OracleComp (Prefix Wire (Coord → K) total) (Coord → K) (ℕ → Wire)) [Finite Wire]
+  (prover : OracleComp (Prefix Wire (Option Coord → K) total) (Option Coord → K) (ℕ → Wire))
+    [Finite Wire]
 
 /-- Soundness of the final verifier with Akita openings whose decoders are the decoders `draw`
 of the sparse challenge families: `verifier_sound` with `p = 1/q²`. For each prover with at most

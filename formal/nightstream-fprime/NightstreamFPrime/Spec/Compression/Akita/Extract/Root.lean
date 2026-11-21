@@ -13,7 +13,8 @@ error `(Λ − 1)/|E|`; for independent weights the error is `1/|E|`.
   batched claim holds for a part of the weights of density at most `1/|E|`.
 - `Root` has the data of the batching root at the stage `start`: the claimed values of the stage
   input, and the values of a candidate. `Root.segment` is its checkpoint segment: one draw of the
-  weights, and the test "each claim is true for the candidate".
+  weights with the work bits `Root.rootBits` of the code, and the test "each claim is true for
+  the candidate".
 - `Root.weights` is the weights of a transcript, and `Root.game_eq` states that the game ends in
   them.
 - `Root.suffix_before` puts the batching root before a suffix whose first certificates satisfy
@@ -57,8 +58,8 @@ stage input (Akita Lemma 10.33). `read` decodes the messages of the proof. -/
 structure Root (E Wire Coord Slot Cand : Type) (count total : ℕ) where
   start : ℕ
   read : Reader Wire
-  claimed : Prefix Wire (Coord → Slot) total → Fin count → E
-  actual : Prefix Wire (Coord → Slot) total → Cand → Fin count → E
+  claimed : Prefix Wire (Option Coord → Slot) total → Fin count → E
+  actual : Prefix Wire (Option Coord → Slot) total → Cand → Fin count → E
 
 namespace Root
 
@@ -67,13 +68,13 @@ variable {Wire Coord Slot Cand : Type} {count total : ℕ}
 
 /-- The bad set of the draw of the weights (Akita Theorem 10.46, "Bits and bad sets"): when a
 claim is false for the candidate, the weights for which the batched claim holds. -/
-noncomputable def bad (anchor : Prefix Wire (Coord → Slot) total) (candidate : Cand) :
+noncomputable def bad (anchor : Prefix Wire (Option Coord → Slot) total) (candidate : Cand) :
     Finset (Fin count → E) :=
   if R.actual anchor candidate = R.claimed anchor then ∅
   else Finset.univ.filter fun weights =>
     ∑ i, weights i * R.actual anchor candidate i = ∑ i, weights i * R.claimed anchor i
 
-theorem density_bad_le (anchor : Prefix Wire (Coord → Slot) total) (candidate : Cand) :
+theorem density_bad_le (anchor : Prefix Wire (Option Coord → Slot) total) (candidate : Cand) :
     density (R.bad anchor candidate) ≤ 1 / Fintype.card E := by
   unfold Root.bad
   split
@@ -82,6 +83,17 @@ theorem density_bad_le (anchor : Prefix Wire (Coord → Slot) total) (candidate 
   · rename_i different
     exact density_batched_le different
 
+/-- The work bits of the draw of the weights in the Akita code (`EvaluationBatch` of
+`transcript_grinding/plan.rs`, with the loss `count` of independent coefficients): no site for one
+claim. -/
+def rootBits (count : ℕ) : ℕ := if 1 < count then workBits count else 0
+
+theorem rootBits_le (count : ℕ) : rootBits count ≤ 57 := by
+  unfold rootBits
+  split
+  · exact workBits_le count
+  · exact Nat.zero_le _
+
 /-- The checkpoint segment of the batching root: one draw of one weight in `E` for each claim.
 The result of the game is the weights. It is true for a candidate when the batched claim (72)
 holds for the values of the candidate, and the test of a candidate is "each claim is true"
@@ -89,6 +101,7 @@ holds for the values of the candidate, and the test of a candidate is "each clai
 noncomputable def segment : Segment Wire Coord Slot (Fin count → E) Cand total where
   start := R.start
   costs := [1 / (Fintype.card E : ℝ)]
+  bits := [rootBits count]
   read := R.read
   check anchor candidate := .draw (Fin count → E) (R.bad anchor candidate) .pure
   passes anchor candidate weights :=
@@ -113,15 +126,16 @@ theorem segment_valid (fair : ∃ decode : (Coord → Slot) → Fin count → E,
     rw [List.mem_singleton.mp member]
     positivity
   draws := List.cons_ne_nil _ _
+  aligned := rfl
 
 /-- The weights `ϑ_ℓ` of a transcript: the vector that the answer of the stage `start` gives. -/
-noncomputable def weights (point : Prefix Wire (Coord → Slot) total) : Fin count → E :=
-  ((point.reply R.start).map (sample (Coord → Slot) (Fin count → E))).getD 0
+noncomputable def weights (point : Prefix Wire (Option Coord → Slot) total) : Fin count → E :=
+  ((point.reply R.start).map fun reply => sample (Coord → Slot) (Fin count → E) (view reply)).getD 0
 
 omit [Nonempty Slot] in
 /-- The game of the batching root on a transcript with the stage `start` ends in the weights of
 the transcript. -/
-theorem game_eq (candidate : Cand) {point : Prefix Wire (Coord → Slot) total}
+theorem game_eq (candidate : Cand) {point : Prefix Wire (Option Coord → Slot) total}
     (long : R.start < point.rest.length) :
     R.segment.game candidate point = .pure (R.weights point) := by
   obtain ⟨move, found⟩ : ∃ move, point.rest[R.start]? = some move :=
@@ -140,31 +154,35 @@ theorem game_eq (candidate : Cand) {point : Prefix Wire (Coord → Slot) total}
   simp [position, settle, advance, Root.segment, Root.weights, Prefix.reply, found]
 
 variable {Inner BreakT CandT KeyT Wit' : Type}
-  {accept : Prefix Wire (Coord → Slot) total → Prop}
-  {Opens' : Prefix Wire (Coord → Slot) total → Wit' → Prop}
-  {later : Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire) Inner BreakT CandT
+  {accept : Prefix Wire (Option Coord → Slot) total → Prop}
+  {Opens' : Prefix Wire (Option Coord → Slot) total → Wit' → Prop}
+  {later : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
+    BreakT CandT
     KeyT Wit'}
   {error : ℝ} {loops tree : ℕ}
 
 /-- The batching root before a suffix whose first certificates satisfy the batched claim is a
 suffix whose first certificates satisfy each claim (Akita Theorem 10.46, "Batching root", for
-independent weights). The stage errors add `1/|E|`, the retry loops add 1, and the tree size is
-multiplied by 2. `source` maps a witness of the later stages to the candidate, for example to the
+independent weights). The stage errors add `1/|E|` times `2^{−g}` for the work bits `g` of the
+draw (Akita Remark 10.18), the retry loops add 1, and the tree size is multiplied by 2. `source`
+maps a witness of the later stages to the candidate, for example to the
 tables of its weak openings. `Kept` is the part of the relation of the later stages that reads
 the transcript before the stage `start` only, for example the certified decommitments. `batched`:
 a first certificate of the later stages has a transcript with the stage `start`, a witness of
-`Kept`, and the batched claim (72) for the weights of the transcript (Akita (202)). `clashes`: two
+`Kept`, the batched claim (72) for the weights of the transcript (Akita (202)), and zero work bits
+at the stage `start`. `clashes`: two
 witnesses with different candidates, for two accepting transcripts with one stage input of the
 stage `start`, give a witness of `R_bind`. -/
 theorem suffix_before (fair : ∃ decode : (Coord → Slot) → Fin count → E, Fair decode)
     (suffix : Tier.Suffix accept (R.start + 1) Opens' later error loops tree)
     (fits : R.start + 1 ≤ total) (source : Wit' → Cand) (clash : Wit' → Wit' → BreakT)
-    (Kept : Prefix Wire (Coord → Slot) total → Wit' → Prop)
+    (Kept : Prefix Wire (Option Coord → Slot) total → Wit' → Prop)
     (rooted : ∀ point witness, Kept point witness → Kept (point.take R.start) witness)
     (batched : ∀ point witness, accept point → Opens' point witness →
       R.start < point.rest.length ∧ Kept point witness ∧
         ∑ i, R.weights point i * R.actual (point.take R.start) (source witness) i =
-          ∑ i, R.weights point i * R.claimed (point.take R.start) i)
+          ∑ i, R.weights point i * R.claimed (point.take R.start) i ∧
+        ∃ reply, point.reply R.start = some reply ∧ reply none ∈ workZeros Slot (rootBits count))
     (clashes : ∀ point other witness witness', accept point → accept other →
       Opens' point witness → Opens' other witness' →
       point.take R.start = other.take R.start → source witness ≠ source witness' →
@@ -176,7 +194,7 @@ theorem suffix_before (fair : ∃ decode : (Coord → Slot) → Fin count → E,
         (fun inner other => clash (later.witness inner) (later.witness other))
         fun point witness => Kept point witness ∧
           R.actual (point.take R.start) (source witness) = R.claimed (point.take R.start))
-      (1 / Fintype.card E + error) (1 + loops) (2 * tree) := by
+      (1 / Fintype.card E / 2 ^ rootBits count + error) (1 + loops) (2 * tree) := by
   have result := R.segment.suffix_before (R.segment_valid fair) suffix fits source clash
     (fun point witness => Kept point witness ∧
       R.actual (point.take R.start) (source witness) = R.claimed (point.take R.start))
@@ -186,11 +204,19 @@ theorem suffix_before (fair : ∃ decode : (Coord → Slot) → Fin count → E,
       rw [Prefix.take_take le_rfl]
       exact opens.2⟩)
     (fun point witness accepted opens holds => ⟨(batched point witness accepted opens).2.1, holds⟩)
-    (fun point witness accepted opens => ⟨R.weights point,
+    (fun point witness accepted opens => ⟨⟨R.weights point,
       R.game_eq _ (batched point witness accepted opens).1,
-      (batched point witness accepted opens).2.2⟩)
+      (batched point witness accepted opens).2.2.1⟩, fun index short reply answered => by
+        obtain rfl : index = 0 := by
+          have : index < 1 := short
+          omega
+        obtain ⟨other, found, zero⟩ := (batched point witness accepted opens).2.2.2
+        rw [show R.segment.start + 0 = R.start from rfl, found] at answered
+        cases answered
+        exact zero⟩)
     clashes
-  rw [show R.segment.costs.sum = 1 / (Fintype.card E : ℝ) from List.sum_singleton] at result
+  rw [show (credit R.segment.costs R.segment.bits).sum =
+    1 / (Fintype.card E : ℝ) / 2 ^ rootBits count by simp [credit, Root.segment]] at result
   exact result
 
 end Root

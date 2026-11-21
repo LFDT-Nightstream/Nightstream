@@ -55,26 +55,30 @@ theorem natDegree_quotient_lt (w : Table) : (row.quotient q w).natDegree < row.d
 (112). -/
 noncomputable def readWeight (α : E) (u : ℕ) : E :=
   ∑ c, ∑ j ∈ Finset.range row.degree,
-    if row.address c j = u then aeval α (rep (row.multiplier c)) * α ^ j else 0
+    if row.address c j = some u then aeval α (rep (row.multiplier c)) * α ^ j else 0
 
 /-- The coefficient of the witness entry `u` in the left side of the check (112). -/
 noncomputable def liftWeight (α : E) (u : ℕ) : E :=
   row.readWeight α u - (α ^ row.degree + 1) * q.weight row.degree α u
 
 theorem sum_readWeight (w : Table) (α : E) {μ : ℕ}
-    (inside : ∀ c j, j < row.degree → row.address c j < 2 ^ μ) :
+    (inside : ∀ c j x, j < row.degree → row.address c j = some x → x < 2 ^ μ) :
     ∑ u ∈ Finset.range (2 ^ μ), algebraMap Zq E (w u) * row.readWeight α u =
       ∑ c, aeval α (rep (row.multiplier c)) *
-        ∑ j ∈ Finset.range row.degree, α ^ j * algebraMap Zq E (w (row.address c j)) := by
+        ∑ j ∈ Finset.range row.degree, α ^ j * algebraMap Zq E ((row.address c j).elim 0 w) := by
   simp only [readWeight, Finset.mul_sum]
   rw [Finset.sum_comm]
   refine Finset.sum_congr rfl fun c _ => ?_
   rw [Finset.sum_comm]
   refine Finset.sum_congr rfl fun j member => ?_
   simp only [mul_ite, mul_zero]
-  rw [Finset.sum_ite_eq,
-    ite_eq_left (Finset.mem_range.mpr (inside c j (Finset.mem_range.mp member)))]
-  ring
+  cases read : row.address c j with
+  | none => simp
+  | some x =>
+      simp only [Option.some.injEq, Option.elim_some]
+      rw [Finset.sum_ite_eq, ite_eq_left
+        (Finset.mem_range.mpr (inside c j x (Finset.mem_range.mp member) read))]
+      ring
 
 theorem sum_quotientWeight (w : Table) (α : E) {μ : ℕ}
     (inside : ∀ j a, j < row.degree → q.address j a < 2 ^ μ) :
@@ -94,7 +98,7 @@ theorem sum_quotientWeight (w : Table) (α : E) {μ : ℕ}
 /-- The check (112) of Akita with the quotient of the witness is a linear form of the flat
 witness with the weights `liftWeight`, minus the value of the target. -/
 theorem liftCheck_iff_sum (w : Table) (α : E) {μ : ℕ}
-    (inside : ∀ c j, j < row.degree → row.address c j < 2 ^ μ)
+    (inside : ∀ c j x, j < row.degree → row.address c j = some x → x < 2 ^ μ)
     (quotientInside : ∀ j a, j < row.degree → q.address j a < 2 ^ μ) :
     row.LiftCheck w (row.quotient q w) α ↔
       ∑ u ∈ Finset.range (2 ^ μ), algebraMap Zq E (w u) * row.liftWeight q α u -

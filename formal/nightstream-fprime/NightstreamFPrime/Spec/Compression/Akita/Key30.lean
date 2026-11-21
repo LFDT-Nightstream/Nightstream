@@ -1,5 +1,4 @@
 import NightstreamFPrime.Spec.Compression.Akita.Key20
-import NightstreamFPrime.Spec.Compression.Akita.Extract.LiftSlim
 
 /-! The numbers of the schedule file `crates/ns-compress/artifacts/key30.aks`, the file of the key
 of `2^19` blocks (Akita, ePrint 2026/1983, revision of 2026-10-15, (28), (53), (55), (69), (75),
@@ -21,10 +20,6 @@ number that the file holds with the file.
 - A quotient has `⌈64/3⌉ = 22` digits at the root and `64/4 = 16` digits at the levels 1 to 3
   (`quotientDigits₀`, `quotientDigits`). The numbers that the file does not hold are those of
   `Key20.lean`.
-- `room₃` of the level 3 is false for `OpeningShape.quotientRoom`: the cube of 19 variables has
-  1024 cells after the quotient digits of the file, and the zero cell with the quotient digits
-  of the row `w_cells = 0` in `R_{q,64}` needs 1025 cells (`level₃_tight`). The level 3 has the
-  row `w_cells = 0` in `R_{q,1}` (`OpeningShape.slimRoom`, `Extract/LiftSlim.lean`).
 - `not_covers`: an element of `Z_q` near `q/2` has no 16 balanced digits of the base 16 for its
   least absolute residue, so the hypothesis `covers` of `liftedFold_winsTo` is false at the levels
   1 to 3. The Akita code uses the residues `[−8·Σ_u 16^u, 7·Σ_u 16^u]` there.
@@ -241,9 +236,9 @@ def setupVars : ℕ := 23
 
 /-- The conditions of the root on its numbers: `fits`, `room`, `rowsFit`, `response`, `uniform`
 for the base 8, and `small`. -/
-theorem root_sized : ∀ r ∈ rows, (root r).cells < 2 ^ rootVars ∧
+theorem root_sized : ∀ r ∈ rows, (root r).cells ≤ 2 ^ rootVars ∧
     (root r).quotientRoom quotientDigits₀ ≤ 2 ^ rootVars ∧
-    (root r).rowCount + 1 + 1 ≤ 2 ^ rootBatch ∧ (∀ g, 2 ≤ ((root r).fold g).responseBase) ∧
+    (root r).rowCount + 1 ≤ 2 ^ rootBatch ∧ (∀ g, 2 ≤ ((root r).fold g).responseBase) ∧
     (∀ g, ((root r).shape g).certifiedBase = 8) ∧ 8 < fieldModulus := by decide
 
 /-- The ring rows of the root have the sum 10112 of their degrees, and the flat witness has
@@ -253,40 +248,34 @@ theorem root_degrees : (root w27).degreeSum = 10112 ∧ (root w27).cells = 17468
 
 /-- The conditions of `liftBatch` and `liftBatch_valid` on the numbers of level 1: `fits`, `room`,
 `rowsFit`, `response`, `uniform` for the base 16, and `small`. -/
-theorem level₁_sized : ∀ r ∈ rows, (level₁ r).cells < 2 ^ vars₁ ∧
+theorem level₁_sized : ∀ r ∈ rows, (level₁ r).cells ≤ 2 ^ vars₁ ∧
     (level₁ r).quotientRoom quotientDigits ≤ 2 ^ vars₁ ∧
-    (level₁ r).rowCount + 1 + 1 ≤ 2 ^ batch₁ ∧ (∀ g, 2 ≤ ((level₁ r).fold g).responseBase) ∧
+    (level₁ r).rowCount + 1 ≤ 2 ^ batch₁ ∧ (∀ g, 2 ≤ ((level₁ r).fold g).responseBase) ∧
     (∀ g, ((level₁ r).shape g).certifiedBase = 16) ∧ 16 < fieldModulus := by decide
 
 /-- The conditions of `liftFold` and `LevelSized` on the numbers of level 2. -/
 theorem level₂_sized : ∀ r ∈ rows,
-    (level₂ r).opening.cells (level₂ r).fold < 2 ^ (level₂ r).vars ∧
+    (level₂ r).opening.cells (level₂ r).fold ≤ 2 ^ (level₂ r).vars ∧
     (level₂ r).opening.quotientRoom (level₂ r).fold quotientDigits ≤ 2 ^ (level₂ r).vars ∧
-    (level₂ r).opening.rowCount + 1 + 1 ≤ 2 ^ (level₂ r).batch ∧
+    (level₂ r).opening.rowCount + 1 ≤ 2 ^ (level₂ r).batch ∧
     2 ≤ (level₂ r).fold.responseBase ∧ (level₂ r).shape.certifiedBase < fieldModulus := by decide
 
-/-- The conditions of the level 3 on its numbers, with `slimRoom` for `room`. -/
-theorem level₃_sized : level₃.opening.cells level₃.fold < 2 ^ level₃.vars ∧
-    level₃.opening.slimRoom level₃.fold quotientDigits ≤ 2 ^ level₃.vars ∧
-    level₃.opening.rowCount + 1 + 1 ≤ 2 ^ level₃.batch ∧ 2 ≤ level₃.fold.responseBase ∧
+/-- The conditions of `liftFold` and `LevelSized` on the numbers of level 3: the quotient
+digits end at the cell 523264 of the cube of `2^19` cells. -/
+theorem level₃_sized : level₃.opening.cells level₃.fold ≤ 2 ^ level₃.vars ∧
+    level₃.opening.quotientRoom level₃.fold quotientDigits ≤ 2 ^ level₃.vars ∧
+    level₃.opening.rowCount + 1 ≤ 2 ^ level₃.batch ∧ 2 ≤ level₃.fold.responseBase ∧
     level₃.shape.certifiedBase < fieldModulus := by decide
 
-/-- The quotient digits of the level 3 in the file end at the cell 523264, and the cube of
-`2^19` cells has 1024 cells after it. `OpeningShape.quotientRoom` is larger by one cell than the
-cube: the zero cell and 16 digits for each of the 64 coefficients of the row `w_cells = 0`. -/
-theorem level₃_tight :
-    level₃.opening.cells level₃.fold + quotientDigits * level₃.opening.degreeSum = 523264 ∧
-      level₃.opening.quotientRoom level₃.fold quotientDigits = 2 ^ level₃.vars + 1 := by decide
-
 /-- The conditions of `committedTrace` and `LevelSized` on the numbers of level 4. -/
-theorem level₄_sized : level₄.opening.cells level₄.fold < 2 ^ level₄.vars ∧
-    level₄.opening.traceRowCount + 1 + 1 ≤ 2 ^ level₄.batch ∧ 2 ≤ level₄.fold.responseBase ∧
+theorem level₄_sized : level₄.opening.cells level₄.fold ≤ 2 ^ level₄.vars ∧
+    level₄.opening.traceRowCount + 1 ≤ 2 ^ level₄.batch ∧ 2 ≤ level₄.fold.responseBase ∧
     level₄.shape.certifiedBase < fieldModulus := by decide
 
 /-- The conditions of `committedTraceSq` and `LevelSized` on the numbers of the levels 5
 and 6. -/
-theorem tails_sized : ∀ L ∈ [level₅, level₆], L.opening.cells L.fold < 2 ^ L.vars ∧
-    L.opening.traceRowCount + 1 + 1 ≤ 2 ^ L.batch ∧ 2 ≤ L.fold.responseBase ∧
+theorem tails_sized : ∀ L ∈ [level₅, level₆], L.opening.cells L.fold ≤ 2 ^ L.vars ∧
+    L.opening.traceRowCount + 1 ≤ 2 ^ L.batch ∧ 2 ≤ L.fold.responseBase ∧
     L.shape.certifiedBase < fieldModulus := by decide
 
 /-- The conditions `room` and `noWrap` of `NormSized` for the levels 5 and 6. -/
@@ -364,9 +353,9 @@ theorem honest : (∀ r ∈ rows, ∀ g, ((root r).shape g).Honest) ∧ shapeS.H
   fin_cases g
   exacts [Shape.key30_honest, honestW r member, honestV]
 
-/-- The live blocks of each receiver have each cell that the flat witness of its sender can use:
-the end of the quotient digits of the root and of the levels 1 to 3, and the zero cell of the
-levels 4 to 6 (Akita Section 4.5, (40) to (42)). -/
+/-- The live blocks of each receiver have each cell that the witness of its sender can use: the
+end of the quotient digits of the root and of the levels 1 to 3, and the end of the flat witness
+of the levels 4 to 6 (Akita Section 4.5, (40) to (42)). -/
 theorem live_cells : (∀ r ∈ rows,
       (root r).quotientRoom quotientDigits₀ ≤
           (shapeW₁ r).blocks * ((shapeW₁ r).blockLength * (shapeW₁ r).innerDegree) ∧
@@ -374,13 +363,13 @@ theorem live_cells : (∀ r ∈ rows,
           (level₂ r).shape.blocks * ((level₂ r).shape.blockLength * (level₂ r).shape.innerDegree) ∧
         (level₂ r).opening.quotientRoom (level₂ r).fold quotientDigits ≤
           level₃.shape.blocks * (level₃.shape.blockLength * level₃.shape.innerDegree)) ∧
-    level₃.opening.slimRoom level₃.fold quotientDigits ≤
+    level₃.opening.quotientRoom level₃.fold quotientDigits ≤
         level₄.shape.blocks * (level₄.shape.blockLength * level₄.shape.innerDegree) ∧
-      level₄.opening.cells level₄.fold + 1 ≤
+      level₄.opening.cells level₄.fold ≤
         level₅.shape.blocks * (level₅.shape.blockLength * level₅.shape.innerDegree) ∧
-      level₅.opening.cells level₅.fold + 1 ≤
+      level₅.opening.cells level₅.fold ≤
         level₆.shape.blocks * (level₆.shape.blockLength * level₆.shape.innerDegree) ∧
-      level₆.opening.cells level₆.fold + 1 ≤
+      level₆.opening.cells level₆.fold ≤
         terminal.blocks * (terminal.blockLength * terminal.innerDegree) := by decide
 
 /-- The hypothesis `covers` of `liftedFold_winsTo` is false for the base 16 with 16 digits: the

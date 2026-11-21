@@ -55,11 +55,11 @@ def groups : Batch (Fin 3) where
   openRank := 1
   chain := none
 
-theorem groups_cells : groups.cells < 2 ^ 10 := by decide
+theorem groups_cells : groups.cells ≤ 2 ^ 10 := by decide
 
-theorem groups_rows : groups.rowCount + 1 + 1 ≤ 2 ^ 4 := by decide
+theorem groups_rows : groups.rowCount + 1 ≤ 2 ^ 4 := by decide
 
-theorem cells_last : (opening 4 256).cells fold < 2 ^ 15 := by decide
+theorem cells_last : (opening 4 256).cells fold ≤ 2 ^ 15 := by decide
 
 theorem rows_last : (opening 4 256).rowCount + 1 ≤ 2 ^ 3 := by decide
 
@@ -105,12 +105,12 @@ theorem lift_winsTo (admits : Type → Prop) (scalar : admits Zq)
     {st : groups.Statement Zq} {challenge : groups.Challenge} {w : groups.Witness}
     (satisfies : w.Satisfies groupBasis st challenge) :
     WinsTo admits (foldCheck (Batch.liftedReduction groupBasis st challenge 10 groups_cells 4 33
-      groups_room 4 groups_rows) 4 groups.binarySupport
-      ((groups.lockedRelation groupBasis st challenge 10 groups_cells).completion 4 33
-        (groups.cells + 1) w.flat)) (foldDraws 10 4) true fun result _ _ =>
+      groups_room 4 groups_rows) 4 (groups.gaps 33).support groups.compressed
+      ((groups.flatRelation groupBasis st challenge 10 groups_cells).completion (groups.gaps 33) 4
+        33 w.flat)) (foldDraws 10 4 groups.compressed) true fun result _ _ =>
         ∃ r2 : List Zq, r2.length = 10 ∧ result = some (r2, mle r2 (lifted Zq
-          ((groups.lockedRelation groupBasis st challenge 10 groups_cells).completion 4 33
-            (groups.cells + 1) w.flat))) :=
+          ((groups.flatRelation groupBasis st challenge 10 groups_cells).completion
+            (groups.gaps 33) 4 33 w.flat))) :=
   Batch.liftedFold_winsTo admits scalar range cubic (fun _ => rfl)
     ⟨by decide, by decide, by decide⟩ covers groups_room 4 groups_rows satisfies
 
@@ -138,12 +138,13 @@ output of the extractor has, for each of the three groups, a certified decommitm
 commitment of the group to a table with the claimed value at the point of the group, or it is a
 solution of Module-SIS for a matrix of a group or of a level. -/
 theorem root_extract_sound
-    (prover : OracleComp (Prefix Wire (Slots → Zq) (Tier.finish second)) (Slots → Zq) (ℕ → Wire))
-    (budget : ℕ) (table : Prefix Wire (Slots → Zq) (Tier.finish second) → Slots → Zq)
-    (tape : Tape (Prefix Wire (Slots → Zq) (Tier.finish second)) Slots Zq budget
+    (prover : OracleComp (Prefix Wire (Option Slots → Zq) (Tier.finish second)) (Option Slots → Zq)
+      (ℕ → Wire))
+    (budget : ℕ) (table : Prefix Wire (Option Slots → Zq) (Tier.finish second) → Option Slots → Zq)
+    (tape : Tape (Prefix Wire (Option Slots → Zq) (Tier.finish second)) (Option Slots) Zq budget
       (Structure.protocol chain).stages)
     (out : Opened groups.Weak
-        (Opened (Weak (opening 4 256)) (Prefix Wire (Slots → Zq) (Tier.finish second))) ⊕
+        (Opened (Weak (opening 4 256)) (Prefix Wire (Option Slots → Zq) (Tier.finish second))) ⊕
       (groups.LevelBreak key openKey
           (fun g => 2 * (2 * 1) * (groups.fold g).sourceBound (groups.shape g)) ⊕
         (LevelBreak key' openKey' (2 * (2 * 1) * fold.sourceBound (shape 4 256)) ⊕ Unit)))
@@ -180,21 +181,17 @@ variable [Finite Wire]
 /-- `batchRoot_extraction_le` for the small instance, with no hypothesis on the parameters (Akita
 Theorem 10.17 for the batching root, a fold with three opening groups and a last packing fold):
 the bound holds for each prover. -/
-theorem root_extraction_le (statement : groups.Statement Zq) (challenge : groups.Challenge)
-    (statement' : Statement (opening 4 256) Zq)
-    (challenge' : Fin (shape 4 256).blocks → Rq (opening 4 256).carrierDegree)
-    (prover : OracleComp (Prefix Wire (Slots → Zq) (Tier.finish second)) (Slots → Zq) (ℕ → Wire))
+theorem root_extraction_le
+    (prover : OracleComp (Prefix Wire (Option Slots → Zq) (Tier.finish second)) (Option Slots → Zq)
+      (ℕ → Wire))
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Slots → Zq) (Tier.finish second)) Slots Zq budget
+    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Slots → Zq) (Tier.finish second)) (Option Slots) Zq
+      budget
           (Structure.protocol chain).stages,
         (if accepts ((Structure.protocol chain).final prover table) ∧
           Checkpoint.extract chain prover budget table tape = none then (1 : ℝ) else 0) ≤
-      (queries + 1) * (1 / Fintype.card Zq + (∑ b, Tier.chance first b +
-          foldError (Batch.lockedReduction groupBasis statement challenge 10 groups_cells 4
-            groups_rows) 4 +
-          (∑ b, Tier.chance second b +
-            foldError (flatReduction (basis 4 256) statement' challenge' 15 cells_last 3
-              rows_last) (shape 4 256).certifiedBase))) +
+      (queries + 1) * (1 / Fintype.card Zq / 2 ^ Root.rootBits 3 + (Tier.levelError first +
+          Tier.levelError second)) +
         (queries + 1) *
           (1 + (∑ g, (groups.shape g).blocks + 1 + ((shape 4 256).blocks + 1)) : ℕ) / budget :=
   batchRoot_extraction_le (B := groups) (S' := shape 4 256) (O' := opening 4 256)
@@ -210,14 +207,15 @@ theorem root_extraction_le (statement : groups.Statement Zq) (challenge : groups
     (fun _ => decode_units) (fun _ => decode_sparse)
     (fun _ => (by decide : 2 ≤ fold.responseBase)) (fun _ => rfl)
     (by decide) (by simp) (by simp) (by simp) (Fin.castLE_injective _) decode_units decode_sparse
-    (by decide) (by decide) (by simp) (by simp) statement challenge statement' challenge' prover
-    bounded positive
+    (by decide) (by decide) (by simp) (by simp) prover bounded positive
 
 /-- `batchRoot_runs_le` for the small instance, with no hypothesis on the parameters. -/
 theorem root_runs_le
-    (prover : OracleComp (Prefix Wire (Slots → Zq) (Tier.finish second)) (Slots → Zq) (ℕ → Wire))
+    (prover : OracleComp (Prefix Wire (Option Slots → Zq) (Tier.finish second)) (Option Slots → Zq)
+      (ℕ → Wire))
     {queries : ℕ} (bounded : prover.QueryBound queries) (budget : ℕ) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Slots → Zq) (Tier.finish second)) Slots Zq budget
+    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Slots → Zq) (Tier.finish second)) (Option Slots) Zq
+      budget
           (Structure.protocol chain).stages,
         (extractRuns chain prover budget table tape : ℝ) ≤
       (2 * (2 * (∑ g, (groups.shape g).blocks + 1) * (2 * ((shape 4 256).blocks + 1))) : ℕ) +

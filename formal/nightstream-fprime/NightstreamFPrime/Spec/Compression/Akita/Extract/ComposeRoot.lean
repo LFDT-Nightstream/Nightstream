@@ -49,7 +49,7 @@ accepts with the conditions `Compose.Ran` of the stages before the opening, and 
 conditions of `rootAccepts` for the batching root at the stage `Compose.root`: the transcript has
 this stage, the link `RootLinked` to the claim of `T` with the weights of the transcript, the
 link `Tier.Linked` from `T` to `N`, and a true final claim of the checks of `N`. -/
-def composeAccepts (point : Prefix Wire (Coord → E) total) : Prop :=
+def composeAccepts (point : Prefix Wire (Option Coord → E) total) : Prop :=
   C.Ran vf commit value place point ∧ C.root vf < point.rest.length ∧
     RootLinked T (C.root vf) commit value place
       ((claimsRoot (Coord := Coord) (Slot := E) (total := total) (C.root vf) C.read value
@@ -102,7 +102,7 @@ theorem composeRoot_suffix {blocks : ℕ} (card : Fintype.card B.Block = blocks)
     Tier.Suffix (composeAccepts C vf T N commit value place next sourceOf) (C.root vf)
       (OpensAt (C.root vf) commit value place key mass)
       (composeRoot C vf T N commit value place next sourceOf)
-      (1 / Fintype.card E + (∑ b, T.chance b + T.costs.sum + (∑ b, N.chance b + N.costs.sum)))
+      (1 / Fintype.card E / 2 ^ Root.rootBits 3 + (T.levelError + N.levelError))
       (1 + (blocks + 1 + (S'.blocks + 1))) (2 * (2 * (blocks + 1) * (2 * (S'.blocks + 1)))) :=
   root_suffix (C.root vf) C.read value place fair packed first
     (by
@@ -135,11 +135,11 @@ variable {B : Batch (Fin 3)} {S' : Shape} {O' : OpeningShape S'} {fold' : Descri
   [DecidableEq Coord] [Nonempty Coord] {total : ℕ} {P : Verifier.Params Zq E}
   {C : Compose P B Wire Coord Lead total} {vf : Verifier.VerifierData P}
   {β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E} {key : (g : Fin 3) → Key (B.shape g)}
-  {openKey : B.OpenKey} {claim : Wire → B.Claim E} {μ : ℕ} {fits : B.cells < 2 ^ μ} {batch : ℕ}
-  {rowsFit : B.rowCount + 1 + 1 ≤ 2 ^ batch} {block : B.Block → Coord}
+  {openKey : B.OpenKey} {claim : Wire → B.Claim E} {μ : ℕ} {fits : B.cells ≤ 2 ^ μ} {batch : ℕ}
+  {rowsFit : B.rowCount + 1 ≤ 2 ^ batch} {block : B.Block → Coord}
   {decode : (g : Fin 3) → E → Option (Rq (B.carrierDegree g))} {mass : Fin 3 → ℕ} {base : ℕ}
   {β' : Module.Basis (Fin O'.planes) Zq E} {key' : Key S'} {openKey' : OpeningKey O'}
-  {claim' : Wire → Claim O' E} {μ' : ℕ} {fits' : O'.cells fold' < 2 ^ μ'} {batch' : ℕ}
+  {claim' : Wire → Claim O' E} {μ' : ℕ} {fits' : O'.cells fold' ≤ 2 ^ μ'} {batch' : ℕ}
   {rowsFit' : O'.rowCount + 1 ≤ 2 ^ batch'} {block' : Fin S'.blocks → Coord}
   {decode' : E → Option (Rq O'.carrierDegree)} {weight' : ℕ}
   {commit : Wire → (g : Fin 3) → (B.shape g).Payload} {value : Wire → Fin 3 → E}
@@ -176,8 +176,8 @@ theorem composeRootChain_suffix (injective : Function.Injective block)
     (inside : Tier.finish second ≤ total) :
     Tier.Suffix accepts (C.root vf) (OpensAt (C.root vf) commit value place key mass)
       (composeRoot C vf first second commit value place next witnessOf)
-      (1 / Fintype.card E + (∑ b, Tier.chance first b + (Tier.costs first).sum +
-        (∑ b, Tier.chance second b + (Tier.costs second).sum)))
+      (1 / Fintype.card E / 2 ^ Root.rootBits 3 + (Tier.levelError first +
+        (Tier.levelError second)))
       (1 + (∑ g, (B.shape g).blocks + 1 + (S'.blocks + 1)))
       (2 * (2 * (∑ g, (B.shape g).blocks + 1) * (2 * (S'.blocks + 1)))) :=
   composeRoot_suffix B.card_block

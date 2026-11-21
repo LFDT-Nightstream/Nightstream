@@ -90,30 +90,31 @@ variable {Block : Type} {Ring : Block → Type}
 omit [∀ b, Zero (Ring b)] [Fintype Block] [Fintype Slot] [Nonempty Slot] [Fintype Coord]
   [DecidableEq Coord] in
 theorem opens_take {level : ℕ} (above : T.start ≤ level)
-    (point : Prefix Wire (Coord → Slot) total) (opening : Option Weak) :
+    (point : Prefix Wire (Option Coord → Slot) total) (opening : Option Weak) :
     T.Opens (point.take level) opening ↔ T.Opens point opening := by
   unfold Tier.Opens
   rw [Prefix.wire_take above]
 
-variable {T} {accept : Prefix Wire (Coord → Slot) total → Prop}
+variable {T} {accept : Prefix Wire (Option Coord → Slot) total → Prop}
 
 /-- The level over later stages that satisfy its interface `Fed` is a suffix. `blocks` is the
 number `r` of the fold coordinates. -/
 theorem suffix_over {WitT : Type}
-    {tail : Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire) Inner BreakT CandT
+    {tail : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire)
+      Inner BreakT CandT
       KeyT WitT}
     {source : Inner → Source} {clash : Inner → Inner → BreakT} {blocks : ℕ}
     (count : Fintype.card Block = blocks) (valid : T.Valid)
     (fed : T.Fed accept tail source clash) (stages : tail.protocol.stages = total) :
     Suffix accept T.start T.Opens (T.over accept tail source clash)
-      (∑ b, T.chance b + T.costs.sum + tail.chargeFrom T.finish)
+      (T.levelError + tail.chargeFrom T.finish)
       (blocks + 1 + tail.loopsFrom T.finish) (2 * (blocks + 1) * tail.treeFrom T.finish) where
   opened := T.over_opened
   rooted point opening opens := (T.opens_take le_rfl point opening).mpr opens
   lawfulFrom := T.over_lawfulFrom valid fed
   protocol := rfl
   related _ _ := Iff.rfl
-  errorSum := T.over_chargeFrom valid.injective fed.fits stages
+  errorSum := T.over_chargeFrom valid.injective fed.fits stages valid.aligned
   loopCount := count ▸ T.over_loopsFrom valid.draws fed.fits stages
   treeSize := count ▸ T.over_treeFrom valid.draws fed.fits stages
 
@@ -146,14 +147,15 @@ theorem suffix_last {blocks : ℕ} (count : Fintype.card Block = blocks) (valid 
     Suffix accept T.start T.Opens
       (T.over accept (Checkpoint.finish (transcript total accept))
         (fun point => sourceOf (point.wire (T.start + 1))) (fun _ _ => ()))
-      (∑ b, T.chance b + T.costs.sum) (blocks + 1) (2 * (blocks + 1)) := by
+      (T.levelError) (blocks + 1) (2 * (blocks + 1)) := by
   have suffix := suffix_over count valid (fed_finish sourceOf fits passed) rfl
   rw [finish_chargeFrom, finish_loopsFrom, finish_treeFrom, add_zero, Nat.add_zero,
     Nat.mul_one] at suffix
   exact suffix
 
-variable {Wit' : Type} {Opens' : Prefix Wire (Coord → Slot) total → Wit' → Prop}
-  {tail : Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire) Inner BreakT CandT
+variable {Wit' : Type} {Opens' : Prefix Wire (Option Coord → Slot) total → Wit' → Prop}
+  {tail : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
+    BreakT CandT
     KeyT Wit'}
   {error : ℝ} {loops tree : ℕ}
 
@@ -204,7 +206,7 @@ theorem suffix_before {blocks : ℕ} (count : Fintype.card Block = blocks) (vali
     Suffix accept T.start T.Opens
       (T.over accept tail (fun inner => source (tail.witness inner))
         (fun inner other => clash (tail.witness inner) (tail.witness other)))
-      (∑ b, T.chance b + T.costs.sum + error) (blocks + 1 + loops)
+      (T.levelError + error) (blocks + 1 + loops)
       (2 * (blocks + 1) * tree) := by
   have stages : tail.protocol.stages = total := by rw [later.protocol]; rfl
   have suffix := suffix_over count valid
@@ -223,8 +225,9 @@ variable {S' : Shape} {O' : OpeningShape S'} {Block Block' : Type} {Ring : Block
   {T : Tier Block Ring Stmt Brk Wit Wk Wire Coord Slot Result Source}
   {N : Tier Block' Ring' Stmt' Brk' Wit' (Weak O') Wire Coord Slot Result' Source'}
   {total : ℕ} [Fintype Slot] [Nonempty Slot] [Fintype Coord] [DecidableEq Coord]
-  {Inner BreakT CandT KeyT : Type} {accept : Prefix Wire (Coord → Slot) total → Prop}
-  {tail : Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire) Inner BreakT CandT
+  {Inner BreakT CandT KeyT : Type} {accept : Prefix Wire (Option Coord → Slot) total → Prop}
+  {tail : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
+    BreakT CandT
     KeyT (Option (Weak O'))}
   {error : ℝ} {loops tree : ℕ}
 
@@ -269,7 +272,7 @@ theorem suffix_committed {blocks : ℕ} (count : Fintype.card Block = blocks) (v
       (T.over accept tail (fun inner => view (tableOf (tail.witness inner)))
         (fun inner other =>
           embed (collide key' openKey' innerBound (tail.witness inner) (tail.witness other))))
-      (∑ b, T.chance b + T.costs.sum + error) (blocks + 1 + loops)
+      (T.levelError + error) (blocks + 1 + loops)
       (2 * (blocks + 1) * tree) := by
   refine suffix_before count valid (next ▸ later) fits (fun opening => view (tableOf opening))
     (fun opening other => embed (collide key' openKey' innerBound opening other)) decodes ?_ ?_
@@ -327,7 +330,7 @@ is the commitment `commit` of the message after the fold challenge of `T`. The p
 of `N` is `r_2`, with the segments `(r_pack, r_tail, r_pos, r_blk)` of the lengths of the shape
 of `N`, and its value is `v_W`. The segment `r_blk` has `⌈log_2 B⌉` coordinates or more for the
 number `B` of live blocks of `N` (Akita Section 4.5, (40) to (42)). -/
-def Linked (commit : Wire → S'.Payload) (point : Prefix Wire (Coord → Slot) total) : Prop :=
+def Linked (commit : Wire → S'.Payload) (point : Prefix Wire (Option Coord → Slot) total) : Prop :=
   T.finish ≤ point.rest.length ∧ T.Decodes point ∧
     ∃ block position pack tail v,
       T.game (fun _ => 0) point = .pure (some (pack ++ (tail ++ (position ++ block)), v)) ∧
@@ -337,8 +340,9 @@ def Linked (commit : Wire → S'.Payload) (point : Prefix Wire (Coord → Slot) 
       (N.claim (point.wire N.start)).point = Point.ofSegments O' block position pack tail ∧
       (N.claim (point.wire N.start)).value = v
 
-variable {T N} {accept : Prefix Wire (Coord → Slot) total → Prop}
-  {tail : Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire) Inner BreakT CandT
+variable {T N} {accept : Prefix Wire (Option Coord → Slot) total → Prop}
+  {tail : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
+    BreakT CandT
     KeyT (Option (Weak O'))}
   {error : ℝ} {loops tree : ℕ}
 
@@ -365,7 +369,7 @@ theorem suffix_push {blocks : ℕ} (count : Fintype.card Block = blocks) (valid 
       (T.over accept tail (fun inner => tableOf (tail.witness inner))
         (fun inner other => embed (collide key' openKey'
           (2 * (2 * weight') * fold'.sourceBound S') (tail.witness inner) (tail.witness other))))
-      (∑ b, T.chance b + T.costs.sum + error) (blocks + 1 + loops)
+      (T.levelError + error) (blocks + 1 + loops)
       (2 * (blocks + 1) * tree) := by
   refine suffix_committed (factorBound := 2 * weight') (sourceBound := fold'.sourceBound S')
     count valid next commit fits (fun point accepted => (linked point accepted).2.1) key' openKey'
@@ -397,9 +401,10 @@ section Extraction
 
 variable {Wire Coord Slot : Type} {total : ℕ} [Fintype Slot] [Nonempty Slot] [Fintype Coord]
   [DecidableEq Coord] {Inner BreakT CandT KeyT Wit : Type}
-  {accept : Prefix Wire (Coord → Slot) total → Prop} {start : ℕ}
-  {Opens : Prefix Wire (Coord → Slot) total → Wit → Prop}
-  {body : Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire) Inner BreakT CandT
+  {accept : Prefix Wire (Option Coord → Slot) total → Prop} {start : ℕ}
+  {Opens : Prefix Wire (Option Coord → Slot) total → Wit → Prop}
+  {body : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
+    BreakT CandT
     KeyT Wit}
   {error : ℝ} {loops tree : ℕ}
 
@@ -423,9 +428,10 @@ stage 0, which for a level is a root weak opening of its claim (Akita Definition
 witness of `R_bind`, which is a solution of Module-SIS for a matrix of one level. -/
 theorem Suffix.extract_sound (suffix : Suffix accept start Opens body error loops tree)
     (root : start = 0)
-    (prover : OracleComp (Prefix Wire (Coord → Slot) total) (Coord → Slot) (ℕ → Wire))
-    (budget : ℕ) (table : Prefix Wire (Coord → Slot) total → Coord → Slot)
-    (tape : Tape (Prefix Wire (Coord → Slot) total) Coord Slot budget body.protocol.stages)
+    (prover : OracleComp (Prefix Wire (Option Coord → Slot) total) (Option Coord → Slot) (ℕ → Wire))
+    (budget : ℕ) (table : Prefix Wire (Option Coord → Slot) total → Option Coord → Slot)
+    (tape : Tape (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot budget
+      body.protocol.stages)
     (out : Inner ⊕ BreakT)
     (result : Checkpoint.extract body prover budget table tape = some out) :
     body.protocol.accept (body.protocol.final prover table) ∧
@@ -449,9 +455,9 @@ verifier accepts and the extractor returns no output is at most
 loop. The probability is over the table of the oracle and the tape of the extractor. -/
 theorem Suffix.extraction_le (suffix : Suffix accept start Opens body error loops tree)
     (root : start = 0)
-    (prover : OracleComp (Prefix Wire (Coord → Slot) total) (Coord → Slot) (ℕ → Wire))
+    (prover : OracleComp (Prefix Wire (Option Coord → Slot) total) (Option Coord → Slot) (ℕ → Wire))
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → Slot) total) Coord Slot budget
+    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot budget
           body.protocol.stages,
         (if body.protocol.accept (body.protocol.final prover table) ∧
           Checkpoint.extract body prover budget table tape = none then (1 : ℝ) else 0) ≤
@@ -467,9 +473,9 @@ theorem Suffix.extraction_le (suffix : Suffix accept start Opens body error loop
 at most `K̂ + (Q + 1)·(K̂ − 1)` for the tree size `K̂ = tree` (Akita Theorem 10.17, the cost). -/
 theorem Suffix.runs_le (suffix : Suffix accept start Opens body error loops tree)
     (root : start = 0)
-    (prover : OracleComp (Prefix Wire (Coord → Slot) total) (Coord → Slot) (ℕ → Wire))
+    (prover : OracleComp (Prefix Wire (Option Coord → Slot) total) (Option Coord → Slot) (ℕ → Wire))
     {queries : ℕ} (bounded : prover.QueryBound queries) (budget : ℕ) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → Slot) total) Coord Slot budget
+    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot budget
           body.protocol.stages,
         (extractRuns body prover budget table tape : ℝ) ≤
       tree + (queries + 1) * (tree - 1) := by

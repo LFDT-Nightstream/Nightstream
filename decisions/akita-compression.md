@@ -201,10 +201,12 @@ The main claim is `Claims.Akita.key20_verifier_sound`, from
 prover with at most `Q` queries to one uniform table of stage answers makes
 the final verifier accept a statement that has no valid proof with probability
 at most
-`(Q + 1) · (runCost + 6318/|K| + 135 · p) + (Q + 1) · 144/budget + breakChance`.
-`runCost` is the sum of the error bounds of one run of Π_CCS and of the
-argument. `p` is the largest probability of one fold challenge, and the claim
-has `p = 1/q²` for the Lean decoders. `budget` is the limit of each retry loop
+`(Q + 1) · (runCost + 317735/(1024·|K|) + 49/8 · p) + (Q + 1) · 144/budget +
+breakChance`. `runCost` is the sum of the error bounds of one run of Π_CCS and
+of the argument. `p` is the largest probability of one fold challenge, and the
+claim has `p = 1/q²` for the Lean decoders. Each stage error of the opening
+has the factor `2^−g` for the work bits `g` of its site in the code
+(difference (d)). `budget` is the limit of each retry loop
 of the extractor. `breakChance` is the `[MSIS]` term: the probability that the
 extractor returns a solution of Module-SIS. The result has the composition of
 the argument with the opening inside it, by two checkpoints in sequence: `W`
@@ -283,8 +285,9 @@ polynomial. The verifier never reads the polynomial
 ### Differences between the paper, the code and the Lean model
 
 These are the differences that the security model had in trust item 7, (a) to
-(j), and the differences of the opening with an offloaded root, (k) to (o). The
-section Open points lists the points that need a decision.
+(j), the differences of the opening with an offloaded root, (k) to (o), and a
+difference of the relation rows, (p). The section Open points lists the points
+that need a decision.
 
 - (a) The extraction of the paper uses one oracle output for each fold
   coordinate: its sampler has "separately indexed oracle queries from a fixed
@@ -313,15 +316,31 @@ section Open points lists the points that need a decision.
   added error is `2/|K|`, which is `N^norm = 2` of Akita (189)
   (`Spec.Compression.Akita.Extract.foldCostsSq_sum`). Each schedule file has
   the direct shape at each squared-norm level, and Lean has no model of the
-  digit-expanded shape. A committed level has one row that
-  Akita does not have: the cell after the last segment is zero
-  (`Spec.Compression.Akita.lockedRelation`). The segments of the quotient
-  digits are after that cell, not at the places of Akita (76). So the quotient
-  digits of the root end at the cell 3,662,337 in the model
-  (`Spec.Compression.Akita.Key20.root_room`) and at the cell 3,659,520 in Akita
-  (`Spec.Compression.Akita.Key20.root_degrees`), which the file holds as
-  3,659,776, in full ring elements of level 1. The difference is that cell and
-  the quotient digits of that row. The batching weights of the root are
+  digit-expanded shape. The coefficient `ζ_bin` of the binary-support claim
+  has a draw only at a level with compression digits, as in the code
+  (`stage1.rs`, `CompressionBinary`; `Spec.Compression.Akita.drawBin`): the
+  levels with the payload mode `Raw` have no such draw, which are the last two
+  levels of each schedule file. The witness of a committed level is the
+  witness table of the pinned code (`crates/akita-params/src/witness.rs` and
+  `witness/tail.rs` of the Akita code) and of Akita (76) and (348):
+  `[ẑ_g | ê_g | t̂_g]` for each group, the quotient digits of the rows before
+  the compression rows, and for each compression map the digits of `F_a` of
+  each group and of `H_a`, then the quotient digits of these rows
+  (`Spec.Compression.Akita.Gaps`, `Spec.Compression.Akita.OpeningShape.gaps`,
+  `Spec.Compression.Akita.Batch.gaps`). A row reads no cell for a zero of a
+  padded vector: the address `none` is a coefficient 0
+  (`Spec.Compression.Akita.RingRow`). The rows of a fold with groups are in the
+  order of the groups, as in Akita (76) and in the code
+  (`Spec.Compression.Akita.Batch.groupRows`). So the witness of the root ends
+  at the cell 3,659,520 in the model and in the code
+  (`Spec.Compression.Akita.Key20.root_degrees`), and the file holds 3,659,776,
+  with the last alignment of the code to 1,024 cells. The model has no
+  alignment zeros, and each alignment of the code before the last one is empty
+  at each level of the two files (`tests/AkitaSchedules.lean`). One order
+  stays: the code has one row for the planes of the carrier row (difference
+  (p)), so in the quotient segment of this row the code has the order digit,
+  plane, coefficient of Akita (348), and the model has the order plane, digit,
+  coefficient in the same cells. The batching weights of the root are
   independent draws, as in the code, and not the powers of one challenge, as in
   the paper (`Spec.Compression.Akita.Extract.density_batched_le`). The model
   has one claim for each group and the extension degree 2 in its trace and
@@ -336,14 +355,42 @@ section Open points lists the points that need a decision.
   This term of `Spec.Compression.Akita.Theorem1046` is to be replaced.
 - (d) The code declares no `(λ_FS, Q_max)`. It has a target of 128 bits for
   each query. The paper has a proof of work before selected algebraic challenge
-  queries (Akita Section 10.1 and Appendix I). The pinned code also has one for
-  each fold group, which the paper does not have. The model has no proof of
-  work. So `p` stays a hypothesis, and the budget condition S3, Akita (195),
-  has no value to check (Akita Corollary 10.48:
+  queries (Akita Section 10.1, (146) and Appendix I). The pinned code has one
+  at each challenge site of its grinding plan, with the least `g ≤ 57` such
+  that `q² · 2^g ≥ L · 2^128` for the loss `L` of the site
+  (`jolt_transcript::grind_bits_for_loss`), and one for each fold group, with
+  the fold coordinates `W_l` against the smallest challenge set `2^{K_l}`
+  (`FoldChallengeWork`), which the paper does not have. The Lean model has
+  this proof of work. The answer at a stage input has one more independent
+  slot, the work slot, and the draws of a challenge read only the other slots
+  (`Spec.Compression.Akita.Extract.view`). The verifier of each segment and of
+  each fold requires the work slot in
+  `Spec.Compression.Akita.Extract.workZeros` for the bits of the site, which
+  has a uniform slot with probability at most `2^−g`
+  (`Spec.Compression.Akita.Extract.mass_workZeros_le`). The bits are schedule
+  data by the rule of the code (`Spec.Compression.Akita.Extract.workBits`,
+  `Spec.Compression.Akita.Extract.foldWorkBits`), from the losses of the
+  sites of the code in the order of its plan. At three sites the Lean loss is
+  not the loss of the code: the point of the row variables at the root and at
+  level 1 of `key20.aks` (difference (p)), the leaves of the range tree, and
+  the batch of the virtual evaluations. At each of them the Lean bits are at
+  most the bits of the code, so the Lean verifier accepts each transcript that
+  the code accepts at these sites. This is a derivation from the code, not a
+  Lean theorem. Lean has no site `SetupBatch`, which the plan of the code has
+  only for a setup batch level. Each stage error of a checkpoint or plain
+  stage has the factor `2^−g` (Akita Remark 10.18). For the fold term, the paper gives no factor (Akita page 71), and
+  Lean proves the factor in the slot model: the extractor draws one
+  coordinate slot again and keeps the work slot, so the work check of the
+  reference run is the work check of each fork, and the work slot is
+  independent of the coordinate slots (`Spec.Checkpoint.indexed_anchor_le`,
+  `Spec.Compression.Akita.Extract.mass_work_le`). This credit holds in the slot
+  reading of `[KECCAK]` (difference (a)), and the paper has no proof of it.
+  The grinding plan of the two files is not stored in the code, so the
+  comparison of the Lean bits with the plan is open. The budget condition S3,
+  Akita (195), has no value to check (Akita Corollary 10.48:
   `Spec.Compression.Akita.budget_iff`,
-  `Spec.Compression.Akita.effectiveStrength_le`). The address sum of Akita
-  (211) is the form that can take the credit of the work
-  (`Spec.Checkpoint.address_sum_le`).
+  `Spec.Compression.Akita.effectiveStrength_le`), and the budget does not use
+  the factor.
 - (e) The Lean extractor has a limit `budget` on the attempts of each retry
   loop, which adds the term `(Q + 1) · L / budget` for `L` loops
   (`Claims.Akita.checkpoint_runs` gives the runs).
@@ -373,9 +420,16 @@ section Open points lists the points that need a decision.
   without its constant term. A transcript of the code gives a transcript of
   the Lean verifier, and Lean has no statement of this map.
 - (i) The fold of the paper has a nonce of the response search, with a limit
-  that the verifier enforces (Akita Section 5.4). The Lean fold has no nonce:
-  the factor `Q + 1` covers a prover that tries other messages, and Lean can
-  state no completeness bound in the nonce limit.
+  that the verifier enforces (Akita Section 5.4). The pinned code has a
+  response nonce `n` with `n < 2^12` (`FoldResponse`, with no work bits), and
+  the proof of work of each site has a nonce of `g + 7` bits. The Lean model
+  has no nonce and no range check: a nonce is a part of a message of the
+  prover, the factor `Q + 1` covers a prover that tries other messages, and a
+  verifier without the range check accepts each transcript that the code
+  accepts. Lean states no completeness bound in the nonce limit: the
+  acceptance results are for each table whose work slots have 57 zero work
+  bits (`Claims.Akita.key20_opening_accepts`, the hypothesis `worked`), in
+  place of the nonce search of the honest prover.
 - (j) `Spec.Checkpoint.Structure.Lawful` has inclusions where Akita Definition
   10.16 has equalities, it permits a plain stage outside each segment, and it
   has no condition on the run time. The Lean theorems use only these
@@ -420,11 +474,9 @@ section Open points lists the points that need a decision.
   `Claims.AkitaKey30.key30_instance_list`.
 - (n) Each row of `key30.aks` has coefficient packing at levels 2 and 3. The
   family F1 of Akita Section 9.3 has evaluation trace at these levels, so the
-  paper does not analyze this schedule (`SPEC.md` section 9). In the Lean
-  model, level 3 has the row `w_cells = 0` in `R_{q,1}`
-  (`Spec.Compression.Akita.OpeningShape.slimRoom`): the cube of level 3 has
-  1024 cells after the quotient digits of the file, and the row of the other
-  levels needs 1025 cells (`Spec.Compression.Akita.Key30.level₃_tight`).
+  paper does not analyze this schedule (`SPEC.md` section 9). The witness of
+  level 3 ends at the cell 523,264 of its cube of `2^19` cells, in the model and
+  in the file (`Spec.Compression.Akita.Key30.level₃_sized`).
 - (o) At a quotient with 16 digits of the base 16, which levels 1 to 3 of
   `key30.aks` have, the code uses the residues from `−8 · Σ_u 16^u` to `7 · Σ_u
   16^u` (`crates/akita-algebra/src/ring/cyclotomic/decomposition.rs` of the
@@ -432,6 +484,26 @@ section Open points lists the points that need a decision.
   balanced digits (`Spec.Compression.Akita.Key30.not_covers`). Lean has no
   model of this digit lift, so it has no honest prover for these levels and no
   acceptance result for `key30.aks`.
+
+- (p) The rows of a fold with coefficient packing. The pinned code has one
+  consistency row for each group: it joins the planes of the carrier row, Akita
+  (102), with the basis of the extension field before the evaluation at `α`
+  (`crates/akita-types/src/proof/coefficient_packing_relation.rs` and
+  `crates/akita-verifier/src/coefficient_packing_relation/compact.rs` of the
+  Akita code). The Lean relation has one row for each plane
+  (`Spec.Compression.Akita.evaluationRow`). The other rows are in the order of
+  the code. The number of rows of the code is `Σ_g (1 + n_A + n_B) +
+  n_D`, plus `2 · (G + 1)` at a level with compression digits, plus one opening
+  row (`crates/akita-params/src/layout/params.rs`). So the batching point
+  `τ_1` has 5 coordinates in the code and 6 in Lean at the root of `key20.aks`,
+  and 4 and 5 at its level 1. The other levels of `key20.aks` and each level of
+  `key30.aks` have the same number in the two. The Lean bound is larger by
+  `1/|K|` at each of these two levels. The terms of the fused sum-check are the
+  same in the code and in Lean: the claim `γ · s + V + η · v`, with the opening
+  row in `V`, and the final check with the weights of the relation, of the
+  opening row, of the norm and of the binary support
+  (`crates/akita-verifier/src/stages/stage2.rs` of the Akita code;
+  `Spec.Compression.Akita.fusedCheck`).
 
 ### The results for `key30.aks`
 
@@ -445,7 +517,7 @@ term `breakChance` under `[MSIS]`.
   root commitment to a table with the claimed value, or a solution of
   Module-SIS (`Claims.AkitaKey30.key30_opening_sound`). The verifier accepts
   while the extractor returns no output with probability at most `(Q + 1) ·
-  (9590 + B_1 + B_2)/q² + (Q + 1) · (1467 + B_1 + B_2)/budget`
+  (1651467 + 16·B_1 + 64·B_2)/(4096·q²) + (Q + 1) · (1467 + B_1 + B_2)/budget`
   (`Claims.AkitaKey30.key30_opening_bound`). `B_1` and `B_2` are the live
   blocks of the witness group of level 1 and of level 2: 167 and 44 for `W` of
   27 variables, and 158 and 43 for `W` of 26 variables. The tree size of the
@@ -453,8 +525,8 @@ term `breakChance` under `[MSIS]`.
   (`Spec.Compression.Akita.Key30.tower_counts`).
 
 - The final verifier. For each claim shape and for the proof of zero steps, the
-  bound is the sum over the shapes of `(Q + 1) · (runCost + (9590 + B_1 +
-  B_2)/q²) + (Q + 1) · (1469 + B_1 + B_2)/budget + breakChance`
+  bound is the sum over the shapes of `(Q + 1) · (runCost + (1651467 + 16·B_1
+  + 64·B_2)/(4096·q²)) + (Q + 1) · (1469 + B_1 + B_2)/budget + breakChance`
   (`Claims.AkitaKey30.key30_verifier_sound`). The probability of a false
   history is at most this sum plus `walkBound`, and the same bound holds for
   the witnesses of the reverse extractor
@@ -494,7 +566,7 @@ Lean verifier of this file accepts a proof, and Lean has no honest prover for
 the offloaded check, for the level with the condition on the setup group, or
 for the level 3. The memory results have no statement in this game. The Lean
 verifier and the Lean decoders have no comparison with the code. The
-differences (k) to (o) of the section above apply.
+differences (k) to (p) of the section above apply.
 
 The claims that end in `_with_akita` have seven premises about Akita. For the
 shipped key, the claims of `Claims.AkitaKey30` have each of them as a theorem
@@ -557,7 +629,7 @@ It needs these changes.
   assumption (`[AKITA]`). Three open rows come: `AkitaKey30/split`,
   `AkitaKey30/drawn.registered` and `AkitaKey30/drawn`, with the operator
   bound. The verifier of the claims becomes the Lean verifier, which the
-  differences (a) to (o) separate from the pinned code.
+  differences (a) to (p) separate from the pinned code.
 
 ### Open points
 
@@ -597,9 +669,7 @@ the facts).
   `leads` and `fit`, which no Lean result gives, so no closed accepting
   instance exists for the whole verifier.
 - The model of the verifier. The Lean verifier differs from the pinned Akita
-  code in these parts. A committed level has one
-  added row for a zero cell after its last segment, and the quotient digits
-  are after that cell. The transcript has no digests and no proof of work.
+  code in these parts. The transcript has no digests and no proof of work.
   Two more differences are with the paper. The Lean verifier has no
   rejection at a zero tensor factor, and the pinned code has none
   (`crates/akita-verifier/src/stages/opening_claims/extension_claim.rs` of the
@@ -711,10 +781,12 @@ trust item 7, gives the facts).
 - The proof of work and the probability `p`.
   `Export.BoundedDepth.FinalKey20.sound` takes the largest probability `p` of
   one fold challenge as a hypothesis, and the claims have `p = 1/q²`. Its
-  bound on the stage errors of the opening is `6453/q²` for a decoder that is
-  an injection of one slot of `K` into the challenge family, where `p = 1/q²`.
-  No decoder from one slot has `p` at most `2^−128`, because `q²` is below
-  `2^128`. The Akita code has a target of 128 bits for each query and a proof
-  of work for each fold group, and the Lean model has no proof of work. The
-  alternatives are challenge families with `p` at most `2^−128` without the
-  work, or a Lean model of the work.
+  bound on the stage errors of the opening is `324007/(1024·q²)` for a decoder
+  that is an injection of one slot of `K` into the challenge family, where
+  `p = 1/q²`. No decoder from one slot has `p` at most `2^−128`, because `q²`
+  is below `2^128`. The Akita code has a target of 128 bits for each query,
+  and the Lean model has its proof of work (difference (d)). Two points stay
+  open: the comparison of the work bits of Lean with the grinding plan of the
+  code, which the code does not store for the two files, and the credit of the
+  fold term, which has a Lean proof in the slot model and no proof in the
+  paper.

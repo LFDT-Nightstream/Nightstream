@@ -16,8 +16,9 @@ Proposition 10.44, Theorem 10.46, Corollary 10.35 (ii) and Corollary 10.49 with 
   premise `Batch.Registered` of Akita Lemma 9.1 for the commitment `registry` of the setup prefix,
   and the stage of the terminal. The split `scan` of the public weight of the root (Akita (132))
   is a parameter.
-- `towerError_le` bounds the sum of the stage errors by `8132/|E| + (1458 + B_1 + B_2)·p` when
-  each challenge family has the slot probability at most `p`. -/
+- `towerError_le` bounds the sum of the stage errors by
+  `1623435/(4096·|E|) + (1752 + B_1 + 4·B_2)/256·p` when each challenge family has the slot
+  probability at most `p`, with the work bits of the Akita code (Remark 10.18). -/
 
 set_option autoImplicit false
 
@@ -51,7 +52,7 @@ theorem tower_counts : ∀ r ∈ rows,
 variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree2 E]
   {Wire Coord : Type} [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] {total : ℕ}
   {read : Reader Wire} {start : ℕ} {r : Row} {member : r ∈ rows}
-  {accept : Prefix Wire (Coord → E) total → Prop}
+  {accept : Prefix Wire (Option Coord → E) total → Prop}
   {β : ∀ g, Module.Basis (Fin ((root r).planes g)) Zq E}
   {key : (g : Fin 3) → Key ((root r).shape g)} {openKey : (root r).OpenKey}
   {claim : Wire → (root r).Claim E} {block : (root r).Block → Coord}
@@ -115,7 +116,7 @@ local notation "second" =>
     (Tier.finish first)
 
 local notation "third" =>
-  Tier.tensored (slimFold β₃ key₃ openKey₃ claim₃ level₃.vars (And.left level₃_sized)
+  Tier.tensored (liftFold β₃ key₃ openKey₃ claim₃ level₃.vars (And.left level₃_sized)
     quotientDigits (And.left (And.right level₃_sized)) level₃.batch
     (And.left (And.right (And.right level₃_sized))) block₃ decode₃ read weight₃
     (Tier.finish second)) level₃.tail
@@ -148,14 +149,13 @@ local notation "accepts" =>
     commit₄ commit₅ commit₆ stateOf
 
 local notation "towerError" =>
-  (1 / (Fintype.card E : ℝ) + (∑ b, Tier.chance zeroth b + List.sum (Tier.costs zeroth) +
-    (1 / (Fintype.card E : ℝ) + (∑ b, Tier.chance first b + List.sum (Tier.costs first) +
-      (∑ b, Tier.chance second b + List.sum (Tier.costs second) +
-        (∑ b, Tier.chance third b + List.sum (Tier.costs third) +
-          (∑ b, Tier.chance fourth b + List.sum (Tier.costs fourth) +
-            (∑ b, Tier.chance fifth b + List.sum (Tier.costs fifth) +
-              (∑ b, Tier.chance sixth b + List.sum (Tier.costs sixth) +
-                terminal.blocks * slotChance (Terminal.decode L))))))))))
+  (1 / (Fintype.card E : ℝ) / 2 ^ Root.rootBits 3 + (Tier.levelError zeroth +
+    (1 / (Fintype.card E : ℝ) / 2 ^ Root.rootBits 2 + (Tier.levelError first +
+      (Tier.levelError second +
+        (Tier.levelError third +
+          (Tier.levelError fourth +
+            (Tier.levelError fifth +
+              (Tier.levelError sixth + Terminal.termError L)))))))))
 
 /-- Akita Proposition 10.44, Theorem 10.46 and Lemma 9.1 for a row of the schedule `key30.aks`:
 the batching root over the offloaded fold of the key polynomial, `W` and `V`, the level 1 with
@@ -252,7 +252,7 @@ theorem tower_suffix {peak : Fin 3 → ℕ} {peak₁ : Fin 2 → ℕ} (slots : 2
       exact liftFold_valid injective₂ units₂ sparse₂ sized₂.2.2.2.1 sized₂.2.2.2.2
         ((le_of_eq_of_le (rfl : (level₂ r).vars = 21) (by decide : 21 ≤ 28)).trans slots)
         ((le_of_eq_of_le (rfl : (level₂ r).batch = 4) (by decide : 4 ≤ 28)).trans slots))
-    (LevelSized.slim ⟨injective₃, units₃, sparse₃, level₃_sized.2.2.2.1, level₃_sized.2.2.2.2,
+    (LevelSized.lift ⟨injective₃, units₃, sparse₃, level₃_sized.2.2.2.1, level₃_sized.2.2.2.2,
       (by decide : level₃.vars ≤ 28).trans slots, (by decide : level₃.batch ≤ 28).trans slots⟩)
     (LevelSized.trace ⟨injective₄, units₄, sparse₄, level₄_sized.2.2.1, level₄_sized.2.2.2,
       (by decide : level₄.vars ≤ 28).trans slots, (by decide : level₄.batch ≤ 28).trans slots⟩)
@@ -266,11 +266,11 @@ theorem tower_suffix {peak : Fin 3 → ℕ} {peak₁ : Fin 2 → ℕ} (slots : 2
     (exists_fair_slots ((by decide : 2 ≤ 28).trans slots)) rfl rfl rfl rfl rfl rfl rfl rfl rfl
     rfl rfl rfl rfl rfl next inside quarters.1 quarters.2.1 quarters.2.2.1 quarters.2.2.2
     offBatch_uniform (fun _ r2 v ρ s opened setup => ⟨r2, v, ρ, s, rfl, opened, setup⟩)
-    (fun _ _ table other => foldCheck_bare _ _ _ table other)
+    (fun _ _ table other => foldCheck_bare _ _ _ _ table other)
     (fun _ r2 v opened => ⟨r2, v, rfl, opened⟩)
-    (fun _ _ table other => foldCheck_bare _ _ _ table other)
+    (fun _ _ table other => foldCheck_bare _ _ _ _ table other)
     (fun _ r2 v opened => ⟨r2, v, rfl, opened⟩)
-    (Tier.tensored_uniform fun _ _ table other => foldCheck_bare _ _ _ table other)
+    (Tier.tensored_uniform fun _ _ table other => foldCheck_bare _ _ _ _ table other)
     (fun _ ρ θ v opened => ⟨ρ, θ, v, rfl, opened⟩)
     (Tier.tensored_uniform committedTrace_uniform) (fun _ ρ θ v opened => ⟨ρ, θ, v, rfl, opened⟩)
     (Tier.tensored_uniform committedTraceSq_uniform)
@@ -283,18 +283,22 @@ theorem tower_suffix {peak : Fin 3 → ℕ} {peak₁ : Fin 2 → ℕ} (slots : 2
 
 omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] in
 /-- The sum of the stage errors of `tower_suffix` (Akita (206)) is at most
-`8132/|E| + (1458 + B_1 + B_2)·p`, when each challenge family has the slot probability at most
-`p`. The fold coordinates are 1280 of the root, `128 + B_1` of the level 1, `B_2`, 23, 8, 7 and 7
-of the levels 2 to 6, and 5 of the terminal. The 8132 are 1 for the weights of each of the two
-batching stages, 4429 for the draws of the checks of the root with the 23 rounds of Stage 3
-(Akita (134)), and 1343, 535, 546, 441, 418 and 418 for the draws of the checks of the levels 1
-to 6, with the tensor reduction and the direct norm check. -/
+`1623435/(4096·|E|) + (1752 + B_1 + 4·B_2)/256·p`, when each challenge family has the slot
+probability at most `p`. Each stage error has the factor `2^{−g}` for the work bits `g` of
+its site in the Akita code (Remark 10.18, `workBits`, `foldWorkBits`). The fold coordinates are
+1280 of the root with 10 work bits, `128 + B_1` of the level 1 with 8, `B_2`, 23, 8, 7 and 7 of the
+levels 2 to 6 with 6, 5, 2, 3 and 3, and 5 of the terminal with 3. The draws of the checks of the
+root with the 23 rounds of Stage 3 (Akita (134)) and of the levels 1 to 6, with the tensor
+reduction and the direct norm check, give `233983/4096`, `59263/1024`, `13031/256`,
+`14295/256`, `12943/256`, `7907/128` and `7907/128`, and the weights of each of the two batching
+stages give `1/4`. -/
 theorem towerError_le {p : ℝ} (chance : ∀ g, slotChance (decode g) ≤ p)
     (chance₁ : ∀ g, slotChance (decode₁ g) ≤ p) (chance₂ : slotChance decode₂ ≤ p)
     (chance₃ : slotChance decode₃ ≤ p) (chance₄ : slotChance decode₄ ≤ p)
     (chance₅ : slotChance decode₅ ≤ p) (chance₆ : slotChance decode₆ ≤ p)
     (chanceL : slotChance L.decode ≤ p) :
-    towerError ≤ 8132 / (Fintype.card E : ℝ) + ((1458 + r.blocks₁ + r.blocks₂ : ℕ) : ℝ) * p := by
+    towerError ≤ 1623435 / (4096 * Fintype.card E) +
+      ((1752 + r.blocks₁ + 4 * r.blocks₂ : ℕ) : ℝ) / 256 * p := by
   have row : r = w27 ∨ r = w26 := by simpa [rows] using member
   have sum₀ : ∑ b, Tier.chance zeroth b ≤ (1280 : ℕ) * p :=
     sum_le_mul ((root r).card_block.trans (by rcases row with rfl | rfl <;> decide))
@@ -314,54 +318,181 @@ theorem towerError_le {p : ℝ} (chance : ∀ g, slotChance (decode g) ≤ p)
     sum_le_mul (Fintype.card_fin _) fun _ => chance₆
   have last : (terminal.blocks : ℝ) * slotChance L.decode ≤ (5 : ℕ) * p :=
     mul_le_mul_of_nonneg_left chanceL (Nat.cast_nonneg _)
-  have costs₀ : (Tier.costs zeroth).sum = (4429 : ℕ) / (Fintype.card E : ℝ) := by
-    show (foldCosts E (2 * (root r).largestDegree - 1) rootVars rootBatch 8 ++
-      setupCosts E setupVars).sum = _
-    rw [List.sum_append, foldCosts_total, setupCosts_sum, ← add_div, ← Nat.cast_add]
-    exact congrArg (fun count : ℕ => (count : ℝ) / Fintype.card E)
-      (by rcases row with rfl | rfl <;> decide)
-  have costs₁ : (Tier.costs first).sum = (1343 : ℕ) / (Fintype.card E : ℝ) := by
-    show (foldCosts E (2 * (level₁ r).largestDegree - 1) vars₁ batch₁ 16).sum = _
-    rw [foldCosts_total]
-    exact congrArg (fun count : ℕ => (count : ℝ) / Fintype.card E)
-      (by rcases row with rfl | rfl <;> decide)
-  have costs₂ : (Tier.costs second).sum = (535 : ℕ) / (Fintype.card E : ℝ) := by
-    show (foldCosts E (2 * (level₂ r).opening.largestDegree - 1) (level₂ r).vars
-      (level₂ r).batch (level₂ r).shape.certifiedBase).sum = _
-    rw [foldCosts_total]
-    exact congrArg (fun count : ℕ => (count : ℝ) / Fintype.card E)
-      (by rcases row with rfl | rfl <;> decide)
-  have costs₃ : (Tier.costs third).sum = (546 : ℕ) / (Fintype.card E : ℝ) := by
-    show (foldCosts E (2 * level₃.opening.largestDegree - 1) level₃.vars level₃.batch
-      level₃.shape.certifiedBase ++ tensorCosts E level₃.tail).sum = _
-    rw [List.sum_append, foldCosts_total, tensorCosts_sum, ← add_div, ← Nat.cast_add]
-    exact congrArg (fun count : ℕ => (count : ℝ) / Fintype.card E) (by decide)
-  have costs₄ : (Tier.costs fourth).sum = (441 : ℕ) / (Fintype.card E : ℝ) := by
-    show (foldCosts E (level₄.opening.largestDegree - 1) level₄.vars level₄.batch
-      level₄.shape.certifiedBase ++ tensorCosts E level₄.tail).sum = _
-    rw [List.sum_append, foldCosts_total, tensorCosts_sum, ← add_div, ← Nat.cast_add]
-    exact congrArg (fun count : ℕ => (count : ℝ) / Fintype.card E) (by decide)
-  have costs₅ : (Tier.costs fifth).sum = (418 : ℕ) / (Fintype.card E : ℝ) := by
-    show ((foldCostsSq E (level₅.opening.largestDegree - 1) level₅.vars level₅.batch
-      level₅.shape.certifiedBase) ++
-        tensorCosts E level₅.tail).sum = _
-    rw [List.sum_append, foldCostsSq_sum, tensorCosts_sum, ← add_div, ← Nat.cast_add]
-    exact congrArg (fun count : ℕ => (count : ℝ) / Fintype.card E) (by decide)
-  have costs₆ : (Tier.costs sixth).sum = (418 : ℕ) / (Fintype.card E : ℝ) := by
-    show ((foldCostsSq E (level₆.opening.largestDegree - 1) level₆.vars level₆.batch
-      level₆.shape.certifiedBase) ++
-        tensorCosts E level₆.tail).sum = _
-    rw [List.sum_append, foldCostsSq_sum, tensorCosts_sum, ← add_div, ← Nat.cast_add]
-    exact congrArg (fun count : ℕ => (count : ℝ) / Fintype.card E) (by decide)
-  have whole : 8132 / (Fintype.card E : ℝ) = 1 / (Fintype.card E : ℝ) +
-      (4429 : ℕ) / (Fintype.card E : ℝ) + 1 / (Fintype.card E : ℝ) +
-      (1343 : ℕ) / (Fintype.card E : ℝ) + (535 : ℕ) / (Fintype.card E : ℝ) +
-      (546 : ℕ) / (Fintype.card E : ℝ) + (441 : ℕ) / (Fintype.card E : ℝ) +
-      (418 : ℕ) / (Fintype.card E : ℝ) + (418 : ℕ) / (Fintype.card E : ℝ) := by
+  have fold₀ : Tier.foldBits zeroth = 10 := by
+    dsimp only [offBatch]
+    rw [(root r).card_block.trans (show ∑ g, ((root r).shape g).blocks = 1280 by
+        rcases row with rfl | rfl <;> decide),
+      show (root r).familyBits = 129 by rcases row with rfl | rfl <;> decide]
+    decide
+  have fold₁ : Tier.foldBits first = 8 := by
+    dsimp only [Tier.pinned, liftBatch]
+    rw [(level₁ r).card_block.trans (show ∑ g, ((level₁ r).shape g).blocks = 128 + r.blocks₁ by
+        rcases row with rfl | rfl <;> decide),
+      show (level₁ r).familyBits = 129 by rcases row with rfl | rfl <;> decide]
+    rcases row with rfl | rfl <;> decide
+  have fold₂ : Tier.foldBits second = 6 := by
+    dsimp only [liftFold]
+    rcases row with rfl | rfl <;> decide
+  have fold₃ : Tier.foldBits third = 5 := by
+    dsimp only [Tier.tensored, liftFold]
+    decide
+  have fold₄ : Tier.foldBits fourth = 2 := by
+    dsimp only [Tier.tensored, committedTrace]
+    decide
+  have fold₅ : Tier.foldBits fifth = 3 := by
+    dsimp only [Tier.tensored, committedTraceSq]
+    decide
+  have fold₆ : Tier.foldBits sixth = 3 := by
+    dsimp only [Tier.tensored, committedTraceSq]
+    decide
+  have foldL : Terminal.foldBits L = 3 := by
+    dsimp only [Terminal.foldBits]
+    decide
+  have rooted₃ : Root.rootBits 3 = 2 := by decide
+  have rooted₂ : Root.rootBits 2 = 2 := by decide
+  have w1 : workBits 1 = 1 := by decide
+  have w2 : workBits 2 = 2 := by decide
+  have w3 : workBits 3 = 2 := by decide
+  have w4 : workBits 4 = 3 := by decide
+  have w5 : workBits 5 = 3 := by decide
+  have w6 : workBits 6 = 3 := by decide
+  have w7 : workBits 7 = 3 := by decide
+  have w17 : workBits 17 = 5 := by decide
+  have w18 : workBits 18 = 5 := by decide
+  have w19 : workBits 19 = 5 := by decide
+  have w21 : workBits 21 = 5 := by decide
+  have w24 : workBits 24 = 5 := by decide
+  have w28 : workBits 28 = 5 := by decide
+  have w127 : workBits 127 = 7 := by decide
+  have w255 : workBits 255 = 8 := by decide
+  have w1023 : workBits 1023 = 10 := by decide
+  have w4095 : workBits 4095 = 12 := by decide
+  have costs₀ : (credit (Tier.costs zeroth) (Tier.bits zeroth)).sum =
+      233983 / 4096 / (Fintype.card E : ℝ) := by
+    dsimp only [offBatch]
+    rw [List.map_append, credit_append (by rw [List.length_map]; exact foldLosses_length ..),
+      List.sum_append, foldCredit_eq, setupCredit_eq]
+    rw [show 2 * (root r).largestDegree - 1 = 4095 by rcases row with rfl | rfl <;> decide,
+      show 2 * (root r).innerMax - 1 = 4095 by rcases row with rfl | rfl <;> decide,
+      show (root r).compressed = true by rcases row with rfl | rfl <;> decide]
+    simp only [foldCredit, setupCredit, treeCredit, show rangeArities 8 = [] by decide,
+      show rangeLeaf 8 = 4 by decide, show leafDegree 8 = 4 by decide, rootVars, rootBatch,
+      setupVars, w1, w2, w3, w5, w6, w28, w4095, ite_true]
     push_cast
+    field_simp
     ring
-  rw [costs₀, costs₁, costs₂, costs₃, costs₄, costs₅, costs₆, whole]
+  have costs₁ : (credit (Tier.costs first) (Tier.bits first)).sum =
+      59263 / 1024 / (Fintype.card E : ℝ) := by
+    dsimp only [Tier.pinned, liftBatch]
+    rw [foldCredit_eq]
+    rw [show 2 * (level₁ r).largestDegree - 1 = 1023 by rcases row with rfl | rfl <;> decide,
+      show 2 * (level₁ r).innerMax - 1 = 1023 by rcases row with rfl | rfl <;> decide,
+      show (level₁ r).compressed = true by rcases row with rfl | rfl <;> decide]
+    simp only [foldCredit, treeCredit, show rangeArities 16 = [2] by decide,
+      show rangeLeaf 16 = 4 by decide, show leafDegree 16 = 4 by decide, vars₁, batch₁,
+      show (2 + 1 : ℕ) = 3 by rfl, show (1 * 2 - 1 : ℕ) = 1 by rfl, w1, w3, w5, w24, w1023,
+      ite_true]
+    push_cast
+    field_simp
+    ring
+  have costs₂ : (credit (Tier.costs second) (Tier.bits second)).sum =
+      13031 / 256 / (Fintype.card E : ℝ) := by
+    dsimp only [liftFold]
+    rw [foldCredit_eq]
+    rw [show 2 * (level₂ r).opening.largestDegree - 1 = 255 by rcases row with rfl | rfl <;> decide,
+      show 2 * (level₂ r).shape.innerDegree - 1 = 255 by rcases row with rfl | rfl <;> decide,
+      show (level₂ r).opening.compressed (level₂ r).fold = true by
+        rcases row with rfl | rfl <;> decide,
+      show (level₂ r).vars = 21 by rcases row with rfl | rfl <;> rfl,
+      show (level₂ r).batch = 4 by rcases row with rfl | rfl <;> rfl,
+      show (level₂ r).shape.certifiedBase = 16 by rcases row with rfl | rfl <;> rfl]
+    simp only [foldCredit, treeCredit, show rangeArities 16 = [2] by decide,
+      show rangeLeaf 16 = 4 by decide, show leafDegree 16 = 4 by decide,
+      show (2 + 1 : ℕ) = 3 by rfl, show (1 * 2 - 1 : ℕ) = 1 by rfl, w1, w3, w4, w5, w21, w255,
+      ite_true]
+    push_cast
+    field_simp
+    ring
+  have costs₃ : (credit (Tier.costs third) (Tier.bits third)).sum =
+      14295 / 256 / (Fintype.card E : ℝ) := by
+    dsimp only [Tier.tensored, liftFold]
+    rw [credit_append (by rw [List.length_map]; exact foldLosses_length ..), List.sum_append,
+      foldCredit_eq, tensorCredit_eq]
+    rw [show 2 * level₃.opening.largestDegree - 1 = 255 by decide,
+      show 2 * level₃.shape.innerDegree - 1 = 255 by decide,
+      show level₃.opening.compressed level₃.fold = true by decide]
+    simp only [foldCredit, tensorCredit, treeCredit, show level₃.shape.certifiedBase = 16 by rfl,
+      show rangeArities 16 = [2] by decide, show rangeLeaf 16 = 4 by decide,
+      show leafDegree 16 = 4 by decide, show level₃.vars = 19 by rfl, show level₃.batch = 4 by rfl,
+      show level₃.tail = 18 by rfl, show (2 + 1 : ℕ) = 3 by rfl, show (1 * 2 - 1 : ℕ) = 1 by rfl,
+      w1, w2, w3, w4, w5, w19, w255, ite_true]
+    push_cast
+    field_simp
+    ring
+  have costs₄ : (credit (Tier.costs fourth) (Tier.bits fourth)).sum =
+      12943 / 256 / (Fintype.card E : ℝ) := by
+    dsimp only [Tier.tensored, committedTrace]
+    rw [credit_append (by rw [List.length_map]; exact foldLosses_length ..), List.sum_append,
+      foldCredit_eq, tensorCredit_eq]
+    rw [show level₄.opening.largestDegree - 1 = 127 by decide,
+      show 2 * level₄.shape.innerDegree - 1 = 255 by decide,
+      show level₄.opening.compressed level₄.fold = true by decide]
+    simp only [foldCredit, tensorCredit, treeCredit, show level₄.shape.certifiedBase = 32 by rfl,
+      show rangeArities 32 = [4] by decide, show rangeLeaf 32 = 4 by decide,
+      show leafDegree 32 = 4 by decide, show level₄.vars = 18 by rfl, show level₄.batch = 4 by rfl,
+      show level₄.tail = 17 by rfl, show (4 + 1 : ℕ) = 5 by rfl, show (1 * 4 - 1 : ℕ) = 3 by rfl,
+      w1, w2, w3, w4, w5, w18, w255, ite_true]
+    push_cast
+    field_simp
+    ring
+  have costs₅ : (credit (Tier.costs fifth) (Tier.bits fifth)).sum =
+      7907 / 128 / (Fintype.card E : ℝ) := by
+    dsimp only [Tier.tensored, committedTraceSq]
+    rw [credit_append (by rw [List.length_map]; exact foldLossesSq_length ..), List.sum_append,
+      foldCreditSq_eq, tensorCredit_eq]
+    rw [show level₅.opening.largestDegree - 1 = 63 by decide,
+      show 2 * level₅.shape.innerDegree - 1 = 127 by decide,
+      show level₅.opening.compressed level₅.fold = false by decide]
+    simp only [foldCreditSq, tensorCredit, treeCredit, show level₅.shape.certifiedBase = 64 by rfl,
+      show rangeArities 64 = [2, 4] by decide, show rangeLeaf 64 = 4 by decide,
+      show leafDegree 64 = 4 by decide, show level₅.vars = 17 by rfl, show level₅.batch = 4 by rfl,
+      show level₅.tail = 16 by rfl, show (2 + 1 : ℕ) = 3 by rfl, show (1 * 2 - 1 : ℕ) = 1 by rfl,
+      show (4 + 1 : ℕ) = 5 by rfl, show (1 * 2 * 4 - 1 : ℕ) = 7 by rfl,
+      show max (4 + 1) 2 + 1 = 6 by rfl, w1, w2, w3, w4, w5, w7, w17, w127]
+    push_cast
+    field_simp
+    ring
+  have costs₆ : (credit (Tier.costs sixth) (Tier.bits sixth)).sum =
+      7907 / 128 / (Fintype.card E : ℝ) := by
+    dsimp only [Tier.tensored, committedTraceSq]
+    rw [credit_append (by rw [List.length_map]; exact foldLossesSq_length ..), List.sum_append,
+      foldCreditSq_eq, tensorCredit_eq]
+    rw [show level₆.opening.largestDegree - 1 = 63 by decide,
+      show 2 * level₆.shape.innerDegree - 1 = 127 by decide,
+      show level₆.opening.compressed level₆.fold = false by decide]
+    simp only [foldCreditSq, tensorCredit, treeCredit, show level₆.shape.certifiedBase = 64 by rfl,
+      show rangeArities 64 = [2, 4] by decide, show rangeLeaf 64 = 4 by decide,
+      show leafDegree 64 = 4 by decide, show level₆.vars = 17 by rfl, show level₆.batch = 4 by rfl,
+      show level₆.tail = 16 by rfl, show (2 + 1 : ℕ) = 3 by rfl, show (1 * 2 - 1 : ℕ) = 1 by rfl,
+      show (4 + 1 : ℕ) = 5 by rfl, show (1 * 2 * 4 - 1 : ℕ) = 7 by rfl,
+      show max (4 + 1) 2 + 1 = 6 by rfl, w1, w2, w3, w4, w5, w7, w17, w127]
+    push_cast
+    field_simp
+    ring
+  unfold Tier.levelError Terminal.termError
+  rw [costs₀, costs₁, costs₂, costs₃, costs₄, costs₅, costs₆, fold₀, fold₁, fold₂, fold₃, fold₄,
+    fold₅, fold₆, foldL, rooted₃, rooted₂]
   push_cast at sum₀ sum₁ sum₂ sum₃ sum₄ sum₅ sum₆ last ⊢
-  linarith
+  have split : 1623435 / (4096 * (Fintype.card E : ℝ)) =
+      1 / (Fintype.card E : ℝ) / 2 ^ 2 + (233983 / 4096 / (Fintype.card E : ℝ) +
+        (1 / (Fintype.card E : ℝ) / 2 ^ 2 + (59263 / 1024 / (Fintype.card E : ℝ) +
+          (13031 / 256 / (Fintype.card E : ℝ) + (14295 / 256 / (Fintype.card E : ℝ) +
+            (12943 / 256 / (Fintype.card E : ℝ) + (7907 / 128 / (Fintype.card E : ℝ) +
+              7907 / 128 / (Fintype.card E : ℝ)))))))) := by
+    have positive : (0 : ℝ) < Fintype.card E := by exact_mod_cast Fintype.card_pos
+    field_simp
+    ring
+  rw [split]
+  linarith [sum₀, sum₁, sum₂, sum₃, sum₄, sum₅, sum₆, last]
 
 end NightstreamFPrime.Spec.Compression.Akita.Key30

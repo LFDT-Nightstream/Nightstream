@@ -1,6 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Staged
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Suffix
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Transcript
+import NightstreamFPrime.Spec.Compression.Akita.Extract.Work
 
 /-! A checkpoint segment of a Fiat–Shamir transcript as a part of a checkpoint structure (Akita,
 ePrint 2026/1983, revision of 2026-10-15, Definition 10.16 (v) to (vii), and Theorem 10.45 for
@@ -12,7 +13,9 @@ one segment).
 - `Segment` has the data of a checkpoint at the stage `start` and the plain stages after it. The
   stages have the draws of a public-coin game `check`, which reads the stage input of the stage
   `start` and a candidate. `test` is `Good_ℓ`, and `passes` is the truth of the result of the game
-  for the candidate.
+  for the candidate. `bits` has the work bits of each draw (Akita (146)): the verifier requires
+  them to be zero (`Segment.Worked`), and the stage error of a draw is its bound times `2^{−g}`
+  (Remark 10.18, `credit`).
 - `Segment.over` is the checkpoint structure of the segment over the structure `tail` of the later
   stages. The candidate of the checkpoint is `source` of a certificate of the later stages, and
   `clash` is `Coll_ℓ`.
@@ -33,6 +36,43 @@ open NightstreamFPrime.Spec.Compression (Game)
 open NightstreamFPrime.Spec.RandomOracle (mass)
 
 attribute [local instance low] Classical.propDecidable
+
+/-- The stage errors of draws with the bounds `costs` and the work bits `bits`: each bound times
+`2^{−g}` (Akita Remark 10.18). -/
+noncomputable def credit (costs : List ℝ) (bits : List ℕ) : List ℝ :=
+  List.zipWith (fun cost g => cost / 2 ^ g) costs bits
+
+theorem credit_getD {costs : List ℝ} {bits : List ℕ} (aligned : bits.length = costs.length)
+    {index : ℕ} (inside : index < costs.length) :
+    (credit costs bits).getD index 0 = costs.getD index 0 / 2 ^ bits.getD index 0 := by
+  simp [credit, List.getD_eq_getElem?_getD, inside, aligned ▸ inside]
+
+theorem credit_cons (cost : ℝ) (costs : List ℝ) (g : ℕ) (bits : List ℕ) :
+    credit (cost :: costs) (g :: bits) = cost / 2 ^ g :: credit costs bits :=
+  rfl
+
+theorem credit_append {costs costs' : List ℝ} {bits bits' : List ℕ}
+    (aligned : bits.length = costs.length) :
+    credit (costs ++ costs') (bits ++ bits') = credit costs bits ++ credit costs' bits' :=
+  List.zipWith_append aligned.symm
+
+theorem credit_replicate (count : ℕ) (cost : ℝ) (g : ℕ) :
+    credit (List.replicate count cost) (List.replicate count g) =
+      List.replicate count (cost / 2 ^ g) := by
+  simp [credit]
+
+/-- Draws with no work bits keep their bounds. -/
+theorem credit_zero (costs : List ℝ) : credit costs (List.replicate costs.length 0) = costs := by
+  induction costs with
+  | nil => rfl
+  | cons cost rest induction =>
+      simp only [credit, List.length_cons, List.replicate_succ, List.zipWith_cons_cons, pow_zero,
+        div_one] at induction ⊢
+      rw [induction]
+
+theorem credit_length {costs : List ℝ} {bits : List ℕ} (aligned : bits.length = costs.length) :
+    (credit costs bits).length = costs.length := by
+  simp [credit, aligned]
 
 /-- The sum of the entries of a list by index. -/
 theorem sum_range_getD (costs : List ℝ) :
@@ -62,9 +102,10 @@ of `Opens` (Proposition 10.44 (i)). `rooted`: `Opens` reads the transcript befor
 `start` only. `lawfulFrom`: the conditions of Definition 10.16 from the stage `start`. `related`:
 `Wit` returns this witness. `errorSum`, `loopCount` and `treeSize`: the sum of the stage errors
 (206), the number of the retry loops and the tree size of these stages. -/
-structure Suffix (accept : Prefix Wire (Coord → Slot) total → Prop) (start : ℕ)
-    (Opens : Prefix Wire (Coord → Slot) total → Wit → Prop)
-    (body : Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire) Inner BreakT CandT
+structure Suffix (accept : Prefix Wire (Option Coord → Slot) total → Prop) (start : ℕ)
+    (Opens : Prefix Wire (Option Coord → Slot) total → Wit → Prop)
+    (body : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire)
+      Inner BreakT CandT
       KeyT Wit)
     (error : ℝ) (loops tree : ℕ) : Prop where
   opened : ∀ inner, body.holds start inner →
@@ -87,10 +128,11 @@ the result of the game for the candidate, and `test anchor candidate` is `Good_�
 structure Segment (Wire Coord Slot Result Cand : Type) (total : ℕ) where
   start : ℕ
   costs : List ℝ
+  bits : List ℕ
   read : Reader Wire
-  check : Prefix Wire (Coord → Slot) total → Cand → Game Result
-  passes : Prefix Wire (Coord → Slot) total → Cand → Result → Prop
-  test : Prefix Wire (Coord → Slot) total → Cand → Prop
+  check : Prefix Wire (Option Coord → Slot) total → Cand → Game Result
+  passes : Prefix Wire (Option Coord → Slot) total → Cand → Result → Prop
+  test : Prefix Wire (Option Coord → Slot) total → Cand → Prop
 
 namespace Segment
 
@@ -101,23 +143,35 @@ variable {Wire Coord Slot Result Cand : Type} {total : ℕ}
 def finish : ℕ := G.start + G.costs.length
 
 /-- Definition 10.16 (i) for the stages of the segment. -/
-def kind (level : ℕ) : Kind Coord :=
+def kind (level : ℕ) : Kind (Option Coord) :=
   if level = G.start then .checkpoint (G.costs.length - 1) else .plain
 
 variable [Fintype Slot] [Nonempty Slot] [Fintype Coord] [DecidableEq Coord]
 
 /-- The game for a candidate, after the answers and the messages of a stage input through the
 last stage of the segment. -/
-noncomputable def game (candidate : Cand) (point : Prefix Wire (Coord → Slot) total) :
+noncomputable def game (candidate : Cand) (point : Prefix Wire (Option Coord → Slot) total) :
     Game Result :=
   position G.read (G.check (point.take G.start) candidate) (point.wire G.start)
-    ((point.rest.take G.finish).drop G.start)
+    (((point.rest.take G.finish).drop G.start).map fun move => (view move.1, move.2))
+
+/-- The verifier check of the work bits of the stages of the segment (Akita (146)): the answer of
+each stage of the transcript has a work slot with zero work bits. -/
+def Worked (point : Prefix Wire (Option Coord → Slot) total) : Prop :=
+  ∀ index < G.costs.length, ∀ reply, point.reply (G.start + index) = some reply →
+    reply none ∈ workZeros Slot (G.bits.getD index 0)
+
+/-- An answer of a stage of the segment before the stage input has a work slot without zero work
+bits. -/
+def Failed (input : Prefix Wire (Option Coord → Slot) total) : Prop :=
+  ∃ index reply, G.start + index < input.rest.length ∧
+    input.reply (G.start + index) = some reply ∧ reply none ∉ workZeros Slot (G.bits.getD index 0)
 
 /-- Akita Theorem 10.45 (c) on a transcript and a candidate: the game ends in a result that is
-true for the candidate. -/
-def Passed (candidate : Cand) (point : Prefix Wire (Coord → Slot) total) : Prop :=
-  ∃ result, G.game candidate point = .pure result ∧
-    G.passes (point.take G.start) candidate result
+true for the candidate, and the work bits of the stages are zero. -/
+def Passed (candidate : Cand) (point : Prefix Wire (Option Coord → Slot) total) : Prop :=
+  (∃ result, G.game candidate point = .pure result ∧
+    G.passes (point.take G.start) candidate result) ∧ G.Worked point
 
 /-- The conditions on the game. `sound`: for a candidate that fails the test, each path of the
 game that avoids the bad sets ends in a false result (Definition 10.16 (vii)(a) and (b)).
@@ -128,13 +182,15 @@ structure Valid : Prop where
   staged : ∀ point candidate, Staged (Coord → Slot) (G.check point candidate) G.costs
   nonnegative : ∀ cost ∈ G.costs, 0 ≤ cost
   draws : G.costs ≠ []
+  aligned : G.bits.length = G.costs.length
 
 variable {Inner BreakT CandT KeyT WitT : Type}
-  (accept : Prefix Wire (Coord → Slot) total → Prop)
-  (tail : Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire) Inner BreakT CandT
+  (accept : Prefix Wire (Option Coord → Slot) total → Prop)
+  (tail : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
+    BreakT CandT
     KeyT WitT)
   (source : Inner → Cand) (clash : Inner → Inner → BreakT)
-  (relation : Prefix Wire (Coord → Slot) total → WitT → Prop)
+  (relation : Prefix Wire (Option Coord → Slot) total → WitT → Prop)
 
 omit [Fintype Slot] [Nonempty Slot] [Fintype Coord] [DecidableEq Coord] in
 /-- `Good_ℓ` of the checkpoint: the test of the candidate of a certificate. -/
@@ -152,15 +208,21 @@ def holds (level : ℕ) (inner : Inner) : Prop :=
 Definition 10.16 for the stages from `start`). The candidate of the checkpoint is `source` of a
 certificate of the later stages, and `clash` is `Coll_ℓ`. A stage input is refuted for a candidate
 when each path of the game from this stage input that avoids the bad sets ends in a false result.
-`relation` is the relation of the witnesses. -/
+A stage input is also refuted after an answer whose work bits are not zero, because the verifier
+rejects each extension (Akita Remark 10.18), so a bad answer has zero work bits. `relation` is the
+relation of the witnesses. -/
 noncomputable def over :
-    Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire) Inner BreakT
+    Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner BreakT
       (Cand ⊕ CandT) KeyT WitT where
   protocol := transcript total accept
   kind level := if level < G.finish then G.kind level else tail.kind level
   key := tail.key
   weight := tail.weight
-  error level := if level < G.finish then G.costs.getD (level - G.start) 0 else tail.error level
+  work := tail.work
+  chance := tail.chance
+  error level := if level < G.finish then
+      G.costs.getD (level - G.start) 0 / 2 ^ G.bits.getD (level - G.start) 0
+    else tail.error level
   leaf := tail.leaf
   point := tail.point
   holds := G.holds tail source
@@ -173,14 +235,17 @@ noncomputable def over :
     if level < G.finish then clash inner other else tail.collide level inner other
   refuted level input candidate :=
     match candidate with
-    | .inl candidate => level < G.finish ∧
+    | .inl candidate => level < G.finish ∧ (G.Failed input ∨
         (G.game candidate input).Avoids fun result =>
-          ¬ G.passes (input.take G.start) candidate result
+          ¬ G.passes (input.take G.start) candidate result)
     | .inr candidate => G.finish ≤ level ∧ tail.refuted level input candidate
   bad level input candidate :=
     match candidate with
     | .inl candidate =>
-        if level < G.finish then badReplies (Coord → Slot) (G.game candidate input) else ∅
+        if level < G.finish then
+          {reply | reply none ∈ workZeros Slot (G.bits.getD (input.rest.length - G.start) 0) ∧
+            view reply ∈ badReplies (Coord → Slot) (G.game candidate input)}
+        else ∅
     | .inr candidate => if level < G.finish then ∅ else tail.bad level input candidate
   witness := tail.witness
   relation := relation
@@ -209,7 +274,9 @@ theorem over_kind (level : ℕ) :
 
 theorem over_error (level : ℕ) :
     (G.over accept tail source clash relation).error level =
-      if level < G.finish then G.costs.getD (level - G.start) 0 else tail.error level :=
+      if level < G.finish then
+        G.costs.getD (level - G.start) 0 / 2 ^ G.bits.getD (level - G.start) 0
+      else tail.error level :=
   rfl
 
 theorem over_candidate (level : ℕ) (inner : Inner) :
@@ -227,17 +294,22 @@ theorem over_collide (level : ℕ) (inner other : Inner) :
       if level < G.finish then clash inner other else tail.collide level inner other :=
   rfl
 
-theorem over_bad_inl (level : ℕ) (input : Prefix Wire (Coord → Slot) total) (candidate : Cand) :
+theorem over_bad_inl (level : ℕ) (input : Prefix Wire (Option Coord → Slot) total) (candidate :
+  Cand) :
     (G.over accept tail source clash relation).bad level input (.inl candidate) =
-      if level < G.finish then badReplies (Coord → Slot) (G.game candidate input) else ∅ :=
+      if level < G.finish then
+        {reply | reply none ∈ workZeros Slot (G.bits.getD (input.rest.length - G.start) 0) ∧
+          view reply ∈ badReplies (Coord → Slot) (G.game candidate input)}
+      else ∅ :=
   rfl
 
-theorem over_bad_inr (level : ℕ) (input : Prefix Wire (Coord → Slot) total) (candidate : CandT) :
+theorem over_bad_inr (level : ℕ) (input : Prefix Wire (Option Coord → Slot) total) (candidate :
+  CandT) :
     (G.over accept tail source clash relation).bad level input (.inr candidate) =
       if level < G.finish then ∅ else tail.bad level input candidate :=
   rfl
 
-theorem over_kind_indexed {level : ℕ} {coordinates : List Coord}
+theorem over_kind_indexed {level : ℕ} {coordinates : List (Option Coord)}
     (isIndexed : (G.over accept tail source clash relation).kind level = .indexed coordinates) :
     G.finish ≤ level ∧ tail.kind level = .indexed coordinates := by
   rw [over_kind] at isIndexed
@@ -297,7 +369,7 @@ theorem holds_finish {level : ℕ} (below : level ≤ G.finish) {inner : Inner}
 
 omit [Nonempty Slot] in
 /-- The game at the stage input of the checkpoint has no answer of a draw. -/
-theorem game_take_start (candidate : Cand) (point : Prefix Wire (Coord → Slot) total) :
+theorem game_take_start (candidate : Cand) (point : Prefix Wire (Option Coord → Slot) total) :
     G.game candidate (point.take G.start) =
       settle G.read (point.wire G.start) (G.check (point.take G.start) candidate) 0 := by
   have none : ((point.take G.start).rest.take G.finish).drop G.start = [] :=
@@ -306,12 +378,12 @@ theorem game_take_start (candidate : Cand) (point : Prefix Wire (Coord → Slot)
       rw [List.length_take, List.length_take]
       omega)
   unfold Segment.game
-  rw [none, Prefix.take_take le_rfl, Prefix.wire_take le_rfl]
+  rw [none, List.map_nil, Prefix.take_take le_rfl, Prefix.wire_take le_rfl]
   rfl
 
 omit [Nonempty Slot] in
 /-- The game reads the stages of the segment only. -/
-theorem game_take_finish (candidate : Cand) (point : Prefix Wire (Coord → Slot) total) :
+theorem game_take_finish (candidate : Cand) (point : Prefix Wire (Option Coord → Slot) total) :
     G.game candidate (point.take G.finish) = G.game candidate point := by
   have ends : G.start ≤ G.finish := Nat.le_add_right _ _
   have same : ((point.take G.finish).rest.take G.finish) = point.rest.take G.finish := by
@@ -322,11 +394,11 @@ theorem game_take_finish (candidate : Cand) (point : Prefix Wire (Coord → Slot
 
 omit [Nonempty Slot] in
 /-- The game after one more answer and one more message. -/
-theorem game_snoc (candidate : Cand) {input : Prefix Wire (Coord → Slot) total}
-    (move : (Coord → Slot) × Wire) (after : G.start ≤ input.rest.length)
+theorem game_snoc (candidate : Cand) {input : Prefix Wire (Option Coord → Slot) total}
+    (move : (Option Coord → Slot) × Wire) (after : G.start ≤ input.rest.length)
     (before : input.rest.length < G.finish) (room : input.rest.length < total) :
     G.game candidate (input.snoc move room) =
-      settle G.read move.2 (advance move.1 (G.game candidate input)) 0 := by
+      settle G.read move.2 (advance (view move.1) (G.game candidate input)) 0 := by
   have moves : ((input.snoc move room).rest.take G.finish).drop G.start =
       (input.rest.take G.finish).drop G.start ++ [move] := by
     show ((input.rest ++ [move]).take G.finish).drop G.start = _
@@ -335,8 +407,9 @@ theorem game_snoc (candidate : Cand) {input : Prefix Wire (Coord → Slot) total
         omega),
       List.take_of_length_le (Nat.le_of_lt before), List.drop_append_of_le_length after]
   unfold Segment.game
-  rw [moves, Prefix.take_snoc input move room after, Prefix.wire_snoc input move room after]
-  exact position_append G.read _ _ _ _ move.1
+  rw [moves, List.map_append, List.map_singleton, Prefix.take_snoc input move room after,
+    Prefix.wire_snoc input move room after]
+  exact position_append G.read _ _ _ _ (view move.1)
 
 /-- The segment over the later stages satisfies the conditions of Akita Definition 10.16 from its
 checkpoint (Akita Theorem 10.45, the structure, for one segment). -/
@@ -350,6 +423,15 @@ theorem over_lawfulFrom (valid : G.Valid) (fed : G.Fed accept tail source clash)
     key_some := ?_
     key_mass := ?_
     weight_nonnegative := fed.lawful.weight_nonnegative
+    work_accept := fun level coordinates point deeper _ isIndexed accepted found =>
+      fed.lawful.work_accept level coordinates point deeper (G.over_kind_indexed isIndexed).1
+        (G.over_kind_indexed isIndexed).2 accepted found
+    work_keep := fun level coordinates coordinate reply slot _ isIndexed member =>
+      fed.lawful.work_keep level coordinates coordinate reply slot
+        (G.over_kind_indexed isIndexed).1 (G.over_kind_indexed isIndexed).2 member
+    work_mass := fun level coordinates _ isIndexed =>
+      fed.lawful.work_mass level coordinates (G.over_kind_indexed isIndexed).1
+        (G.over_kind_indexed isIndexed).2
     leaf_point := fed.lawful.leaf_point
     leaf_holds := fun point accepted =>
       (G.holds_tail fits _).mpr (fed.lawful.leaf_holds point accepted)
@@ -425,7 +507,7 @@ theorem over_lawfulFrom (valid : G.Valid) (fed : G.Fed accept tail source clash)
     · rw [over_good, ite_eq_left inside] at notGood
       rw [over_candidate, ite_eq_left inside]
       obtain ⟨_, rfl⟩ := transcript_cut found
-      refine ⟨inside, ?_⟩
+      refine ⟨inside, Or.inr ?_⟩
       rw [G.game_take_start, Prefix.take_take le_rfl]
       exact avoids_settle G.read _ (valid.sound _ _ notGood) 0
     · rw [over_good, ite_eq_right (by omega)] at notGood
@@ -441,9 +523,26 @@ theorem over_lawfulFrom (valid : G.Valid) (fed : G.Fed accept tail source clash)
         have room : input.rest.length < total := by omega
         rw [over_bad_inl, ite_eq_left inside] at outside
         refine ⟨inside, ?_⟩
-        rw [transcript_step proof input reply room, G.game_snoc candidate _ after (by omega) room,
-          Prefix.take_snoc input _ room after]
-        exact avoids_settle G.read _ (avoids_advance refuted outside) 0
+        rw [transcript_step proof input reply room]
+        rcases refuted with ⟨index, earlier, low, answered, nonzero⟩ | refuted
+        · refine Or.inl ⟨index, earlier, ?_, ?_, nonzero⟩
+          · show G.start + index < (input.rest ++ _).length
+            rw [List.length_append]
+            omega
+          · rw [Prefix.reply_snoc input _ room low]
+            exact answered
+        · by_cases zero : reply none ∈ workZeros Slot (G.bits.getD (input.rest.length - G.start) 0)
+          · have away : view reply ∉ badReplies (Coord → Slot) (G.game candidate input) :=
+              fun inside => outside ⟨zero, inside⟩
+            refine Or.inr ?_
+            rw [G.game_snoc candidate _ after (by omega) room, Prefix.take_snoc input _ room after]
+            exact avoids_settle G.read _ (avoids_advance refuted away) 0
+          · refine Or.inl ⟨input.rest.length - G.start, reply, ?_, ?_, zero⟩
+            · show G.start + (input.rest.length - G.start) < (input.rest ++ _).length
+              rw [List.length_append, List.length_singleton]
+              omega
+            · rw [show G.start + (input.rest.length - G.start) = input.rest.length by omega]
+              simp [Prefix.snoc, Prefix.reply]
       · exact absurd inside (by omega)
     · obtain ⟨out, refuted⟩ := refuted
       rcases G.over_kind_checkpoint isCheckpoint with ⟨rfl, rfl, inside⟩ | ⟨_, isTail⟩
@@ -454,16 +553,26 @@ theorem over_lawfulFrom (valid : G.Valid) (fed : G.Fed accept tail source clash)
   · intro level span inner input low isCheckpoint held found refuted
     rcases G.over_kind_checkpoint isCheckpoint with ⟨rfl, rfl, inside⟩ | ⟨outside, isTail⟩
     · rw [over_candidate, ite_eq_left inside] at refuted
-      obtain ⟨_, avoided⟩ := refuted
-      obtain ⟨result, ended, passed⟩ := fed.passed inner (G.holds_finish (by omega) held)
-      obtain ⟨_, rfl⟩ := transcript_cut found
-      have avoided : (G.game (source inner) ((tail.point inner).take
-          (G.start + (G.costs.length - 1) + 1))).Avoids fun result =>
-            ¬ G.passes (((tail.point inner).take (G.start + (G.costs.length - 1) + 1)).take
-              G.start) (source inner) result := avoided
-      have whole : G.start + (G.costs.length - 1) + 1 = G.finish := by omega
-      rw [whole, G.game_take_finish, Prefix.take_take (Nat.le_of_lt inside), ended] at avoided
-      exact avoided passed
+      obtain ⟨_, failed | avoided⟩ := refuted
+      · obtain ⟨_, worked⟩ := fed.passed inner (G.holds_finish (by omega) held)
+        obtain ⟨_, rfl⟩ := transcript_cut found
+        obtain ⟨index, reply, low, answered, nonzero⟩ := failed
+        have short : G.start + index < G.start + (G.costs.length - 1) + 1 :=
+          lt_of_lt_of_le low (by
+            show ((tail.point inner).rest.take _).length ≤ _
+            rw [List.length_take]
+            exact Nat.min_le_left _ _)
+        rw [Prefix.reply_take short] at answered
+        exact nonzero (worked index (by omega) reply answered)
+      · obtain ⟨⟨result, ended, passed⟩, _⟩ := fed.passed inner (G.holds_finish (by omega) held)
+        obtain ⟨_, rfl⟩ := transcript_cut found
+        have avoided : (G.game (source inner) ((tail.point inner).take
+            (G.start + (G.costs.length - 1) + 1))).Avoids fun result =>
+              ¬ G.passes (((tail.point inner).take (G.start + (G.costs.length - 1) + 1)).take
+                G.start) (source inner) result := avoided
+        have whole : G.start + (G.costs.length - 1) + 1 = G.finish := by omega
+        rw [whole, G.game_take_finish, Prefix.take_take (Nat.le_of_lt inside), ended] at avoided
+        exact avoided passed
     · rw [over_candidate, ite_eq_right (by omega)] at refuted
       exact fed.lawful.refuted_end level span inner input outside isTail
         ((G.holds_tail (by omega) inner).mp held) found refuted.2
@@ -474,24 +583,31 @@ theorem over_lawfulFrom (valid : G.Valid) (fed : G.Fed accept tail source clash)
       show mass ((G.over accept tail source clash relation).bad _ input candidate) ≤
         (G.over accept tail source clash relation).error input.rest.length
       rw [over_error, ite_eq_left (by omega)]
+      have nonnegative := getD_nonnegative valid.nonnegative (input.rest.length - G.start)
       rcases candidate with candidate | candidate
-      · rw [over_bad_inl, ite_eq_left inside]
+      · rw [over_bad_inl, ite_eq_left inside, mass_view]
         have staged := position_staged G.read (valid.staged (input.take G.start) candidate)
-          (input.wire G.start) ((input.rest.take G.finish).drop G.start)
-        have count : ((input.rest.take G.finish).drop G.start).length =
-            input.rest.length - G.start := by
-          rw [List.length_drop, List.length_take]
+          (input.wire G.start)
+          (((input.rest.take G.finish).drop G.start).map fun move => (view move.1, move.2))
+        have count : (((input.rest.take G.finish).drop G.start).map
+            fun move => (view move.1, move.2)).length = input.rest.length - G.start := by
+          rw [List.length_map, List.length_drop, List.length_take]
           omega
-        have head : (G.costs.drop ((input.rest.take G.finish).drop G.start).length).headD 0 =
+        have head : (G.costs.drop (((input.rest.take G.finish).drop G.start).map
+            fun move => (view move.1, move.2)).length).headD 0 =
             G.costs.getD (input.rest.length - G.start) 0 := by
           rw [count, List.getD_eq_getElem?_getD, List.headD_eq_head?_getD, List.head?_drop]
         have bound := mass_badReplies_le (by
           rw [head]
-          exact getD_nonnegative valid.nonnegative _) staged
+          exact nonnegative) staged
         rw [head] at bound
-        exact bound
+        have zero := mass_workZeros_le Slot (G.bits.getD (input.rest.length - G.start) 0)
+        calc _ ≤ 1 / 2 ^ G.bits.getD (input.rest.length - G.start) 0 *
+              G.costs.getD (input.rest.length - G.start) 0 :=
+            mul_le_mul zero bound (RandomOracle.mass_nonnegative _) (by positivity)
+          _ = _ := by ring
       · rw [over_bad_inr, ite_eq_left inside]
-        exact (le_of_eq (by simp [mass])).trans (getD_nonnegative valid.nonnegative _)
+        exact (le_of_eq (by simp [mass])).trans (div_nonneg nonnegative (by positivity))
     · have after : level ≤ input.rest.length := after
       show mass ((G.over accept tail source clash relation).bad _ input candidate) ≤
         (G.over accept tail source clash relation).error input.rest.length
@@ -504,7 +620,7 @@ theorem over_lawfulFrom (valid : G.Valid) (fed : G.Fed accept tail source clash)
   · intro level
     rw [over_error]
     split
-    · exact getD_nonnegative valid.nonnegative _
+    · exact div_nonneg (getD_nonnegative valid.nonnegative _) (by positivity)
     · exact fed.lawful.error_nonnegative level
 
 section Bound
@@ -525,10 +641,10 @@ theorem over_kind_tail {level : ℕ} (outside : G.finish ≤ level) :
 
 theorem over_charge_at (fits : G.finish ≤ total) {index : ℕ} (inside : index < G.costs.length) :
     (G.over accept tail source clash relation).charge (G.start + index) =
-      G.costs.getD index 0 := by
+      G.costs.getD index 0 / 2 ^ G.bits.getD index 0 := by
   have ends : G.finish = G.start + G.costs.length := rfl
   have error : (G.over accept tail source clash relation).error (G.start + index) =
-      G.costs.getD index 0 := by
+      G.costs.getD index 0 / 2 ^ G.bits.getD index 0 := by
     rw [over_error, ite_eq_left (by omega), Nat.add_sub_cancel_left]
   unfold Structure.charge
   rw [ite_eq_left (show G.start + index <
@@ -560,11 +676,12 @@ theorem over_arity_tail {level : ℕ} (outside : G.finish ≤ level) :
   unfold Structure.arity
   rw [G.over_kind_tail outside]
 
-/-- The stage errors from the checkpoint: the bounds of the draws of the game, and the stage
-errors of the later stages. -/
-theorem over_chargeFrom (fits : G.finish ≤ total) (stages : tail.protocol.stages = total) :
+/-- The stage errors from the checkpoint: the bounds of the draws of the game times `2^{−g}` for
+their work bits, and the stage errors of the later stages. -/
+theorem over_chargeFrom (fits : G.finish ≤ total) (stages : tail.protocol.stages = total)
+    (aligned : G.bits.length = G.costs.length) :
     (G.over accept tail source clash relation).chargeFrom G.start =
-      G.costs.sum + tail.chargeFrom G.finish := by
+      (credit G.costs G.bits).sum + tail.chargeFrom G.finish := by
   have ends : G.finish = G.start + G.costs.length := rfl
   unfold Structure.chargeFrom
   rw [stages]
@@ -575,9 +692,10 @@ theorem over_chargeFrom (fits : G.finish ≤ total) (stages : tail.protocol.stag
     (Finset.sum_congr rfl fun level member =>
       G.over_charge_tail stages (Finset.mem_Ico.mp member).1)
   rw [Finset.sum_Ico_eq_sum_range, show G.finish - G.start = G.costs.length by omega,
-    ← sum_range_getD]
+    ← sum_range_getD, credit_length aligned]
   exact Finset.sum_congr rfl fun index member =>
-    G.over_charge_at fits (Finset.mem_range.mp member)
+    (G.over_charge_at fits (Finset.mem_range.mp member)).trans
+      (credit_getD aligned (Finset.mem_range.mp member)).symm
 
 /-- The extractor has one retry loop for the checkpoint, and the loops of the later stages. -/
 theorem over_loopsFrom (draws : G.costs ≠ []) (fits : G.finish ≤ total)
@@ -631,8 +749,9 @@ theorem over_treeFrom (draws : G.costs ≠ []) (fits : G.finish ≤ total)
 
 end Bound
 
-variable {Wit' : Type} {Opens' : Prefix Wire (Coord → Slot) total → Wit' → Prop}
-  {later : Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire) Inner BreakT CandT
+variable {Wit' : Type} {Opens' : Prefix Wire (Option Coord → Slot) total → Wit' → Prop}
+  {later : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
+    BreakT CandT
     KeyT Wit'}
   {error : ℝ} {loops tree : ℕ}
 
@@ -648,7 +767,7 @@ of `R_bind` (Definition 10.16 (vi)). -/
 theorem suffix_before (valid : G.Valid)
     (suffix : Tier.Suffix accept G.finish Opens' later error loops tree) (fits : G.finish ≤ total)
     (source : Wit' → Cand) (clash : Wit' → Wit' → BreakT)
-    (Opens : Prefix Wire (Coord → Slot) total → Wit' → Prop)
+    (Opens : Prefix Wire (Option Coord → Slot) total → Wit' → Prop)
     (rooted : ∀ point witness, Opens point witness → Opens (point.take G.start) witness)
     (opens : ∀ point witness, accept point → Opens' point witness →
       G.test (point.take G.start) (source witness) → Opens point witness)
@@ -661,7 +780,7 @@ theorem suffix_before (valid : G.Valid)
     Tier.Suffix accept G.start Opens
       (G.over accept later (fun inner => source (later.witness inner))
         (fun inner other => clash (later.witness inner) (later.witness other)) Opens)
-      (G.costs.sum + error) (1 + loops) (2 * tree) := by
+      ((credit G.costs G.bits).sum + error) (1 + loops) (2 * tree) := by
   have stages : later.protocol.stages = total := by rw [suffix.protocol]; rfl
   have fed : G.Fed accept later (fun inner => source (later.witness inner))
       (fun inner other => clash (later.witness inner) (later.witness other)) :=
@@ -686,7 +805,7 @@ theorem suffix_before (valid : G.Valid)
       lawfulFrom := G.over_lawfulFrom valid fed
       protocol := rfl
       related := fun _ _ => Iff.rfl
-      errorSum := by rw [G.over_chargeFrom fits stages, suffix.errorSum]
+      errorSum := by rw [G.over_chargeFrom fits stages valid.aligned, suffix.errorSum]
       loopCount := by rw [G.over_loopsFrom valid.draws fits stages, suffix.loopCount]
       treeSize := by rw [G.over_treeFrom valid.draws fits stages, suffix.treeSize] }
 

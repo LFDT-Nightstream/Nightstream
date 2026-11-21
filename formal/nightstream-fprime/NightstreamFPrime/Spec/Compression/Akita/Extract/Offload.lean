@@ -128,7 +128,8 @@ value `σ` of the proof, and then Stage 3 `setupCheck` for the weight of the cod
 `SetupScan.direct` it is the check of Akita (132) for `σ_S = scale·σ`. It ends in `none` when a check
 fails, and otherwise in the claims `(r_2, v_W)` and `(ρ_S, s_{ρ_S})` for the next level. -/
 noncomputable def offloadCheck (R : Reduction E) (b : ℕ) (support : ℕ → Prop)
-    [DecidablePred support] (w : Table) (ν : ℕ) (flat : Table) (scan : SetupScan R ν flat) :
+    [DecidablePred support] (bin : Bool) (w : Table) (ν : ℕ) (flat : Table) (scan : SetupScan R ν
+      flat) :
     Game (Option ((List E × E) × (List E × E))) :=
   .draw E (R.bad w) fun α =>
   .draw (Fin R.vars → E) (rangeBad b R.vars w) fun τ0 =>
@@ -136,7 +137,7 @@ noncomputable def offloadCheck (R : Reduction E) (b : ℕ) (support : ℕ → Pr
   (rangeCheck b R.vars support w (List.ofFn τ0)).bind fun
     | none => .pure none
     | some (r, sClaim) =>
-        .draw E (zeros (linePoly (mle (List.ofFn τ1) ((R.rows α).residual R.vars w))
+        drawBin bin (zeros (linePoly (mle (List.ofFn τ1) ((R.rows α).residual R.vars w))
           (mle r (supportTable support w)))) fun ζ =>
         .draw E (zeros (linePoly (mle (List.ofFn τ1) ((R.rows α).residual R.vars w) +
           ζ * mle r (supportTable support w)) (mle r (derived E w) - sClaim))) fun γ =>
@@ -158,8 +159,9 @@ two final claims that are true, `v_W = w̃(r_2)` for the committed witness and
 `s_{ρ_S} = S̃^♭(ρ_S)` for the setup prefix, give the relation of the ring reduction, the digit
 range statement and the binary statement. -/
 theorem offloadCheck_avoids (R : Reduction E) (b : ℕ) (support : ℕ → Prop)
-    [DecidablePred support] (w : Table) (ν : ℕ) (flat : Table) (scan : SetupScan R ν flat) :
-    (offloadCheck R b support w ν flat scan).Avoids fun result =>
+    [DecidablePred support] (bin : Bool) (empty : bin = false → ∀ x, ¬ support x) (w : Table)
+    (ν : ℕ) (flat : Table) (scan : SetupScan R ν flat) :
+    (offloadCheck R b support bin w ν flat scan).Avoids fun result =>
       ∀ r2 v ρ s, result = some ((r2, v), (ρ, s)) → v = mle r2 (lifted E w) →
         s = mle ρ (lifted E flat) →
         R.Holds w ∧ RangeHolds b R.vars w ∧ BinaryOn support R.vars w := by
@@ -170,7 +172,7 @@ theorem offloadCheck_avoids (R : Reduction E) (b : ℕ) (support : ℕ → Prop)
   · intro r2 v ρ s equal
     simp at equal
   obtain ⟨virt, rangeSound⟩ := ranged (r, sClaim) rfl
-  intro ζ outsideζ γ outsideγ
+  refine drawBin_avoids empty fun ζ outsideζ γ outsideγ => ?_
   refine (avoids_bind _ _ _).mpr ?_
   refine ((sumcheck_avoids 3 R.vars _ _ (fused_roundTruth R.vars w _ _) R.vars [] _
     (by simp)).and_ends (sumcheck_ends 3 _ R.vars [] _)).mono ?_
@@ -218,6 +220,14 @@ attribute [local instance low] Classical.propDecidable
 noncomputable def setupCosts (E : Type) [Fintype E] (ν : ℕ) : List ℝ :=
   List.replicate ν (((2 : ℕ) : ℝ) / Fintype.card E)
 
+/-- The losses of the sites of the draws of `setupCheck` in the Akita code: the Stage 3 rounds of
+the degree `SETUP_SUMCHECK_DEGREE = 2` (`transcript_grinding/plan.rs`, `append_nonterminal`). -/
+def setupLosses (ν : ℕ) : List ℕ := List.replicate ν 2
+
+omit [Field E] [DecidableEq E] [Algebra Zq E] in
+theorem setupLosses_length (ν : ℕ) : (setupLosses ν).length = (setupCosts E ν).length := by
+  simp [setupLosses, setupCosts]
+
 omit [Field E] [DecidableEq E] [Algebra Zq E] in
 theorem setupCosts_sum (ν : ℕ) :
     (setupCosts E ν).sum = ((2 * ν : ℕ) : ℝ) / Fintype.card E := by
@@ -227,15 +237,15 @@ theorem setupCosts_sum (ν : ℕ) :
 
 /-- The verifier of `offloadCheck` is the same for each witness. -/
 theorem offloadCheck_bare (R : Reduction E) (b : ℕ) (support : ℕ → Prop) [DecidablePred support]
-    (w other : Table) (ν : ℕ) (flat : Table) (scan : SetupScan R ν flat) :
-    bare (offloadCheck R b support w ν flat scan) =
-      bare (offloadCheck R b support other ν flat scan) := by
+    (bin : Bool) (w other : Table) (ν : ℕ) (flat : Table) (scan : SetupScan R ν flat) :
+    bare (offloadCheck R b support bin w ν flat scan) =
+      bare (offloadCheck R b support bin other ν flat scan) := by
   unfold offloadCheck
   refine bare_draw_congr fun α => bare_draw_congr fun τ0 => bare_draw_congr fun τ1 =>
     bare_bind_congr (rangeCheck_bare b R.vars support w other _) fun result => ?_
   rcases result with _ | ⟨r, sClaim⟩
   · rfl
-  · exact bare_draw_congr fun ζ => bare_draw_congr fun γ =>
+  · exact drawBin_bare_congr bin fun ζ => bare_draw_congr fun γ =>
       bare_bind_congr (sumcheck_bare 3 _ _ R.vars [] _) fun _ => rfl
 
 variable {Coord : Type} [Fintype Coord] [DecidableEq Coord] [Nonempty Coord]
@@ -260,10 +270,11 @@ theorem setupCheck_staged (ν : ℕ) (flat : Table) (weight : ℕ → E) (σ : E
 /-- Each draw of `offloadCheck` has its bound: the bounds `foldCosts` of `foldCheck`, and then
 the bounds `setupCosts` of Stage 3. -/
 theorem offloadCheck_staged (R : Reduction E) (base : ℕ) (support : ℕ → Prop)
-    [DecidablePred support] (w : Table) (ν : ℕ) (flat : Table) (scan : SetupScan R ν flat)
+    [DecidablePred support] (bin : Bool) (w : Table) (ν : ℕ) (flat : Table) (scan : SetupScan R ν
+      flat)
     (varsFit : R.vars ≤ Fintype.card Coord) (batchFit : R.batch ≤ Fintype.card Coord) :
-    Staged (Coord → E) (offloadCheck R base support w ν flat scan)
-      (foldCosts E R.badBound R.vars R.batch base ++ setupCosts E ν) := by
+    Staged (Coord → E) (offloadCheck R base support bin w ν flat scan)
+      (foldCosts E R.badBound R.vars R.batch base bin ++ setupCosts E ν) := by
   have field : ∃ decode : (Coord → E) → E, Fair decode := exists_fair_slot
   unfold offloadCheck foldCosts Staged
   simp only [List.cons_append, List.append_assoc]
@@ -275,8 +286,7 @@ theorem offloadCheck_staged (R : Reduction E) (base : ℕ) (support : ℕ → Pr
   refine (stagedTo_bind _ _ _ _).mpr (rangeCheck_stagedTo base R.vars support w _ _ _ ?_ ?_)
   · exact fun _ => trivial
   rintro ⟨r, sClaim⟩
-  refine stagedTo_draw field (density_le _ 1
-    (zeros_card_le_of_natDegree_le (linePoly_natDegree _ _))) fun ζ =>
+  refine drawBin_stagedTo bin (zeros_card_le_of_natDegree_le (linePoly_natDegree _ _)) fun ζ =>
       stagedTo_draw field (density_le _ 1
         (zeros_card_le_of_natDegree_le (linePoly_natDegree _ _))) fun γ => ?_
   refine (stagedTo_bind _ _ _ _).mpr (sumcheck_staged (Reply := Coord → E) field 3 R.vars _
@@ -300,8 +310,8 @@ public weight. A final claim `((r_2, v_W), (ρ_S, s_{ρ_S}))` is true for a tabl
 `v_W = w̃(r_2)` and `s_{ρ_S} = S̃^♭(ρ_S)` (Akita (136)). -/
 noncomputable def offBatch (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E)
     (key : (g : Fin n) → Key (B.shape g)) (openKey : B.OpenKey) (claim : Wire → B.Claim E)
-    (μ : ℕ) (fits : B.cells < 2 ^ μ) (base digits : ℕ) (room : B.quotientRoom digits ≤ 2 ^ μ)
-    (batch : ℕ) (rowsFit : B.rowCount + 1 + 1 ≤ 2 ^ batch) (block : B.Block → Coord)
+    (μ : ℕ) (fits : B.cells ≤ 2 ^ μ) (base digits : ℕ) (room : B.quotientRoom digits ≤ 2 ^ μ)
+    (batch : ℕ) (rowsFit : B.rowCount + 1 ≤ 2 ^ batch) (block : B.Block → Coord)
     (decode : (g : Fin n) → E → Option (Rq (B.carrierDegree g))) (read : Reader Wire)
     (mass : Fin n → ℕ) (start ν : ℕ) (flat : Table)
     (scan : ∀ (st : B.Statement E) (challenge : B.Challenge),
@@ -312,23 +322,25 @@ noncomputable def offBatch (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E)
       B.Witness B.Weak Wire Coord E (Option ((List E × E) × (List E × E))) Table where
   method := Batch.method β key openKey mass
   claim := claim
-  block := block
+  block b := some (block b)
   decode := fun b => decode b.1
   read := read
-  digits := B.ofFlat
+  digits table := B.ofFlat fun x => table ((B.gaps digits).place x)
   check wire challenge table :=
     offloadCheck (Batch.liftedReduction β ((claim wire).statement key openKey)
-      (fun g i => challenge ⟨g, i⟩) μ fits base digits room batch rowsFit) base B.binarySupport
-      table ν flat (scan _ _)
+      (fun g i => challenge ⟨g, i⟩) μ fits base digits room batch rowsFit) base
+        (B.gaps digits).support B.compressed table ν flat (scan _ _)
   passes table result := ∃ r2 v ρ s, result = some ((r2, v), (ρ, s)) ∧
     v = mle r2 (lifted E table) ∧ s = mle ρ (lifted E flat)
-  costs := foldCosts E (2 * B.largestDegree - 1) μ batch base ++ setupCosts E ν
+  costs := foldCosts E (2 * B.largestDegree - 1) μ batch base B.compressed ++ setupCosts E ν
+  bits := (foldLosses (2 * B.innerMax - 1) μ batch base B.compressed ++ setupLosses ν).map workBits
+  foldBits := foldWorkBits (Fintype.card B.Block) B.familyBits
   start := start
 
 variable {β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E} {key : (g : Fin n) → Key (B.shape g)}
-  {openKey : B.OpenKey} {claim : Wire → B.Claim E} {μ : ℕ} {fits : B.cells < 2 ^ μ}
+  {openKey : B.OpenKey} {claim : Wire → B.Claim E} {μ : ℕ} {fits : B.cells ≤ 2 ^ μ}
   {base digits : ℕ} {room : B.quotientRoom digits ≤ 2 ^ μ} {batch : ℕ}
-  {rowsFit : B.rowCount + 1 + 1 ≤ 2 ^ batch} {block : B.Block → Coord}
+  {rowsFit : B.rowCount + 1 ≤ 2 ^ batch} {block : B.Block → Coord}
   {decode : (g : Fin n) → E → Option (Rq (B.carrierDegree g))} {read : Reader Wire}
   {mass : Fin n → ℕ} {start ν : ℕ} {flat : Table}
   {scan : ∀ (st : B.Statement E) (challenge : B.Challenge),
@@ -345,24 +357,33 @@ theorem offBatch_valid {peak : Fin n → ℕ} (injective : Function.Injective bl
     (varsFit : μ ≤ Fintype.card Coord) (batchFit : batch ≤ Fintype.card Coord) :
     (offBatch β key openKey claim μ fits base digits room batch rowsFit block decode read mass
       start ν flat scan).Valid where
-  injective := injective
+  injective := (Option.some_injective _).comp injective
+  avoid _ := Option.some_ne_none _
   merges := Batch.method_sound units sparse response
   sound wire challenge table :=
-    (offloadCheck_avoids _ base B.binarySupport table ν flat (scan _ _)).mono
+    (offloadCheck_avoids _ base (B.gaps digits).support B.compressed
+      (B.gaps_support_empty digits) table ν flat (scan _ _)).mono
       fun _ implies passed => by
         obtain ⟨r2, v, ρ, s, ended, opened, setup⟩ := passed
         have checked := implies r2 v ρ s ended opened setup
-        exact Batch.satisfies_of_locked β ((claim wire).statement key openKey)
-          (fun g i => challenge ⟨g, i⟩) μ fits uniform small
-          (LiftRelation.holds_flat _ checked.1) checked.2.1 checked.2.2
+        exact Batch.satisfies_of_lift β ((claim wire).statement key openKey)
+          (fun g i => challenge ⟨g, i⟩) μ fits uniform small digits room batch rowsFit checked.1
+          checked.2.1 checked.2.2
   staged wire challenge table :=
-    offloadCheck_staged _ base B.binarySupport table ν flat (scan _ _) varsFit batchFit
+    offloadCheck_staged _ base (B.gaps digits).support B.compressed table ν flat (scan _ _)
+      varsFit batchFit
   nonnegative cost member := by
     rcases List.mem_append.mp member with fold | setup
-    · exact foldCosts_nonnegative _ _ _ _ cost fold
+    · exact foldCosts_nonnegative _ _ _ _ _ cost fold
     · rw [List.eq_of_mem_replicate setup]
       positivity
   draws := by simp [offBatch, foldCosts]
+  aligned := by
+    show ((foldLosses (2 * B.innerMax - 1) μ batch base B.compressed ++ setupLosses ν).map
+      workBits).length = (foldCosts E (2 * B.largestDegree - 1) μ batch base B.compressed ++
+        setupCosts E ν).length
+    rw [List.length_map, List.length_append, List.length_append, foldLosses_length (E := E),
+      setupLosses_length (E := E)]
 
 omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] in
 /-- The verifier of the checks of an offloaded level does not read the table. -/
@@ -372,7 +393,7 @@ theorem offBatch_uniform (wire : Wire) (challenge : (b : B.Block) → Rq (B.carr
         mass start ν flat scan).check wire challenge table) =
       bare ((offBatch β key openKey claim μ fits base digits room batch rowsFit block decode read
         mass start ν flat scan).check wire challenge other) :=
-  offloadCheck_bare _ _ _ table other ν flat (scan _ _)
+  offloadCheck_bare _ _ _ _ table other ν flat (scan _ _)
 
 end Groups
 

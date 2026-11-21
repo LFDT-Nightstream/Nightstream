@@ -54,14 +54,14 @@ variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {S' : Shape} {O' :
 to the claim of the trace level `B`, the level `B` with the link `Terminal.Linked` to the
 statement of the terminal `L`, and the checks (128), (129) and (130) of the terminal with the
 bound of its clear response. -/
-def tripleAccepts (point : Prefix Wire (Coord → Slot) total) : Prop :=
+def tripleAccepts (point : Prefix Wire (Option Coord → Slot) total) : Prop :=
   A.TraceLinked B quarter' commit point ∧ Terminal.Linked B L quarter'' stateOf point ∧
     L.Passed point
 
 /-- The checkpoint structure of the trace level `B` over the terminal. -/
 noncomputable def tripleLast :
-    Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire)
-      (Opened (Weak O') (Prefix Wire (Coord → Slot) total × Option (TerminalFork S'')))
+    Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire)
+      (Opened (Weak O') (Prefix Wire (Option Coord → Slot) total × Option (TerminalFork S'')))
       (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S') ⊕
         Option (ShortKernel L.matrix (8 * L.weight * L.bound)))
       (Table ⊕ Unit) ((Σ _ : Fin S'.blocks, Rq S'.innerDegree) ⊕ Rq S''.innerDegree)
@@ -78,9 +78,9 @@ noncomputable def tripleLast :
 of `R_bind` is a solution of Module-SIS for `B`, `D` or a compression map of `A`, for the matrix
 `A`, `B`, `D` or a compression map of `B`, or for `A_term`. -/
 noncomputable def triple :
-    Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire)
+    Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire)
       (Opened (Weak O)
-        (Opened (Weak O') (Prefix Wire (Coord → Slot) total × Option (TerminalFork S''))))
+        (Opened (Weak O') (Prefix Wire (Option Coord → Slot) total × Option (TerminalFork S''))))
       (Brk ⊕ (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S') ⊕
         Option (ShortKernel L.matrix (8 * L.weight * L.bound))))
       (Table ⊕ (Table ⊕ Unit))
@@ -119,8 +119,8 @@ theorem triple_suffix (valid : A.Valid) (valid' : B.Valid)
       B.passes table (some (ρ, θ, v))) :
     Tier.Suffix (tripleAccepts A B L quarter' quarter'' commit stateOf) A.start A.Opens
       (triple A B L quarter' quarter'' commit stateOf)
-      (∑ b, A.chance b + A.costs.sum +
-        (∑ b, B.chance b + B.costs.sum + S''.blocks * slotChance L.decode))
+      (A.levelError +
+        (B.levelError + L.termError))
       (S.blocks + 1 + (S'.blocks + 1 + S''.blocks))
       (2 * (S.blocks + 1) * (2 * (S'.blocks + 1) * (S''.blocks + 1))) :=
   Tier.suffix_push_trace valid traced next quarter' commit
@@ -143,12 +143,12 @@ variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {S' : Shape} {O' :
   {fold' : Descriptor} {S'' : Shape} {Wire Coord : Type} [Fintype Coord] [DecidableEq Coord]
   [Nonempty Coord]
   {β : Module.Basis (Fin O.planes) Zq E} {key : Key S} {openKey : OpeningKey O}
-  {claim : Wire → Claim O E} {μ : ℕ} {fits : O.cells fold < 2 ^ μ} {batch : ℕ}
-  {rowsFit : O.rowCount + 1 + 1 ≤ 2 ^ batch} {block : Fin S.blocks → Coord}
+  {claim : Wire → Claim O E} {μ : ℕ} {fits : O.cells fold ≤ 2 ^ μ} {batch : ℕ}
+  {rowsFit : O.rowCount + 1 ≤ 2 ^ batch} {block : Fin S.blocks → Coord}
   {decode : E → Option (Rq O.carrierDegree)} {read : Reader Wire} {weight ν : ℕ}
   {key' : Key S'} {openKey' : OpeningKey O'} {claim' : Wire → TraceClaim O' E} {μ' : ℕ}
-  {fits' : O'.cells fold' < 2 ^ μ'} {batch' : ℕ}
-  {rowsFit' : O'.traceRowCount + 1 + 1 ≤ 2 ^ batch'} {block' : Fin S'.blocks → Coord}
+  {fits' : O'.cells fold' ≤ 2 ^ μ'} {batch' : ℕ}
+  {rowsFit' : O'.traceRowCount + 1 ≤ 2 ^ batch'} {block' : Fin S'.blocks → Coord}
   {decode' : E → Option (Rq S'.innerDegree)} {weight' ν' m' m'' : ℕ}
   {quarter' : 4 * m' = S'.innerDegree} {quarter'' : 4 * m'' = S''.innerDegree}
   {commit : Wire → S'.Payload}
@@ -188,21 +188,21 @@ theorem traceTriple_suffix {peak peak' peak'' : ℕ} (injective : Function.Injec
     (sparse'' : ∀ challenge ∈ L.family, Sparse L.weight peak'' challenge) :
     Tier.Suffix (tripleAccepts first second L quarter' quarter'' commit stateOf) 0
       (Tier.Opens first) chain
-      (∑ b, Tier.chance first b + (Tier.costs first).sum +
-        (∑ b, Tier.chance second b + (Tier.costs second).sum +
-          S''.blocks * slotChance L.decode))
+      (Tier.levelError first +
+        (Tier.levelError second +
+          L.termError))
       (S.blocks + 1 + (S'.blocks + 1 + S''.blocks))
       (2 * (S.blocks + 1) * (2 * (S'.blocks + 1) * (S''.blocks + 1))) :=
   triple_suffix
     (Tier.tensored_valid (committedFold_valid injective units sparse base small varsFit batchFit)
       (fun _ r2 v opened => ⟨r2, v, rfl, opened⟩)
       fun _ _ table rest tail rejected ended =>
-        foldCheck_stagedTo _ _ _ table varsFit batchFit rest tail rejected ended)
+        foldCheck_stagedTo _ _ _ _ table varsFit batchFit rest tail rejected ended)
     (Tier.tensored_valid
       (committedTrace_valid injective' units' sparse' base' small' varsFit' batchFit')
       (fun _ r2 v opened => ⟨r2, v, rfl, opened⟩)
       fun _ _ table rest tail rejected ended =>
-        foldCheck_stagedTo _ _ _ table varsFit' batchFit' rest tail rejected ended)
+        foldCheck_stagedTo _ _ _ _ table varsFit' batchFit' rest tail rejected ended)
     rfl rfl next inside injective'' units'' sparse''
     (Tier.tensored_uniform committedFold_uniform) (fun _ ρ θ v opened => ⟨ρ, θ, v, rfl, opened⟩)
     (Tier.tensored_uniform committedTrace_uniform) (fun _ ρ θ v opened => ⟨ρ, θ, v, rfl, opened⟩)
@@ -229,13 +229,13 @@ theorem traceTriple_extract_sound {peak peak' peak'' : ℕ} (injective : Functio
     (injective'' : Function.Injective L.block)
     (units'' : UnitDifferences L.family)
     (sparse'' : ∀ challenge ∈ L.family, Sparse L.weight peak'' challenge)
-    (prover : OracleComp (Prefix Wire (Coord → E) total)
-      (Coord → E) (ℕ → Wire))
+    (prover : OracleComp (Prefix Wire (Option Coord → E) total)
+      (Option Coord → E) (ℕ → Wire))
     (budget : ℕ)
-    (table : Prefix Wire (Coord → E) total → Coord → E)
-    (tape : Tape (Prefix Wire (Coord → E) total) Coord E
+    (table : Prefix Wire (Option Coord → E) total → Option Coord → E)
+    (tape : Tape (Prefix Wire (Option Coord → E) total) (Option Coord) E
       budget (Structure.protocol chain).stages)
-    (out : Opened (Weak O) (Opened (Weak O') (Prefix Wire (Coord → E) total ×
+    (out : Opened (Weak O) (Opened (Weak O') (Prefix Wire (Option Coord → E) total ×
         Option (TerminalFork S''))) ⊕
       (LevelBreak key openKey (2 * (2 * weight) * fold.sourceBound S) ⊕
         (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S') ⊕
@@ -264,13 +264,13 @@ variable [Finite Wire]
 terminal, which is Akita Corollary 10.49 with (206) for these stages. For each prover with at most
 `Q` queries to the oracle, the probability that the verifier `tripleAccepts` accepts and the
 extractor returns no output is at most
-`(Q + 1)·(r·p + ε_fold + ε_tensor + r'·p' + ε'_fold + ε'_tensor + B_term·p_term) +
-(Q + 1)·(r + 1 + r' + 1 + B_term)/budget`. `r`, `r'` and `B_term` are the numbers of blocks, `p`,
-`p'` and `p_term` are the largest probabilities of one fold challenge, `ε_fold` and `ε'_fold` are
-`foldError` of the quotient-free reductions, which are the same for each statement and each
-challenge, `ε_tensor = (1 + 2·ν)/|E|` and `ε'_tensor = (1 + 2·ν')/|E|` are the bounds of Akita
-Theorem 5.1 for one claim, and `budget` is the limit of the attempts of a retry loop of the
-extractor. By `traceTriple_extract_sound`, an output is a root weak opening or a solution of
+`(Q + 1)·(ε + ε' + 2^{−g_term}·B_term·p_term) + (Q + 1)·(r + 1 + r' + 1 + B_term)/budget`.
+`ε` and `ε'` are the stage errors `Tier.levelError` of the two levels: the weights of their fold
+coordinates and the bounds of the draws of their checks with the tensor reduction (Akita Theorem
+5.1 for one claim), each times `2^{−g}` for its work bits (Remark 10.18). `r`, `r'` and `B_term`
+are the numbers of blocks, `p_term` is the largest probability of one fold challenge of the
+terminal, and `budget` is the limit of the attempts of a retry loop of the extractor. By
+`traceTriple_extract_sound`, an output is a root weak opening or a solution of
 Module-SIS. -/
 theorem traceTriple_extraction_le {peak peak' peak'' : ℕ} (injective : Function.Injective block)
     (units : UnitDifferences {challenge | ∃ slot, decode slot = some challenge})
@@ -287,26 +287,16 @@ theorem traceTriple_extraction_le {peak peak' peak'' : ℕ} (injective : Functio
     (injective'' : Function.Injective L.block)
     (units'' : UnitDifferences L.family)
     (sparse'' : ∀ challenge ∈ L.family, Sparse L.weight peak'' challenge)
-    (statement : Statement O E) (challenge : Fin S.blocks → Rq O.carrierDegree)
-    (statement' : TraceStatement O' E) (challenge' : Fin S'.blocks → Rq S'.innerDegree)
-    (prover : OracleComp (Prefix Wire (Coord → E) total)
-      (Coord → E) (ℕ → Wire))
+    (prover : OracleComp (Prefix Wire (Option Coord → E) total)
+      (Option Coord → E) (ℕ → Wire))
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → E) total) Coord
+    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → E) total) (Option Coord)
           E budget (Structure.protocol chain).stages,
         (if tripleAccepts first second L quarter' quarter'' commit stateOf
             ((Structure.protocol chain).final prover table) ∧
           Checkpoint.extract chain prover budget table tape = none then (1 : ℝ) else 0) ≤
-      (queries + 1) * (∑ b, Tier.chance first b +
-          (foldError (lockedReduction β statement challenge μ fits batch rowsFit)
-            S.certifiedBase + ((1 + 2 * ν : ℕ) : ℝ) / Fintype.card E) +
-          (∑ b, Tier.chance second b +
-            (foldError (lockedTraceReduction statement' challenge' μ' fits' batch' rowsFit')
-              S'.certifiedBase + ((1 + 2 * ν' : ℕ) : ℝ) / Fintype.card E) +
-            S''.blocks * slotChance L.decode)) +
+      (queries + 1) * (Tier.levelError first + (Tier.levelError second + L.termError)) +
         (queries + 1) * (S.blocks + 1 + (S'.blocks + 1 + S''.blocks) : ℕ) / budget := by
-  rw [← foldCosts_sum, ← foldCosts_sum, ← tensorCosts_sum, ← tensorCosts_sum, ← List.sum_append,
-    ← List.sum_append]
   exact (traceTriple_suffix injective units sparse base small varsFit batchFit injective' units'
     sparse' base' small' varsFit' batchFit' next inside injective'' units''
     sparse'').extraction_le rfl prover bounded positive
@@ -330,10 +320,10 @@ theorem traceTriple_runs_le {peak peak' peak'' : ℕ} (injective : Function.Inje
     (injective'' : Function.Injective L.block)
     (units'' : UnitDifferences L.family)
     (sparse'' : ∀ challenge ∈ L.family, Sparse L.weight peak'' challenge)
-    (prover : OracleComp (Prefix Wire (Coord → E) total)
-      (Coord → E) (ℕ → Wire))
+    (prover : OracleComp (Prefix Wire (Option Coord → E) total)
+      (Option Coord → E) (ℕ → Wire))
     {queries : ℕ} (bounded : prover.QueryBound queries) (budget : ℕ) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → E) total) Coord
+    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → E) total) (Option Coord)
           E budget (Structure.protocol chain).stages,
         (extractRuns chain prover budget table tape : ℝ) ≤
       (2 * (S.blocks + 1) * (2 * (S'.blocks + 1) * (S''.blocks + 1)) : ℕ) +

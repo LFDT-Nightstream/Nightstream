@@ -145,37 +145,124 @@ theorem rangeCosts_nonnegative (μ b : ℕ) : ∀ cost ∈ rangeCosts E μ b, 0 
   · rw [List.eq_of_mem_replicate last]
     positivity
 
+/-- The bound of the draw of `drawBin`: `1/|E|` at a level with compression digits. -/
+noncomputable def binCosts (E : Type) [Fintype E] : Bool → List ℝ
+  | true => [((1 : ℕ) : ℝ) / Fintype.card E]
+  | false => []
+
+omit [Field E] [DecidableEq E] [Algebra Zq E] in
+theorem binCosts_sum (bin : Bool) :
+    (binCosts E bin).sum = ((binDraws bin : ℕ) : ℝ) / Fintype.card E := by
+  cases bin <;> simp [binCosts, binDraws]
+
+omit [Field E] [DecidableEq E] [Algebra Zq E] in
+theorem binCosts_nonnegative (bin : Bool) : ∀ cost ∈ binCosts E bin, 0 ≤ cost := by
+  cases bin <;> simp only [binCosts, List.mem_singleton, List.not_mem_nil, false_imp_iff,
+    implies_true, forall_eq]
+  positivity
+
+omit [Field E] [DecidableEq E] [Algebra Zq E] in
+theorem binCosts_length (bin : Bool) : (binCosts E bin).length = binDraws bin := by
+  cases bin <;> rfl
+
+/-- The losses of the sites of the Stage 1 draws of the range tree before its last stage in the
+Akita code (`transcript_grinding/plan.rs`, `append_nonterminal`), in the order of `treeCosts`: for
+each product level of degree `a`, the `μ'` rounds of the loss `a + 1` (`SumcheckRound`) and the
+powers batch of the claims of the children (`Stage1InterstageBatch`). -/
+def treeLosses (μ : ℕ) : List ℕ → ℕ → List ℕ
+  | [], _ => []
+  | a :: rest, nodes => List.replicate μ (a + 1) ++ (nodes * a - 1) :: treeLosses μ rest (nodes * a)
+
+/-- The degree of the leaf stage of the range tree in the Akita code
+(`DigitRangePlan::leaf_degree`): 2 for the base 4, and 4 for each other base. -/
+def leafDegree (b : ℕ) : ℕ := if b = 4 then 2 else 4
+
+/-- The losses of the sites of the draws of `rangeCheck` in the order of `rangeCosts`: the sites of
+`treeLosses`, and the `μ'` rounds of the leaf with the loss `leafDegree + 1`. -/
+def rangeLosses (μ b : ℕ) : List ℕ :=
+  treeLosses μ (rangeArities b) 1 ++ List.replicate μ (leafDegree b + 1)
+
+/-- The loss of the site `CompressionBinary` (1) at a level with compression digits. -/
+def binLosses : Bool → List ℕ
+  | true => [1]
+  | false => []
+
+/-- The losses of the sites of the draws of `foldCheck` in the Akita code, in the order of
+`foldCosts`: `RingSwitchAlpha` (`alpha`), `Tau0Point` (`μ'`), `Tau1Point` (`s_rel`), the Stage 1
+sites, `CompressionBinary`, `Stage2Batch` (1) and the Stage 2 rounds (3). -/
+def foldLosses (alpha vars batch base : ℕ) (bin : Bool) : List ℕ :=
+  alpha :: vars :: batch ::
+    (rangeLosses vars base ++ (binLosses bin ++ 1 :: List.replicate vars 3))
+
+omit [Field E] [DecidableEq E] [Algebra Zq E] in
+theorem treeLosses_length (μ : ℕ) : ∀ (arities : List ℕ) (nodes : ℕ),
+    (treeLosses μ arities nodes).length = (treeCosts E μ arities nodes).length := by
+  intro arities
+  induction arities with
+  | nil => intro nodes; rfl
+  | cons a rest step =>
+      intro nodes
+      simp only [treeLosses, treeCosts, List.length_append, List.length_replicate,
+        List.length_cons, step]
+
+omit [Field E] [DecidableEq E] [Algebra Zq E] in
+theorem rangeLosses_length (μ b : ℕ) : (rangeLosses μ b).length = (rangeCosts E μ b).length := by
+  simp only [rangeLosses, rangeCosts, List.length_append, List.length_replicate,
+    treeLosses_length (E := E)]
+
+theorem binLosses_length (bin : Bool) : (binLosses bin).length = binDraws bin := by
+  cases bin <;> rfl
+
 /-- The bounds of the draws of `foldCheck`, in the order of the draws: `α`, `τ_0`, `τ_1`, the
-draws of the range tree, `ζ_bin`, `γ` and the rounds of the fused sum-check (Akita (189)). -/
-noncomputable def foldCosts (E : Type) [Fintype E] (badBound vars batch base : ℕ) : List ℝ :=
+draws of the range tree, `ζ_bin` at a level with compression digits, `γ` and the rounds of the
+fused sum-check (Akita (189)). -/
+noncomputable def foldCosts (E : Type) [Fintype E] (badBound vars batch base : ℕ) (bin : Bool) :
+    List ℝ :=
   ((badBound : ℝ) / Fintype.card E) :: ((vars : ℝ) / Fintype.card E) ::
     ((batch : ℝ) / Fintype.card E) ::
-      (rangeCosts E vars base ++
-        (((1 : ℕ) : ℝ) / Fintype.card E) :: (((1 : ℕ) : ℝ) / Fintype.card E) ::
-          List.replicate vars (((3 : ℕ) : ℝ) / Fintype.card E))
+      (rangeCosts E vars base ++ (binCosts E bin ++
+        (((1 : ℕ) : ℝ) / Fintype.card E) ::
+          List.replicate vars (((3 : ℕ) : ℝ) / Fintype.card E)))
 
 omit [DecidableEq E] in
 /-- The sum of the bounds of the draws is `foldError`. -/
-theorem foldCosts_sum (R : Reduction E) (base : ℕ) :
-    (foldCosts E R.badBound R.vars R.batch base).sum = foldError R base := by
+theorem foldCosts_sum (R : Reduction E) (base : ℕ) (bin : Bool) :
+    (foldCosts E R.badBound R.vars R.batch base bin).sum = foldError R base bin := by
   simp only [foldCosts, foldError, List.sum_cons, List.sum_append, List.sum_replicate,
-    nsmul_eq_mul, rangeCosts_sum]
+    nsmul_eq_mul, rangeCosts_sum, binCosts_sum]
 
 omit [Field E] [DecidableEq E] [Algebra Zq E] in
-theorem foldCosts_nonnegative (badBound vars batch base : ℕ) :
-    ∀ cost ∈ foldCosts E badBound vars batch base, 0 ≤ cost := by
+theorem foldLosses_length (alpha badBound vars batch base : ℕ) (bin : Bool) :
+    (foldLosses alpha vars batch base bin).length =
+      (foldCosts E badBound vars batch base bin).length := by
+  simp only [foldLosses, foldCosts, List.length_cons, List.length_append, List.length_replicate,
+    rangeLosses_length (E := E), binLosses_length, binCosts_length]
+
+omit [Field E] [DecidableEq E] [Algebra Zq E] in
+theorem foldCosts_nonnegative (badBound vars batch base : ℕ) (bin : Bool) :
+    ∀ cost ∈ foldCosts E badBound vars batch base bin, 0 ≤ cost := by
   intro cost member
   simp only [foldCosts, List.mem_cons, List.mem_append, List.mem_replicate] at member
-  rcases member with rfl | rfl | rfl | range | rfl | rfl | ⟨_, rfl⟩
+  rcases member with rfl | rfl | rfl | range | binned | rfl | ⟨_, rfl⟩
   · positivity
   · positivity
   · positivity
   · exact rangeCosts_nonnegative vars base cost range
-  · positivity
+  · exact binCosts_nonnegative bin cost binned
   · positivity
   · positivity
 
 variable [Nonempty Coord]
+
+omit [DecidableEq E] [Algebra Zq E] in
+/-- The draw of `drawBin` has its bound of `binCosts`. -/
+theorem drawBin_stagedTo {β : Type} (bin : Bool) {bad : Finset E} {next : E → Game β}
+    {costs : List ℝ} {tail : β → List ℝ → Prop} (card : bad.card ≤ 1)
+    (nexts : ∀ ζ, StagedTo (Coord → E) (next ζ) costs tail) :
+    StagedTo (Coord → E) (drawBin bin bad next) (binCosts E bin ++ costs) tail := by
+  cases bin
+  · exact nexts 0
+  · exact stagedTo_draw exists_fair_slot (density_le _ 1 card) nexts
 
 /-- Each draw of `fusedCheck` has the bound `3/|E|`, and an accepted end has the entries `rest`
 after the bounds of its rounds. -/
@@ -249,12 +336,12 @@ theorem rangeCheck_stagedTo (b μ : ℕ) (support : ℕ → Prop) [DecidablePred
 `rest` after these bounds, when an answer of the oracle has `μ'` slots or more and `s_rel` slots
 or more. -/
 theorem foldCheck_stagedTo (R : Reduction E) (base : ℕ) (support : ℕ → Prop)
-    [DecidablePred support] (w : Table) (varsFit : R.vars ≤ Fintype.card Coord)
+    [DecidablePred support] (bin : Bool) (w : Table) (varsFit : R.vars ≤ Fintype.card Coord)
     (batchFit : R.batch ≤ Fintype.card Coord) (rest : List ℝ)
     (tail : Option (List E × E) → List ℝ → Prop) (rejected : ∀ costs, tail none costs)
     (ended : ∀ final, tail (some final) rest) :
-    StagedTo (Coord → E) (foldCheck R base support w)
-      (foldCosts E R.badBound R.vars R.batch base ++ rest) tail := by
+    StagedTo (Coord → E) (foldCheck R base support bin w)
+      (foldCosts E R.badBound R.vars R.batch base bin ++ rest) tail := by
   have field : ∃ decode : (Coord → E) → E, Fair decode := exists_fair_slot
   unfold foldCheck foldCosts
   simp only [List.cons_append, List.append_assoc]
@@ -266,8 +353,7 @@ theorem foldCheck_stagedTo (R : Reduction E) (base : ℕ) (support : ℕ → Pro
   refine (stagedTo_bind _ _ _ _).mpr (rangeCheck_stagedTo base R.vars support w _ _ _ ?_ ?_)
   · exact fun _ => rejected _
   rintro ⟨r, sClaim⟩
-  exact stagedTo_draw field (density_le _ 1
-    (zeros_card_le_of_natDegree_le (linePoly_natDegree _ _))) fun ζ =>
+  exact drawBin_stagedTo bin (zeros_card_le_of_natDegree_le (linePoly_natDegree _ _)) fun ζ =>
       stagedTo_draw field (density_le _ 1
         (zeros_card_le_of_natDegree_le (linePoly_natDegree _ _))) fun γ =>
           fusedCheck_stagedTo R.vars support w _ _ r sClaim ζ γ rest tail rejected ended
@@ -275,11 +361,11 @@ theorem foldCheck_stagedTo (R : Reduction E) (base : ℕ) (support : ℕ → Pro
 /-- Each draw of `foldCheck` has its bound of `foldCosts`, when an answer of the oracle has `μ'`
 slots or more and `s_rel` slots or more. -/
 theorem foldCheck_staged (R : Reduction E) (base : ℕ) (support : ℕ → Prop)
-    [DecidablePred support] (w : Table) (varsFit : R.vars ≤ Fintype.card Coord)
+    [DecidablePred support] (bin : Bool) (w : Table) (varsFit : R.vars ≤ Fintype.card Coord)
     (batchFit : R.batch ≤ Fintype.card Coord) :
-    Staged (Coord → E) (foldCheck R base support w)
-      (foldCosts E R.badBound R.vars R.batch base) := by
-  have staged := foldCheck_stagedTo R base support w varsFit batchFit [] (fun _ _ => True)
+    Staged (Coord → E) (foldCheck R base support bin w)
+      (foldCosts E R.badBound R.vars R.batch base bin) := by
+  have staged := foldCheck_stagedTo R base support bin w varsFit batchFit [] (fun _ _ => True)
     (fun _ => trivial) (fun _ => trivial)
   rwa [List.append_nil] at staged
 

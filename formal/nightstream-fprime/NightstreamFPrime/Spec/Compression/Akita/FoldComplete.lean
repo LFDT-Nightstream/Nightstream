@@ -94,8 +94,18 @@ def rangeDraws (μ b : ℕ) : ℕ := treeDraws μ μ (rangeArities b)
 def rangeWidth (b : ℕ) : ℕ := max (rangeLeaf b + 1 + 1) (treeWidth (rangeArities b) 1)
 
 /-- The number of the draws of `foldCheck`: `α`, `τ_0`, `τ_1`, the draws of the range tree,
-`ζ_bin`, `γ` and the `μ'` rounds of the fused sum-check. -/
-def foldDraws (μ b : ℕ) : ℕ := 0 + μ + 1 + 1 + rangeDraws μ b + 1 + 1 + 1
+`ζ_bin` at a level with compression digits, `γ` and the `μ'` rounds of the fused sum-check. -/
+def foldDraws (μ b : ℕ) (bin : Bool) : ℕ := 0 + μ + 1 + binDraws bin + rangeDraws μ b + 1 + 1 + 1
+
+omit [DecidableEq E] [Algebra Zq E] in
+/-- The prover wins after `drawBin` when it wins for each coefficient `ζ_bin`. -/
+theorem drawBin_winsTo {β : Type} (bin : Bool) {bad : Finset E} {next : E → Game β} {rest : ℕ}
+    {fresh : Bool} {tail : β → ℕ → Bool → Prop}
+    (each : ∀ ζ fresh, WinsTo fits (next ζ) rest fresh tail) :
+    WinsTo fits (drawBin bin bad next) (rest + binDraws bin) fresh tail := by
+  cases bin
+  · exact each 0 fresh
+  · exact fun ζ => each ζ true
 
 omit [Fintype E] [DecidableEq E] [Algebra Zq E] in
 theorem entry_of {n i : ℕ} (f : ℕ → E) (inside : i < n) :
@@ -202,15 +212,18 @@ sum-check. A message is one element of `E`, the coefficients of one round polyno
 claims of the children of one level of the range tree. -/
 theorem foldCheck_winsTo (R : Reduction E) (b : ℕ) (scalar : fits E)
     (range : ∀ n, n ≤ rangeWidth b → fits (Fin n → E)) (cubic : fits (Fin (3 + 1) → E))
-    (support : ℕ → Prop) [DecidablePred support] {w : Table} (holds : R.Holds w)
+    (support : ℕ → Prop) [DecidablePred support] {bin : Bool} {w : Table} (holds : R.Holds w)
     (ranged : RangeHolds b R.vars w) (binary : BinaryOn support R.vars w) :
-    WinsTo fits (foldCheck R b support w) (foldDraws R.vars b) true
+    WinsTo fits (foldCheck R b support bin w) (foldDraws R.vars b bin) true
       fun result _ _ =>
         ∃ r2 : List E, r2.length = R.vars ∧ result = some (r2, mle r2 (lifted E w)) := by
   intro α τ0 τ1
   refine (winsTo_bind fits _ _ _ _ _).mpr (rangeCheck_winsTo fits scalar b R.vars range support
-    ranged (List.ofFn τ0) List.length_ofFn (0 + R.vars + 1 + 1) _ fun final length => ?_)
-  intro ζ γ
+    ranged (List.ofFn τ0) List.length_ofFn (0 + R.vars + 1 + binDraws bin) _
+    fun final length => ?_)
+  dsimp only
+  refine drawBin_winsTo (E := E) fits bin fun ζ fresh => ?_
+  intro γ
   refine fusedCheck_winsTo fits scalar cubic R.vars support w _ _ final _ ζ γ 0 ?_
   have virt := fusedTruth_virt support w ((R.rows α).batchWeight (List.ofFn τ1)) final γ ζ
   rw [length] at virt
@@ -230,14 +243,15 @@ theorem foldCheck_winsTo (R : Reduction E) (b : ℕ) (scalar : fits E)
 range statement and the binary statement, a strategy of the prover reaches the claim
 `(r_2, w̃(r_2))` with probability 1. -/
 theorem foldCheck_complete (R : Reduction E) (b : ℕ) (support : ℕ → Prop)
-    [DecidablePred support] {w : Table} (holds : R.Holds w) (ranged : RangeHolds b R.vars w)
+    [DecidablePred support] (bin : Bool) {w : Table} (holds : R.Holds w) (ranged : RangeHolds b
+      R.vars w)
     (binary : BinaryOn support R.vars w) :
     ∃ strategy : Strategy (Option (List E × E)),
-      prob strategy (foldCheck R b support w) (fun result =>
+      prob strategy (foldCheck R b support bin w) (fun result =>
         ∃ r2 : List E, r2.length = R.vars ∧ result = some (r2, mle r2 (lifted E w))) = 1 :=
   ⟨_, prob_honest (fun _ => True)
-    (foldCheck_winsTo (fun _ => True) R b trivial (fun _ _ => trivial) trivial support holds ranged
-      binary)
+    (foldCheck_winsTo (fun _ => True) R b trivial (fun _ _ => trivial) trivial support holds
+      ranged binary)
     fun _ _ _ ended => ended⟩
 
 end NightstreamFPrime.Spec.Compression.Akita

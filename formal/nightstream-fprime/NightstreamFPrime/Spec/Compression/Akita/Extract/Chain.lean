@@ -8,7 +8,7 @@ with (206)).
 
 - `committedFold` is the `Tier` of a packing fold whose flat witness the next level commits to:
   the source is a table, the digit vectors are `OpeningShape.ofFlat`, and the checks are
-  `foldCheck` for the quotient-free reduction of `lockedRelation`.
+  `foldCheck` for the quotient-free reduction of `flatRelation`.
 - `clearFold` is the `Tier` of a last packing fold, whose proof has the digit vectors in the
   clear: the checks are `foldCheck` for the quotient-free reduction of `flatRelation`. With the
   first stage 0, `clearFold_suffix` and `Tier.Suffix.extraction_le` are the extraction theorem of
@@ -46,11 +46,11 @@ variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {E : Type} [Field 
 /-- A packing fold for one claim whose flat witness the next level commits to, as a `Tier` with
 the first stage `start`. A slot of an answer of the oracle is one uniform element of `E`. The
 successor source is a table, `OpeningShape.ofFlat` gives its digit vectors, and the checks are
-`foldCheck` for the quotient-free reduction of `lockedRelation`. A final claim `(r_2, v_W)` is
+`foldCheck` for the quotient-free reduction of `flatRelation`. A final claim `(r_2, v_W)` is
 true for a table `w` when `v_W = w̃(r_2)`. -/
 noncomputable def committedFold (β : Module.Basis (Fin O.planes) Zq E) (key : Key S)
-    (openKey : OpeningKey O) (claim : Wire → Claim O E) (μ : ℕ) (fits : O.cells fold < 2 ^ μ)
-    (batch : ℕ) (rowsFit : O.rowCount + 1 + 1 ≤ 2 ^ batch) (block : Fin S.blocks → Coord)
+    (openKey : OpeningKey O) (claim : Wire → Claim O E) (μ : ℕ) (fits : O.cells fold ≤ 2 ^ μ)
+    (batch : ℕ) (rowsFit : O.rowCount + 1 ≤ 2 ^ batch) (block : Fin S.blocks → Coord)
     (decode : E → Option (Rq O.carrierDegree)) (read : Reader Wire) (weight start : ℕ) :
     Tier (Fin S.blocks) (fun _ => Rq O.carrierDegree) (Claim O E)
       (LevelBreak key openKey (2 * (2 * weight) * fold.sourceBound S)) (Witness O fold) (Weak O)
@@ -58,15 +58,18 @@ noncomputable def committedFold (β : Module.Basis (Fin O.planes) Zq E) (key : K
       (Option (List E × E)) Table where
   method := packing β key openKey weight
   claim := claim
-  block := block
+  block b := some (block b)
   decode := fun _ => decode
   read := read
   digits := O.ofFlat fold
   check wire challenge table :=
-    foldCheck (lockedReduction β ((claim wire).statement key openKey) challenge μ fits batch
-      rowsFit) S.certifiedBase (O.binarySupport fold) table
+    foldCheck (flatReduction β ((claim wire).statement key openKey) challenge μ fits batch
+      rowsFit) S.certifiedBase (O.binarySupport fold) (O.compressed fold) table
   passes table result := ∃ r2 v, result = some (r2, v) ∧ v = mle r2 (lifted E table)
-  costs := foldCosts E (O.largestDegree - 1) μ batch S.certifiedBase
+  costs := foldCosts E (O.largestDegree - 1) μ batch S.certifiedBase (O.compressed fold)
+  bits := (foldLosses (2 * S.innerDegree - 1) μ batch S.certifiedBase (O.compressed fold)).map
+    workBits
+  foldBits := foldWorkBits S.blocks (setBits false O.carrierDegree)
   start := start
 
 /-- A last packing fold for one claim, as a `Tier` with the first stage `start`. The successor
@@ -74,7 +77,7 @@ source is the family of the digit vectors, which the proof has in the clear, and
 `foldCheck` for the quotient-free reduction of `flatRelation` and the flat witness of the digit
 vectors. A final claim `(r_2, v_W)` is true when `v_W = w̃(r_2)` for this flat witness. -/
 noncomputable def clearFold (β : Module.Basis (Fin O.planes) Zq E) (key : Key S)
-    (openKey : OpeningKey O) (claim : Wire → Claim O E) (μ : ℕ) (fits : O.cells fold < 2 ^ μ)
+    (openKey : OpeningKey O) (claim : Wire → Claim O E) (μ : ℕ) (fits : O.cells fold ≤ 2 ^ μ)
     (batch : ℕ) (rowsFit : O.rowCount + 1 ≤ 2 ^ batch) (block : Fin S.blocks → Coord)
     (decode : E → Option (Rq O.carrierDegree)) (read : Reader Wire) (weight start : ℕ) :
     Tier (Fin S.blocks) (fun _ => Rq O.carrierDegree) (Claim O E)
@@ -83,20 +86,23 @@ noncomputable def clearFold (β : Module.Basis (Fin O.planes) Zq E) (key : Key S
       (Option (List E × E)) (Witness O fold) where
   method := packing β key openKey weight
   claim := claim
-  block := block
+  block b := some (block b)
   decode := fun _ => decode
   read := read
   digits candidate := candidate
   check wire challenge candidate :=
     foldCheck (flatReduction β ((claim wire).statement key openKey) challenge μ fits batch
-      rowsFit) S.certifiedBase (O.binarySupport fold) candidate.flat
+      rowsFit) S.certifiedBase (O.binarySupport fold) (O.compressed fold) candidate.flat
   passes candidate result :=
     ∃ r2 v, result = some (r2, v) ∧ v = mle r2 (lifted E candidate.flat)
-  costs := foldCosts E (O.largestDegree - 1) μ batch S.certifiedBase
+  costs := foldCosts E (O.largestDegree - 1) μ batch S.certifiedBase (O.compressed fold)
+  bits := (foldLosses (2 * S.innerDegree - 1) μ batch S.certifiedBase (O.compressed fold)).map
+    workBits
+  foldBits := foldWorkBits S.blocks (setBits false O.carrierDegree)
   start := start
 
 variable {β : Module.Basis (Fin O.planes) Zq E} {key : Key S} {openKey : OpeningKey O}
-  {claim : Wire → Claim O E} {μ : ℕ} {fits : O.cells fold < 2 ^ μ} {batch : ℕ}
+  {claim : Wire → Claim O E} {μ : ℕ} {fits : O.cells fold ≤ 2 ^ μ} {batch : ℕ}
   {block : Fin S.blocks → Coord} {decode : E → Option (Rq O.carrierDegree)} {read : Reader Wire}
   {weight start : ℕ}
 
@@ -104,7 +110,7 @@ variable {β : Module.Basis (Fin O.planes) Zq E} {key : Key S} {openKey : Openin
 blocks have different coordinates, the challenge family has units as differences (Akita
 Definition 9.2, E1) and members with `‖c‖_1 = ω`, `b_z ≥ 2`, `b⋆ < q`, and an answer of the oracle
 has `μ'` slots or more and `s_rel` slots or more. -/
-theorem committedFold_valid [Nonempty Coord] {rowsFit : O.rowCount + 1 + 1 ≤ 2 ^ batch}
+theorem committedFold_valid [Nonempty Coord] {rowsFit : O.rowCount + 1 ≤ 2 ^ batch}
     {peak : ℕ} (injective : Function.Injective block)
     (units : UnitDifferences {challenge | ∃ slot, decode slot = some challenge})
     (sparse : ∀ challenge, (∃ slot, decode slot = some challenge) → Sparse weight peak challenge)
@@ -112,18 +118,21 @@ theorem committedFold_valid [Nonempty Coord] {rowsFit : O.rowCount + 1 + 1 ≤ 2
     (varsFit : μ ≤ Fintype.card Coord) (batchFit : batch ≤ Fintype.card Coord) :
     (committedFold β key openKey claim μ fits batch rowsFit block decode read weight
       start).Valid where
-  injective := injective
+  injective := (Option.some_injective _).comp injective
+  avoid _ := Option.some_ne_none _
   merges := packing_sound units sparse base
   sound wire challenge table :=
-    (lockedFold_satisfies β ((claim wire).statement key openKey) challenge μ fits small batch
+    (tableFold_satisfies β ((claim wire).statement key openKey) challenge μ fits small batch
       rowsFit table).mono fun _ implies passed => by
         obtain ⟨r2, v, ended, opened⟩ := passed
         exact implies r2 v ended opened
   staged wire challenge table :=
-    foldCheck_staged (lockedReduction β ((claim wire).statement key openKey) challenge μ fits
-      batch rowsFit) S.certifiedBase (O.binarySupport fold) table varsFit batchFit
-  nonnegative := foldCosts_nonnegative _ _ _ _
+    foldCheck_staged (flatReduction β ((claim wire).statement key openKey) challenge μ fits
+      batch rowsFit) S.certifiedBase (O.binarySupport fold) (O.compressed fold) table varsFit
+        batchFit
+  nonnegative := foldCosts_nonnegative _ _ _ _ _
   draws := by simp [committedFold, foldCosts]
+  aligned := (List.length_map ..).trans (foldLosses_length ..)
 
 /-- A last packing fold satisfies the conditions of `Tier.Valid`, with the hypotheses of
 `committedFold_valid`. -/
@@ -135,7 +144,8 @@ theorem clearFold_valid [Nonempty Coord] {rowsFit : O.rowCount + 1 ≤ 2 ^ batch
     (varsFit : μ ≤ Fintype.card Coord) (batchFit : batch ≤ Fintype.card Coord) :
     (clearFold β key openKey claim μ fits batch rowsFit block decode read weight
       start).Valid where
-  injective := injective
+  injective := (Option.some_injective _).comp injective
+  avoid _ := Option.some_ne_none _
   merges := packing_sound units sparse base
   sound wire challenge candidate :=
     (flatFold_satisfies β ((claim wire).statement key openKey) challenge μ fits small batch
@@ -144,23 +154,25 @@ theorem clearFold_valid [Nonempty Coord] {rowsFit : O.rowCount + 1 ≤ 2 ^ batch
         exact implies r2 v ended opened
   staged wire challenge candidate :=
     foldCheck_staged (flatReduction β ((claim wire).statement key openKey) challenge μ fits
-      batch rowsFit) S.certifiedBase (O.binarySupport fold) candidate.flat varsFit batchFit
-  nonnegative := foldCosts_nonnegative _ _ _ _
+      batch rowsFit) S.certifiedBase (O.binarySupport fold) (O.compressed fold) candidate.flat
+        varsFit batchFit
+  nonnegative := foldCosts_nonnegative _ _ _ _ _
   draws := by simp [clearFold, foldCosts]
+  aligned := (List.length_map ..).trans (foldLosses_length ..)
 
 omit [Fintype Coord] [DecidableEq Coord] in
 /-- The verifier of the checks of a committed packing fold does not read the table. -/
-theorem committedFold_uniform {rowsFit : O.rowCount + 1 + 1 ≤ 2 ^ batch} (wire : Wire)
+theorem committedFold_uniform {rowsFit : O.rowCount + 1 ≤ 2 ^ batch} (wire : Wire)
     (challenge : Fin S.blocks → Rq O.carrierDegree) (table other : Table) :
     bare ((committedFold β key openKey claim μ fits batch rowsFit block decode read weight
         start).check wire challenge table) =
       bare ((committedFold β key openKey claim μ fits batch rowsFit block decode read weight
         start).check wire challenge other) :=
-  foldCheck_bare _ _ _ table other
+  foldCheck_bare _ _ _ _ table other
 
 section Suffixes
 
-variable [Nonempty Coord] {total : ℕ} {accept : Prefix Wire (Coord → E) total → Prop}
+variable [Nonempty Coord] {total : ℕ} {accept : Prefix Wire (Option Coord → E) total → Prop}
   {Inner BreakT CandT KeyT : Type}
 
 /-- Akita Proposition 10.44 for one more level: a committed packing fold over the suffix of the
@@ -178,16 +190,16 @@ theorem committedFold_suffix {S' : Shape} {O' : OpeningShape S'} {fold' : Descri
       (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S')) (Witness O' fold')
         (Weak O') Wire Coord E Result'
       Source'}
-    {tail : Structure (Prefix Wire (Coord → E) total) Coord E (ℕ → Wire) Inner BreakT CandT KeyT
+    {tail : Structure (Prefix Wire (Option Coord → E) total) (Option Coord) E (ℕ → Wire) Inner
+      BreakT CandT KeyT
       (Option (Weak O'))}
     {error : ℝ} {loops tree : ℕ}
-    {rowsFit : O.rowCount + 1 + 1 ≤ 2 ^ batch} {peak : ℕ}
+    {rowsFit : O.rowCount + 1 ≤ 2 ^ batch} {peak : ℕ}
     (injective : Function.Injective block)
     (units : UnitDifferences {challenge | ∃ slot, decode slot = some challenge})
     (sparse : ∀ challenge, (∃ slot, decode slot = some challenge) → Sparse weight peak challenge)
     (base : 2 ≤ fold.responseBase) (small : S.certifiedBase < fieldModulus)
     (varsFit : μ ≤ Fintype.card Coord) (batchFit : batch ≤ Fintype.card Coord)
-    (statement : Statement O E) (challenge : Fin S.blocks → Rq O.carrierDegree)
     (packed : N.method = packing β' key' openKey' weight')
     (next : N.start =
       (committedFold β key openKey claim μ fits batch rowsFit block decode read weight
@@ -208,12 +220,10 @@ theorem committedFold_suffix {S' : Shape} {O' : OpeningShape S'} {fold' : Descri
         start).over accept tail (fun inner => tableOf (tail.witness inner))
         (fun inner other => embed (Tier.collide key' openKey'
           (2 * (2 * weight') * fold'.sourceBound S') (tail.witness inner) (tail.witness other))))
-      (∑ b, (committedFold β key openKey claim μ fits batch rowsFit block decode read weight
-          start).chance b +
-        foldError (lockedReduction β statement challenge μ fits batch rowsFit) S.certifiedBase +
+      ((committedFold β key openKey claim μ fits batch rowsFit block decode read weight
+          start).levelError +
         error)
       (S.blocks + 1 + loops) (2 * (S.blocks + 1) * tree) := by
-  rw [← foldCosts_sum]
   exact Tier.suffix_push (Fintype.card_fin _)
     (committedFold_valid injective units sparse base small varsFit batchFit) packed next commit
     inside committedFold_uniform (fun _ r2 v opened => ⟨r2, v, rfl, opened⟩) linked embed
@@ -229,7 +239,6 @@ theorem clearFold_suffix {rowsFit : O.rowCount + 1 ≤ 2 ^ batch} {peak : ℕ}
     (sparse : ∀ challenge, (∃ slot, decode slot = some challenge) → Sparse weight peak challenge)
     (base : 2 ≤ fold.responseBase) (small : S.certifiedBase < fieldModulus)
     (varsFit : μ ≤ Fintype.card Coord) (batchFit : batch ≤ Fintype.card Coord)
-    (statement : Statement O E) (challenge : Fin S.blocks → Rq O.carrierDegree)
     (witnessOf : Wire → Witness O fold)
     (inside : (clearFold β key openKey claim μ fits batch rowsFit block decode read weight
       start).finish ≤ total)
@@ -241,11 +250,9 @@ theorem clearFold_suffix {rowsFit : O.rowCount + 1 ≤ 2 ^ batch} {peak : ℕ}
       ((clearFold β key openKey claim μ fits batch rowsFit block decode read weight start).over
         accept (finish (transcript total accept))
         (fun point => witnessOf (point.wire (start + 1))) (fun _ _ => ()))
-      (∑ b, (clearFold β key openKey claim μ fits batch rowsFit block decode read weight
-          start).chance b +
-        foldError (flatReduction β statement challenge μ fits batch rowsFit) S.certifiedBase)
+      ((clearFold β key openKey claim μ fits batch rowsFit block decode read weight
+          start).levelError)
       (S.blocks + 1) (2 * (S.blocks + 1)) := by
-  rw [← foldCosts_sum]
   exact Tier.suffix_last (Fintype.card_fin _) (clearFold_valid injective units sparse base small
     varsFit batchFit)
     witnessOf inside passed
@@ -272,13 +279,13 @@ variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {S' : Shape} {O' :
 /-- The verifier of two levels: the level `T` with the link `Tier.Linked` to the claim of the
 last level `N`, and the checks of `N` with a final claim that is true for the source `sourceOf`
 of the proof. -/
-def pairAccepts (point : Prefix Wire (Coord → Slot) N.finish) : Prop :=
+def pairAccepts (point : Prefix Wire (Option Coord → Slot) N.finish) : Prop :=
   T.Linked N commit point ∧ N.Passed (sourceOf (point.wire (N.start + 1))) point
 
 /-- The checkpoint structure of the last level `N` of two levels. -/
 noncomputable def pairLast :
-    Structure (Prefix Wire (Coord → Slot) N.finish) Coord Slot (ℕ → Wire)
-      (Opened (Weak O') (Prefix Wire (Coord → Slot) N.finish))
+    Structure (Prefix Wire (Option Coord → Slot) N.finish) (Option Coord) Slot (ℕ → Wire)
+      (Opened (Weak O') (Prefix Wire (Option Coord → Slot) N.finish))
       (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S') ⊕ Unit)
       (Source' ⊕ Unit) ((Σ _ : Fin S'.blocks, Rq O'.carrierDegree) ⊕ Unit) (Option (Weak O')) :=
   N.over (pairAccepts T N commit sourceOf)
@@ -289,8 +296,8 @@ noncomputable def pairLast :
 flat witness the last level `N` commits to). A witness of `R_bind` is a solution of Module-SIS
 for `B`, `D` or a compression map of `T`, or for `A`, `B`, `D` or a compression map of `N`. -/
 noncomputable def pair :
-    Structure (Prefix Wire (Coord → Slot) N.finish) Coord Slot (ℕ → Wire)
-      (Opened (Weak O) (Opened (Weak O') (Prefix Wire (Coord → Slot) N.finish)))
+    Structure (Prefix Wire (Option Coord → Slot) N.finish) (Option Coord) Slot (ℕ → Wire)
+      (Opened (Weak O) (Opened (Weak O') (Prefix Wire (Option Coord → Slot) N.finish)))
       (Brk ⊕ (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S') ⊕ Unit))
       (Table ⊕ (Source' ⊕ Unit))
       ((Σ _ : Fin S.blocks, Ring) ⊕ ((Σ _ : Fin S'.blocks, Rq O'.carrierDegree) ⊕ Unit))
@@ -312,7 +319,7 @@ theorem pair_suffix (valid : T.Valid) (valid' : N.Valid)
       bare (T.check wire challenge table) = bare (T.check wire challenge other))
     (passes : ∀ (table : Table) r2 v, v = mle r2 (lifted E table) → T.passes table (some (r2, v))) :
     Tier.Suffix (pairAccepts T N commit sourceOf) T.start T.Opens (pair T N commit sourceOf)
-      (∑ b, T.chance b + T.costs.sum + (∑ b, N.chance b + N.costs.sum))
+      (T.levelError + N.levelError)
       (S.blocks + 1 + (S'.blocks + 1)) (2 * (S.blocks + 1) * (2 * (S'.blocks + 1))) :=
   Tier.suffix_push (Fintype.card_fin _) valid packed next commit
     (by
@@ -333,11 +340,11 @@ variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {S' : Shape} {O' :
   {fold' : Descriptor} {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E]
   {Wire Coord : Type} [Fintype Coord] [DecidableEq Coord] [Nonempty Coord]
   {β : Module.Basis (Fin O.planes) Zq E} {key : Key S} {openKey : OpeningKey O}
-  {claim : Wire → Claim O E} {μ : ℕ} {fits : O.cells fold < 2 ^ μ} {batch : ℕ}
-  {rowsFit : O.rowCount + 1 + 1 ≤ 2 ^ batch} {block : Fin S.blocks → Coord}
+  {claim : Wire → Claim O E} {μ : ℕ} {fits : O.cells fold ≤ 2 ^ μ} {batch : ℕ}
+  {rowsFit : O.rowCount + 1 ≤ 2 ^ batch} {block : Fin S.blocks → Coord}
   {decode : E → Option (Rq O.carrierDegree)} {read : Reader Wire} {weight : ℕ}
   {β' : Module.Basis (Fin O'.planes) Zq E} {key' : Key S'} {openKey' : OpeningKey O'}
-  {claim' : Wire → Claim O' E} {μ' : ℕ} {fits' : O'.cells fold' < 2 ^ μ'} {batch' : ℕ}
+  {claim' : Wire → Claim O' E} {μ' : ℕ} {fits' : O'.cells fold' ≤ 2 ^ μ'} {batch' : ℕ}
   {rowsFit' : O'.rowCount + 1 ≤ 2 ^ batch'} {block' : Fin S'.blocks → Coord}
   {decode' : E → Option (Rq O'.carrierDegree)} {weight' : ℕ} {commit : Wire → S'.Payload}
   {witnessOf : Wire → Witness O' fold'}
@@ -364,8 +371,8 @@ theorem packingPair_suffix {peak peak' : ℕ} (injective : Function.Injective bl
     (base' : 2 ≤ fold'.responseBase) (small' : S'.certifiedBase < fieldModulus)
     (varsFit' : μ' ≤ Fintype.card Coord) (batchFit' : batch' ≤ Fintype.card Coord) :
     Tier.Suffix (pairAccepts first second commit witnessOf) 0 (Tier.Opens first) chain
-      (∑ b, Tier.chance first b + (Tier.costs first).sum +
-        (∑ b, Tier.chance second b + (Tier.costs second).sum))
+      (Tier.levelError first +
+        (Tier.levelError second))
       (S.blocks + 1 + (S'.blocks + 1)) (2 * (S.blocks + 1) * (2 * (S'.blocks + 1))) :=
   pair_suffix (committedFold_valid injective units sparse base small varsFit batchFit)
     (clearFold_valid injective' units' sparse' base' small' varsFit' batchFit') rfl rfl
@@ -388,11 +395,13 @@ theorem packingPair_extract_sound {peak peak' : ℕ} (injective : Function.Injec
       Sparse weight' peak' challenge)
     (base' : 2 ≤ fold'.responseBase) (small' : S'.certifiedBase < fieldModulus)
     (varsFit' : μ' ≤ Fintype.card Coord) (batchFit' : batch' ≤ Fintype.card Coord)
-    (prover : OracleComp (Prefix Wire (Coord → E) (Tier.finish second)) (Coord → E) (ℕ → Wire))
-    (budget : ℕ) (table : Prefix Wire (Coord → E) (Tier.finish second) → Coord → E)
-    (tape : Tape (Prefix Wire (Coord → E) (Tier.finish second)) Coord E budget
+    (prover : OracleComp (Prefix Wire (Option Coord → E) (Tier.finish second)) (Option Coord → E)
+      (ℕ → Wire))
+    (budget : ℕ) (table : Prefix Wire (Option Coord → E) (Tier.finish second) → Option Coord → E)
+    (tape : Tape (Prefix Wire (Option Coord → E) (Tier.finish second)) (Option Coord) E budget
       (Structure.protocol chain).stages)
-    (out : Opened (Weak O) (Opened (Weak O') (Prefix Wire (Coord → E) (Tier.finish second))) ⊕
+    (out : Opened (Weak O) (Opened (Weak O') (Prefix Wire (Option Coord → E) (Tier.finish second)))
+      ⊕
       (LevelBreak key openKey (2 * (2 * weight) * fold.sourceBound S) ⊕
         (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S') ⊕ Unit)))
     (result : Checkpoint.extract chain prover budget table tape = some out) :
@@ -432,23 +441,20 @@ theorem packingPair_extraction_le {peak peak' : ℕ} (injective : Function.Injec
       Sparse weight' peak' challenge)
     (base' : 2 ≤ fold'.responseBase) (small' : S'.certifiedBase < fieldModulus)
     (varsFit' : μ' ≤ Fintype.card Coord) (batchFit' : batch' ≤ Fintype.card Coord)
-    (statement : Statement O E) (challenge : Fin S.blocks → Rq O.carrierDegree)
-    (statement' : Statement O' E) (challenge' : Fin S'.blocks → Rq O'.carrierDegree)
-    (prover : OracleComp (Prefix Wire (Coord → E) (Tier.finish second)) (Coord → E) (ℕ → Wire))
+
+
+    (prover : OracleComp (Prefix Wire (Option Coord → E) (Tier.finish second)) (Option Coord → E)
+      (ℕ → Wire))
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → E) (Tier.finish second)) Coord E budget
+    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → E) (Tier.finish second)) (Option Coord) E
+      budget
           (Structure.protocol chain).stages,
         (if pairAccepts first second commit witnessOf
             ((Structure.protocol chain).final prover table) ∧
           Checkpoint.extract chain prover budget table tape = none then (1 : ℝ) else 0) ≤
-      (queries + 1) * (∑ b, Tier.chance first b +
-          foldError (lockedReduction β statement challenge μ fits batch rowsFit)
-            S.certifiedBase +
-          (∑ b, Tier.chance second b +
-            foldError (flatReduction β' statement' challenge' μ' fits' batch' rowsFit')
-              S'.certifiedBase)) +
+      (queries + 1) * (Tier.levelError first +
+          (Tier.levelError second)) +
         (queries + 1) * (S.blocks + 1 + (S'.blocks + 1) : ℕ) / budget := by
-  rw [← foldCosts_sum, ← foldCosts_sum]
   exact (packingPair_suffix injective units sparse base small varsFit batchFit injective' units'
     sparse' base' small' varsFit' batchFit').extraction_le rfl prover bounded positive
 
@@ -466,9 +472,11 @@ theorem packingPair_runs_le {peak peak' : ℕ} (injective : Function.Injective b
       Sparse weight' peak' challenge)
     (base' : 2 ≤ fold'.responseBase) (small' : S'.certifiedBase < fieldModulus)
     (varsFit' : μ' ≤ Fintype.card Coord) (batchFit' : batch' ≤ Fintype.card Coord)
-    (prover : OracleComp (Prefix Wire (Coord → E) (Tier.finish second)) (Coord → E) (ℕ → Wire))
+    (prover : OracleComp (Prefix Wire (Option Coord → E) (Tier.finish second)) (Option Coord → E)
+      (ℕ → Wire))
     {queries : ℕ} (bounded : prover.QueryBound queries) (budget : ℕ) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → E) (Tier.finish second)) Coord E budget
+    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → E) (Tier.finish second)) (Option Coord) E
+      budget
           (Structure.protocol chain).stages,
         (extractRuns chain prover budget table tape : ℝ) ≤
       (2 * (S.blocks + 1) * (2 * (S'.blocks + 1)) : ℕ) +

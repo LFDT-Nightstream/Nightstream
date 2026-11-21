@@ -243,6 +243,106 @@ kernel void production_ajtai_matrix(
     }
 }
 
+inline void update_coefficient_chunk(thread simdgroup_float8x8 &sum, const thread simdgroup_half8x8 &bytes,
+        threadgroup half *shifts, uint coefficient, uint chunk) {
+    simdgroup_half8x8 window;
+    uint start = 64 + 8 * chunk - (coefficient + 7);
+    simdgroup_load(window, shifts + start, 1);
+    simdgroup_multiply_accumulate(sum, window, bytes, sum);
+}
+inline void write_column_partials(threadgroup const float (*sums)[5][8][8],
+                                  device ulong *output, uint coordinate) {
+    uint chunk = coordinate / 8;
+    uint lane = coordinate % 8;
+    HalfSums positive = {0, 0};
+    HalfSums negative = {0, 0};
+    for (uint byte = 0; byte < 4; ++byte) {
+        int low = 0;
+        int high = 0;
+        for (uint slice = 0; slice < 8; ++slice) {
+            low += int(sums[slice][chunk][lane][byte]);
+            high += int(sums[slice][chunk][lane][4 + byte]);
+        }
+        positive.lo += ulong(max(low, 0)) << (8 * byte);
+        positive.hi += ulong(max(high, 0)) << (8 * byte);
+        negative.lo += ulong(max(-low, 0)) << (8 * byte);
+        negative.hi += ulong(max(-high, 0)) << (8 * byte);
+    }
+    output[coordinate] = fq_sub(half_sums_reduce(positive), half_sums_reduce(negative));
+}
+
+kernel void production_ajtai_column_groups(
+    device const uchar *key [[buffer(0)]],
+    device const ulong2 *masks [[buffer(1)]],
+    device const ulong *shape [[buffer(2)]],
+    device ulong *partials [[buffer(3)]],
+    device const uint *key_columns [[buffer(4)]],
+    uint group [[threadgroup_position_in_grid]],
+    uint thread_index [[thread_index_in_threadgroup]],
+    uint simd_group [[simdgroup_index_in_threadgroup]],
+    uint lane [[thread_index_in_simdgroup]]) {
+    threadgroup union {
+        half inputs[8][640];
+        float outputs[8][5][8][8];
+    } scratch;
+    threadgroup half *key_data = scratch.inputs[simd_group];
+    threadgroup half *signed_shifts = key_data + 512;
+    simdgroup_float8x8 sum0 = make_filled_simdgroup_matrix<float, 8, 8>(0.0f);
+    simdgroup_float8x8 sum1 = make_filled_simdgroup_matrix<float, 8, 8>(0.0f);
+    simdgroup_float8x8 sum2 = make_filled_simdgroup_matrix<float, 8, 8>(0.0f);
+    simdgroup_float8x8 sum3 = make_filled_simdgroup_matrix<float, 8, 8>(0.0f);
+    simdgroup_float8x8 sum4 = make_filled_simdgroup_matrix<float, 8, 8>(0.0f);
+    simdgroup_float8x8 sum5 = make_filled_simdgroup_matrix<float, 8, 8>(0.0f);
+    simdgroup_float8x8 sum6 = make_filled_simdgroup_matrix<float, 8, 8>(0.0f);
+    simdgroup_float8x8 sum7 = make_filled_simdgroup_matrix<float, 8, 8>(0.0f);
+    uint span = uint(shape[3]);
+    uint first = group * span;
+    uint end = min(uint(shape[0]), first + span);
+    for (uint position = first + simd_group; position < end; position += 8) {
+        device const uchar *element = key + ulong(key_columns[position]) * 512;
+        for (uint byte = lane; byte < 512; byte += 32) {
+            uint reversed_coefficient = (byte / 8) ^ 7;
+            key_data[8 * reversed_coefficient + byte % 8] = half(element[byte]);
+        }
+        ulong2 digits = masks[position];
+        for (uint bit = lane; bit < 64; bit += 32) {
+            half digit = half(int((digits.x >> bit) & 1) - int((digits.y >> bit) & 1));
+            signed_shifts[64 + bit] = digit;
+            signed_shifts[bit] = -digit;
+        }
+        simdgroup_barrier(mem_flags::mem_threadgroup);
+        for (uint coefficient = 0; coefficient < 64; coefficient += 8) {
+            simdgroup_half8x8 bytes;
+            simdgroup_load(bytes, key_data + 8 * coefficient, 8);
+            update_coefficient_chunk(sum0, bytes, signed_shifts, coefficient, 0);
+            update_coefficient_chunk(sum1, bytes, signed_shifts, coefficient, 1);
+            update_coefficient_chunk(sum2, bytes, signed_shifts, coefficient, 2);
+            update_coefficient_chunk(sum3, bytes, signed_shifts, coefficient, 3);
+            update_coefficient_chunk(sum4, bytes, signed_shifts, coefficient, 4);
+            update_coefficient_chunk(sum5, bytes, signed_shifts, coefficient, 5);
+            update_coefficient_chunk(sum6, bytes, signed_shifts, coefficient, 6);
+            update_coefficient_chunk(sum7, bytes, signed_shifts, coefficient, 7);
+        }
+        simdgroup_barrier(mem_flags::mem_threadgroup);
+    }
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    simdgroup_store(sum0, &scratch.outputs[simd_group][0][0][0], 8);
+    simdgroup_store(sum1, &scratch.outputs[simd_group][1][0][0], 8);
+    simdgroup_store(sum2, &scratch.outputs[simd_group][2][0][0], 8);
+    simdgroup_store(sum3, &scratch.outputs[simd_group][3][0][0], 8);
+    simdgroup_store(sum4, &scratch.outputs[simd_group][4][0][0], 8);
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    if (thread_index < 40)
+        write_column_partials(scratch.outputs, partials + group * 64, thread_index);
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    simdgroup_store(sum5, &scratch.outputs[simd_group][0][0][0], 8);
+    simdgroup_store(sum6, &scratch.outputs[simd_group][1][0][0], 8);
+    simdgroup_store(sum7, &scratch.outputs[simd_group][2][0][0], 8);
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    if (thread_index < 24)
+        write_column_partials(scratch.outputs, partials + group * 64 + 40, thread_index);
+}
+
 kernel void production_ajtai_sum_groups(
     device const ulong *partials [[buffer(0)]],
     device const ulong *shape [[buffer(1)]],

@@ -214,46 +214,51 @@ fn production_commitment_cost_per_witness() {
 #[test]
 fn matrix_commitment_accumulates_full_positive_and_negative_byte_limbs() {
     let session = MetalSession::new().unwrap();
-    let Some(matrix) = &session.production_ajtai_matrix else {
-        return;
-    };
+    let matrices = session
+        .production_ajtai_matrix
+        .iter()
+        .chain(&session.production_ajtai_column_groups);
     let columns = COLUMNS_PER_GROUP;
     let value = F::ORDER_U64 - 1;
     let key = session.buffer_from_slice(&[value; D]).unwrap();
     let indices = session.buffer_from_slice(&vec![0_u32; columns]).unwrap();
-    let shape = session
-        .buffer_from_slice(&[columns as u64, 1, 1, columns as u64])
-        .unwrap();
     let result = session.buffer(D * size_of::<u64>()).unwrap();
-    for (mask, sign) in [([u64::MAX, 0], F::ONE), ([0, u64::MAX], -F::ONE)] {
-        let masks = session.buffer_from_slice(&vec![mask; columns]).unwrap();
-        let command = session
-            .command_buffer("nightstream.test.matrix_commitment")
-            .unwrap();
-        let encoder = command.computeCommandEncoder().unwrap();
-        session.launch(
-            &encoder,
-            matrix,
-            &[
-                Arg::Buffer(0, &key),
-                Arg::Buffer(1, &masks),
-                Arg::Buffer(2, &shape),
-                Arg::Buffer(3, &result),
-                Arg::Buffer(4, &indices),
-            ],
-            Grid::Groups {
-                groups: 1,
-                threads: 256,
-            },
-        );
-        encoder.endEncoding();
-        session.finish(&command).unwrap();
-        for (lane, &word) in session.host_words(&result, D).iter().enumerate() {
-            let shifts = F::from_usize(2 * (lane + 1)) - F::from_usize(D);
-            assert_eq!(
-                F::from_u64(word),
-                sign * shifts * F::from_usize(columns) * F::from_u64(value)
-            );
+    for matrix in matrices {
+        for columns in [columns, columns - 1] {
+            let shape = session
+                .buffer_from_slice(&[columns as u64, 1, 1, columns as u64])
+                .unwrap();
+            for (mask, sign) in [([u64::MAX, 0], F::ONE), ([0, u64::MAX], -F::ONE)] {
+                let masks = session.buffer_from_slice(&vec![mask; columns]).unwrap();
+                let command = session
+                    .command_buffer("nightstream.test.matrix_commitment")
+                    .unwrap();
+                let encoder = command.computeCommandEncoder().unwrap();
+                session.launch(
+                    &encoder,
+                    matrix,
+                    &[
+                        Arg::Buffer(0, &key),
+                        Arg::Buffer(1, &masks),
+                        Arg::Buffer(2, &shape),
+                        Arg::Buffer(3, &result),
+                        Arg::Buffer(4, &indices),
+                    ],
+                    Grid::Groups {
+                        groups: 1,
+                        threads: 256,
+                    },
+                );
+                encoder.endEncoding();
+                session.finish(&command).unwrap();
+                for (lane, &word) in session.host_words(&result, D).iter().enumerate() {
+                    let shifts = F::from_usize(2 * (lane + 1)) - F::from_usize(D);
+                    assert_eq!(
+                        F::from_u64(word),
+                        sign * shifts * F::from_usize(columns) * F::from_u64(value)
+                    );
+                }
+            }
         }
     }
 }

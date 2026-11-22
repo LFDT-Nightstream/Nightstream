@@ -234,16 +234,16 @@ impl<'a> OptimizedPaperJointOracle<'a> {
                 None,
             ),
         };
-        let packed_norm = match assignments.as_slice() {
-            [assignment]
-                if device.is_none()
-                    && params.b() == 2
-                    && dims.variables >= PACKED_NORM_ROUNDS
-                    && assignment.len() >= (1 << 16) =>
-            {
-                PackedNorm::new(witnesses[0], assignment.len(), &challenges.alpha)
-            }
-            _ => None,
+        let packed_norm = if device.is_none()
+            && params.b() == 2
+            && dims.variables >= PACKED_NORM_ROUNDS
+            && assignments
+                .iter()
+                .any(|assignment| assignment.len() >= (1 << 16))
+        {
+            PackedNorm::new(&assignments, &challenges.alpha, challenges.gamma)
+        } else {
+            None
         };
         Ok(Self {
             openings,
@@ -319,45 +319,37 @@ impl<'a> OptimizedPaperJointOracle<'a> {
                 let point = std::array::from_fn(|i| if i == round { challenge } else { self.point[i] });
                 self.packed_norm_value =
                     ordinary.map(|polynomial| crate::sumcheck::poly_eval_k(&polynomial, challenge));
-                self.assignments[0] = self
-                    .packed_norm
+                self.packed_norm
                     .take()
                     .expect("packing before the third bind")
-                    .into_assignment(&point);
+                    .bind(&mut self.assignments, &point);
             }
             return;
         }
-        if self.packed_norm_value.take().is_some() && round + 1 < self.dims.variables {
-            if let (Some(previous), [assignment]) = (ordinary, self.assignments.as_mut_slice()) {
-                if let Assignment::Encoded { codes, values, zero } = assignment {
-                    let weights = EqualityWeights::new(&self.challenges.alpha[round + 2..]);
-                    let (dense, higher) = prefix::bind_encoded(codes, values, *zero, challenge, &weights);
-                    *assignment = Assignment::Folded(dense);
-                    self.norm_polynomial = Some(prefix::recover_weighted_constant(
-                        crate::sumcheck::poly_eval_k(&previous, challenge),
-                        self.challenges.alpha[round + 1],
-                        higher,
-                    ));
-                    return;
-                }
-            }
-        }
+        let encoded = self.packed_norm_value.take().is_some();
         if let Some(previous) = ordinary.filter(|_| {
             round + 1 < self.dims.variables
-                && self
-                    .assignments
-                    .iter()
-                    .all(|table| matches!(table, Assignment::Folded(_)))
+                && (encoded
+                    || self
+                        .assignments
+                        .iter()
+                        .all(|table| matches!(table, Assignment::Folded(_))))
         }) {
             let weights = EqualityWeights::new(&self.challenges.alpha[round + 2..]);
             let mut higher = [K::ZERO; 3];
             let mut weight = K::ONE;
             for table in &mut self.assignments {
-                let Assignment::Folded(values) = table else {
-                    unreachable!()
+                let contribution = match table {
+                    Assignment::Folded(values) => {
+                        prefix::bind_sum_products(values, challenge, &weights, prefix::norm_higher_coefficients)
+                    }
+                    Assignment::Encoded { codes, values, zero } => {
+                        let (dense, higher) = prefix::bind_encoded(codes, values, *zero, challenge, &weights);
+                        *table = Assignment::Folded(dense);
+                        higher
+                    }
+                    Assignment::Input { .. } => unreachable!(),
                 };
-                let contribution =
-                    prefix::bind_sum_products(values, challenge, &weights, prefix::norm_higher_coefficients);
                 higher = prefix::add_coefficients(higher, contribution.map(|value| value * weight));
                 weight *= self.challenges.gamma;
             }
@@ -434,17 +426,16 @@ impl PaperJointRoundOracle for OptimizedPaperJointOracle<'_> {
                     if let Some(packed) = &self.packed_norm {
                         return packed.coefficients(&self.point, &self.challenges.alpha[round + 1..PACKED_NORM_ROUNDS]);
                     }
-                    if let (Some(previous), [Assignment::Encoded { codes, values, zero }]) =
-                        (self.packed_norm_value, self.assignments.as_slice())
-                    {
-                        return prefix::encoded_moments(
-                            codes,
-                            values,
-                            *zero,
-                            &weights,
-                            previous,
-                            self.challenges.alpha[round],
-                        );
+                    if let Some(previous) = self.packed_norm_value {
+                        let mut higher = [K::ZERO; 3];
+                        for (index, table) in self.assignments.iter().enumerate() {
+                            if let Assignment::Encoded { codes, values, zero } = table {
+                                let moments = prefix::encoded_moments(codes, values, *zero, &weights);
+                                let weight = gamma_power(self.challenges.gamma, index);
+                                higher = prefix::add_coefficients(higher, moments.map(|value| value * weight));
+                            }
+                        }
+                        return prefix::recover_weighted_constant(previous, self.challenges.alpha[round], higher);
                     }
                     self.norm_coefficients(&weights)
                 });

@@ -1,6 +1,7 @@
 use super::*;
 use crate::engines::optimized_engine::prefix::early_norm_coefficients;
-use neo_math::KExtensions;
+use neo_ccs::Mat;
+use neo_math::{KExtensions, F};
 
 #[test]
 fn packed_prefix_matches_each_round_and_the_next_assignment() {
@@ -20,7 +21,8 @@ fn packed_prefix_matches_each_round_and_the_next_assignment() {
         K::ONE,
     ];
     let mut serial = Assignment::new(&witness, D * w_pos.len());
-    let packed = PackedNorm::new(&witness, serial.len(), &alpha).unwrap();
+    let mut actual = [Assignment::new(&witness, D * w_pos.len())];
+    let packed = PackedNorm::new(&actual, &alpha, K::ONE).unwrap();
     for round in 0..PACKED_NORM_ROUNDS {
         let weights = EqualityWeights::new(&alpha[round + 1..]);
         let expected = early_norm_coefficients(&serial.early_pairs().unwrap(), serial.len().div_ceil(2), &weights);
@@ -32,7 +34,8 @@ fn packed_prefix_matches_each_round_and_the_next_assignment() {
     }
 
     let previous = crate::sumcheck::poly_eval_k(&packed.coefficients(&point[..2], &[]), point[2]);
-    let actual = packed.into_assignment(&point);
+    packed.bind(&mut actual, &point);
+    let [actual] = actual;
     assert_eq!(actual.len(), serial.len());
     for slot in 0..actual.len() {
         assert_eq!(actual.get(slot), serial.get(slot));
@@ -47,7 +50,8 @@ fn packed_prefix_matches_each_round_and_the_next_assignment() {
         panic!("encoded result")
     };
     let weights = EqualityWeights::new(&alpha[4..]);
-    let third = encoded_moments(&codes, &values, zero, &weights, previous, alpha[3]);
+    let higher = encoded_moments(&codes, &values, zero, &weights);
+    let third = super::super::recover_weighted_constant(previous, alpha[3], higher);
     assert_eq!(third, reference(&serial, &weights));
     let challenge = K::from_coeffs([F::from_u64(29), F::from_u64(53)]);
     let weights = EqualityWeights::new(&alpha[5..]);

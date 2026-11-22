@@ -1,4 +1,4 @@
-use std::sync::{Mutex, PoisonError};
+use std::sync::{Arc, Barrier, Mutex, PoisonError};
 
 use neo_ajtai::{
     nightstream_fprime_setup::{
@@ -90,6 +90,81 @@ fn commitments(witnesses: &[Mat<F>]) -> Vec<Commitment> {
         .iter()
         .map(|witness| commit_production_signed_unit_prefix_matrix(witness).unwrap())
         .collect()
+}
+
+#[test]
+fn folding_keys_round_to_pairs_and_share_only_within_the_budget() {
+    let _serial = SERIAL.lock().unwrap_or_else(PoisonError::into_inner);
+    let column_bytes = PRODUCTION_VERIFIER_ROWS as usize * D * size_of::<u64>();
+    let before = expanded_key_bytes();
+    assert!(ExpandedKey::within_budget(3, 4 * column_bytes - 1).is_none());
+    assert!(ExpandedKey::within_budget(u64::MAX, usize::MAX).is_none());
+    assert_eq!(expanded_key_bytes(), before);
+
+    let four = ExpandedKey::within_budget(3, 4 * column_bytes).unwrap();
+    assert_eq!(four.blocks(), 4);
+    assert_eq!(size_of_val(four.words()), 4 * column_bytes);
+    let after_four = expanded_key_bytes();
+    let reused = ExpandedKey::within_budget(2, 4 * column_bytes).unwrap();
+    assert!(Arc::ptr_eq(&four, &reused));
+    assert!(ExpandedKey::within_budget(3, 4 * column_bytes - 1).is_none());
+    assert_eq!(expanded_key_bytes(), after_four);
+
+    let two = ExpandedKey::within_budget(2, 2 * column_bytes).unwrap();
+    assert_eq!(two.blocks(), 2);
+    assert!(Arc::ptr_eq(&two, &ExpandedKey::production(2)));
+    assert!(Arc::ptr_eq(&four, &ExpandedKey::production(4)));
+}
+
+#[test]
+fn concurrent_folding_key_preparations_expand_the_key_once() {
+    let _serial = SERIAL.lock().unwrap_or_else(PoisonError::into_inner);
+    let start = Barrier::new(4);
+    let before = expanded_key_bytes();
+    let keys = std::thread::scope(|scope| {
+        let requests: Vec<_> = (0..4)
+            .map(|_| {
+                scope.spawn(|| {
+                    start.wait();
+                    ExpandedKey::within_budget(KEY_BLOCKS, usize::MAX)
+                })
+            })
+            .collect();
+        requests
+            .into_iter()
+            .filter_map(|request| request.join().unwrap())
+            .collect::<Vec<_>>()
+    });
+    assert!(!keys.is_empty());
+    assert!(keys.iter().all(|key| Arc::ptr_eq(key, &keys[0])));
+    assert_eq!(
+        expanded_key_bytes() - before,
+        KEY_BLOCKS * PRODUCTION_VERIFIER_ROWS * ELEMENT_OUTPUT_BYTES as u64
+    );
+}
+
+#[test]
+fn dropping_the_larger_key_preserves_the_smaller_owners_commitments() {
+    let _serial = SERIAL.lock().unwrap_or_else(PoisonError::into_inner);
+    let child = masks(4, |column| (1 << column, 1 << (column + 1)));
+    let witnesses = [child.clone(), child.clone(), child];
+    let streamed = commit_production_signed_unit_prefix_matrices(&witnesses).unwrap();
+    let small = ExpandedKey::within_budget(4, usize::MAX).unwrap();
+    let large = ExpandedKey::production(6);
+    drop(large);
+
+    let before = expanded_key_bytes();
+    assert_eq!(
+        commit_production_signed_unit_prefix_matrices(&witnesses).unwrap(),
+        streamed
+    );
+    assert_eq!(expanded_key_bytes(), before);
+    drop(small);
+    assert_eq!(
+        commit_production_signed_unit_prefix_matrices(&witnesses).unwrap(),
+        streamed
+    );
+    assert!(expanded_key_bytes() > before);
 }
 
 #[test]

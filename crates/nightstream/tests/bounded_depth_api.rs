@@ -21,7 +21,8 @@ fn hash_chain_proves_and_verifies() {
     let compiled = circuit();
     let path = std::env::temp_dir().join(format!("bounded-depth-circuit-{}", std::process::id()));
     compiled.write(&path).expect("saved application");
-    let prover = Prover::load(&path, Engine::Optimized, fold_gate_bits()).expect("loaded prover");
+    let mut prover = Prover::load(&path, Engine::Optimized, fold_gate_bits()).expect("loaded prover");
+    assert!(!prover.prepare_folding_key(1));
     fs::remove_file(&path).expect("remove the saved application");
     let verifier = compiled
         .verifier(Engine::Optimized, fold_gate_bits())

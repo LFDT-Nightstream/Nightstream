@@ -1,6 +1,7 @@
 use std::{borrow::Borrow, ops::Range};
 
 mod expanded;
+mod four_plane;
 mod key;
 
 pub use expanded::ExpandedKey;
@@ -331,6 +332,9 @@ pub fn commit_production_signed_unit_prefix_matrices<W: Borrow<Mat<Fq>>>(
         .filter_map(|(index, present)| present.then_some(index as u64))
         .collect();
     let key = ExpandedKey::shared();
+    if four_plane::commit_if_supported(&blocks, &columns, key.as_deref(), &mut commitments) {
+        return Ok(commitments);
+    }
     let totals = row_totals(column_count, |row, range| {
         let blocks: Vec<_> = blocks
             .iter()

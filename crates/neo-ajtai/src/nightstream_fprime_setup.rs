@@ -3,6 +3,8 @@ use std::{borrow::Borrow, ops::Range};
 mod expanded;
 mod four_plane;
 mod key;
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+mod packed_product;
 
 pub use expanded::ExpandedKey;
 #[doc(hidden)]
@@ -229,6 +231,10 @@ pub fn commit_production_signed_unit_matrix(witness: &Mat<Fq>) -> AjtaiResult<Co
 
 /// Lean `AjtaiSetupV1.Prefix.commit_zeroExtend`.
 pub fn commit_production_signed_unit_prefix_matrix(witness: &Mat<Fq>) -> AjtaiResult<Commitment> {
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    if let Some(commitment) = packed_product::commit(witness) {
+        return Ok(commitment);
+    }
     let blocks = signed_unit_prefix_blocks(witness)?;
     Ok(commit_signed_blocks(&blocks))
 }

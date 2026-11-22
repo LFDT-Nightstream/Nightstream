@@ -195,3 +195,49 @@ fn small_digits_report_signed_unit_masks() {
     digits[5] = Fq::TWO;
     assert_eq!(SmallDigits::new(&digits).unwrap().signed_unit_masks(), None);
 }
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn accelerated_signed_ring_dot_matches_integer_sums_across_groups() {
+    use neo_math::signed_sums::accelerate::{signed_ring_dot, ROW_WORKSPACE_WORDS};
+
+    let columns = (1 << 16) + 129;
+    let mut keys = Vec::with_capacity(columns * D);
+    let mut positive = Vec::with_capacity(columns);
+    let mut negative = Vec::with_capacity(columns);
+    let mut expected = SignedShiftSums::zero();
+    for column in 0..columns {
+        let coefficients = std::array::from_fn(|lane| match lane % 4 {
+            0 => Q - 1,
+            1 => u64::from(u32::MAX),
+            2 => 1 << 32,
+            _ => {
+                (column as u64 + 1)
+                    .wrapping_mul(0x9e37_79b9_7f4a_7c15)
+                    .rotate_left(lane as u32)
+                    % Q
+            }
+        });
+        let (pos, neg) = match column % 512 {
+            0..128 => (0, 0),
+            128..256 => (u64::MAX, 0),
+            256..384 => (0, u64::MAX),
+            _ => (1 << (column % (D - 1)), 1 << (D - 1)),
+        };
+        expected.add_signed_units(&SplitRing::from_u64(&coefficients), pos, neg);
+        keys.extend_from_slice(&coefficients);
+        positive.push(pos);
+        negative.push(neg);
+    }
+    let mut workspace = vec![f64::NAN; ROW_WORKSPACE_WORDS];
+    assert_eq!(
+        signed_ring_dot(&keys, &positive, &negative, &mut workspace),
+        expected.reduce()
+    );
+    positive.fill(0);
+    negative.fill(0);
+    assert_eq!(
+        signed_ring_dot(&keys, &positive, &negative, &mut workspace),
+        [Fq::ZERO; D]
+    );
+}

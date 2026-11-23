@@ -75,14 +75,13 @@ example (setup : FinalVerifier.Setup .both logicalWidth publicFits)
   rintro ⟨first, second, fresh⟩ ⟨_ | _ | _ | _, below⟩
   exacts [first, second, fresh, by simp only [FinalVerifier.Mode.slots] at below; omega]
 
--- SPEC.md section 3 and Algorithm 10, step 5: in the light mode, `error_bits` is 119 at each
--- depth up to the cap.
+-- SPEC.md section 3 and Algorithm 10, step 5: the exact compression gate at each supported light layout.
 example (blocks depth keyBlocks : ℕ) (l : Rust.Placed)
     (ok : Rust.layoutNew
       [⟨blocks, some (productionGlobalParams.accumulatorBound depth)⟩, ⟨blocks, none⟩]
       keyBlocks = .ok l)
     (legal : depth ≤ 64) :
-    Rust.runBits (l.counts 320 4) = 119 :=
+    Rust.runBits (l.counts 320 4) = (if keyBlocks = 2 ^ 9 then 119 else 118) :=
   @Claims.Compression.light_error_bits blocks depth keyBlocks l ok legal
 
 -- SPEC.md Algorithm 9, Rejects and Source: with ideal openings, the verifier rejects the honest
@@ -114,7 +113,7 @@ example (light : FinalVerifier.Setup .light logicalWidth publicFits) (packageWid
     (key : (Rust.schedules.find? fun s =>
         decide ((light.rows 0).matrices.columns / ringDegree ≤ s.blocks)).map
         Rust.Schedule.blocks = some light.keyBlocks)
-    (shipped : light.keyBlocks = 2 ^ 19) (minimum : light.minimum ≤ 119)
+    (shipped : light.keyBlocks = 2 ^ 19) (minimum : light.minimum ≤ 118)
     (statement : TerminalStatement AppState)
     (payload : TerminalProof (SlotData logicalWidth publicFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))

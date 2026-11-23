@@ -375,8 +375,8 @@ pass computes the matrix part of the honest weights. -/
 theorem matrixPass_spec [Fintype F] [DecidableEq F] [Fintype K] [DecidableEq K]
     (form : ∀ c, P.matrixForm c = (rel (which c)).matrices.form P.lanes)
     (blocks : ∀ c c', which c = which c' → (P.shape c).blocks = (P.shape c').blocks)
-    (columnVars zeros : ℕ) :
-    MatrixSpec (⟨matrixPass P rel which, columnVars, zeros⟩ : VerifierData P) := by
+    (zeros : ℕ) :
+    MatrixSpec (⟨matrixPass P rel which, zeros⟩ : VerifierData P) := by
   intro st ch ρ _
   have same : ∀ c c', (which c, (uses P ch ρ c).point) = (which c', (uses P ch ρ c').point) →
       claimPass P rel which ch ρ c = claimPass P rel which ch ρ c' := fun c c' equal => by

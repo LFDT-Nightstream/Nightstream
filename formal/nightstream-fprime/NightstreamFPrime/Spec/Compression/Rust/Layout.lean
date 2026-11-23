@@ -28,9 +28,6 @@ def laneVars : ℕ := 6
 /-- Rust `ROW_VARS`, the variables of the rows of the key polynomial. -/
 def rowVars : ℕ := 5
 
-/-- Rust `LOOKUP_VARS`, the variables of the columns of `V`. -/
-def lookupVars : ℕ := 2
-
 /-- Rust `vars_for`: the variables of the least power of two at or above `cells`. -/
 def varsFor (cells : ℕ) : ℕ := Nat.clog 2 cells
 
@@ -44,7 +41,7 @@ structure Schedule where
 def Schedule.blocks (s : Schedule) : ℕ := 2 ^ (s.keyVars - laneVars - rowVars)
 
 /-- Rust `akita::SCHEDULES`. A Rust test compares the two tables. -/
-def schedules : List Schedule := [⟨20, [(16, 16)]⟩, ⟨30, [(26, 28), (27, 28)]⟩]
+def schedules : List Schedule := [⟨20, [(16, 16)]⟩, ⟨30, [(26, 26), (27, 26)]⟩]
 
 /-- Rust `layout::Cells`. -/
 structure Cells where
@@ -134,7 +131,7 @@ def cellOf (claims : List Claim) (i : ℕ) : Cells where
 /-- A schedule row whose `W` holds every cell and whose `V` holds the inverses of the span. -/
 def rowFits (claims : List Claim) (row : ℕ × ℕ) : Bool :=
   decide (varsFor (countSlices claims).2 ≤ row.1) &&
-    decide (varsFor (tableSlices claims).2 + lookupVars ≤ row.2)
+    decide (varsFor (tableSlices claims).2 ≤ row.2)
 
 /-- The layout of `claims` with the key of `schedule` and the variables `row` of `W` and `V`. -/
 def assemble (claims : List Claim) (schedule : Schedule) (row : ℕ × ℕ) : Placed where

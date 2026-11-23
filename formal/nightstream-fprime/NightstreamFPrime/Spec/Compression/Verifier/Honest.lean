@@ -191,79 +191,61 @@ section Honest
 
 variable {P : Params F K} (vf : VerifierData P)
 
-def lookupAt (τ : Fin P.lookups → F) (k : ℕ) : F :=
-  if inside : k < P.lookups then τ ⟨k, inside⟩ else 0
-
-/-- `V` of SPEC.md Algorithm 9, step 6. -/
+/-- The inverse witness of SPEC.md Algorithm 9, step 6. -/
 noncomputable def honestInverses (P : Params F K) (W : ℕ → F) (τ : Fin P.lookups → F)
-    (cell : ℕ) : F :=
-  if cell / 2 ^ P.spanVars < P.lookups ∧ ∃ c, (P.shape c).lookup = true ∧
-      (P.shape c).witness.offset ≤ cell % 2 ^ P.spanVars ∧
-      cell % 2 ^ P.spanVars < (P.shape c).witness.offset + 2 ^ (P.shape c).witness.vars then
-    1 / (lookupAt τ (cell / 2 ^ P.spanVars) - W (cell % 2 ^ P.spanVars))
+    (x : ℕ) : F :=
+  if ∃ c, (P.shape c).lookup = true ∧ (P.shape c).witness.offset ≤ x ∧
+      x < (P.shape c).witness.offset + 2 ^ (P.shape c).witness.vars then
+    1 / denominator τ (W x)
   else 0
 
 omit [Fintype F] [DecidableEq F] [Field K] [Fintype K] [DecidableEq K] [Algebra F K] in
-theorem honestInverses_spec (W : ℕ → F) (τ : Fin P.lookups → F) (wf : WellFormed P) :
+theorem honestInverses_spec (W : ℕ → F) (τ : Fin P.lookups → F) :
     HonestInverses P W (honestInverses P W τ) τ := by
-  intro c table k y cell
-  have fits := (wf.span_fit c table).1
-  have positive : 0 < 2 ^ P.spanVars := Nat.two_pow_pos _
-  have split : k * 2 ^ P.spanVars + (P.shape c).witness.offset + y =
-      ((P.shape c).witness.offset + y) + k * 2 ^ P.spanVars := by ring
-  have high : (k * 2 ^ P.spanVars + (P.shape c).witness.offset + y) / 2 ^ P.spanVars = k := by
-    rw [split, Nat.add_mul_div_right _ _ positive, Nat.div_eq_of_lt (by omega), zero_add]
-  have low : (k * 2 ^ P.spanVars + (P.shape c).witness.offset + y) % 2 ^ P.spanVars =
-      (P.shape c).witness.offset + y := by
-    rw [split, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt (by omega)]
-  have challenge : lookupAt τ k = τ k := dite_eq_left k.isLt
-  unfold inverseOf honestInverses
-  rw [high, low, ite_eq_left ⟨k.isLt, c, table, Nat.le_add_right _ _, by omega⟩, challenge]
+  intro c table y cell
+  exact ite_eq_left ⟨c, table, Nat.le_add_right _ _, by omega⟩
 
 /-- `Â(ζ, s)` of SPEC.md Algorithm 9, step 10. -/
 noncomputable def honestKey (ch : Challenges P) (kp : List K) : K :=
   mle (kp ++ rowPoint P.rowVars ch.omega)
     (keyTable P.lanes P.keyBlockVars P.rows fun i j h => ι (P.key i j h))
 
-/-- `W(ρ)`, the values `V_k` and `K_w` of SPEC.md Algorithm 9, step 9. -/
+/-- `W(ρ)`, the shared inverse value and `K_w` of SPEC.md Algorithm 9, step 9. -/
 noncomputable def honestValues (W V : ℕ → F) (ch : Challenges P) (ρ : List K) : Values K :=
-  (mle ρ fun x => ι (W x), columnAt P V ρ, keyTrue P ch ρ)
+  (mle ρ fun x => ι (W x), inverseAt P V ρ, keyTrue P ch ρ)
 
 noncomputable def honestAfterKey (st : Statement P) (W V : ℕ → F) (τ : Fin P.lookups → F)
-    (ch : Challenges P) (ρ : List K) (value : K) (vals : Values K)
-    (col : Fin vf.columnVars → K) :
+    (ch : Challenges P) (ρ : List K) (value : K) (vals : Values K) :
     Option (List K × K) → Game (Option (Statement P × (ℕ → F)))
   | none => .pure none
   | some (kp, kfinal) => by
       classical
-      exact .pure (if Accepts vf st W V τ ch ρ value vals col kp kfinal (honestKey ch kp) then
+      exact .pure (if Accepts vf st W V τ ch ρ value vals kp kfinal (honestKey ch kp) then
         some (st, W) else none)
 
 noncomputable def honestAfterMain (st : Statement P) (W V : ℕ → F) (τ : Fin P.lookups → F)
     (ch : Challenges P) : Option (List K × K) → Game (Option (Statement P × (ℕ → F)))
   | none => .pure none
   | some (ρ, value) =>
-      .draw (Fin vf.columnVars → K) ∅ fun col =>
-        bind (honestSumcheck 2 (combRound (P.laneVars + P.keyBlockVars) (keyTables ch ρ)
-            productComb) (P.laneVars + P.keyBlockVars) [] (honestValues W V ch ρ).2.2)
-          (honestAfterKey vf st W V τ ch ρ value (honestValues W V ch ρ) col)
+      bind (honestSumcheck 2 (combRound (P.laneVars + P.keyBlockVars) (keyTables ch ρ)
+          productComb) (P.laneVars + P.keyBlockVars) [] (honestValues W V ch ρ).2.2)
+        (honestAfterKey vf st W V τ ch ρ value (honestValues W V ch ρ))
 
 /-- SPEC.md Algorithm 9, steps 6 to 11, with Rejects as the bad sets. -/
 noncomputable def honestGame (st : Statement P) (W : ℕ → F) :
     Game (Option (Statement P × (ℕ → F))) :=
   .draw (Fin P.lookups → F) (tableHit P) fun τ =>
     .draw (Challenges P) (omegaBad P) fun ch =>
-      bind (honestSumcheck 3 (combRound P.witnessVars
-          (mainTables P st W (honestInverses P W τ) τ ch) mainComb) P.witnessVars []
+      bind (honestSumcheck (P.lookups + 2) (combRound P.witnessVars
+          (mainTables P st W (honestInverses P W τ) τ ch) (mainComb P τ ch)) P.witnessVars []
           (claimedSum P st ch))
         (honestAfterMain vf st W (honestInverses P W τ) τ ch)
 
 omit [Fintype F] [DecidableEq F] [Fintype K] [DecidableEq K] in
 theorem plays_afterKey (st : Statement P) (W V : ℕ → F) (τ : Fin P.lookups → F)
-    (ch : Challenges P) (ρ : List K) (value : K) (vals : Values K)
-    (col : Fin vf.columnVars → K) :
-    ∀ result, Plays (afterKey vf st W V τ ch ρ value vals col result)
-      (honestAfterKey vf st W V τ ch ρ value vals col result)
+    (ch : Challenges P) (ρ : List K) (value : K) (vals : Values K) :
+    ∀ result, Plays (afterKey vf st W V τ ch ρ value vals result)
+      (honestAfterKey vf st W V τ ch ρ value vals result)
   | none => .pure rfl
   | some (kp, kfinal) => .recv (honestKey ch kp) (.pure (by split_ifs <;> rfl))
 
@@ -272,8 +254,8 @@ theorem plays_afterMain (st : Statement P) (W V : ℕ → F) (τ : Fin P.lookups
     (ch : Challenges P) :
     ∀ result, Plays (afterMain vf st W V τ ch result) (honestAfterMain vf st W V τ ch result)
   | none => .pure rfl
-  | some (ρ, value) => .recv (honestValues W V ch ρ) (.draw fun col =>
-      plays_bind (plays_sumcheck _ _ _ _ _) (plays_afterKey vf st W V τ ch ρ value _ col))
+  | some (ρ, value) => .recv (honestValues W V ch ρ)
+      (plays_bind (plays_sumcheck _ _ _ _ _) (plays_afterKey vf st W V τ ch ρ value _))
 
 theorem plays_honest (st : Statement P) (W : ℕ → F) : Plays (game vf) (honestGame vf st W) :=
   .recv st (.recv W (.draw fun τ => .recv (honestInverses P W τ) (.draw fun ch =>
@@ -294,18 +276,17 @@ theorem honest_avoids (st : Statement P) (W : ℕ → F) (wf : WellFormed P) (sh
     ch_good (by
       simp only [omegaBad, mem_filter, mem_univ, true_and]
       exact ⟨i, lt, zero⟩)
-  have inverses := honestInverses_spec W τ wf
-  have main_truth := combRound_truth P.witnessVars 3
-    (mainTables P st W (honestInverses P W τ) τ ch) mainComb mainComb_degree
+  have inverses := honestInverses_spec W τ
+  have main_truth := combRound_truth P.witnessVars (P.lookups + 2)
+    (mainTables P st W (honestInverses P W τ) τ ch) (mainComb P τ ch) (mainComb_degree P τ ch)
   show (bind _ _).Avoids _
   rw [avoids_bind]
-  refine (Ends.avoids (honestSumcheck_ends 3 P.witnessVars _ _ main_truth P.witnessVars []
+  refine (Ends.avoids (honestSumcheck_ends (P.lookups + 2) P.witnessVars _ _ main_truth P.witnessVars []
     (claimedSum P st ch) (by simp) (by
       rw [main_truth_nil]
       exact (honest_sum st W _ τ ch wf relation honest inverses distinct τ_ok).symm))).mono ?_
   rintro first ⟨ρ, ρ_length, rfl⟩
   rw [List.nil_append]
-  intro col _
   have point_length (c : Fin P.claims) :
       (uses P ch ρ c).point.length = (P.shape c).witness.vars - P.laneVars := by
     have := (wf.witness_fits c).2.2
@@ -327,7 +308,7 @@ theorem honest_avoids (st : Statement P) (W : ℕ → F) (wf : WellFormed P) (sh
   · rw [← kp_length, product_truth_final]
     exact key_check_honest ch ρ kp wf st shaped ρ_length kp_length rows regular key_fits
   · exact main_check_honest vf st W _ τ ch ρ wf shaped ρ_length matrix
-  · exact (mle_V_opening _ ρ wf ρ_length _ _).symm
+  · exact (mle_V_opening _ ρ _).symm
 
 theorem honest_costLe (st : Statement P) (W : ℕ → F) :
     (honestGame vf st W).CostLe (tableError P + omegaError P) := by
@@ -341,7 +322,6 @@ theorem honest_costLe (st : Statement P) (W : ℕ → F) :
   refine (costLe_bind (δ := 0) (honestSumcheck_costLe _ _ _ _ _) fun first => ?_).mono (by simp)
   rcases first with _ | ⟨ρ, value⟩
   · exact le_rfl
-  refine ⟨0, by simp, fun col => ?_⟩
   refine (costLe_bind (δ := 0) (honestSumcheck_costLe _ _ _ _ _) fun second => ?_).mono
     (by simp)
   rcases second with _ | ⟨kp, kfinal⟩

@@ -5,7 +5,7 @@ SPEC.md section 5.4, rows 4 to 17), and its match with `Verifier.game`.
 
 `labels n k` lists what `verify` absorbs or draws, in order: the statement, `W`, the lookup
 challenges `τ`, `V`, the challenges `(ω, δ, γ, μ, ψ, ξ, λ, β)`, then `n` rounds of the first
-sum-check with their coordinates of `ρ`, the values at `ρ`, the column point, then `k` rounds of
+sum-check with their coordinates of `ρ`, the values at `ρ`, then `k` rounds of
 the key sum-check with their coordinates, and the key value. Each path of `game` receives and draws
 exactly these, with these types, until it rejects or accepts at the end (`game_follows`). `calls`
 gives the Poseidon2 transcript operations of each label. A Rust test replays a real proof in this
@@ -33,14 +33,13 @@ inductive Label where
   | round
   | rho
   | values
-  | column
   | keyRound
   | zeta
   | keyValue
   deriving DecidableEq
 
 def Label.move : Label → Move
-  | .tau | .challenges | .rho | .column | .zeta => .draw
+  | .tau | .challenges | .rho | .zeta => .draw
   | _ => .recv
 
 def Label.name : Label → String
@@ -52,7 +51,6 @@ def Label.name : Label → String
   | .round => "round"
   | .rho => "rho"
   | .values => "values"
-  | .column => "column"
   | .keyRound => "key_round"
   | .zeta => "zeta"
   | .keyValue => "key_value"
@@ -60,7 +58,7 @@ def Label.name : Label → String
 /-- The labels of `verify` with `n` rounds of the first sum-check and `k` of the key sum-check. -/
 def labels (n k : ℕ) : List Label :=
   [.statement, .witness, .tau, .inverse, .challenges] ++
-    (List.replicate n [Label.round, .rho]).flatten ++ [.values, .column] ++
+    (List.replicate n [Label.round, .rho]).flatten ++ [.values] ++
     (List.replicate k [Label.keyRound, .zeta]).flatten ++ [.keyValue]
 
 section Game
@@ -69,16 +67,15 @@ variable {F K : Type} [Field F] [Fintype F] [DecidableEq F] [Field K] [Fintype K
   [Algebra F K] {P : Params F K}
 
 /-- The type of what `game` receives or draws at each label. -/
-def labelType (vf : VerifierData P) : Label → Type
+def labelType (_vf : VerifierData P) : Label → Type
   | .statement => Statement P
   | .witness => ℕ → F
   | .tau => Fin P.lookups → F
   | .inverse => ℕ → F
   | .challenges => Challenges P
-  | .round => Fin (3 + 1) → K
+  | .round => Fin (P.lookups + 2 + 1) → K
   | .rho => K
   | .values => Values K
-  | .column => Fin vf.columnVars → K
   | .keyRound => Fin (2 + 1) → K
   | .zeta => K
   | .keyValue => K
@@ -142,11 +139,11 @@ theorem game_follows (vf : VerifierData P) :
   simp only [labels, List.map_append, List.map_cons, List.map_nil, List.map_flatten,
     List.map_replicate, List.append_assoc, List.cons_append, List.nil_append]
   refine ⟨rfl, fun st => ⟨rfl, fun W => ⟨rfl, fun τ => ⟨rfl, fun V => ⟨rfl, fun ch => ?_⟩⟩⟩⟩⟩
-  refine (followsK_bind _ _ _ _).mpr (sumcheck_followsK 3 _ _ _ (fun steps => ?_)
+  refine (followsK_bind _ _ _ _).mpr (sumcheck_followsK (P.lookups + 2) _ _ _ (fun steps => ?_)
     (fun ρ value => ?_) _ _ _)
   · intro accepted
     cases accepted
-  refine ⟨rfl, fun vals => ⟨rfl, fun col => ?_⟩⟩
+  refine ⟨rfl, fun vals => ?_⟩
   refine (followsK_bind _ _ _ _).mpr (sumcheck_followsK 2 _ _ _ (fun steps => ?_)
     (fun kp kfinal => ?_) _ _ _)
   · intro accepted
@@ -177,9 +174,9 @@ structure Shape where
   keyBlockVars : ℕ
 
 /-- The transcript operations of each label (SPEC.md section 5.4), with `κ = 18`, `D = 64`, `L = 4`
-and two column variables: the domain, the key and each claim; the commitments; `L/2` draws for
-`τ`; `4 + L + 2·tables + span` draws; 4 coefficients a round; `W(ρ)`, the four columns and the key
-part; 2 draws; 3 coefficients a key round; the key value. -/
+: the domain, the key and each claim; the commitments; `L/2` draws for
+`τ`; `4 + L + 2·tables + span` draws; 7 coefficients a round; `W(ρ)`, the shared inverse and the key
+part; 3 coefficients a key round; the key value. -/
 def calls (shape : Shape) : Label → List Call
   | .statement => .absorb 12 :: .bytes :: shape.claims.map fun claim =>
       .absorb (5 + 18 * 64 + claim.1 + 2 * (claim.2.1 + 64 + claim.2.2 * 64))
@@ -187,10 +184,9 @@ def calls (shape : Shape) : Label → List Call
   | .tau => [.draw 2]
   | .inverse => [.bytes]
   | .challenges => [.draw (4 + 4 + 2 * shape.tables + shape.spanVars)]
-  | .round => [.absorb 8]
+  | .round => [.absorb 14]
   | .rho => [.draw 1]
-  | .values => [.absorb 2, .absorb 8, .absorb 2]
-  | .column => [.draw 2]
+  | .values => [.absorb 2, .absorb 2, .absorb 2]
   | .keyRound => [.absorb 6]
   | .zeta => [.draw 1]
   | .keyValue => [.absorb 2]

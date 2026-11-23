@@ -144,43 +144,43 @@ def key20 : Row where
   terminal := 77120
 
 /-- The levels 4 to 6 of each row of `key30.aks`. -/
-def key30Tail : List Level := [
-  ⟨[⟨false, .trace, .coefficient⟩], true, .quotientFree, 1, 523264, 222208⟩,
+def key30Tail (source : ℕ) : List Level := [
+  ⟨[⟨false, .trace, .coefficient⟩], true, .quotientFree, 1, source, 222208⟩,
   ⟨[⟨false, .trace, .euclidean⟩], false, .quotientFree, 1, 222208, 109888⟩,
   ⟨[⟨false, .trace, .euclidean⟩], false, .quotientFree, 1, 109888, 77120⟩]
 
-/-- The first row of `key30.aks`, for the polynomials of 30, 27 and 28 variables. -/
+/-- The second row of `key30.aks`, for the polynomials of 30, 27 and 26 variables. -/
 def key30W27 : Row where
   levels := [
     ⟨[⟨false, .packing, .coefficient⟩, ⟨false, .packing, .coefficient⟩,
-      ⟨false, .packing, .coefficient⟩], true, .quotientLift, 1, 268435456, 174909440⟩,
+      ⟨false, .packing, .coefficient⟩], true, .quotientLift, 1, 67108864, 154288128⟩,
     ⟨[⟨true, .packing, .coefficient⟩, ⟨false, .packing, .coefficient⟩], true, .quotientLift, 1,
-      174909440, 11424256⟩,
-    ⟨[⟨false, .packing, .coefficient⟩], true, .quotientLift, 1, 11424256, 1463296⟩,
-    ⟨[⟨false, .packing, .coefficient⟩], true, .quotientLift, 1, 1463296, 523264⟩] ++ key30Tail
+      154288128, 11035136⟩,
+    ⟨[⟨false, .packing, .coefficient⟩], true, .quotientLift, 1, 11035136, 1448960⟩,
+    ⟨[⟨false, .packing, .coefficient⟩], true, .quotientLift, 1, 1448960, 523264⟩] ++ key30Tail 523264
   terminal := 77120
 
-/-- The second row of `key30.aks`, for the polynomials of 30, 26 and 28 variables. -/
+/-- The first row of `key30.aks`, for the polynomials of 30, 26 and 26 variables. -/
 def key30W26 : Row where
   levels := [
     ⟨[⟨false, .packing, .coefficient⟩, ⟨false, .packing, .coefficient⟩,
-      ⟨false, .packing, .coefficient⟩], true, .quotientLift, 1, 268435456, 165472256⟩,
+      ⟨false, .packing, .coefficient⟩], true, .quotientLift, 1, 67108864, 144850944⟩,
     ⟨[⟨true, .packing, .coefficient⟩, ⟨false, .packing, .coefficient⟩], true, .quotientLift, 1,
-      165472256, 11239936⟩,
-    ⟨[⟨false, .packing, .coefficient⟩], true, .quotientLift, 1, 11239936, 1448960⟩,
-    ⟨[⟨false, .packing, .coefficient⟩], true, .quotientLift, 1, 1448960, 523264⟩] ++ key30Tail
+      144850944, 10850816⟩,
+    ⟨[⟨false, .packing, .coefficient⟩], true, .quotientLift, 1, 10850816, 1434624⟩,
+    ⟨[⟨false, .packing, .coefficient⟩], true, .quotientLift, 1, 1434624, 510976⟩] ++ key30Tail 510976
   terminal := 77120
 
 /-- The row of `key20.aks` is in the family F1 to F3 and has I2, I3, the second part of I1 and
 the witness lengths of C3. -/
 theorem key20_conditions : key20.Conditions := by decide
 
-/-- The first row of `key30.aks` is not in F1: its folds at levels 2 and 3 use coefficient
+/-- The W27 row of `key30.aks` is not in F1: its folds at levels 2 and 3 use coefficient
 packing. It has each other condition of `Row.Conditions`. -/
 theorem key30W27_conditions : ¬ key30W27.Methods ∧ key30W27.Compressed ∧ key30W27.RingChecks ∧
     key30W27.Interface ∧ key30W27.Chained := by decide
 
-/-- The second row of `key30.aks` is not in F1, for the same levels. It has each other condition
+/-- The W26 row of `key30.aks` is not in F1, for the same levels. It has each other condition
 of `Row.Conditions`. -/
 theorem key30W26_conditions : ¬ key30W26.Methods ∧ key30W26.Compressed ∧ key30W26.RingChecks ∧
     key30W26.Interface ∧ key30W26.Chained := by decide

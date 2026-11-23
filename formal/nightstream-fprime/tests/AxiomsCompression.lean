@@ -171,7 +171,6 @@ import NightstreamFPrime.Export.BoundedDepth.Shipped
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.density_tauBad_le
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.density_lookupBatch_le
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.density_ringBatch_le
-#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.density_columnBad_le
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.density_challengeBad_le
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.tauError_nonneg
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.challengeError_nonneg
@@ -198,7 +197,10 @@ import NightstreamFPrime.Export.BoundedDepth.Shipped
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.sum_weightTable
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.sum_checkTable
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.sum_sumTable
-#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.lookupBatch_comm
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.factor_mul_cofactor
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.eval_mainComb
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.inverseOf_spec
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.lookupBatch_split
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.sum_sub_claimed
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.mle_blocks
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.mle_claimWeights
@@ -207,8 +209,6 @@ import NightstreamFPrime.Export.BoundedDepth.Shipped
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.mle_checkTable
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.mle_sumTable
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.mle_inverseTable
-#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.mle_aTable
-#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.mle_bTable
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.mle_V_opening
 #audit_axioms NightstreamFPrime.Spec.Compression.Production.card_F
 #audit_axioms NightstreamFPrime.Spec.Compression.Production.params_lanes

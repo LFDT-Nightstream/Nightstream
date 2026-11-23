@@ -231,7 +231,7 @@ covers.
 | `wf.*`, `slots_le`, `key_fits` | `*` | 26 | lean | `Spec.Compression.Rust.layoutNew_production`, for the layout of the Lean model of `Layout::new` |
 | `counts` | `Spec.Compression.Verifier.CountsNonzero` | 1 | lean | `Spec.Compression.Production.params_countsNonzero` |
 | `matrix` | `Spec.Compression.Verifier.MatrixSpec` | 2 | lean | `Spec.Compression.Production.verifierData_matrixSpec`, for the Lean model of Rust `matrix_part`. Rust `matrix_part` gives the output of the model on three sample cases (`formal/nightstream-fprime/artifacts/nightstream-fprime-matrix-pass-parity-v1.json`, `the_matrix_part_is_the_lean_matrix_pass`). No data compares the two on the rows of the step circuits |
-| `columns`, `rows` | `LE.le` | 3 | lean | `Claims.Compression.production_sound` |
+| `rows` | `LE.le` | 2 | lean | `Claims.Compression.production_sound` |
 | `statement.*`, `constantLaw.*` | `*` | 8 | game | adversary 6: the statement of the Π_CCS run and the law of its constant |
 | `Compression/params.rlc_bound`, `Compression/freshBound`, `Compression/degreeCovers` | `*` | 3 | lean | `Claims.Final.verifier_sound` uses the Π_CCS run at the production parameters and takes none of these |
 | `Final/rows`, `Shipped/rows` | `Eq` | 9 | link | `Relation::new` gives `FactoredRows` the package's plan rows and the spans of its layout (`crates/nightstream/src/lifecycle/bounded_depth/relation.rs`). Lean emits the row counts, the logical width and a checksum of the dense matrices of its model `Export.BoundedDepth.FinalRows.packageRows` for both packages of the reference application (`formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-parity-v1.json`) and of each Nebula program (`formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-nebula-v1-rows-v1.json`, `formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-nebula-n1-rows-v1.json`), and `Export.BoundedDepth.RowsParity.fastSum_eq` proves that the emitted value is that checksum. The test `factored_rows_match_the_lean_dense_checksum` computes the same words from Rust's plan rows and spans for each of these packages. A checksum is evidence, not a proof. The memory claims are about Lean's Nebula programs; a Rust-built memory application is row `app.*` |
@@ -268,7 +268,7 @@ covers.
 | `Nebula.memory_light_complete/light` | `LE.le` | 1 | lean | `Spec.Nebula.WasmSize.steps_le_light` proves `S_max · N ≤ cap + 1` for each WASM size (`SPEC.md` Algorithm 9). For another geometry it is a condition of the claim |
 | `Fold/bounded` | `Spec.RandomOracle.OracleComp.QueryBound` | 6 | game | adversary 3: the adversary makes at most `Q` oracle queries |
 | `Ivc.slot_history_failure/assumption` | `Spec.HyperNova.Construction2.BoundedDepthSecurity.Assumption1` | 1 | assumption | `[HN-A1]`, in the form for one slot |
-| `Compression.production_error/columns`, `Compression.production_error/span_le`, `Compression.production_error/slots` | `*` | 3 | lean | `Export.BoundedDepth.FinalVerifier.game_densityLe` meets the three for the verifier of the final verifier. The mode has at most two slot claims (`Export.BoundedDepth.FinalVerifier.Mode.slots_le`). `columnVars = 2` holds by the definition of `Spec.Compression.Production.verifierData`, and `Export.BoundedDepth.FinalVerifier.Setup.layout_facts` gives `spanVars ≤ 26` for the layout of the Lean model of `Layout::new` (`Spec.Compression.Rust.layoutNew_span`) |
+| `Compression.production_error/span_le`, `Compression.production_error/slots` | `*` | 2 | lean | `Export.BoundedDepth.FinalVerifier.game_densityLe` meets both for the verifier of the final verifier. The mode has at most two slot claims (`Export.BoundedDepth.FinalVerifier.Mode.slots_le`). `Export.BoundedDepth.FinalVerifier.Setup.layout_facts` gives `spanVars ≤ 26` for the layout of the Lean model of `Layout::new` (`Spec.Compression.Rust.layoutNew_span`) |
 | `Compression.production_error/depths_le`, `Compression.light_error_bits/depth_le` | `LE.le` | 2 | game | `SPEC.md` Algorithm 10: step 4 requires that the depth of each slot is at most `cap` |
 | `Compression.light_error_bits/ok` | `Eq` | 1 | game | `SPEC.md` Algorithm 10: step 5 lays out the claims of the light mode with Rust `Layout::new`, whose model is `Spec.Compression.Rust.layoutNew`, and the claim is about each layout that the model accepts |
 | `Compression.argument_complete/shaped.*`, `Compression.argument_complete/relation`, `Compression.argument_complete/honest` | `*` | 5 | game | `SPEC.md` Algorithm 9: the honest prover names claims of the shape of its layout (step 3), holds their witnesses, and fills the count slices with the honest counts (step 4) |
@@ -886,8 +886,8 @@ not change terminal source checks.
 - **Error:** Lean bounds the argument by `Q · error`, with `error` below
   `2^−119` at the production shapes (`SPEC.md` section 3). Rust bounds a
   sum of six terms for one interactive run of the argument, about
-  `2^−119.02` for the reference application at 4 lookup challenges, by
-  `2^−119` in integers, with no factor for the queries. Where the two differ, the Lean bound is correct.
+  `2^−118.81` for the reference application at 4 lookup challenges, by
+  `2^−118` in integers, with no factor for the queries. Where the two differ, the Lean bound is correct.
   Neither is a bound on a win. Neither includes the knowledge error of the
   Akita opening or the error of the Π_CCS run.
 - **Gaps:** the final proof is not zero-knowledge. No test uses a slot
@@ -1258,9 +1258,9 @@ not change terminal source checks.
      verifier accepts no longer run of a WASM size
      (`Claims.Nebula.memory_light_complete`). When the verifier's key is
      the key of Algorithm 11 and has `2^19` blocks, and its security
-     minimum is at most 119 bits, that proof also passes the whole gate of
+     minimum is at most 118 bits, that proof also passes the whole gate of
      step 5 (`Claims.Final.light_gate_complete`). Each light layout that the
-     model accepts at a depth at most the cap has `error_bits` 119
+     model accepts at a depth at most the cap has `error_bits` 119 for the small key and 118 for the large key
      (`Claims.Compression.light_error_bits`). No theorem derives the key of
      `2^19` blocks from a package. The test
      `error_bits_and_the_gate_match_the_lean_bound_on_each_light_claim_set`
@@ -1365,8 +1365,8 @@ not change terminal source checks.
    - *The error of the argument.* Lean bounds it by `Q · error`, with
      `error < 2^−119` at the production shapes
      (`Claims.Compression.production_error`). Rust bounds the
-     sum of `SPEC.md` section 3 for one interactive run, about `2^−119.02`
-     for the reference application at 4 lookup challenges, by `2^−119` in
+     sum of `SPEC.md` section 3 for one interactive run, about `2^−118.81`
+     for the reference application at 4 lookup challenges, by `2^−118` in
      integers. To either, add
      the error of a Π_CCS run with one source, which Rust does not compute. Rust holds the Π_CCS test error for 17
      sources to the caller's security minimum (`SPEC.md` section 3).

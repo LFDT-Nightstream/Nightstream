@@ -351,9 +351,9 @@ impl Committed<'_> {
                     bound,
                     codes,
                     pool,
-                    challenges.xi[i],
-                    challenges.lambda[i],
+                    [challenges.xi[i], challenges.lambda[i]],
                     values,
+                    &challenges.beta,
                 )
             })
             .collect();

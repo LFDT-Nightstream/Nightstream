@@ -62,6 +62,14 @@ impl LookupPolynomial {
         }
         Self { denominator, numerator }
     }
+    pub(crate) fn denominator_cubic(&self) -> F {
+        self.denominator[3]
+    }
+
+    pub(crate) fn numerator_leading(&self) -> K {
+        self.numerator[3]
+    }
+
     #[inline]
     pub(crate) fn at(&self, z: K) -> (K, K) {
         let denominator = (((z + K::from(self.denominator[3])) * z + K::from(self.denominator[2])) * z

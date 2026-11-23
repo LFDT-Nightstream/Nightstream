@@ -95,9 +95,9 @@ fn check_first_rounds(slices: &[(usize, usize)], rounds: usize, zeros: bool) {
             3,
             &codes,
             &inverses,
-            ch.xi[i],
-            ch.lambda[i],
+            [ch.xi[i], ch.lambda[i]],
             &witness[slice.range()],
+            &ch.beta,
         ));
     }
     tables[0] = witness.iter().copied().map(K::from).collect();

@@ -1,4 +1,4 @@
-use neo_math::{KExtensions, F, K};
+use neo_math::{KExtensions, ProductSum, F, K};
 use neo_reductions::sumcheck::poly_eval_k;
 use neo_reductions::superneo_eval::EqualityWeights;
 use neo_transcript::Poseidon2Transcript;
@@ -39,34 +39,163 @@ struct RepeatedLine {
     eq: K,
 }
 
+#[derive(Default)]
+struct Samples {
+    low: [ProductSum; 4],
+    offset: K,
+    quartic: K,
+    quintic: K,
+}
+
+impl Samples {
+    fn evaluations(self) -> Round {
+        let [a, b, c, d] = self.low.map(|term| term.value() + self.offset);
+        let mut last = d;
+        let mut first = d - c;
+        let mut second = first - (c - b);
+        let mut third = second - (c - b - (b - a));
+        let mut fourth = (self.quartic + self.quintic * F::from_u8(10)) * F::from_u8(24);
+        let fifth = self.quintic * F::from_u8(120);
+        let mut out = [a, b, c, d, K::ZERO, K::ZERO, K::ZERO];
+        for value in &mut out[4..] {
+            third += fourth;
+            second += third;
+            first += second;
+            last += first;
+            *value = last;
+            fourth += fifth;
+        }
+        out
+    }
+}
+
 impl RepeatedLine {
     fn flush(
         self,
         polynomial: &LookupPolynomial,
         default_sum: K,
-        inverse_checks: &mut [K; 7],
-        lookup_sums: &mut [K; 7],
+        inverse_checks: &mut Samples,
+        lookup_sums: &mut Samples,
     ) {
         let count = F::from_u32(self.count);
-        let (mut value, mut inverse) = (self.a.value, self.a.inverse);
+        let (mut value, inverse) = (self.a.value, self.a.inverse);
         if self.a == self.b {
             let (denominator, numerator) = polynomial.at(value);
             let inverse_check = self.eq * (inverse * denominator - K::ONE);
             let lookup_sum = (inverse * numerator - default_sum) * count;
-            for i in 0..7 {
-                inverse_checks[i] += inverse_check;
-                lookup_sums[i] += lookup_sum;
-            }
+            inverse_checks.offset += inverse_check;
+            lookup_sums.offset += lookup_sum;
             return;
         }
         let (dz, du) = (self.b.value - value, self.b.inverse - inverse);
-        for i in 0..7 {
+        let square = dz.square();
+        let cubic = square * dz;
+        let fourth = square.square();
+        let third = value.double().double() + polynomial.denominator_cubic();
+        let (mut checked, d_checked) = (inverse * self.eq, du * self.eq);
+        let (mut counted, d_counted) = (inverse * count, du * count);
+        let checked_cubic = d_checked * cubic;
+        inverse_checks.quartic += checked * fourth + checked_cubic * third;
+        inverse_checks.quintic += checked_cubic * dz;
+        lookup_sums.quartic += d_counted * cubic;
+        inverse_checks.offset -= self.eq;
+        lookup_sums.offset -= default_sum * count;
+        for i in 0..4 {
             let (denominator, numerator) = polynomial.at(value);
-            inverse_checks[i] += self.eq * (inverse * denominator - K::ONE);
-            lookup_sums[i] += (inverse * numerator - default_sum) * count;
+            inverse_checks.low[i] = inverse_checks.low[i].add(checked, denominator);
+            lookup_sums.low[i] = lookup_sums.low[i].add(counted, numerator);
             value += dz;
-            inverse += du;
+            checked += d_checked;
+            counted += d_counted;
         }
+    }
+}
+
+struct CodePairs {
+    pairs: Vec<u16>,
+    classes: Vec<(usize, RepeatedLine)>,
+    width: usize,
+}
+
+impl CodePairs {
+    fn new(codes: &[u16], bound: u16, inverses: &[F], beta: &[K]) -> Option<Self> {
+        if codes.len() < 2 * PAIRS_PER_TASK {
+            return None;
+        }
+        let (min, max) = codes
+            .par_iter()
+            .with_min_len(PAIRS_PER_TASK)
+            .fold(|| (bound, bound), |(min, max), &v| (min.min(v), max.max(v)))
+            .reduce(|| (bound, bound), |(a, b), (c, d)| (a.min(c), b.max(d)));
+        let width = usize::from(max - min) + 1;
+        if max == crate::lookup::OUTSIDE || width > 256 || width * width > codes.len() / 8 {
+            return None;
+        }
+        let equality = EqualityWeights::new(&beta[1..]);
+        let pairs_per_tile = (width * width * 2).max(PAIRS_PER_TASK);
+        let index = |a: u16, b: u16| (usize::from(a - min) * width + usize::from(b - min)) as u16;
+        let default = index(bound, bound);
+        let pairs: Vec<u16> = codes
+            .par_chunks(2)
+            .with_min_len(PAIRS_PER_TASK)
+            .map(|pair| index(pair[0], pair.get(1).copied().unwrap_or(bound)))
+            .collect();
+        let counts = pairs
+            .par_chunks(pairs_per_tile)
+            .enumerate()
+            .map(|(tile, pairs)| {
+                let mut counts = vec![(0u32, K::ZERO); width * width];
+                for (i, &pair) in pairs.iter().enumerate() {
+                    if pair != default {
+                        let entry = &mut counts[usize::from(pair)];
+                        entry.0 += 1;
+                        entry.1 += equality.at(tile * pairs_per_tile + i);
+                    }
+                }
+                counts
+            })
+            .reduce_with(|mut left, right| {
+                for ((n, e), (m, f)) in left.iter_mut().zip(right) {
+                    *n += m;
+                    *e += f;
+                }
+                left
+            })
+            .unwrap_or_default();
+        let cell = |i: usize| {
+            let code = usize::from(min) + i;
+            LookupCell {
+                value: K::from(F::from_usize(code) - F::from_u16(bound)),
+                inverse: K::from(inverses[code]),
+            }
+        };
+        let classes = counts
+            .into_iter()
+            .enumerate()
+            .filter(|(_, (count, _))| *count != 0)
+            .map(|(index, (count, eq))| {
+                (
+                    index,
+                    RepeatedLine {
+                        a: cell(index / width),
+                        b: cell(index % width),
+                        count,
+                        eq,
+                    },
+                )
+            })
+            .collect();
+        Some(Self { pairs, classes, width })
+    }
+    fn bind(self, base: LookupCell, challenge: K) -> Vec<LookupCell> {
+        let mut cells = vec![base; self.width * self.width];
+        for (i, class) in self.classes {
+            cells[i] = class.a.bind(class.b, challenge);
+        }
+        self.pairs
+            .par_iter()
+            .map(|&pair| cells[usize::from(pair)])
+            .collect()
     }
 }
 
@@ -74,6 +203,7 @@ pub(crate) struct Slot {
     slice: Slice,
     base: LookupCell,
     cells: Vec<LookupCell>,
+    first: Option<CodePairs>,
     xi: K,
     lambda: K,
 }
@@ -84,9 +214,9 @@ impl Slot {
         bound: u64,
         codes: &[u16],
         inverses: &[F],
-        xi: K,
-        lambda: K,
+        [xi, lambda]: [K; 2],
         witness: &[F],
+        beta: &[K],
     ) -> Self {
         let base = LookupCell {
             value: K::ZERO,
@@ -96,18 +226,24 @@ impl Slot {
             .par_iter()
             .position_last(|&code| code != bound as u16)
             .map_or(0, |i| i + 1);
-        let cells = codes[..len]
-            .par_iter()
-            .zip(&witness[..len])
-            .map(|(&code, &value)| LookupCell {
-                value: K::from(value),
-                inverse: K::from(inverses.get(usize::from(code)).copied().unwrap_or(F::ZERO)),
-            })
-            .collect();
+        let first = CodePairs::new(&codes[..len], bound as u16, inverses, &beta[..slice.vars]);
+        let cells = if first.is_some() {
+            Vec::new()
+        } else {
+            codes[..len]
+                .par_iter()
+                .zip(&witness[..len])
+                .map(|(&code, &value)| LookupCell {
+                    value: K::from(value),
+                    inverse: K::from(inverses.get(usize::from(code)).copied().unwrap_or(F::ZERO)),
+                })
+                .collect()
+        };
         Self {
             slice,
             base,
             cells,
+            first,
             xi,
             lambda,
         }
@@ -127,8 +263,33 @@ impl Slot {
             *e = xi * eq + self.lambda * count * default_sum;
             eq += step;
         }
-        if self.cells.is_empty() {
+        if self.cells.is_empty() && self.first.is_none() {
             return base;
+        }
+        let finish = |inverse: Samples, mut lookup: Samples| {
+            lookup.quartic *= polynomial.numerator_leading();
+            let (inverse_checks, lookup_sums) = (inverse.evaluations(), lookup.evaluations());
+            let mut e = K::ONE - beta[bit];
+            std::array::from_fn(|k| {
+                let v = xi * e * inverse_checks[k] + self.lambda * lookup_sums[k];
+                e += step;
+                v
+            })
+        };
+        if let Some(first) = &self.first {
+            let sums = first
+                .classes
+                .par_chunks(PAIRS_PER_TASK)
+                .map(|classes| {
+                    let mut inverse = Samples::default();
+                    let mut lookup = Samples::default();
+                    for &(_, class) in classes {
+                        class.flush(polynomial, default_sum, &mut inverse, &mut lookup);
+                    }
+                    finish(inverse, lookup)
+                })
+                .reduce(|| [K::ZERO; 7], |a, b| std::array::from_fn(|i| a[i] + b[i]));
+            return std::array::from_fn(|i| base[i] + sums[i]);
         }
         let equality = EqualityWeights::new(&beta[bit + 1..self.slice.vars]);
         let sums = self
@@ -136,8 +297,8 @@ impl Slot {
             .par_chunks(2 * PAIRS_PER_TASK)
             .enumerate()
             .map(|(tile, cells)| {
-                let mut inverse_checks = [K::ZERO; 7];
-                let mut lookup_sums = [K::ZERO; 7];
+                let mut inverse_checks = Samples::default();
+                let mut lookup_sums = Samples::default();
                 let empty = RepeatedLine {
                     a: self.base,
                     b: self.base,
@@ -179,17 +340,16 @@ impl Slot {
                         class.flush(polynomial, default_sum, &mut inverse_checks, &mut lookup_sums);
                     }
                 }
-                let mut e = K::ONE - beta[bit];
-                std::array::from_fn(|k| {
-                    let v = xi * e * inverse_checks[k] + self.lambda * lookup_sums[k];
-                    e += step;
-                    v
-                })
+                finish(inverse_checks, lookup_sums)
             })
             .reduce(|| [K::ZERO; 7], |a, b| std::array::from_fn(|i| a[i] + b[i]));
         std::array::from_fn(|i| base[i] + sums[i])
     }
     fn bind(&mut self, x: K) {
+        if let Some(first) = self.first.take() {
+            self.cells = first.bind(self.base, x);
+            return;
+        }
         self.cells = self
             .cells
             .par_chunks(2)
@@ -371,3 +531,7 @@ pub(crate) fn prove(
         inverse_value.unwrap_or_else(|| tail[0].inverse),
     ))
 }
+
+#[cfg(test)]
+#[path = "../../tests/unit/lookup_slot.rs"]
+mod tests;

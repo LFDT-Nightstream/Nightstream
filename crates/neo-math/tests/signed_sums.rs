@@ -246,12 +246,9 @@ fn accelerated_signed_ring_dot_matches_integer_sums_across_groups() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn sme2_child_batches_match_indexed_ring_products() {
-    use neo_math::signed_sums::accelerate::{child_batch_available, try_child_batch_dot, MAX_BATCH_PLANES};
+fn batched_child_commitment_rows_match_indexed_ring_products() {
+    use neo_math::signed_sums::accelerate::{ChildBatchKernel, MAX_BATCH_PLANES};
 
-    if !child_batch_available() {
-        return;
-    }
     let columns = 263;
     let keys: Vec<u64> = (0..columns * D)
         .map(|i| match (i / D) % 4 {
@@ -296,7 +293,7 @@ fn sme2_child_batches_match_indexed_ring_products() {
         }
         for n in 1..=planes.len() {
             let mut actual = vec![[Fq::ONE; D]; n];
-            assert!(try_child_batch_dot(&keys, &indices, &planes[..n], &mut actual));
+            assert!(ChildBatchKernel::select().try_dot(&keys, &indices, &planes[..n], &mut actual));
             assert_eq!(actual, expected[..n]);
         }
     }
@@ -304,22 +301,14 @@ fn sme2_child_batches_match_indexed_ring_products() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn sme2_child_dot_reduces_across_accumulator_chunks() {
-    use neo_math::signed_sums::accelerate::{child_batch_available, try_child_batch_dot};
+fn batched_child_dot_reduces_across_accumulator_chunks() {
+    use neo_math::signed_sums::accelerate::ChildBatchKernel;
 
-    if !child_batch_available() {
-        return;
-    }
     let keys = [u64::MAX; D];
     let count = (1 << 20) + 1;
     let indices = vec![0; count];
     let mut actual = [[Fq::ZERO; D]];
-    assert!(try_child_batch_dot(
-        &keys,
-        &indices,
-        &[(&[0], &[u64::MAX])],
-        &mut actual
-    ));
+    assert!(ChildBatchKernel::select().try_dot(&keys, &indices, &[(&[0], &[u64::MAX])], &mut actual));
     let mut term = SignedShiftSums::zero();
     term.add_signed_units(&SplitRing::from_u64(&keys), 0, u64::MAX);
     assert_eq!(actual[0], term.reduce().map(|v| v * Fq::from_u64(count as u64)));

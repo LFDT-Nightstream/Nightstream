@@ -12,6 +12,8 @@ pub const ROW_WORKSPACE_WORDS: usize = TILE_COLUMNS * LIMBS + TILE_COLUMNS * D +
 #[cfg(nightstream_sme2)]
 mod sme2;
 
+mod child_dgemm;
+
 pub const MAX_BATCH_PLANES: usize = 6;
 const CHILD_TILE_BYTES: usize = 165_888;
 const CHILD_PLANE_BYTES: usize = 73_728;
@@ -22,25 +24,36 @@ pub fn child_batch_workspace_bytes(planes: usize) -> usize {
     CHILD_TILE_BYTES + planes * CHILD_PLANE_BYTES + CHILD_STACK_AND_PAGE_SLACK
 }
 
-pub fn child_batch_available() -> bool {
+#[derive(Clone, Copy)]
+pub enum ChildBatchKernel {
     #[cfg(nightstream_sme2)]
-    return sme2::available_on_this_thread();
-    #[cfg(not(nightstream_sme2))]
-    false
+    Sme2,
+    Toom4,
 }
 
-pub fn try_child_batch_dot(
-    key_words: &[u64],
-    columns: &[u32],
-    planes: &[(&[u64], &[u64])],
-    out: &mut [[F; D]],
-) -> bool {
-    #[cfg(nightstream_sme2)]
-    return sme2::child_batch_dot(key_words, columns, planes, out);
-    #[cfg(not(nightstream_sme2))]
-    {
-        let _ = (key_words, columns, planes, out);
-        false
+impl ChildBatchKernel {
+    pub fn select() -> Self {
+        #[cfg(nightstream_sme2)]
+        if sme2::available_on_this_thread() {
+            return Self::Sme2;
+        }
+        Self::Toom4
+    }
+
+    pub fn jobs_per_task(self, jobs: usize, planes: usize, scratch_budget: usize) -> usize {
+        match self {
+            #[cfg(nightstream_sme2)]
+            Self::Sme2 => 1,
+            Self::Toom4 => jobs.div_ceil(scratch_budget / child_dgemm::workspace(planes)),
+        }
+    }
+
+    pub fn try_dot(self, keys: &[u64], columns: &[u32], planes: &[(&[u64], &[u64])], out: &mut [[F; D]]) -> bool {
+        match self {
+            #[cfg(nightstream_sme2)]
+            Self::Sme2 => sme2::child_batch_dot(keys, columns, planes, out),
+            Self::Toom4 => child_dgemm::compute(keys, columns, planes, out),
+        }
     }
 }
 

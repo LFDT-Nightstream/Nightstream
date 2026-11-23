@@ -1,9 +1,7 @@
 use std::borrow::Borrow;
 
 use neo_ccs::Mat;
-use neo_math::signed_sums::accelerate::{
-    child_batch_available, child_batch_workspace_bytes, try_child_batch_dot, MAX_BATCH_PLANES,
-};
+use neo_math::signed_sums::accelerate::{child_batch_workspace_bytes, ChildBatchKernel, MAX_BATCH_PLANES};
 use p3_field::PrimeCharacteristicRing;
 use rayon::prelude::*;
 
@@ -15,6 +13,8 @@ const APPLE_PAGE_BYTES: usize = 16 << 10;
 type JobOutput = [[Fq; D]; MAX_BATCH_PLANES];
 
 struct BatchLayout {
+    kernel: ChildBatchKernel,
+    jobs_per_task: usize,
     width: usize,
     workspace_bytes: usize,
 }
@@ -29,7 +29,10 @@ impl BatchLayout {
             .sum::<usize>();
         let index_bytes = (columns * size_of::<u32>()).next_multiple_of(APPLE_PAGE_BYTES);
         let output_bytes = (ROWS * groups * size_of::<JobOutput>()).next_multiple_of(APPLE_PAGE_BYTES);
+        let kernel = ChildBatchKernel::select();
         Self {
+            kernel,
+            jobs_per_task: kernel.jobs_per_task(ROWS * groups, width, ROWS * job_bytes),
             width,
             workspace_bytes: ROWS * job_bytes + groups * index_bytes + output_bytes + APPLE_PAGE_BYTES,
         }
@@ -50,7 +53,7 @@ pub(super) fn commit<W: Borrow<Mat<Fq>>>(witnesses: &[W]) -> Option<Vec<Commitme
         return None;
     }
     let key = ExpandedKey::shared()?;
-    if key.blocks() < columns as u64 || !child_batch_available() {
+    if key.blocks() < columns as u64 {
         return None;
     }
     let mut planes = [(&[][..], &[][..]); four_plane::MAX_PLANES];
@@ -99,17 +102,23 @@ pub(super) fn commit<W: Borrow<Mat<Fq>>>(witnesses: &[W]) -> Option<Vec<Commitme
         })
         .collect();
     let mut jobs = vec![[[Fq::ZERO; D]; MAX_BATCH_PLANES]; ROWS * groups.len()];
-    let completed = jobs.par_iter_mut().enumerate().all(|(task, out)| {
-        let row = task / groups.len();
-        let (planes, indices) = &groups[task % groups.len()];
-        let offset = row * key.blocks() as usize * D;
-        try_child_batch_dot(
-            &key.words()[offset..offset + columns * D],
-            indices,
-            planes,
-            &mut out[..planes.len()],
-        )
-    });
+    let completed = jobs
+        .par_chunks_mut(layout.jobs_per_task)
+        .enumerate()
+        .all(|(part, jobs)| {
+            jobs.iter_mut().enumerate().all(|(index, out)| {
+                let task = part * layout.jobs_per_task + index;
+                let row = task / groups.len();
+                let (planes, indices) = &groups[task % groups.len()];
+                let offset = row * key.blocks() as usize * D;
+                layout.kernel.try_dot(
+                    &key.words()[offset..offset + columns * D],
+                    indices,
+                    planes,
+                    &mut out[..planes.len()],
+                )
+            })
+        });
     if !completed {
         return None;
     }

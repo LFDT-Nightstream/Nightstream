@@ -506,7 +506,7 @@ impl<'a> View<'a> {
         self.slot_bits(j, Layout::op_addr, self.sym.geometry.addr_width())
     }
 
-    /// The address of slot `j` from its `μ` bits.
+    /// The address of slot `j` from its `max(r, μ)` bits.
     pub fn addr(&self, j: usize) -> Expr {
         chunk(self.addr_bits(j))
     }

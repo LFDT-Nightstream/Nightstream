@@ -78,6 +78,31 @@ fn wasm_trace_run_with_memory_size_and_grow() {
 }
 
 #[test]
+fn wasm_trace_run_with_accesses_at_the_end_of_memory() {
+    for (value, store, load, width) in [
+        ("i32.const 0x04030201", "i32.store8", "i32.load8_u", 1),
+        ("i32.const 0x04030201", "i32.store16", "i32.load16_u", 2),
+        ("i32.const 0x04030201", "i32.store", "i32.load", 4),
+        ("i64.const 0x0807060504030201", "i64.store8", "i64.load8_u", 1),
+        ("i64.const 0x0807060504030201", "i64.store16", "i64.load16_u", 2),
+        ("i64.const 0x0807060504030201", "i64.store32", "i64.load32_u", 4),
+        ("i64.const 0x0807060504030201", "i64.store", "i64.load", 8),
+    ] {
+        let result = &value[..3];
+        for (memory, grow) in [("(memory 1)", ""), ("(memory 0 1)", "i32.const 1 memory.grow drop")] {
+            for address in 65528..=65537 - width {
+                let checked = common::checked_main(&format!(
+                    r#"(module {memory} (func (export "main") (result {result})
+                         {grow} i32.const {address} {value} {store} i32.const {address} {load}))"#
+                ));
+                let trapped = common::final_state(&checked.trace).trapped;
+                assert_eq!(trapped, address + width > 65536, "{memory} {store} at {address}");
+            }
+        }
+    }
+}
+
+#[test]
 fn wasm_trace_run_with_linear_memory_offset() {
     let (_, trace, ..) = compile_and_trace(
         r#"(module
@@ -810,6 +835,76 @@ fn wasm_trace_run_with_structured_control_rows() {
             neo_wasm::WasmOpcode::End,
         ]
     );
+}
+
+#[test]
+fn wasm_trace_run_with_if_block_parameters() {
+    let if_add = "(if (param i32) (result i32) (then i32.const 1 i32.add) (else i32.const 2 i32.add))";
+    for (body, expected) in [
+        (format!("i32.const 5 i32.const 1 {if_add}"), 6),
+        (format!("i32.const 5 i32.const 0 {if_add}"), 7),
+        (
+            "i32.const 5 i32.const 1 (if (param i32) (result i32) (then drop i32.const 8))".into(),
+            8,
+        ),
+        (
+            "i32.const 9 i32.const 5 i32.const 6 i32.const 1 \
+             (if (param i32 i32) (result i32 i32) (then i32.add i32.const 0)) drop i32.add"
+                .into(),
+            20,
+        ),
+        (
+            "(block (result i32) i32.const 5 i32.const 1 \
+             (if (param i32) (result i32) (then i32.const 1 i32.add br 1) (else i32.const 2 i32.add)))"
+                .into(),
+            6,
+        ),
+        (
+            "i32.const 5 i32.const 1 \
+             (if (param i32) (result i32) (then i32.const 1 i32.add return) (else i32.const 2 i32.add))"
+                .into(),
+            6,
+        ),
+        (
+            format!(
+                "i32.const 3 i32.const 5 i32.const 1 (if (param i32) (result i32) \
+                 (then i32.const 7 i32.const 1 {if_add} i32.add) (else i32.const 2 i32.add)) i32.add"
+            ),
+            16,
+        ),
+    ] {
+        let checked = common::checked_main(&format!(r#"(module (func (export "main") (result i32) {body}))"#));
+        assert_eq!(common::final_state(&checked.trace).output.value_lo, expected, "{body}");
+    }
+}
+
+#[test]
+fn wasm_trace_run_with_nested_if_reference_parameters() {
+    for (param, local) in [("(ref $t)", "(ref null $t)"), ("funcref", "funcref"), ("i64", "i64")] {
+        let value = if param == "i64" { "i64.const 7" } else { "ref.func $f" };
+        let checked = common::checked_main(&format!(
+            r#"(module
+                (type $t (func (param (ref $t))))
+                (elem declare func $f)
+                (func $f (type $t))
+                (func (export "main") (result i32) (local {local} i32)
+                    i32.const 128
+                    {value} {value}
+                    i32.const 1
+                    (if (param {param} {param}) (then
+                        i32.const 1
+                        (if (param {param} {param}) (then
+                            local.set 0
+                            i32.const 1
+                            (if (param {local}) (result i32)
+                                (then local.set 0 i32.const 63)
+                                (else drop i32.const 5))
+                            local.set 1)
+                        (else drop drop)))
+                    (else drop drop))))"#
+        ));
+        assert_eq!(common::final_state(&checked.trace).output.value_lo, 128, "{param}");
+    }
 }
 
 #[test]

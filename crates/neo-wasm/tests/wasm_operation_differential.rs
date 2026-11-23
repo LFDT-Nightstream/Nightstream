@@ -6,8 +6,6 @@ use neo_wasm::{audit_operation_auxiliary_load_bearing, audit_operation_witness, 
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use std::collections::HashSet;
 
-const P: u64 = 0xffff_ffff_0000_0001;
-
 const BINARY32: &[&str] = &[
     "lt_s", "lt_u", "gt_s", "gt_u", "le_s", "le_u", "ge_s", "ge_u", "and", "or", "xor", "mul", "shl", "shr_u", "shr_s",
     "rotl", "rotr", "div_u", "div_s", "rem_u", "rem_s",
@@ -94,7 +92,7 @@ fn check(wide: bool, source: &str, opcodes: usize) {
             .map(|bit| honest ^ (1u64 << bit))
             .collect::<Vec<_>>();
         if wide {
-            if let Some(wrapped) = honest.checked_add(P) {
+            if let Some(wrapped) = honest.checked_add(F::ORDER_U64) {
                 forgeries.push(wrapped);
             }
         }

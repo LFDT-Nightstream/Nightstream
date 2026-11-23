@@ -1,4 +1,4 @@
-use super::branch_stack::FrameSlideEdges;
+use super::branch_stack::{OperandTypes, OperatorStack};
 use super::decode::{
     checked_funcref_id, decode_control_opcode, decode_memory_opcode, decode_opcode, funcref_id, ControlFrame,
     ControlFrameKind, DecodedOpcode, NULL_FUNCREF,
@@ -7,7 +7,7 @@ use crate::ir::{pack_function_call_metadata, WasmPcEdgeKind, WasmProgramError};
 use crate::isa::{opcode_code, WasmOpcode};
 use crate::preprocess::WASM32_MAX_PAGES;
 use std::collections::BTreeMap;
-use wasmparser::{Parser, Payload};
+use wasmparser::{Parser, Payload, ValidPayload, Validator};
 
 /// Parsed program tables and capture metadata, paired with application-authored
 /// host-event bindings. Lazy capture constructs this pair from the executing
@@ -120,6 +120,7 @@ pub struct WasmProgramDecodeEntry {
 
 #[derive(Clone, Debug)]
 pub(crate) struct WasmTraceLoweringTables {
+    pub(crate) operand_types: OperandTypes,
     pub(crate) opcode_map: BTreeMap<(u32, u32), DecodedOpcode>,
     pub(crate) imported_function_count: u32,
     pub(crate) function_metas: BTreeMap<u32, ParsedFunctionMeta>,
@@ -137,13 +138,21 @@ pub(crate) struct ParsedFunctionMeta {
 }
 
 pub(super) fn parse_wasm_artifacts(wasm_bytes: &[u8]) -> Result<WasmProgramArtifacts, WasmProgramError> {
-    let mut builder = ParsedWasmArtifactsBuilder {
-        slides_by_offset: super::branch_stack::frame_slides_by_offset(wasm_bytes)?,
-        ..Default::default()
-    };
+    let mut builder = ParsedWasmArtifactsBuilder::default();
+    let mut validator = Validator::new();
+    let mut allocations = Default::default();
     for payload in Parser::new(0).parse_all(wasm_bytes) {
         let payload =
             payload.map_err(|err| WasmProgramError::Invalid(format!("failed to parse wasm payload: {err}")))?;
+        if let ValidPayload::Func(function, body) = validator
+            .payload(&payload)
+            .map_err(|err| WasmProgramError::Invalid(format!("invalid wasm program: {err}")))?
+        {
+            let mut function = function.into_validator(allocations);
+            builder.stacks_by_offset =
+                super::branch_stack::operator_stacks_by_offset(&mut function, &body, &mut builder.operand_types)?;
+            allocations = function.into_allocations();
+        }
         builder.consume_payload(payload)?;
     }
     builder.finish()
@@ -194,9 +203,10 @@ pub(super) fn single_component_core_module(bytes: &[u8]) -> Result<&[u8], WasmPr
 }
 
 struct ParsedWasmArtifactsBuilder {
+    operand_types: OperandTypes,
     opcode_map: BTreeMap<(u32, u32), DecodedOpcode>,
     pc_rom: Vec<(u64, u64, u64)>,
-    slides_by_offset: BTreeMap<u32, FrameSlideEdges>,
+    stacks_by_offset: BTreeMap<u32, OperatorStack>,
     frame_slides: Vec<(u64, u64, u32, u32)>,
     program_decode: Vec<WasmProgramDecodeEntry>,
     pc_edge_kinds: Vec<(u64, u64)>,
@@ -214,7 +224,7 @@ struct ParsedWasmArtifactsBuilder {
     raw_param_types_by_index: BTreeMap<u32, Vec<(bool, bool)>>,
     signature_ids: BTreeMap<String, u32>,
     next_type_id: u32,
-    defined_function_type_indices: Vec<u32>,
+    function_type_indices: Vec<u32>,
     initial_memory_pages: Option<u32>,
     max_memory_pages: Option<u32>,
     linear_memory_init: Vec<(u64, u8)>,
@@ -228,7 +238,8 @@ impl Default for ParsedWasmArtifactsBuilder {
         Self {
             opcode_map: BTreeMap::new(),
             pc_rom: Vec::new(),
-            slides_by_offset: BTreeMap::new(),
+            stacks_by_offset: BTreeMap::new(),
+            operand_types: OperandTypes::default(),
             frame_slides: Vec::new(),
             program_decode: Vec::new(),
             pc_edge_kinds: Vec::new(),
@@ -246,7 +257,7 @@ impl Default for ParsedWasmArtifactsBuilder {
             raw_param_types_by_index: BTreeMap::new(),
             signature_ids: BTreeMap::new(),
             next_type_id: 1,
-            defined_function_type_indices: Vec::new(),
+            function_type_indices: Vec::new(),
             initial_memory_pages: None,
             max_memory_pages: None,
             linear_memory_init: Vec::new(),
@@ -379,6 +390,7 @@ impl ParsedWasmArtifactsBuilder {
                 tables_init: self.tables_init,
             },
             trace: WasmTraceLoweringTables {
+                operand_types: self.operand_types,
                 opcode_map: self.opcode_map,
                 imported_function_count: self.imported_function_count,
                 function_metas: self.function_metas,
@@ -392,7 +404,11 @@ impl ParsedWasmArtifactsBuilder {
                 for (raw_type_index, func_type_result) in reader.into_iter_err_on_gc_types().enumerate() {
                     let func_type = func_type_result
                         .map_err(|err| WasmProgramError::Invalid(format!("failed to decode wasm func type: {err}")))?;
-                    let signature = canonical_wasmparser_func_signature(&func_type);
+                    let signature = canonical_wasmparser_func_signature(
+                        &func_type,
+                        raw_type_index as u32,
+                        &self.raw_type_id_by_index,
+                    )?;
                     let type_id = *self.signature_ids.entry(signature).or_insert_with(|| {
                         let assigned = self.next_type_id;
                         self.next_type_id = self.next_type_id.saturating_add(1);
@@ -456,6 +472,7 @@ impl ParsedWasmArtifactsBuilder {
                         ));
                     }
                     if let wasmparser::TypeRef::Func(raw_type_index) = import.ty {
+                        self.function_type_indices.push(raw_type_index);
                         let function_ref = funcref_id(self.imported_function_count);
                         self.imported_function_count = self.imported_function_count.saturating_add(1);
                         let type_id = *self
@@ -494,7 +511,29 @@ impl ParsedWasmArtifactsBuilder {
                     let raw_type_index = raw_type_index_result.map_err(|err| {
                         WasmProgramError::Invalid(format!("failed to decode wasm function type index: {err}"))
                     })?;
-                    self.defined_function_type_indices.push(raw_type_index);
+                    self.function_type_indices.push(raw_type_index);
+                }
+            }
+            Payload::ExportSection(reader) => {
+                for export in reader {
+                    let export = export
+                        .map_err(|err| WasmProgramError::Invalid(format!("failed to decode wasm export: {err}")))?;
+                    if export.kind != wasmparser::ExternalKind::Func {
+                        continue;
+                    }
+                    let (_, results, _, _) = *self
+                        .function_type_indices
+                        .get(export.index as usize)
+                        .and_then(|raw_type_index| self.raw_type_shape_by_index.get(raw_type_index))
+                        .ok_or_else(|| {
+                            WasmProgramError::Invalid(format!("missing function type for export `{}`", export.name))
+                        })?;
+                    if results > 1 {
+                        return Err(WasmProgramError::Unsupported(format!(
+                            "export `{}` returns {results} values; the proof output holds one",
+                            export.name
+                        )));
+                    }
                 }
             }
             Payload::MemorySection(reader) => {
@@ -505,14 +544,15 @@ impl ParsedWasmArtifactsBuilder {
                 }
             }
             Payload::CodeSectionEntry(body) => {
-                let function_ref = self
+                let function_index = self
                     .imported_function_count
                     .checked_add(self.defined_function_index)
-                    .and_then(checked_funcref_id)
+                    .ok_or_else(|| WasmProgramError::Invalid("function index overflow".to_string()))?;
+                let function_ref = checked_funcref_id(function_index)
                     .ok_or_else(|| WasmProgramError::Invalid("function ref id overflow".to_string()))?;
                 let raw_type_index = *self
-                    .defined_function_type_indices
-                    .get(self.defined_function_index as usize)
+                    .function_type_indices
+                    .get(function_index as usize)
                     .ok_or_else(|| {
                         WasmProgramError::Invalid(format!(
                             "missing type index for defined function {}",
@@ -778,9 +818,12 @@ impl ParsedWasmArtifactsBuilder {
                             .push((resolve_pc, u64::from(WasmPcEdgeKind::Static.as_u32())));
                         self.push_pc_rom_edge(resolve_pc, 0, pc_before);
                     }
-                    let frame_slides = self.slides_by_offset.remove(&offset).unwrap_or_default();
+                    let stack = self.stacks_by_offset.remove(&offset).ok_or_else(|| {
+                        WasmProgramError::Invalid(format!("missing operand stack height at byte {offset}"))
+                    })?;
                     self.frame_slides.extend(
-                        frame_slides
+                        stack
+                            .slides
                             .iter()
                             .map(|&(choice, remaining, distance)| (pc_before, choice, remaining, distance)),
                     );
@@ -795,7 +838,9 @@ impl ParsedWasmArtifactsBuilder {
                             pc_edge_kind,
                             expected_type_id,
                             pc_after_instruction: pc_after,
-                            frame_slides,
+                            operand_height: stack.height,
+                            frame_operands: stack.frame_operands,
+                            frame_slides: stack.slides,
                         },
                     );
 
@@ -1175,22 +1220,50 @@ impl ParsedWasmArtifactsBuilder {
     }
 }
 
-fn canonical_wasmparser_func_signature(ty: &wasmparser::FuncType) -> String {
-    let params = ty
-        .params()
-        .iter()
-        .map(|ty| canonical_wasmparser_val_type(*ty))
-        .collect::<Vec<_>>()
-        .join(",");
-    let results = ty
-        .results()
-        .iter()
-        .map(|ty| canonical_wasmparser_val_type(*ty))
-        .collect::<Vec<_>>()
-        .join(",");
-    format!("{params}->{results}")
+/// WebAssembly type equivalence for a function type that is its own recursion
+/// group: a concrete reference names the type itself or the id of an earlier
+/// type.
+fn canonical_wasmparser_func_signature(
+    ty: &wasmparser::FuncType,
+    index: u32,
+    earlier_ids: &BTreeMap<u32, u32>,
+) -> Result<String, WasmProgramError> {
+    let list = |types: &[wasmparser::ValType]| {
+        types
+            .iter()
+            .map(|ty| canonical_wasmparser_val_type(*ty, index, earlier_ids))
+            .collect::<Result<Vec<_>, _>>()
+            .map(|types| types.join(","))
+    };
+    Ok(format!("{}->{}", list(ty.params())?, list(ty.results())?))
 }
 
-fn canonical_wasmparser_val_type(ty: wasmparser::ValType) -> String {
-    format!("{ty:?}")
+fn canonical_wasmparser_val_type(
+    ty: wasmparser::ValType,
+    index: u32,
+    earlier_ids: &BTreeMap<u32, u32>,
+) -> Result<String, WasmProgramError> {
+    let wasmparser::ValType::Ref(reference) = ty else {
+        return Ok(format!("{ty:?}"));
+    };
+    let wasmparser::HeapType::Concrete(target) = reference.heap_type() else {
+        return Ok(format!("{ty:?}"));
+    };
+    let target = match target.as_module_index() {
+        Some(target) if target == index => "self".to_string(),
+        Some(target) => format!(
+            "type {}",
+            earlier_ids
+                .get(&target)
+                .ok_or_else(|| WasmProgramError::Invalid(format!(
+                    "function type {index} refers to type {target}, which is not an earlier type"
+                )))?
+        ),
+        None => {
+            return Err(WasmProgramError::Unsupported(format!(
+                "function type {index} has a reference outside the module type space"
+            )))
+        }
+    };
+    Ok(format!("ref(nullable={}, {target})", reference.is_nullable()))
 }

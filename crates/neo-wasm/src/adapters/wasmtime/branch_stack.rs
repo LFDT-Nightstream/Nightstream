@@ -1,10 +1,74 @@
+use super::decode::OperandLane;
 use crate::ir::WasmProgramError;
 use std::collections::BTreeMap;
-use wasmparser::{
-    FrameKind, FuncValidator, ModuleArity, Operator, Parser, ValidPayload, Validator, WasmModuleResources,
-};
+use wasmparser::{FrameKind, FuncValidator, FunctionBody, ModuleArity, Operator, WasmModuleResources};
 
 pub(super) type FrameSlideEdges = Vec<(u64, u32, u32)>;
+
+pub(super) struct OperatorStack {
+    pub(super) height: u32,
+    pub(super) frame_operands: FrameOperands,
+    pub(super) slides: FrameSlideEdges,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct FrameOperands {
+    top: usize,
+    len: usize,
+}
+
+#[derive(Clone, Debug, Default)]
+pub(crate) struct OperandTypes {
+    nodes: Vec<(usize, Option<OperandLane>)>,
+}
+
+impl OperandTypes {
+    fn pop(&self, top: &mut usize) -> Option<OperandLane> {
+        let (parent, lane) = self.nodes[*top - 1];
+        *top = parent;
+        lane
+    }
+
+    pub(super) fn lanes(&self, frame: FrameOperands) -> Vec<Option<OperandLane>> {
+        let mut top = frame.top;
+        let mut lanes: Vec<_> = (0..frame.len).map(|_| self.pop(&mut top)).collect();
+        lanes.reverse();
+        lanes
+    }
+
+    fn update<T: WasmModuleResources>(
+        &mut self,
+        mut top: usize,
+        height: usize,
+        outputs: u32,
+        validator: &FuncValidator<T>,
+        offset: usize,
+    ) -> Result<usize, WasmProgramError> {
+        let next_height = validator.operand_stack_height() as usize;
+        let prefix = next_height.saturating_sub(outputs as usize);
+        let mut replaced = Vec::new();
+        for _ in prefix..height {
+            let node = top;
+            replaced.push((node, self.pop(&mut top)));
+        }
+        let mut unchanged = true;
+        for depth in (0..next_height - prefix).rev() {
+            let lane = validator
+                .get_operand_type(depth)
+                .ok_or_else(|| WasmProgramError::Invalid(format!("missing operand type at byte {offset}")))?
+                .map(OperandLane::of_type);
+            match replaced.pop() {
+                Some((node, previous)) if unchanged && previous == lane => top = node,
+                _ => {
+                    unchanged = false;
+                    self.nodes.push((top, lane));
+                    top = self.nodes.len();
+                }
+            }
+        }
+        Ok(top)
+    }
+}
 
 fn canonical_slide(kept: u32, distance: u32) -> (u32, u32) {
     if distance == 0 {
@@ -66,76 +130,92 @@ fn narrow(value: usize, offset: usize) -> Result<u32, WasmProgramError> {
     u32::try_from(value).map_err(|_| WasmProgramError::Unsupported(format!("frame slide too large at byte {offset}")))
 }
 
-pub(super) fn frame_slides_by_offset(bytes: &[u8]) -> Result<BTreeMap<u32, FrameSlideEdges>, WasmProgramError> {
+pub(super) fn operator_stacks_by_offset<T: WasmModuleResources>(
+    function: &mut FuncValidator<T>,
+    body: &FunctionBody<'_>,
+    operand_types: &mut OperandTypes,
+) -> Result<BTreeMap<u32, OperatorStack>, WasmProgramError> {
     let invalid = |error| WasmProgramError::Invalid(format!("invalid wasm program: {error}"));
-    let mut slides = BTreeMap::new();
-    let mut validator = Validator::new();
-    let mut allocations = Default::default();
-    for payload in Parser::new(0).parse_all(bytes) {
-        let payload = payload.map_err(invalid)?;
-        if let ValidPayload::Func(function, body) = validator.payload(&payload).map_err(invalid)? {
-            let mut function = function.into_validator(allocations);
-            function
-                .read_locals(&mut body.get_binary_reader())
-                .map_err(invalid)?;
-            let mut operators = body.get_operators_reader().map_err(invalid)?;
-            while !operators.eof() {
-                let offset = operators.original_position();
-                let operator = operators.read().map_err(invalid)?;
-                let reachable = function
-                    .get_control_frame(0)
-                    .is_some_and(|frame| !frame.unreachable);
-                let height = function.operand_stack_height() as usize;
-                let edges = match &operator {
-                    Operator::End if function.control_stack_height() == 1 => {
-                        let (results, _) = arity(&function, 0, offset)?;
-                        let (kept, distance) = function_return(&function, results as usize, offset)?;
-                        vec![(0, kept, distance)]
-                    }
-                    _ if !reachable => vec![],
-                    // A `br` to the body's own label is a `return`.
-                    Operator::Br { relative_depth }
-                        if *relative_depth as usize == function.control_stack_height() as usize - 1 =>
-                    {
-                        let (kept, distance) = function_return(&function, height, offset)?;
-                        vec![(0, kept, distance)]
-                    }
-                    Operator::Br { relative_depth } => {
-                        let (kept, distance) = branch(&function, *relative_depth, 0, offset)?;
-                        vec![(0, kept, distance)]
-                    }
-                    Operator::BrIf { relative_depth } => {
-                        let (kept, distance) = branch(&function, *relative_depth, 1, offset)?;
-                        vec![(0, 0, 0), (1, kept, distance)]
-                    }
-                    Operator::BrTable { targets } => {
-                        let mut edges = Vec::new();
-                        for (arm, target) in targets.targets().enumerate() {
-                            let (kept, distance) = branch(&function, target.map_err(invalid)?, 1, offset)?;
-                            edges.push((arm as u64 + 1, kept, distance));
-                        }
-                        let (kept, distance) = branch(&function, targets.default(), 1, offset)?;
-                        edges.push((0, kept, distance));
-                        edges
-                    }
-                    Operator::Return => {
-                        let (kept, distance) = function_return(&function, height, offset)?;
-                        vec![(0, kept, distance)]
-                    }
-                    _ => vec![],
-                };
-                if !edges.is_empty() {
-                    slides.insert(narrow(offset, offset)?, edges);
-                }
-                function.op(offset, &operator).map_err(invalid)?;
+    let mut stacks = BTreeMap::new();
+    function
+        .read_locals(&mut body.get_binary_reader())
+        .map_err(invalid)?;
+    let mut operators = body.get_operators_reader().map_err(invalid)?;
+    let mut top = 0;
+    while !operators.eof() {
+        let offset = operators.original_position();
+        let operator = operators.read().map_err(invalid)?;
+        let frame = function
+            .get_control_frame(0)
+            .ok_or_else(|| WasmProgramError::Invalid(format!("operator outside a function at byte {offset}")))?;
+        let reachable = !frame.unreachable;
+        let height = function.operand_stack_height() as usize;
+        let frame_operands = FrameOperands {
+            top,
+            len: height.checked_sub(frame.height).ok_or_else(|| {
+                WasmProgramError::Invalid(format!("operand stack below its control frame at byte {offset}"))
+            })?,
+        };
+        let edges = match &operator {
+            Operator::End if function.control_stack_height() == 1 => {
+                let (results, _) = arity(function, 0, offset)?;
+                let (kept, distance) = function_return(function, results as usize, offset)?;
+                vec![(0, kept, distance)]
             }
-            let end_offset = operators.original_position();
-            operators
-                .get_binary_reader()
-                .finish_expression(&function.visitor(end_offset))
-                .map_err(invalid)?;
-            allocations = function.into_allocations();
-        }
+            _ if !reachable => vec![],
+            // A `br` to the body's own label is a `return`.
+            Operator::Br { relative_depth }
+                if *relative_depth as usize == function.control_stack_height() as usize - 1 =>
+            {
+                let (kept, distance) = function_return(function, height, offset)?;
+                vec![(0, kept, distance)]
+            }
+            Operator::Br { relative_depth } => {
+                let (kept, distance) = branch(function, *relative_depth, 0, offset)?;
+                vec![(0, kept, distance)]
+            }
+            Operator::BrIf { relative_depth } => {
+                let (kept, distance) = branch(function, *relative_depth, 1, offset)?;
+                vec![(0, 0, 0), (1, kept, distance)]
+            }
+            Operator::BrTable { targets } => {
+                let mut edges = Vec::new();
+                for (arm, target) in targets.targets().enumerate() {
+                    let (kept, distance) = branch(function, target.map_err(invalid)?, 1, offset)?;
+                    edges.push((arm as u64 + 1, kept, distance));
+                }
+                let (kept, distance) = branch(function, targets.default(), 1, offset)?;
+                edges.push((0, kept, distance));
+                edges
+            }
+            Operator::Return => {
+                let (kept, distance) = function_return(function, height, offset)?;
+                vec![(0, kept, distance)]
+            }
+            _ => vec![],
+        };
+        stacks.insert(
+            narrow(offset, offset)?,
+            OperatorStack {
+                height: narrow(height, offset)?,
+                frame_operands,
+                slides: edges,
+            },
+        );
+        let arity = operator.operator_arity(function);
+        function.op(offset, &operator).map_err(invalid)?;
+        let (_, outputs) =
+            arity.ok_or_else(|| WasmProgramError::Unsupported(format!("unknown operator arity at byte {offset}")))?;
+        top = operand_types.update(top, height, outputs, function, offset)?;
     }
-    Ok(slides)
+    let end_offset = operators.original_position();
+    operators
+        .get_binary_reader()
+        .finish_expression(&function.visitor(end_offset))
+        .map_err(invalid)?;
+    Ok(stacks)
 }
+
+#[cfg(test)]
+#[path = "../../../tests/unit/operand_types.rs"]
+mod tests;

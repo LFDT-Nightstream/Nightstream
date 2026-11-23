@@ -29,11 +29,21 @@ Between `<!-- papers -->` and `<!-- /papers -->` SPEC.md lists each cited paper 
 in PAPER_DOCUMENTS names a protocol paper, a paper from the table or an ePrint number, then in the same sentence a kind
 of ITEM and its number. Each citation needs a row, and each row a citation.
 
-  python3 scripts/check_spec.py            check pins, paths, the table and the spec files
+The prose marks a derived number "(computed)". `computed_claims` recomputes these numbers, and some other
+derived numbers, from the Lean values of the table, Lean definitions, the Lean-emitted artifacts
+and the field constant `Q` of `crates/neo-params`.
+Each claim is a template of SPEC.md text with `{}` for each number. The text must hold each
+template. Integers must match exactly. Probability bounds must match their outward rounding at
+the stated precision. An approximation must be within one unit of its last digit. Each "(computed)"
+marker must be in the text of a claim or of an UNCHECKED entry, whose reason the script prints.
+
+  python3 scripts/check_spec.py            check pins, paths, the table, the computed values and
+                                           the spec files
   python3 scripts/check_spec.py --write    rewrite the table (pins are never edited)
 """
 
 import argparse
+from fractions import Fraction
 import json
 import math
 from pathlib import Path
@@ -66,6 +76,21 @@ NUMBER = r"(?:[0-9]+|[A-Z])(?:\.[0-9]+)*"
 ITEM = (r"\b(Theorem|Lemma|Definition|Construction|Section|Assumption|Corollary|Proposition|Remark|Figure"
         rf"|Appendix)s? ({NUMBER}(?:(?:,? and | to |, |/){NUMBER})*)\b")
 DOCSTRING = re.compile(r"/-[-!](.*?)-/", re.S)
+FOLD_GATE = ARTIFACTS / "nightstream-fprime-fold-gate-parity-v1.json"
+NEBULA_GATE = ARTIFACTS / "nightstream-fprime-nebula-gate-parity-v1.json"
+COMPRESSION = ARTIFACTS / "nightstream-fprime-compression-parity-v1.json"
+PLAN = FPRIME / "Spec/Nebula/Plan.lean"
+PRODUCTION = FPRIME / "Spec/Compression/Production.lean"
+PARAMS = ROOT / "crates/neo-params/src/lib.rs"
+POSEIDON2 = FPRIME / "Spec/Poseidon2.lean"
+COMPUTED = re.compile(r"\((?:both )?computed\b|That fact is computed")
+COMPUTED_NUMBER = r"([0-9]+(?:,[0-9]{3})*(?:\.[0-9]+)?)"
+UNCHECKED = [
+    ("probability below `1/5^64 + 2^−173` (computed)",
+     "a sum of `1/|C|` and the bound of `PiRlcSampler.distance_lt`, which no artifact holds"),
+    ("`−log₂` of the sum in `f64` is 119 (computed)",
+     "an `f64` value of the claims of a Rust test, which that test checks"),
+]
 
 PIN = re.compile(r"`((?:Claims|Export|Layout|Lifecycle|Spec)\.[^`\s]*)` \(`([^`\s.]*)`\)")
 FINGERPRINT = re.compile(r"[0-9a-f]{16}")
@@ -246,15 +271,17 @@ def parity_rows():
     return found
 
 
-def neg_log2_floor(numerator, denominator):
-    """`−log₂(numerator/denominator)` rounded down to two decimals, exactly."""
-    j = max(0, math.floor(100 * (math.log2(denominator) - math.log2(numerator))))
-    power_n, power_d = numerator ** 100, denominator ** 100
-    while (power_n << j) > power_d:
-        j -= 1
-    while (power_n << (j + 1)) <= power_d:
-        j += 1
-    return f"{j // 100}.{j % 100:02d}"
+def neg_log2_bound(probability, places, *, lower=False):
+    scale = 10 ** places
+    numerator = probability.numerator ** scale
+    denominator = probability.denominator ** scale
+    exponent = denominator.bit_length() - numerator.bit_length()
+    shifted = numerator << exponent
+    if lower:
+        exponent += shifted < denominator
+    else:
+        exponent -= shifted > denominator
+    return f"{exponent // scale}.{exponent % scale:0{places}d}"
 
 
 def rows():
@@ -275,8 +302,7 @@ def rows():
     return found
 
 
-def table():
-    found = rows()
+def table(found):
     keys = [key for _, key, _ in found]
     if sorted(set(keys)) != sorted(keys):
         sys.exit("spec: a table key appears twice")
@@ -288,7 +314,7 @@ def table():
         symbol, meaning = LABELS[key]
         if key in PROBABILITY_OVER_Q2:
             numerator, denominator = value
-            shown = f"{numerator}/q² ≈ 2^−{neg_log2_floor(numerator, denominator)}"
+            shown = f"{numerator}/q² ≤ 2^−{neg_log2_bound(Fraction(numerator, denominator), 2)}"
         else:
             shown = str(value)
         symbol = symbol if symbol == "—" else f"`{symbol}`"
@@ -299,9 +325,219 @@ def table():
         "",
         *lines,
         "",
-        "A probability is shown as `2^−x`, where `x` is `−log₂` of the exact fraction rounded down "
-        "to two decimals, so the shown bound is never below the true value.",
+        "Each probability bound in this table is `2^−x`, where `x` is `−log₂` of the exact "
+        "fraction rounded down to two decimal places.",
     ])
+
+
+def artifact(path, schema):
+    """A Lean-emitted JSON file of schema `schema`: a list that starts with it, or an object."""
+    value = json.loads(path.read_text(encoding="utf-8"))
+    found = value["schema"] if isinstance(value, dict) else value[0]
+    if found != schema:
+        sys.exit(f"spec: {rel(path)} has schema {found}, not {schema}")
+    return value
+
+
+def lean_number(path, pattern):
+    found = re.search(pattern, path.read_text(encoding="utf-8"), re.M)
+    if not found:
+        sys.exit(f"spec: {rel(path)} has no line that matches {pattern!r}")
+    return int(found.group(1))
+
+
+def only(values, what):
+    found = set(values)
+    if len(found) != 1:
+        sys.exit(f"spec: {what} has the values {sorted(found)}, not one value")
+    return found.pop()
+
+
+def neg_log2(value):
+    return math.log2(value.denominator) - math.log2(value.numerator)
+
+
+def little_endian(words):
+    return sum(word << (64 * index) for index, word in enumerate(words))
+
+
+def computed_claims(lean):
+    """(template, values) for each derived number of SPEC.md prose, in the order of the text."""
+    q, b, k, T, B, max_fresh = (lean[f"productionProfile.global.{name}"]
+                                for name in ("q", "b", "k", "expansionT", "bigB", "maxFresh"))
+    d, kappa, t = (lean[f"productionProfile.{name}"]
+                   for name in ("ringDegree", "commitmentWidth", "ccsMatrices"))
+    cap, public = lean["productionLightFoldCap"], lean["light.publicColumns"]
+    refresh, light = lean["numerator"], lean["testNumerator (shape 28) 8"]
+    chain = lean["msisChainBound productionGlobalParams productionLightFoldCap"]
+    _, ell, degree, _, census, bits, count, denominator = artifact(FOLD_GATE, 1)
+    _, tuples, _, sizes, _ = artifact(NEBULA_GATE, 1)
+    compression = artifact(COMPRESSION, 1)
+    production = compression["production"]
+    wts = lean_number(PLAN, r"^  fieldEncoding : p\.wTs ≤ ([0-9]+)$")
+    rate = definition_value(POSEIDON2, "rate")
+    if 2 ** 64 - lean_number(PARAMS, r"^    pub const Q: u64 = 0u64\.wrapping_sub\(([0-9]+)\);$") != q:
+        sys.exit(f"spec: `Q` of {rel(PARAMS)} is not Lean's q")
+
+    def accumulator(depth):  # `Spec.GlobalParams.accumulatorBound`
+        return (1 + depth + k) * T * (b - 1)
+
+    if compression["bounds"] != [accumulator(depth) for depth in range(cap + 1)]:
+        sys.exit(f"spec: the bounds of {rel(COMPRESSION)} are not (1 + j + k_rho)·T·(b − 1)")
+    recovered = B + cap * T * (b - 1)
+    if 8 * T * recovered != chain:
+        sys.exit("spec: Lean's msisChainBound is not 8·T·(B + cap·T·(b − 1))")
+    table_max = lean_number(PRODUCTION, r"^    2 \* productionGlobalParams\.accumulatorBound depth \+ 1 "
+                                        r"≤ ([0-9]+) :=")
+    if table_max < 2 * accumulator(cap) + 1:
+        sys.exit("spec: the bound of `Spec.Compression.Production.slot_table_le` is below "
+                 "2·accumulatorBound(cap) + 1")
+
+    n_light, n_refresh = (only((entry["layout"]["witness_vars"] for entry in production
+                                if entry["pc"] == pc), f"`n` at pc {pc}") for pc in (1, 2))
+    inverse_vars = only((entry["layout"]["inverse_vars"] for entry in production), "the variables of V")
+    key_vars = compression["key_blocks"].bit_length() - 1
+    lanes, lookups = compression["lane_vars"], 2 ** compression["lookup_vars"]
+    error_bits = only((entry["error"]["bits"] for entry in production), "error_bits")
+    counts = [entry["error"]["count"] for entry in production]
+    sums = [Fraction(int(entry["error"]["numerator"]), int(entry["error"]["denominator"]))
+            for entry in production]
+    worst = [cell for cell in production[sums.index(max(sums))]["layout"]["cells"] if cell["table"]]
+    lookup_error = sum(Fraction(2 ** cell["witness"][1] + 2 * cell["table"][0] + 1, q) ** lookups
+                       for cell in worst)
+
+    def batch(claims):  # SPEC.md section 3, the batch of the equations
+        return kappa + 1 + t + max(d - 1, compression["public_cells"] - 1) + claims - 1
+
+    rest = batch(3) + 4 + 2 * (lanes + key_vars)
+    other = rest + 4 * n_refresh
+    lean_other = batch(3) + 2 + n_refresh + 3 + 2 + 2
+
+    family = 2 * (1 + t) * d
+    slot_words = kappa * d + family + 2 * ell + public + 1
+    slot_bytes = 8 + 8 * (kappa * d + public + 2 * ell + family)
+    fresh_bytes = 8 * (kappa * d + 2 * ell + family) + 32
+    round_bytes = 8 * 2 * (degree + 1) * ell
+    after = [8 + 16 * 4 * n_refresh, 16 + 16 * lookups + 16, 8 + 16 * 3 * (lanes + key_vars)]
+
+    wasm_bits = only([size[8] for size in sizes] + [lean["gateBits"]], "the bits of the WASM sizes")
+    micro, *larger = (size[5] * size[6] for size in sizes)
+    q2 = q * q
+    tuples = only((tuples, lean["secureTuples"]), "the Nebula tuple cutoff")
+    memory_bits = neg_log2_bound(Fraction(2 * tuples, q2), 2)
+    if neg_log2_bound(Fraction(2 * (tuples + 1), q2), 2) == memory_bits:
+        sys.exit(f"spec: the bound 2^−{memory_bits} also accepts {tuples + 1} tuples at cutoff {tuples}")
+    return [
+        ("`q = 2^64 − {} = {}`, a prime", [2 ** 64 - q, q]),
+        ("`(Q + 1) · {}/2^128` for light and `(Q + 1) · {}/2^128` for refresh", [light + 1, refresh + 1]),
+        ("with norm below the chain norm {} (", [chain]),
+        ("has probability at most `(Q_η + 1) · 2^−{}`", [memory_bits]),
+        ("It has `ℓ = {}` rounds", [ell]),
+        ("The light relation has `{} + {} = {}` rows and the refresh relation has `{} + {} = {}` rows "
+         "(computed", [lean["light.relationRows"], lean["light.sboxRows"],
+                       lean["light.relationRows"] + lean["light.sboxRows"], lean["refresh.relationRows"],
+                       lean["refresh.sboxRows"], lean["refresh.relationRows"] + lean["refresh.sboxRows"]]),
+        ("This bound is below `B` for each `j ≤ {}`",
+         [max(depth for depth in range(B) if accumulator(depth) < B)]),
+        ("So each recovered accumulator is at most `B + cap·T·(b − 1) = {}` (computed", [recovered]),
+        ("`msisChainBound = 8·T·(B + cap·T·(b − 1)) = {}`, about `2^{}` (computed), in place of "
+         "`8TB = {}`", [chain, math.log2(chain), lean["productionGlobalParams.msisNormBound"]]),
+        ("`ε_test = (ℓ · 8 + {})/q² = {}/q²`", [refresh - 8 * ell, refresh]),
+        ("where {} is `{} − 1 + ℓ`", [refresh - 8 * ell, refresh - 8 * ell + 1 - ell]),
+        ("so its numerator is `ℓ · 8 + {} − 1 + ℓ = {}`", [light - 9 * ell + 1, light]),
+        ("and a refresh fork has {} (", [1 + k]),
+        ("The census counts the {} fresh sources that the Π_RLC guard `(K + k_rho) · T · (b − 1) < B` "
+         "admits, so `N = ℓ · 8 + ({} + 127 + 4480 − 1 + ℓ) = {}`", [max_fresh, max_fresh, census]),
+        ("This is not below Lean's {}.", [refresh]),
+        ("The bits are {} at the counts of each step relation", [bits]),
+        ("so the statistical term of each fold is at most `(Q + 1)/2^{}`", [bits]),
+        ("The error is about `2^−{}`, and the refresh term at `Q = 0` is about `2^−{}` (computed). The "
+         "gate refuses a caller minimum above these bits or above the census bits, which are also {} "
+         "here.", [neg_log2(Fraction(little_endian(count), little_endian(denominator))),
+                   neg_log2(Fraction(refresh + 1, 2 ** 128)), bits]),
+        ("pass {} bits and refuse {}", [bits, bits + 1]),
+        ("| `n` | {} or {} | The variables of `W` for the reference application: {} when the light "
+         "circuit ran last, and {} when the refresh circuit ran last (computed",
+         [n_light, n_refresh, n_light, n_refresh]),
+        ("| variables of `V` | {} | The value for the reference application (computed", [inverse_vars]),
+        ("| `T_s` | `2 · accumulatorBound(depth_s) + 1`, at most {} |", [table_max]),
+        ("`(κ + 1 + t + max(63, m − 1) + s − 1)/q²`, which is `{}/q²`, or `{}/q²` in the light mode",
+         [batch(3), batch(2)]),
+        ("For the reference application, `N_0 = 2^{}`, `N_1 = 2^{}` and `n_A = {}`. At `L = {}` and "
+         "`n = {}`, the lookups give about `2^−{}`, the other terms give `({} + 4n)/q² = {}/q²`, about "
+         "`2^−{}`, and the sum is about `2^−{}` (computed",
+         [worst[0]["witness"][1], worst[1]["witness"][1], key_vars, lookups, n_refresh,
+          neg_log2(lookup_error), rest, other, neg_log2(Fraction(other, q2)), neg_log2(max(sums))]),
+        ("`count` is between {} and {} and `error_bits` is {} (computed", [min(counts), max(counts), error_bits]),
+        ("The gate of the folds already holds that minimum to {} bits.", [bits]),
+        ("for each of the {} claim sets of the reference application", [len(production)]),
+        ("On these sets the exact sum is between `2^−{}` and `2^−{}` and `error_bits` is {}, so the gate "
+         "loses no integer bit there (computed",
+         [neg_log2_bound(min(sums), 4, lower=True), neg_log2_bound(max(sums), 4), error_bits]),
+        ("Lean emits the same values for the {} claim sets of the light mode", [len(compression["light"])]),
+        ("At the production shapes, `span ≤ {}`, and the terms other than the lookups are at most "
+         "`{}/q²`, about `2^−{}` (computed", [n_refresh, lean_other, neg_log2(Fraction(lean_other, q2))]),
+        ("Without the domain, a slot is {} words (", [slot_words]),
+        ("With the domain, a slot digest absorbs {} words in {} blocks (computed",
+         [slot_words + rate, (slot_words + rate) // rate + 1]),
+        ("The parts before the Akita commitments have `96 + 2 · {} + {} + {} = {}` bytes, or `{}` in the "
+         "light mode. For the reference application at `n = {}` and `n_A = {}`, the parts after the "
+         "commitments, without the opening, have `{} + {} + {} + 16 + 8 = {}` bytes (both computed",
+         [slot_bytes, fresh_bytes, round_bytes, 96 + 2 * slot_bytes + fresh_bytes + round_bytes,
+          96 + slot_bytes + fresh_bytes + round_bytes, n_refresh, key_vars, *after, sum(after) + 24]),
+        ("about `2^−{}` with both slots (computed", [neg_log2(Fraction(lookups * 2 * table_max, q))]),
+        ("`W_ts ≤ {}`", [wts]),
+        ("A value has 32 bits and a timestamp has at most {} bits, so `v + 2^32 · t` is below `2^{}`",
+         [wts, 32 + wts]),
+        ("**Security:** `R + M + N · B_ops ≤ {}`. This holds exactly when the fingerprint error "
+         "`2(R + M + N · B_ops)/q²` is at most `2^−{}`", [tuples, memory_bits]),
+        ("certifies exactly {} bits (", [wasm_bits]),
+        ("which is {} for Micro and {} for Small, Medium and Large", [micro, only(larger, "the steps of a size")]),
+        ("Extraction recovers accumulators up to `B + {}·T·(b − 1)`", [cap]),
+        ("binding needs MSIS at the chain norm {} (section 3)", [chain]),
+    ]
+
+
+def agrees(shown, value):
+    if isinstance(value, str):
+        return shown == value
+    if isinstance(value, int):
+        return "." not in shown and int(shown.replace(",", "")) == value
+    return abs(float(shown) - value) < 10 ** -len(shown.partition(".")[2])
+
+
+def formatted(value, shown):
+    if isinstance(value, str):
+        return value
+    return f"{value:,}" if isinstance(value, int) else f"{value:.{len(shown.partition('.')[2])}f}"
+
+
+def computed_errors(text, checked):
+    """Each claim's text is in SPEC.md with its values, and each "(computed)" marker is in the text
+    of a claim or of an UNCHECKED entry."""
+    covered = []
+    for template, values in checked:
+        if template.count("{}") != len(values):
+            sys.exit(f"spec: the claim {template!r} has {len(values)} values for {template.count('{}')} numbers")
+        pattern = re.escape(template).replace(r"\{\}", COMPUTED_NUMBER)
+        matches = list(re.finditer(pattern, text))
+        if not matches:
+            yield f"no text matches the computed claim {template!r} of scripts/check_spec.py"
+        for match in matches:
+            covered.append(match.span())
+            for shown, value in zip(match.groups(), values):
+                if not agrees(shown, value):
+                    yield (f"{section(text, match.start())} has {shown} where the sources give "
+                           f"{formatted(value, shown)}, in {template!r}")
+    for template, _ in UNCHECKED:
+        matches = [match.span() for match in re.finditer(re.escape(template), text)]
+        if not matches:
+            yield f"no text matches the unchecked entry {template!r} of scripts/check_spec.py"
+        covered.extend(matches)
+    for marker in COMPUTED.finditer(text):
+        if not any(start <= marker.start() < end for start, end in covered):
+            yield (f"the computed value at {section(text, marker.start())} is not recomputed: add it to "
+                   "`computed_claims` or UNCHECKED in scripts/check_spec.py")
 
 
 def section(text, position):
@@ -457,13 +693,15 @@ def main():
         sys.exit(f"spec: {args.spec.name} needs one {BEGIN} … {END} block")
     head, rest = text.split(BEGIN)
     _, tail = rest.split(END)
-    new = f"{head}{BEGIN}\n{table()}\n{END}{tail}"
+    found = rows()
+    new = f"{head}{BEGIN}\n{table(found)}\n{END}{tail}"
     if args.write:
         args.spec.write_text(new, encoding="utf-8")
         print(f"spec: wrote the parameters table of {args.spec.name}")
         return
+    checked = computed_claims({key: value for _, key, value in found})
     errors = [*pin_errors(text), *claim_pin_errors(text), *path_errors(text), *entry_point_errors(text),
-              *paper_errors(text)]
+              *paper_errors(text), *computed_errors(text, checked)]
     if new != text:
         errors.append("the parameters table is stale; run python3 scripts/check_spec.py --write")
     for error in errors:
@@ -473,9 +711,12 @@ def main():
         print(f"repository: {error}")
     if errors or repository:
         sys.exit(f"spec: {len(errors) + len(repository)} errors")
+    for template, reason in UNCHECKED:
+        print(f"spec: not recomputed: {template}: {reason}")
     print(f"spec: {args.spec.name} has well-formed pins, a pin for each of the {len(claims())} claims, "
-          "existing paths, a current parameters table and a row for each cited paper number, and no "
-          "other spec file or `spec §` citation exists")
+          "existing paths, a current parameters table, a row for each cited paper number and "
+          f"the recomputed values of {len(checked)} claims, and no other spec file or `spec §` "
+          "citation exists")
 
 
 if __name__ == "__main__":

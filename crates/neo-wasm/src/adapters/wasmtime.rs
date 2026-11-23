@@ -78,6 +78,8 @@ pub struct WasmtimeTraceStep {
     pub locals: Vec<String>,
     /// Numeric `(lo, hi)` lanes, one pair per captured local.
     pub locals_words: Vec<(u32, u32)>,
+    /// One entry per validated operand. Entries below the innermost control
+    /// frame are zero, because no instruction reads them.
     pub operand_stack: Vec<String>,
     pub operand_stack_words: Vec<u32>,
     pub operand_stack_words_hi: Vec<u32>,

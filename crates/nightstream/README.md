@@ -35,7 +35,7 @@ file. A memory relation has its verifier in `nebula::Circuit::verifier`.
 ```rust
 use nightstream::{Engine, Prover, State};
 
-// This gates one fold. Account for proof depth and all attempts separately.
+// This gates one fold, not a long history. Account for all attempts separately.
 let minimum_security_bits = policy.minimum_per_fold_security_bits;
 let prover = Prover::load("app.nsc", Engine::Optimized, minimum_security_bits)?;
 let verifier = circuit.verifier(Engine::Optimized, minimum_security_bits)?;
@@ -56,8 +56,9 @@ most 109 bits (`SPEC.md` section 7.1).
 
 `minimum_security_bits` is not an end-to-end security claim. It gates the
 selected one-fold error. A Nebula circuit also compares it with the memory
-fingerprint term of its maximum number of segments. The deployment must account separately for recursive
-depth, adversary queries, failed retries, and concurrent attempts.
+fingerprint term of its maximum number of segments. The deployment must account separately for adversary
+queries, failed retries, and concurrent attempts. No result gives concrete security for a long recursive
+history (`SECURITY_MODEL.md`, trust item 3).
 
 Steps prove and verify on the CPU path only (`Engine::Optimized`).
 `Engine::Metal` and `Engine::Cuda` return `EngineError::Unavailable`. The

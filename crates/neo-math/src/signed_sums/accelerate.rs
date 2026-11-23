@@ -1,13 +1,16 @@
 use p3_field::PrimeCharacteristicRing;
 
-use super::{D, F, LIMB_BOUND, MAX_EXACT_TERMS};
+use super::{D, F, MAX_EXACT_TERMS};
 
 const TILE_COLUMNS: usize = 128;
-const GROUP_COLUMNS: usize = 1 << 16;
-const LIMBS: usize = 2 * D;
-const _: () = assert!(GROUP_COLUMNS as u128 * LIMB_BOUND <= 1u128 << f64::MANTISSA_DIGITS);
+const GROUP_COLUMNS: usize = 256;
+const LIMBS: usize = 4 * D;
+const _: () = assert!(GROUP_COLUMNS * (u16::MAX as usize) < 1usize << f32::MANTISSA_DIGITS);
 
-pub const ROW_WORKSPACE_WORDS: usize = TILE_COLUMNS * LIMBS + TILE_COLUMNS * D + LIMBS * D;
+pub const SGEMM_WORKSPACE_WORDS: usize = TILE_COLUMNS * LIMBS + TILE_COLUMNS * D + LIMBS * D;
+
+pub const ROW_WORKSPACE_BUDGET_BYTES: usize = 256 << 10;
+const _: () = assert!(SGEMM_WORKSPACE_WORDS * size_of::<f32>() <= ROW_WORKSPACE_BUDGET_BYTES);
 
 #[cfg(nightstream_sme2)]
 mod sme2;
@@ -62,11 +65,27 @@ pub fn packed_signed_ring_dot(key_words: &[u64], positive: &[u64], negative: &[u
     if let Some(row) = sme2::try_signed_ring_dot(key_words, positive, negative) {
         return row;
     }
-    signed_ring_dot(key_words, positive, negative, &mut vec![0.0; ROW_WORKSPACE_WORDS])
+    signed_ring_dot(key_words, positive, negative, &mut vec![0.0; SGEMM_WORKSPACE_WORDS])
 }
 
 #[link(name = "Accelerate", kind = "framework")]
 extern "C" {
+    fn cblas_sgemm(
+        layout: i32,
+        trans_a: i32,
+        trans_b: i32,
+        m: i32,
+        n: i32,
+        k: i32,
+        alpha: f32,
+        a: *const f32,
+        lda: i32,
+        b: *const f32,
+        ldb: i32,
+        beta: f32,
+        c: *mut f32,
+        ldc: i32,
+    );
     fn cblas_dgemm(
         layout: i32,
         trans_a: i32,
@@ -92,10 +111,10 @@ fn check_row(key_words: &[u64], positive: &[u64], negative: &[u64]) {
     assert_eq!(key_words.len(), columns * D);
 }
 
-pub fn signed_ring_dot(key_words: &[u64], positive: &[u64], negative: &[u64], workspace: &mut [f64]) -> [F; D] {
+pub fn signed_ring_dot(key_words: &[u64], positive: &[u64], negative: &[u64], workspace: &mut [f32]) -> [F; D] {
     check_row(key_words, positive, negative);
     let columns = positive.len();
-    assert_eq!(workspace.len(), ROW_WORKSPACE_WORDS);
+    assert_eq!(workspace.len(), SGEMM_WORKSPACE_WORDS);
     let (key_tile, workspace) = workspace.split_at_mut(TILE_COLUMNS * LIMBS);
     let (digit_tile, products) = workspace.split_at_mut(TILE_COLUMNS * D);
     let key_tile = key_tile.as_chunks_mut::<LIMBS>().0;
@@ -113,14 +132,16 @@ pub fn signed_ring_dot(key_words: &[u64], positive: &[u64], negative: &[u64], wo
                     continue;
                 }
                 for (limbs, &word) in key_tile[active]
-                    .chunks_exact_mut(2)
+                    .chunks_exact_mut(4)
                     .zip(&key_words[column * D..][..D])
                 {
-                    limbs[0] = f64::from(word as u32);
-                    limbs[1] = f64::from((word >> 32) as u32);
+                    limbs[0] = f32::from(word as u16);
+                    limbs[1] = f32::from((word >> 16) as u16);
+                    limbs[2] = f32::from((word >> 32) as u16);
+                    limbs[3] = f32::from((word >> 48) as u16);
                 }
                 for (lane, digit) in digit_tile[active].iter_mut().enumerate() {
-                    *digit = f64::from(((pos >> lane) & 1) as i32 - ((neg >> lane) & 1) as i32);
+                    *digit = (((pos >> lane) & 1) as i32 - ((neg >> lane) & 1) as i32) as f32;
                 }
                 active += 1;
             }
@@ -131,7 +152,7 @@ pub fn signed_ring_dot(key_words: &[u64], positive: &[u64], negative: &[u64], wo
                 // SAFETY: active <= TILE_COLUMNS. The disjoint row-major panels have strides LIMBS, D and D.
                 #[allow(unsafe_code)]
                 unsafe {
-                    cblas_dgemm(
+                    cblas_sgemm(
                         ROW_MAJOR,
                         TRANSPOSE,
                         NO_TRANSPOSE,
@@ -143,7 +164,7 @@ pub fn signed_ring_dot(key_words: &[u64], positive: &[u64], negative: &[u64], wo
                         LIMBS as i32,
                         digit_tile.as_ptr().cast(),
                         D as i32,
-                        f64::from(u8::from(accumulated)),
+                        f32::from(u8::from(accumulated)),
                         products.as_mut_ptr(),
                         D as i32,
                     );
@@ -152,10 +173,12 @@ pub fn signed_ring_dot(key_words: &[u64], positive: &[u64], negative: &[u64], wo
             }
         }
         if accumulated {
-            for (key_lane, pair) in products.chunks_exact(2 * D).enumerate() {
-                let (low, high) = pair.split_at(D);
+            for (key_lane, limbs) in products.chunks_exact(4 * D).enumerate() {
                 for lane in 0..D {
-                    let product = i128::from(low[lane] as i64) + (i128::from(high[lane] as i64) << 32);
+                    let product = i128::from(limbs[lane] as i32)
+                        + (i128::from(limbs[D + lane] as i32) << 16)
+                        + (i128::from(limbs[2 * D + lane] as i32) << 32)
+                        + (i128::from(limbs[3 * D + lane] as i32) << 48);
                     let degree = key_lane + lane;
                     if degree < D {
                         coefficients[degree] += product;

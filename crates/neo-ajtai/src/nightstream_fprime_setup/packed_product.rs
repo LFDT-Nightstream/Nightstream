@@ -1,12 +1,12 @@
 use neo_ccs::Mat;
-use neo_math::signed_sums::accelerate::{packed_signed_ring_dot, ROW_WORKSPACE_WORDS};
+use neo_math::signed_sums::accelerate::{packed_signed_ring_dot, ROW_WORKSPACE_BUDGET_BYTES};
 use rayon::prelude::*;
 
 use super::{Commitment, ExpandedKey, Fq, SignedBlock, D, MAX_MESSAGE_COLUMNS, PRODUCTION_VERIFIER_ROWS};
 
-const WORKSPACE_WORDS: usize = PRODUCTION_VERIFIER_ROWS as usize * ROW_WORKSPACE_WORDS;
-const MIN_ACTIVE_COLUMNS: usize = (2 * WORKSPACE_WORDS * size_of::<f64>()).div_ceil(size_of::<SignedBlock>());
-const _: () = assert!(WORKSPACE_WORDS * size_of::<f64>() == 4_718_592);
+const WORKSPACE_BYTES: usize = PRODUCTION_VERIFIER_ROWS as usize * ROW_WORKSPACE_BUDGET_BYTES;
+const MIN_ACTIVE_COLUMNS: usize = (2 * WORKSPACE_BYTES).div_ceil(size_of::<SignedBlock>());
+const _: () = assert!(WORKSPACE_BYTES == 4_718_592);
 
 pub(super) fn commit(witness: &Mat<Fq>) -> Option<Commitment> {
     let columns = witness.cols();

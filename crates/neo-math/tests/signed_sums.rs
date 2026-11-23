@@ -199,14 +199,14 @@ fn small_digits_report_signed_unit_masks() {
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn accelerated_signed_ring_dot_matches_integer_sums_across_groups() {
-    use neo_math::signed_sums::accelerate::{packed_signed_ring_dot, signed_ring_dot, ROW_WORKSPACE_WORDS};
+    use neo_math::signed_sums::accelerate::{packed_signed_ring_dot, signed_ring_dot, SGEMM_WORKSPACE_WORDS};
 
     let columns = (1 << 16) + 129;
     let mut keys = Vec::with_capacity(columns * D);
     let mut positive = Vec::with_capacity(columns);
     let mut negative = Vec::with_capacity(columns);
     let mut expected = SignedShiftSums::zero();
-    let mut workspace = vec![f64::NAN; ROW_WORKSPACE_WORDS];
+    let mut workspace = vec![f32::NAN; SGEMM_WORKSPACE_WORDS];
     let mut check = |keys: &[u64], positive: &[u64], negative: &[u64], expected: [Fq; D]| {
         assert_eq!(packed_signed_ring_dot(keys, positive, negative), expected);
         assert_eq!(signed_ring_dot(keys, positive, negative, &mut workspace), expected);
@@ -242,6 +242,37 @@ fn accelerated_signed_ring_dot_matches_integer_sums_across_groups() {
     positive.fill(0);
     negative.fill(0);
     check(&keys, &positive, &negative, [Fq::ZERO; D]);
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn sgemm_accumulates_full_signed_limbs_at_group_boundaries() {
+    use neo_math::signed_sums::accelerate::{signed_ring_dot, SGEMM_WORKSPACE_WORDS};
+
+    let columns = 513;
+    let key = std::array::from_fn(|lane| if lane % 2 == 0 { Q - 1 } else { 0x0000_ffff_ffff_ffff });
+    let keys = key.repeat(columns);
+    let ring = SplitRing::from_u64(&key);
+    let mut workspace = vec![f32::NAN; SGEMM_WORKSPACE_WORDS];
+    for (pos, neg) in [(u64::MAX, 0), (0, u64::MAX)] {
+        let positive = vec![pos; columns];
+        let negative = vec![neg; columns];
+        let mut expected = SignedShiftSums::zero();
+        for count in 1..=columns {
+            expected.add_signed_units(&ring, pos, neg);
+            if matches!(count, 127..=129 | 255..=257 | 511..=513) {
+                assert_eq!(
+                    signed_ring_dot(
+                        &keys[..count * D],
+                        &positive[..count],
+                        &negative[..count],
+                        &mut workspace
+                    ),
+                    expected.reduce(),
+                );
+            }
+        }
+    }
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]

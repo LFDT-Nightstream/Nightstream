@@ -8,7 +8,7 @@ use super::{CHILD_PLANE_BYTES, CHILD_TILE_BYTES, D, F, MAX_BATCH_PLANES};
 const GROUP_COLUMNS: usize = 1 << 22;
 const ROW_WORDS: usize = 204_800 / size_of::<u64>();
 const _: () = assert!(GROUP_COLUMNS * u8::MAX as usize <= i32::MAX as usize);
-const _: () = assert!(ROW_WORDS <= super::ROW_WORKSPACE_WORDS);
+const _: () = assert!(ROW_WORDS * size_of::<u64>() <= super::ROW_WORKSPACE_BUDGET_BYTES);
 
 extern "C" {
     fn sysctlbyname(name: *const c_char, old: *mut c_void, len: *mut usize, new: *mut c_void, new_len: usize) -> c_int;

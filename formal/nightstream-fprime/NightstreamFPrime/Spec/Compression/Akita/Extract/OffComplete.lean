@@ -396,7 +396,7 @@ variable {count : ℕ} {B : Batch (Fin count)} {start : ℕ}
     SetupScan (Batch.liftedReduction β ((claim wire).statement key openKey) challenge μ fits base
       digits room₀ batch rowsFit) ν flat}
   {commit : Wire → (g : Fin count) → (B.shape g).Payload} {value : Wire → Fin count → E}
-  {place : Wire → Fin count → List E}
+  {place : Wire → Fin count → List E} {spots : Wire → (g : Fin 2) → Fin (![ν, μ] g) → E}
 
 local notation "zeroth" =>
   offBatch β key openKey claim μ fits base digits room₀ batch rowsFit block decode read mass
@@ -439,6 +439,7 @@ root, the link `Tier.Offloaded` from the root fold to the two claims of the leve
 and the checks of `stateTower_complete`. `carriesR`, `carriesO` and `carries₁R`: a wire message can
 have the claim of the root fold, the commitment of the group 1 of the level 1 with the
 commitments, the values and the points of the two claims, and the claim of the level 1.
+`spotted`: the points of the two claims are the lists of the vectors `spots`.
 `shape₀`, `radix₀`, `certified₀`, `path₀`, `uniform₀`, `digit₀`, `covers₀`, `range₀`: the
 conditions of `offLevel_wins` on the root fold. `blocks₀`, `lengths₀`, `strides₀`, `degrees₀`,
 `live₀`: the segments of the point of each root group have the lengths of its shape, and its table
@@ -451,8 +452,9 @@ root fold. `fit`: the fit conditions `BatchFit` of the root fold over the condit
 theorem offTower_complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
     (sends : Sends sendable E width cap) (four : 4 ≤ width) (room : 3 < slots)
     (carriesR : Carries sendable slots read claim)
+    (spotted : ∀ wire, places wire = fun g => List.ofFn (spots wire g))
     (carriesO : Carries sendable slots read fun wire =>
-      (commit₁ wire, commits wire, values wire, places wire))
+      (commit₁ wire, commits wire, values wire, spots wire))
     (carries₁R : Carries sendable slots read claim₁)
     (carries₁ : Carries sendable slots read fun wire => (commit₂ wire, claim₂ wire))
     (carries₂ : Carries sendable slots read fun wire => (commit₃ wire, claim₃ wire))
@@ -628,7 +630,7 @@ theorem offTower_complete {sendable : (M : Type) → M → Prop} {slots width ca
     witness at fit₁ zero₀ wins₀
   obtain ⟨later₀, r2, ρ, long₂, longρ, on₀, len₀, -, committed₁, valued₁, placed₁, linked₀⟩ :=
     offLink (T := zeroth) (B := B₁) (commits := commits) (values := values) (places := places)
-      (commit := commit₁) carriesO onR lenR fin₀ decodes₀ worked
+      (commit := commit₁) spotted carriesO onR lenR fin₀ decodes₀ worked
       ⟨foldWorkBits_le _ _, map_workBits_le _⟩ (by rw [lastWire_concat]; exact triedR)
       (fun wire challenge table other => offBatch_uniform wire challenge table other)
       offBatch_costs_length witness flat wins₀ registry

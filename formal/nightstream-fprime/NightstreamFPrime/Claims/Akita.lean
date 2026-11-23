@@ -29,7 +29,7 @@ attribute [local instance] NightstreamFPrime.Export.BoundedDepth.FinalKey20.inst
 
 
 /-- Akita Theorem 10.17 in the form (161), for a fixed environment. The model is one uniform table
-of stage answers with independent slots, and a limit `budget` on the attempts of each retry loop
+of answers on keys with independent slots, and a limit `budget` on the attempts of each retry loop
 of the extractor. For each prover with at most `Q` queries to the table and each structure with
 the conditions of Akita Definition 10.16 (`lawful`), the probability that the verifier accepts
 and the extractor returns no output is at most `(Q + 1)·ε_ck + (Q + 1)·L/budget`. `ε_ck` is the

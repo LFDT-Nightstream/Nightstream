@@ -2,6 +2,7 @@ import NightstreamFPrime.Export.BoundedDepth.FinalKey20Challenge
 import NightstreamFPrime.Export.BoundedDepth.FinalKey20Instances
 import NightstreamFPrime.Spec.Compression.Akita.Key20Accept
 import NightstreamFPrime.Spec.Compression.Akita.FitChance
+import NightstreamFPrime.Spec.Compression.Akita.KeptTail
 import NightstreamFPrime.Spec.Compression.Akita.Key20Opening
 
 /-! # Claims: the Akita openings for `key20.aks`
@@ -25,7 +26,8 @@ trust item 7). The results of Akita that hold for each schedule are in `Claims.A
 - The filters of the challenge families are the predicate of the pinned Akita code
   (`Spec.Compression.Akita.TrigTable.codeAccepts`). Lean proves the error bound of its integer
   tables (`Spec.Compression.Akita.TrigTable.code_accurate`), so the operator bound `Γ` is a
-  theorem (`Spec.Compression.Akita.TrigTable.filtered_code`).
+  theorem (`Spec.Compression.Akita.TrigTable.filtered_code`). `key20_kept` reduces the count
+  `Spec.Compression.Akita.Key20.Kept` of these filters to a count at one frequency.
 - Open: no Lean result compares the Lean decoders or the Lean verifier with the code. -/
 
 namespace NightstreamFPrime.Claims.AkitaKey20
@@ -107,7 +109,7 @@ theorem key20_opening_sound
 
 /-- Akita Theorem 10.17 in the form (161) for the opening of
 `crates/ns-compress/artifacts/key20.aks` (Akita Theorem 10.46 for this schedule). It does not
-cover `key30.aks`. The model is one uniform table of stage answers with independent slots, and
+cover `key30.aks`. The model is one uniform table of the oracle on keys with independent slots, and
 the verifier is the Lean verifier `Key20.Tower.accepts`, which differs from the verifier of the
 pinned Akita code. For each prover with at most `Q` queries, the probability that the verifier
 accepts and the extractor returns no output is at most
@@ -160,23 +162,26 @@ fit conditions of the honest prover. `tables`, `places`: the tables of the key p
 `V` and their opening points (`live`, `lengths`: their sizes). `fit`: the fit conditions
 `Spec.Compression.Akita.Key20.Fit` (Akita Definition 10.5): for each opening point and each fold
 challenge vector that the decoders give, the response of each level satisfies `Enc` and the norm
-limit of its route. For each table of stage answers whose slots decode to fold challenges and
+limit of its route. For each table of the oracle on keys whose slots decode to fold challenges and
 whose work slots have 57 zero work bits (`worked`: 57 is the largest count of work bits of a site,
 and Lean does not model the search of the honest prover for the work bits of Akita Remark 10.18),
 a proof exists whose first message has the commitments of the tables, the points and the values,
 and whose transcript the verifier `towerLinks` accepts. The proof is a sequence of messages of the
-type `Key20.Wire E`, which is infinite because its points are lists, so it is not a transcript of
-the game of `key20_opening_bound`, whose type of wire messages is finite. For the decoders `draw`
-of `Key20.Tower` with the count `Spec.Compression.Akita.Key20.Kept`, each slot decodes, so
-`decodes` to `decodesL` hold for each table (`Spec.Compression.Akita.Key20.Tower.Drawn.decodes`).
+type `Key20.Wire E`, which is finite (`Spec.Compression.Akita.Key20.Note.finite`): the points are
+vectors of 20, 16 and 16 coordinates, and `Key20.Note.place` reads them as lists. For the
+decoders `draw` of `Key20.Tower` and the readers of `Key20.Note`, the proof is a prover with no
+queries of the game of `key20_opening_bound` (`key20_opening_played`). With the count
+`Spec.Compression.Akita.Key20.Kept`, each slot decodes, so `decodes` to `decodesL` hold for each
+table (`Spec.Compression.Akita.Key20.Tower.Drawn.decodes`).
 The matrices are free: the claim is for each setup. `fit` holds in two cases: for the zero tables
 with each decoder (`Spec.Compression.Akita.Key20.fit_zero`), and for each family of
 tables with decoders that give the fold challenge 0 (`Spec.Compression.Akita.Key20.fit_quiet`).
 For the challenge families of the schedule and tables that are not 0, `fit` is not a theorem: a
 response can be larger than the limit of `Enc`, and the honest prover of the Akita code has a
-search over a nonce for a response that fits. The claim is not a completeness bound: Lean has no
-bound on the probability that a response fits, and the Lean verifier has no rejection at a zero
-tensor factor. The claim for `key30.aks` is `Claims.AkitaKey30.key30_opening_accepts`. -/
+search over a nonce for a response that fits. The claim is an existence result for each table,
+not a completeness bound: Lean has no bound on the probability that a response fits, and the Lean
+verifier has no rejection at a zero tensor factor. The claim for `key30.aks` is
+`Claims.AkitaKey30.key30_opening_accepts`. -/
 theorem key20_opening_accepts
     {E : Type}
     [fieldE : Field E]
@@ -477,9 +482,104 @@ theorem key20_opening_accepts
     accept table decodes decodes₁ decodes₂ decodes₃ decodes₄ decodes₅ decodesL worked tables live places lengths
     fit
 
+/-- The proof of the honest prover of the opening of `crates/ns-compress/artifacts/key20.aks` is
+a prover of the game of `key20_opening_bound` (Akita Theorem 10.9 and Theorem 10.17). The data
+`o` of that claim is `Spec.Compression.Akita.Key20.noteTower`: the wire messages `Key20.Wire E`
+with the readers of `Key20.Note`, the decoders `draw` of `Key20.Tower`, and free bases, matrices
+and coordinates of the slots. `drawn` is the hypothesis `drawn` of `key20_opening_bound` for this
+data, and it fixes the stage `stage` of the terminal. Lean proves that the wire type is finite, so
+`key20_opening_bound` holds for `o`, and that for each table of the oracle on keys whose work slots
+have 57 zero work bits (`worked`) and each family of tables with the fit conditions `fit` for
+these decoders, a proof exists whose first message has the commitments of the tables, the points
+and the values, such that the prover `.done proof` has no queries and the verifier `o.accepts`
+accepts its transcript. So the accept event of `key20_opening_bound` is not empty when `fit`
+holds. For the zero tables `fit` holds with no hypothesis
+(`Spec.Compression.Akita.Key20.noteTower_zero`), and `drawn` alone gives a table and a prover in
+the accept event (`Spec.Compression.Akita.Key20.noteTower_played`). The proof is chosen for each
+table: the claim is an existence result for each table, not a completeness bound. -/
+theorem key20_opening_played
+    {E : Type}
+    [fieldE : Field E]
+    [fintypeE : Fintype E]
+    [decidableEqE : DecidableEq E]
+    [algebraZqE : Algebra Akita.Zq E]
+    [degree2EAlgebraZqE : Akita.Degree2 E]
+    {Coord : Type}
+    [fintypeCoord : Fintype Coord]
+    [decidableEqCoord : DecidableEq Coord]
+    (β : (g : Fin 3) → Module.Basis (Fin (Akita.Key20.root.planes g)) Akita.Zq E)
+    (key : (g : Fin 3) → Akita.Key (Akita.Key20.root.shape g))
+    (openKey : Akita.Key20.root.OpenKey)
+    (block : Akita.Key20.root.Block → Coord)
+    (β₁ : Module.Basis (Fin Akita.Key20.level₁.opening.planes) Akita.Zq E)
+    (key₁ : Akita.Key Akita.Key20.level₁.shape)
+    (openKey₁ : Akita.OpeningKey Akita.Key20.level₁.opening)
+    (block₁ : Fin Akita.Key20.level₁.shape.blocks → Coord)
+    (key₂ : Akita.Key Akita.Key20.level₂.shape)
+    (openKey₂ : Akita.OpeningKey Akita.Key20.level₂.opening)
+    (block₂ : Fin Akita.Key20.level₂.shape.blocks → Coord)
+    (key₃ : Akita.Key Akita.Key20.level₃.shape)
+    (openKey₃ : Akita.OpeningKey Akita.Key20.level₃.opening)
+    (block₃ : Fin Akita.Key20.level₃.shape.blocks → Coord)
+    (key₄ : Akita.Key Akita.Key20.level₄.shape)
+    (openKey₄ : Akita.OpeningKey Akita.Key20.level₄.opening)
+    (block₄ : Fin Akita.Key20.level₄.shape.blocks → Coord)
+    (key₅ : Akita.Key Akita.Key20.level₅.shape)
+    (openKey₅ : Akita.OpeningKey Akita.Key20.level₅.opening)
+    (block₅ : Fin Akita.Key20.level₅.shape.blocks → Coord)
+    (matrix : Matrix (Fin Akita.Key20.terminal.innerRank)
+          (Fin Akita.Key20.terminal.blockLength × Fin Akita.Key20.terminal.sourceDigits)
+          (Akita.Rq Akita.Key20.terminal.innerDegree))
+    (blockL : Fin Akita.Key20.terminal.blocks → Coord)
+    {total stage : ℕ}
+    [nonemptyCoord : Nonempty Coord]
+    (drawn : (Akita.Key20.noteTower β key openKey block β₁ key₁ openKey₁ block₁ key₂ openKey₂ block₂
+          key₃ openKey₃ block₃ key₄ openKey₄ block₄ key₅ openKey₅ block₅ matrix blockL total stage).Drawn)
+    (table : Akita.Extract.Address (Akita.Key20.Wire E) total → Option Coord → E)
+    (worked : ∀ (input : Akita.Extract.Address (Akita.Key20.Wire E) total),
+          table input none ∈ Akita.Extract.workZeros E 57)
+    {tables : Fin 3 → Akita.Table}
+    (live : ∀ (g : Fin 3) (cell : ℕ), 2 ^ ![20, 16, 16] g ≤ cell → tables g cell = 0)
+    {places : Fin 3 → List E}
+    (lengths : ∀ (g : Fin 3), (places g).length = ![20, 16, 16] g)
+    (fit : Akita.Key20.Fit β key openKey (Akita.Key20.rootDecode E) β₁ key₁ openKey₁
+        (Akita.Extract.draw (Akita.SparseFamily Akita.Key20.level₁.opening.carrierDegree 31 10) fun _ => True)
+        key₂ openKey₂
+        (Akita.Extract.draw (Akita.SparseFamily Akita.Key20.level₂.shape.innerDegree 31 0) fun _ => True)
+        key₃ openKey₃
+        (Akita.Extract.draw (Akita.SparseFamily Akita.Key20.level₃.shape.innerDegree 31 0)
+          (Akita.TrigTable.codeAccepts Akita.Key20.level₃.shape.innerDegree Akita.Key20.norm₃.operator))
+        key₄ openKey₄
+        (Akita.Extract.draw (Akita.SparseFamily Akita.Key20.level₄.shape.innerDegree 31 11)
+          (Akita.TrigTable.codeAccepts Akita.Key20.level₄.shape.innerDegree Akita.Key20.norm₄.operator))
+        key₅ openKey₅
+        (Akita.Extract.draw (Akita.SparseFamily Akita.Key20.level₅.shape.innerDegree 31 11)
+          (Akita.TrigTable.codeAccepts Akita.Key20.level₅.shape.innerDegree Akita.Key20.norm₅.operator))
+        (Akita.Extract.draw (Akita.SparseFamily Akita.Key20.terminal.innerDegree 31 11)
+          (Akita.TrigTable.codeAccepts Akita.Key20.terminal.innerDegree Akita.Key20.normTerminal.operator))
+        tables) :
+    Finite (Akita.Key20.Wire E) ∧
+      ∃ proof : ℕ → Akita.Key20.Wire E,
+        (RandomOracle.OracleComp.done proof :
+            RandomOracle.OracleComp (Akita.Extract.Address (Akita.Key20.Wire E) total) (Option Coord → E)
+              (ℕ → Akita.Key20.Wire E)).QueryBound 0 ∧
+        ((proof 0).data.commit = fun g => (Akita.commit (key g) (tables g)).1) ∧
+        (proof 0).data.place = places ∧
+        ((proof 0).data.value = fun g => Lib.mle (places g) (Akita.lifted E (tables g))) ∧
+        (Akita.Key20.noteTower β key openKey block β₁ key₁ openKey₁ block₁ key₂ openKey₂ block₂ key₃
+              openKey₃ block₃ key₄ openKey₄ block₄ key₅ openKey₅ block₅ matrix blockL total stage).accepts
+          ((Akita.Key20.noteTower β key openKey block β₁ key₁ openKey₁ block₁ key₂ openKey₂ block₂ key₃
+                openKey₃ block₃ key₄ openKey₄ block₄ key₅ openKey₅ block₅ matrix blockL total
+                stage).body.protocol.final
+            (RandomOracle.OracleComp.done proof) table) :=
+  @NightstreamFPrime.Spec.Compression.Akita.Key20.noteTower_accepts E fieldE fintypeE decidableEqE algebraZqE
+    degree2EAlgebraZqE Coord fintypeCoord decidableEqCoord β key openKey block β₁ key₁ openKey₁ block₁ key₂
+    openKey₂ block₂ key₃ openKey₃ block₃ key₄ openKey₄ block₄ key₅ openKey₅ block₅ matrix blockL total stage
+    nonemptyCoord drawn table worked tables live places lengths fit
+
 /-- Soundness of the final verifier of `SPEC.md` Algorithm 10 with the Akita openings of
 `crates/ns-compress/artifacts/key20.aks` (Akita Theorem 10.17 for the compression argument over
-the opening). It does not cover `key30.aks`. The model is one uniform table of stage answers
+the opening). It does not cover `key30.aks`. The model is one uniform table of the oracle on keys
 with independent slots, and the verifier is the Lean verifier `FinalKey20.finalAccepts` with the
 Lean decoders `draw`, which differs from the pinned Akita code. For each prover with at most `Q`
 queries, the probability that the verifier accepts and no proof with witnesses satisfies
@@ -1135,7 +1235,7 @@ theorem key20_instances_shared
 
 /-- The response search of the root fold of `crates/ns-compress/artifacts/key20.aks` (Akita
 Lemma 10.7 with Definition 10.5, Lemma K.3 and (313); `FOLD_RESPONSE_ATTEMPTS = 2^12` of the
-pinned Akita code). The table of stage answers is uniform, and `input n` is the key with the
+pinned Akita code). The table of the oracle on keys is uniform, and `input n` is the key with the
 nonce `n` after one transcript prefix. For source blocks with digits of the base `2^10`, no
 nonce below `2^12` gives responses of the groups of the key polynomial, `W` and `V` that satisfy
 `Enc` with probability at most `(2^−12)^4096`. The bound of one nonce is the Hoeffding bound of
@@ -1210,5 +1310,25 @@ theorem key20_level1_search
   @NightstreamFPrime.Spec.Compression.Akita.Key20.level₁_search Slot Coord fintypeSlot
     nonemptySlot fintypeCoord decidableEqCoord Point fintypePoint decidableEqPoint input fresh
     block apart decode fair energy source digits
+
+/-- The count `Spec.Compression.Akita.Key20.Kept` from the count
+`Spec.Compression.Akita.Key20.Tail` at one frequency: the union bound over the `d/2` frequencies
+and the equal-marginal step of Akita Theorem H.2 (ePrint 2026/1983, revision of 2026-11-23), for
+the integer predicate of the code. `Tail` states `(d/2)·#{c ∈ C_0 | U_0(c) > T²·Δ²} + 2^128 ≤
+|C_0|` for the family `(31, 11)` of the degree 64 with `T = 18` and the family `(31, 0)` of the
+degree 128 with `T = 13`. `U_0` is the test (288) at the frequency 0 with the tables of the code
+at the scale `2^48` and the error bound `ε + 1`, not `ε`: the tables of the code have
+`|C[t + d] + C[t]| ≤ 1` and `|S[t + d] + S[t]| ≤ 1` for `t < d`, and not 0
+(`Spec.Compression.Akita.TrigTable.code_antisymmetric`,
+`Spec.Compression.Akita.TrigTable.code_cos_one`), so `c ↦ c(X^{2k+1})` moves the test at the
+frequency `k` to the test at the frequency 0 only with the radius `(ε + 1)·‖c‖_1`
+(`Spec.Compression.Akita.TrigTable.card_reject_le`). Lean does not prove `Tail`: it needs the
+exact moments of Akita (292), the tail polynomial of (293) and the left inclusion of Akita
+Theorem H.1 at the frequency 0. The certificate of Akita Table 12 bounds the tail fraction by
+`q⋆_1 = 0.023909042053` for the degree 64 and `0.008120720198` for the degree 128, and `Tail`
+allows the fractions `0.024219975628` and `0.010546520952`
+(`Spec.Compression.Akita.Key20.tail_iff`). -/
+theorem key20_kept (tail : Akita.Key20.Tail) : Akita.Key20.Kept :=
+  @NightstreamFPrime.Spec.Compression.Akita.Key20.kept_of_tail tail
 
 end NightstreamFPrime.Claims.AkitaKey20

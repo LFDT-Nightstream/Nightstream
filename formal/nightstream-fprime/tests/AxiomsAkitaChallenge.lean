@@ -7,8 +7,10 @@ import NightstreamFPrime.Claims.AkitaKey20
 elements (`Spec/Compression/Akita/ShortUnit`), the families with their norms, their size and
 their unit differences (`ChallengeFamily`), the decoders from one slot and their slot
 probability (`Extract/Draw`), the families of the schedule `key20.aks` (`Key20Challenge`), the
-opening of this schedule with these decoders (`Key20Opening`), the final verifier with these
-decoders (`Export/BoundedDepth/FinalKey20Challenge`), and the claim `key20_memory_sound`. -/
+union bound of their filters over the frequencies (`KeptTail`), the opening of this schedule with
+these decoders (`Key20Opening`), the final verifier with these decoders
+(`Export/BoundedDepth/FinalKey20Challenge`), and the claims `key20_memory_sound` and
+`key20_kept`. -/
 
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.X_pow_two_pow_sub_C_irreducible
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.exists_sq_eq_neg_one
@@ -66,6 +68,28 @@ decoders (`Export/BoundedDepth/FinalKey20Challenge`), and the claim `key20_memor
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.rootDecode_units
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.rootDecode_sparse
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.rootDecode_isSome
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.twistSign
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.twist
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.valMinAbs_twistSign
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.coeff_twist
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.magnitude_coeff_twist
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.twist_injective
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.normOne_twist
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.twist_mem
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.TrigTable.Antisymmetric
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.TrigTable.widen
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.TrigTable.Passes
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.TrigTable.upper_le_widen
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.TrigTable.upper_twist_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.TrigTable.card_passes_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.TrigTable.card_reject_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.TrigTable.le_card_of_reject
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.TrigBuild.entry_pair
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.TrigTable.code_antisymmetric
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.TrigTable.code_cos_one
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.Tail
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.tail_iff
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.kept_of_tail
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.Tower
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.Tower.accepts
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.Tower.body
@@ -83,3 +107,4 @@ decoders (`Export/BoundedDepth/FinalKey20Challenge`), and the claim `key20_memor
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.history_knowledge_drawn
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.memory_sound_drawn
 #audit_axioms NightstreamFPrime.Claims.AkitaKey20.key20_memory_sound
+#audit_axioms NightstreamFPrime.Claims.AkitaKey20.key20_kept

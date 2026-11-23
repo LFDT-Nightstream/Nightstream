@@ -181,7 +181,7 @@ variable {o}
 omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] in
 /-- With `Tower.Drawn`, each slot of `E` gives a fold challenge of each group of the root, of the
 levels 1 to 5 and of the terminal, so the conditions `decodes` of the verifier hold for each
-table of stage answers. -/
+table of the oracle on keys. -/
 theorem Tower.Drawn.decodes (drawn : o.Drawn) (slot : E) :
     (∀ g, (rootDecode E g slot).isSome) ∧ (draw₁ slot).isSome ∧ (draw₂ slot).isSome ∧
       (draw₃ slot).isSome ∧ (draw₄ slot).isSome ∧ (draw₅ slot).isSome ∧
@@ -286,7 +286,7 @@ variable [Finite Wire]
 
 /-- Akita Theorem 10.17 in the form (161), with Corollary 10.49 and (206), for the opening of
 `key20.aks` with the decoders `draw`. For each prover with at most `Q` queries to the table of
-the stage answers, the probability that `Tower.accepts` accepts and the extractor returns no
+the oracle on keys, the probability that `Tower.accepts` accepts and the extractor returns no
 output is at most `(Q + 1)·(317479/(1024·|E|) + 135/q²) + (Q + 1)·142/budget`, with `|E| = q²`
 (`card_field`). The probability is over the uniform table and the tape of the extractor. The
 bound has no term for the probability that the output is a solution of Module-SIS. -/

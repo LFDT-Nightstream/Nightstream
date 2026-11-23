@@ -12,7 +12,9 @@ revision of 2026-11-23, Figure 4: the messages of the prover), with the conditio
 - `Page` is a wire message: a value of the other data of the proof, and `slots` cells.
   `Page.read` reads message `index` after a draw from cell `index`.
 - `Cell.Sendable` states that a message is the message of a cell. `Page.sends` is the condition
-  `Sends` for it, and `Page.carries` is the condition `Carries` for each part of the data. -/
+  `Sends` for it, and `Page.carries` is the condition `Carries` for each part of the data.
+- `Page.finite`: a page is finite when its data and `E` are, with the instances for the claims of
+  the levels and the statement of the terminal. `ofFn_getD` reads a list back from a vector. -/
 
 set_option autoImplicit false
 
@@ -150,4 +152,55 @@ theorem Page.carries [Zero E] {Part : Type} (view : Data → Part)
   exact congrArg (@Cell.message E width cap _ sent[index].M sent[index].inhabited)
     (dite_eq_left inside)
 
+instance Page.finite [Finite Data] [Finite E] : Finite (Page Data E slots width cap) :=
+  Finite.of_injective (fun page : Page Data E slots width cap =>
+    (page.data, page.cells, page.nonce)) fun left right same => by
+      cases left
+      cases right
+      simp_all
+
+/-- A list of `n` elements is the list of its first `n` entries. -/
+theorem ofFn_getD {list : List E} {n : ℕ} (long : list.length = n) (fallback : E) :
+    List.ofFn (fun index : Fin n => list.getD index fallback) = list :=
+  List.ext_getElem (by rw [List.length_ofFn, long]) fun _ _ inside => by
+    rw [List.getElem_ofFn, List.getD_eq_getElem?_getD, Fin.val_mk, List.getElem?_eq_getElem inside,
+      Option.getD_some]
+
 end NightstreamFPrime.Spec.Compression.Akita.Extract
+
+namespace NightstreamFPrime.Spec.Compression.Akita
+
+variable {E : Type}
+
+instance Batch.Claim.finite {G : Type} [Finite G] {B : Batch G} [Finite E] :
+    Finite (Batch.Claim B E) :=
+  Finite.of_injective (fun claim : Batch.Claim B E =>
+    (claim.payload, claim.openPayload, claim.point, claim.weight, claim.value))
+    fun left right same => by
+      cases left
+      cases right
+      simp_all
+
+variable [CommRing E] [Module Zq E] [Finite E] {S : Shape}
+
+instance TerminalStatement.finite : Finite (TerminalStatement S E) :=
+  have : Finite (E →+* Rq S.innerDegree) := Finite.of_injective _ DFunLike.coe_injective
+  have : Finite (Rq S.innerDegree →ₗ[Zq] E) := Finite.of_injective _ DFunLike.coe_injective
+  Finite.of_injective (fun statement : TerminalStatement S E =>
+    (statement.matrix, statement.state, statement.subfield, statement.block, statement.position,
+      statement.functional, statement.scale, statement.value)) fun left right same => by
+      cases left
+      cases right
+      simp_all
+
+instance Extract.TraceClaim.finite {O : OpeningShape S} : Finite (Extract.TraceClaim O E) :=
+  have : Finite (E →+* Rq S.innerDegree) := Finite.of_injective _ DFunLike.coe_injective
+  have : Finite (Rq S.innerDegree →ₗ[Zq] E) := Finite.of_injective _ DFunLike.coe_injective
+  Finite.of_injective (fun claim : Extract.TraceClaim O E =>
+    (claim.payload, claim.openPayload, claim.subfield, claim.block, claim.position,
+      claim.functional, claim.scale, claim.value)) fun left right same => by
+      cases left
+      cases right
+      simp_all
+
+end NightstreamFPrime.Spec.Compression.Akita

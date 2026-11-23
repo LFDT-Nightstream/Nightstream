@@ -23,7 +23,6 @@ ALLOWED = {
     'DSFS': 'the duplex-sponge Fiat-Shamir lemma for the fold transcripts, with its two open parts',
     'KECCAK': 'SHAKE128, SHAKE256 and Keccak-f, for the Ajtai setup and Akita',
     'MSIS': 'Module-SIS under the pinned estimator model',
-    'AKITA': 'Akita knowledge soundness with the error epsilon-Akita',
     'HN-A1': 'HyperNova errata Assumption 1',
 }
 BEGIN = '<!-- assumptions:begin -->'

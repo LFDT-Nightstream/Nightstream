@@ -68,7 +68,9 @@ variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree
   {commit : Wire → (g : Fin 3) → ((root r).shape g).Payload} {value : Wire → Fin 3 → E}
   {place : Wire → Fin 3 → List E}
   {commits : Wire → (g : Fin 2) → ((level₁ r).shape g).Payload} {values : Wire → Fin 2 → E}
-  {places : Wire → Fin 2 → List E} {commit₁ : Wire → ((level₁ r).shape 1).Payload}
+  {places : Wire → Fin 2 → List E}
+  {spots : Wire → (g : Fin 2) → Fin (![setupVars, rootVars] g) → E}
+  {commit₁ : Wire → ((level₁ r).shape 1).Payload}
   {commit₂ : Wire → (level₂ r).shape.Payload} {commit₃ : Wire → level₃.shape.Payload}
   {commit₄ : Wire → level₄.shape.Payload} {commit₅ : Wire → level₅.shape.Payload}
   {commit₆ : Wire → level₆.shape.Payload}
@@ -144,10 +146,11 @@ checks `Terminal.Passed`. The conditions on the shapes are theorems of `Key30.le
 
 `sends`, `wide`, `capped`, `room`, `carriesR` to `carriesL`: a wire message can have the data of
 the prover, with messages of 8 field elements, the energy `3029804899` and 4 messages of the
-checks. `registered`: the premise of Akita Lemma 9.1 for the commitment `registry` of the setup
-prefix `flat` with the reference decommitment `reference`. `next`, `inside`, `reads`, `clears`:
-the stage of the terminal and its messages. `counts`: the terminal reads the nonce of the
-response search with `read`. `live`: the table of the key polynomial is 0 after
+checks. `spotted`: the points of the two claims of level 1 are the lists of the vectors `spots` of
+23 and 28 coordinates. `registered`: the premise of Akita Lemma 9.1 for the commitment `registry`
+of the setup prefix `flat` with the reference decommitment `reference`. `next`, `inside`,
+`reads`, `clears`: the stage of the terminal and its messages. `counts`: the terminal reads the
+nonce of the response search with `read`. `live`: the table of the key polynomial is 0 after
 `2^30` cells, the table of `W` is 0 after `2^vars` cells, and the table of `V` is 0 after `2^28`
 cells. `committed`, `lengths`, `valued`: the last message of `early` has the commitments `commit`
 of the tables, points of 30, `vars` and 28 coordinates, and the values of the tables at these
@@ -158,8 +161,9 @@ and 3, `TraceFit` of the levels 4 to 6 with `S_max` of `norm₅` and `norm₆`, 
 theorem tower_complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
     (sends : Sends sendable E width cap) (wide : 8 ≤ width) (capped : 3029804899 ≤ cap)
     (room : 3 < slots) (carriesR : Carries sendable slots read claim)
+    (spotted : ∀ wire, places wire = fun g => List.ofFn (spots wire g))
     (carriesO : Carries sendable slots read fun wire =>
-      (commit₁ wire, commits wire, values wire, places wire))
+      (commit₁ wire, commits wire, values wire, spots wire))
     (carries₁R : Carries sendable slots read claim₁)
     (carries₁ : Carries sendable slots read fun wire => (commit₂ wire, claim₂ wire))
     (carries₂ : Carries sendable slots read fun wire => (commit₃ wire, claim₃ wire))
@@ -225,9 +229,9 @@ theorem tower_complete {sendable : (M : Type) → M → Prop} {slots width cap :
   have points₁ := level₁_points r member
   have opening₁ := level₁_openings r member
   exact offTower_complete (scan := scan) (fix := fun ω _ => Batch.pinBreak key₁ openKey₁ _ 0
-    reference ω) sends (by omega) room carriesR carriesO carries₁R carries₁ carries₂ carries₃
-    carries₄ carries₅ carries₆ carriesL (honest.1 r member) (fun g => (root_folds r member g).1)
-    (fun g => (root_folds r member g).2) (root_path r member) (root_sized r member).2.2.2.2.1
+    reference ω) sends (by omega) room carriesR spotted carriesO carries₁R carries₁ carries₂
+    carries₃ carries₄ carries₅ carries₆ carriesL (honest.1 r member)
+    (fun g => (root_folds r member g).1) (fun g => (root_folds r member g).2) (root_path r member) (root_sized r member).2.2.2.2.1
     covers.1.1 covers.1.2 ((by decide : rangeWidth 8 ≤ 6).trans (by omega))
     (fun g => (opening₁ g).1) (fun g => (opening₁ g).2) (fun g => (level₁_folds r member g).1)
     (fun g => (level₁_folds r member g).2) (level₁_path r member)

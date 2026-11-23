@@ -9,9 +9,10 @@ Theorem 10.9 and Figure 4).
 `FinalKey20.complete` has hypotheses on the wire messages. This file gives them for the messages
 `Sheet`.
 
-- `Sheet` is `Page` for the values of the first message (`FinalAkita.First`) and the data
-  `Key20.Note` of the Akita opening, with `slots` cells of `width` elements of `K` and a number
-  up to `limit`.
+- `Sheet` is `Page` for the values of the first message (`FinalAkita.First`), the points of the
+  three opening claims as lists, and the data `Key20.Note` of the Akita opening, with `slots`
+  cells of `width` elements of `K` and a number up to `limit`. The points of `Key20.Note` are
+  vectors, and the run of the compression argument (`Compose.accepts`) carries lists.
 - `sheetBound` has the commitments that a stage input fixes: those of the key polynomial and of
   `W` in the first message, and that of `V` in the message after the lookup challenges.
   `sheetTerminal` is the terminal that reads its statement and its clear partials from the
@@ -50,13 +51,14 @@ noncomputable local instance : Algebra Zq K := inferInstanceAs (Algebra F K)
 noncomputable local instance : Degree2 K :=
   ⟨AlgEquiv.ofRingEquiv (f := carrierEquiv.ringEquiv) fun _ => rfl⟩
 
-/-- A wire message of a final proof: the values `First` of the first message, the data
-`Key20.Note` of the Akita opening, `slots` cells of `width` elements of `K` and a number up to
-`limit` for the messages of the checks, and the nonce of the response search. -/
+/-- A wire message of a final proof: the values `First` of the first message, the points of the
+three opening claims, the data `Key20.Note` of the Akita opening, `slots` cells of `width`
+elements of `K` and a number up to `limit` for the messages of the checks, and the nonce of the
+response search. -/
 abbrev Sheet (logicalWidth : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth) (slots width limit : ℕ) : Type :=
-  Page (First logicalWidth publicFits × Key20.Note K) K slots width limit
+  Page ((First logicalWidth publicFits × (Fin 3 → List K)) × Key20.Note K) K slots width limit
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
@@ -126,9 +128,14 @@ local notation "Leaf" => Sheet logicalWidth publicFits slots width limit
 
 local notation "noteOf" => (Prod.snd ∘ Page.data : Leaf → Key20.Note K)
 
+local notation "Content" =>
+  ((First logicalWidth publicFits × (Fin 3 → List K)) × Key20.Note K)
+
+local notation "placeOf" => (Prod.snd ∘ Prod.fst ∘ Page.data : Leaf → Fin 3 → List K)
+
 local notation "C" =>
   compose setup packageWidths step cap control shape (Page.read : Reader Leaf)
-    (Prod.fst ∘ Page.data : Leaf → _) (sheetBound (Coord := Coord) (total := total))
+    (Prod.fst ∘ Prod.fst ∘ Page.data : Leaf → _) (sheetBound (Coord := Coord) (total := total))
 
 local notation "vf" => FinalVerifier.Setup.verifier setup shape
 
@@ -233,14 +240,13 @@ theorem accepts (use : Use setup shape) (wide : 8 ≤ width) (capped : 302980489
         vecNormSq (traceResponse c (traceSource
           (And.right (And.right (And.right (And.right quarters)))) (packed w₅ : ℕ → K))) ≤
           normTerminal.limit) :
-    ∃ proof : ℕ → Leaf, (proof 0).data.1 = given ∧
+    ∃ proof : ℕ → Leaf, (proof 0).data.1.1 = given ∧
       towerAccepts (weight₃ := weight₃) (weight₄ := weight₄) (weight₅ := weight₅) C vf
         Route.coefficient (Route.euclidean norm₃.operator norm₃.limit)
         (Route.euclidean norm₄.operator norm₄.limit) (Route.euclidean norm₅.operator norm₅.limit)
         zeroth first second third fourth fifth
         (sheetTerminal total matrix blockL decodeL (Tier.finish fifth))
-        (Key20.Note.commit ∘ noteOf) (Key20.Note.value ∘ noteOf)
-        (Key20.Note.place ∘ noteOf) (And.left quarters)
+        (Key20.Note.commit ∘ noteOf) (Key20.Note.value ∘ noteOf) placeOf (And.left quarters)
         (And.left (And.right quarters)) (And.left (And.right (And.right quarters)))
         (And.left (And.right (And.right (And.right quarters))))
         (And.right (And.right (And.right (And.right quarters))))
@@ -253,7 +259,7 @@ theorem accepts (use : Use setup shape) (wide : 8 ≤ width) (capped : 302980489
   have base : Key20.Note K := {
     commit := fun g => (Compression.Akita.commit (key g) 0).1
     value := fun _ => 0
-    place := fun _ => []
+    point := fun _ _ => 0
     claim := Batch.honestClaim β key openKey (fun _ => 0)
       (fun g => Point.ofSegments (root.opening g) [] [] [] []) 0
     commit₁ := (commitSource key₁ 0).1
@@ -276,7 +282,7 @@ theorem accepts (use : Use setup shape) (wide : 8 ≤ width) (capped : 302980489
     rw [List.length_append, List.length_singleton, Nat.zero_add]
     rfl
   obtain ⟨proof, zero, holds⟩ := complete setup packageWidths step cap control shape
-    (Page.read : Reader Leaf) (Prod.fst ∘ Page.data : Leaf → _)
+    (Page.read : Reader Leaf) (Prod.fst ∘ Prod.fst ∘ Page.data : Leaf → _)
     (sheetBound (Coord := Coord) (total := total)) (β := β) (key := key) (openKey := openKey)
     (claim := (Key20.Note.claim ∘ noteOf)) (block := block) (decode := decode)
     (mass := mass) (β₁ := β₁) (key₁ := key₁) (openKey₁ := openKey₁)
@@ -292,7 +298,7 @@ theorem accepts (use : Use setup shape) (wide : 8 ≤ width) (capped : 302980489
     (weight₅ := weight₅) (L := sheetTerminal total matrix blockL decodeL start)
     (commit := (Key20.Note.commit ∘ noteOf))
     (value := (Key20.Note.value ∘ noteOf))
-    (place := (Key20.Note.place ∘ noteOf))
+    (place := placeOf)
     (commit₁ := (Key20.Note.commit₁ ∘ noteOf))
     (commit₂ := (Key20.Note.commit₂ ∘ noteOf))
     (commit₃ := (Key20.Note.commit₃ ∘ noteOf))
@@ -303,38 +309,32 @@ theorem accepts (use : Use setup shape) (wide : 8 ≤ width) (capped : 302980489
     (partialsOf := (Key20.Note.partials ∘ noteOf)) (accept := accept) use
     (Page.sends (by omega)) wide capped room
     (fun values zero => Cell.sendable_values (by omega) fun index large => zero index (by omega))
-    (Page.carries (fun data : First logicalWidth publicFits × Key20.Note K => data.2.commit)
-      fun target => ⟨(given, { base with commit := target }), rfl⟩)
-    (Page.carries (fun data : First logicalWidth publicFits × Key20.Note K =>
-        (data.2.commit, data.2.value, data.2.place))
-      fun target => ⟨(given, { base with
-        commit := target.1, value := target.2.1, place := target.2.2 }), rfl⟩)
-    (Page.carries (fun data : First logicalWidth publicFits × Key20.Note K => data.2.claim)
-      fun target => ⟨(given, { base with claim := target }), rfl⟩)
-    (Page.carries (fun data : First logicalWidth publicFits × Key20.Note K =>
-        (data.2.commit₁, data.2.claim₁))
-      fun target => ⟨(given, { base with commit₁ := target.1, claim₁ := target.2 }), rfl⟩)
-    (Page.carries (fun data : First logicalWidth publicFits × Key20.Note K =>
-        (data.2.commit₂, data.2.claim₂))
-      fun target => ⟨(given, { base with commit₂ := target.1, claim₂ := target.2 }), rfl⟩)
-    (Page.carries (fun data : First logicalWidth publicFits × Key20.Note K =>
-        (data.2.commit₃, data.2.claim₃))
-      fun target => ⟨(given, { base with commit₃ := target.1, claim₃ := target.2 }), rfl⟩)
-    (Page.carries (fun data : First logicalWidth publicFits × Key20.Note K =>
-        (data.2.commit₄, data.2.claim₄))
-      fun target => ⟨(given, { base with commit₄ := target.1, claim₄ := target.2 }), rfl⟩)
-    (Page.carries (fun data : First logicalWidth publicFits × Key20.Note K =>
-        (data.2.commit₅, data.2.claim₅))
-      fun target => ⟨(given, { base with commit₅ := target.1, claim₅ := target.2 }), rfl⟩)
-    (Page.carries (fun data : First logicalWidth publicFits × Key20.Note K =>
+    (Page.carries (fun data : Content => data.2.commit)
+      fun target => ⟨((given, fun _ => []), { base with commit := target }), rfl⟩)
+    (Page.carries (fun data : Content => (data.2.commit, data.2.value, data.1.2))
+      fun target => ⟨((given, target.2.2),
+        { base with commit := target.1, value := target.2.1 }), rfl⟩)
+    (Page.carries (fun data : Content => data.2.claim)
+      fun target => ⟨((given, fun _ => []), { base with claim := target }), rfl⟩)
+    (Page.carries (fun data : Content => (data.2.commit₁, data.2.claim₁)) fun target =>
+      ⟨((given, fun _ => []), { base with commit₁ := target.1, claim₁ := target.2 }), rfl⟩)
+    (Page.carries (fun data : Content => (data.2.commit₂, data.2.claim₂)) fun target =>
+      ⟨((given, fun _ => []), { base with commit₂ := target.1, claim₂ := target.2 }), rfl⟩)
+    (Page.carries (fun data : Content => (data.2.commit₃, data.2.claim₃)) fun target =>
+      ⟨((given, fun _ => []), { base with commit₃ := target.1, claim₃ := target.2 }), rfl⟩)
+    (Page.carries (fun data : Content => (data.2.commit₄, data.2.claim₄)) fun target =>
+      ⟨((given, fun _ => []), { base with commit₄ := target.1, claim₄ := target.2 }), rfl⟩)
+    (Page.carries (fun data : Content => (data.2.commit₅, data.2.claim₅)) fun target =>
+      ⟨((given, fun _ => []), { base with commit₅ := target.1, claim₅ := target.2 }), rfl⟩)
+    (Page.carries (fun data : Content =>
         (data.2.state, data.2.statement, data.2.partials))
-      fun target => ⟨(given, { base with
+      fun target => ⟨((given, fun _ => []), { base with
         state := target.1, statement := target.2.1, partials := target.2.2 }), rfl⟩)
-    (Page.carries (fun data : First logicalWidth publicFits × Key20.Note K => data.2.response)
-      fun target => ⟨(given, { base with response := target }), rfl⟩)
+    (Page.carries (fun data : Content => data.2.response)
+      fun target => ⟨((given, fun _ => []), { base with response := target }), rfl⟩)
     started inside (fun _ => rfl) (fun _ => rfl) (fun _ => rfl) table calm regular decodes decodes₁
     decodes₂ decodes₃ decodes₄ decodes₅ decodesL worked
-    (⟨(given, { base with commit := fun g => (Compression.Akita.commit (key g)
+    (⟨((given, fun _ => []), { base with commit := fun g => (Compression.Akita.commit (key g)
       (![keyBase (setup.params shape), W, 0] g)).1 }), fun _ => (fun _ => 0, 0), 0⟩ : Leaf)
     checks gate W counts tail leads
     (fun anchor rooted =>

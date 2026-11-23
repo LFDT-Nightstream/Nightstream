@@ -1,4 +1,5 @@
 import NightstreamFPrime.Spec.Compression.Akita.Key20Root
+import NightstreamFPrime.Spec.Compression.Akita.Key20Opening
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Page
 import NightstreamFPrime.Spec.Compression.Akita.Extract.ZeroFit
 
@@ -11,8 +12,10 @@ responses of the honest prover. This file has the hypotheses on the responses in
 - `Note` has the data of a wire message other than the messages of the checks: the commitments,
   the points and the values of the three claims, the claim of the root fold, the commitment and
   the claim of each level, and the state, the statement, the clear partials and the clear
-  response of the terminal. `Wire` is `Page` for this data, with 4 cells of 8 elements and a
-  number up to `3029804899`.
+  response of the terminal. The points are vectors of 20, 16 and 16 coordinates, and
+  `Note.place` reads them as lists. `Wire` is `Page` for this data, with 4 cells of 8 elements
+  and a number up to `3029804899`. `Note.finite`: a note is finite, so `Wire E` is finite for a
+  finite `E`.
 - `terminalOf` is the terminal that reads its statement and its clear partials from the message
   before its fold challenges.
 - `Fit` has the fit conditions of the honest prover (Akita Definition 10.5) of each level for the
@@ -28,7 +31,13 @@ responses of the honest prover. This file has the hypotheses on the responses in
   vector of the families of the schedule, the response of a table that is not 0 can be larger
   than the limit of `Enc`, so `Fit` for these families is a hypothesis: the honest prover of the
   Akita code has a search over a nonce for a response that fits
-  (`crates/akita-prover/src/protocol/fold_grind.rs`). -/
+  (`crates/akita-prover/src/protocol/fold_grind.rs`).
+- `noteTower` is the data `Key20.Tower` for the wire messages `Wire`: the readers of `Note`, and
+  the terminal `terminalOf` with the decoder of `Tower.Drawn`. `noteTower_accepts` is `accepts`
+  for the decoders `draw` of `Tower.accepts`: the proof of the honest prover is a prover with no
+  queries of the game of `Tower.extraction_le`, and `Tower.accepts` accepts its transcript.
+  `noteTower_zero` and `noteTower_played` give such a prover for the zero tables, with no
+  hypothesis on the fit. -/
 
 set_option autoImplicit false
 
@@ -38,17 +47,19 @@ open scoped BigOperators
 open NightstreamFPrime.Spec.Compression.Akita.Extract
 open NightstreamFPrime.Spec.Compression.Lib (mle)
 open NightstreamFPrime.Spec.Checkpoint
+open NightstreamFPrime.Spec.RandomOracle (OracleComp)
 
 local instance : Fact (Nat.Prime fieldModulus) := ⟨FieldPrime.fieldModulus_natPrime⟩
 
 attribute [local instance low] Classical.propDecidable
 
 /-- The data of a wire message of the opening other than the messages of the checks (Akita
-Figure 4: the messages of the prover). -/
+Figure 4: the messages of the prover). The points of the three claims are vectors of 20, 16 and
+16 coordinates. -/
 structure Note (E : Type) [CommRing E] [Algebra Zq E] where
   commit : (g : Fin 3) → (root.shape g).Payload
   value : Fin 3 → E
-  place : Fin 3 → List E
+  point : (g : Fin 3) → Fin (![20, 16, 16] g) → E
   claim : root.Claim E
   commit₁ : level₁.shape.Payload
   claim₁ : Claim level₁.opening E
@@ -64,6 +75,19 @@ structure Note (E : Type) [CommRing E] [Algebra Zq E] where
   statement : TerminalStatement terminal E
   partials : Fin terminal.blocks → Rq terminal.innerDegree
   response : terminal.Source
+
+/-- The points of the three claims of a note as lists. -/
+def Note.place {E : Type} [CommRing E] [Algebra Zq E] (note : Note E) (g : Fin 3) : List E :=
+  List.ofFn (note.point g)
+
+instance Note.finite {E : Type} [CommRing E] [Algebra Zq E] [Finite E] : Finite (Note E) :=
+  Finite.of_injective (fun note : Note E => (note.commit, note.value, note.point, note.claim,
+    note.commit₁, note.claim₁, note.commit₂, note.claim₂, note.commit₃, note.claim₃,
+    note.commit₄, note.claim₄, note.commit₅, note.claim₅, note.state, note.statement,
+    note.partials, note.response)) fun left right same => by
+      cases left
+      cases right
+      simp_all
 
 /-- A wire message of the opening: the data `Note`, 4 cells of 8 elements of `E` and a number up
 to `3029804899` for the messages of the checks, and the nonce of the response search. -/
@@ -288,7 +312,7 @@ theorem accepts {total : ℕ} (inside : Tier.finish fifth < total)
   obtain ⟨base, based⟩ : ∃ base : Note E, base = {
       commit := fun g => (commit (key g) (tables g)).1
       value := fun g => mle (places g) (lifted E (tables g))
-      place := places
+      point := fun g index => (places g).getD index 0
       claim := Batch.honestClaim β key openKey (fun _ => 0)
         (fun g => Point.ofSegments (root.opening g) [] [] [] []) 0
       commit₁ := (commitSource key₁ 0).1
@@ -305,6 +329,9 @@ theorem accepts {total : ℕ} (inside : Tier.finish fifth < total)
       statement := TerminalStatement.ofPoint quarters.2.2.2.2 matrix 0 [] [] [] 0 0
       partials := 0
       response := 0 } := ⟨_, rfl⟩
+  have placed : base.place = places := funext fun g => by
+    rw [based]
+    exact ofFn_getD (lengths g) 0
   obtain ⟨later, on, whole, each⟩ := tower_complete (β := β) (key := key) (openKey := openKey)
     (block := block) (decode := decode) (mass := mass) (β₁ := β₁) (key₁ := key₁)
     (openKey₁ := openKey₁) (block₁ := block₁) (decode₁ := decode₁) (weight₁ := weight₁)
@@ -341,9 +368,157 @@ theorem accepts {total : ℕ} (inside : Tier.finish fifth < total)
     rfl inside (fun _ => rfl) (fun _ => rfl) (fun _ => rfl) table decodes decodes₁ decodes₂ decodes₃
     decodes₄ decodes₅ decodesL worked
     (onPath_nil accept table (⟨base, fun _ => (fun _ => 0, 0), 0⟩ : Wire E)) rfl
-    (tables := tables) live (by rw [based]; rfl) (fun g => by rw [based]; exact lengths g)
-    (by rw [based]; rfl) fit
+    (tables := tables) live (by rw [based]; rfl)
+    (fun g => (congrArg List.length (congrFun placed g)).trans (lengths g))
+    (by
+      show base.value = fun g => mle (base.place g) (lifted E (tables g))
+      rw [placed, based])
+    fit
   obtain ⟨proof, head, holds⟩ := OnPath.accepts on whole each
-  exact ⟨proof, by rw [head, based], by rw [head, based], by rw [head, based], holds⟩
+  exact ⟨proof, by rw [head, based], by rw [head]; exact placed, by rw [head, based], holds⟩
+
+local notation "draw₁" =>
+  (draw (SparseFamily level₁.opening.carrierDegree 31 10) (fun _ => True) :
+    E → Option (Rq level₁.opening.carrierDegree))
+
+local notation "draw₂" =>
+  (draw (SparseFamily level₂.shape.innerDegree 31 0) (fun _ => True) :
+    E → Option (Rq level₂.shape.innerDegree))
+
+local notation "draw₃" =>
+  (draw (SparseFamily level₃.shape.innerDegree 31 0)
+      (TrigTable.codeAccepts level₃.shape.innerDegree norm₃.operator) :
+    E → Option (Rq level₃.shape.innerDegree))
+
+local notation "draw₄" =>
+  (draw (SparseFamily level₄.shape.innerDegree 31 11)
+      (TrigTable.codeAccepts level₄.shape.innerDegree norm₄.operator) :
+    E → Option (Rq level₄.shape.innerDegree))
+
+local notation "draw₅" =>
+  (draw (SparseFamily level₅.shape.innerDegree 31 11)
+      (TrigTable.codeAccepts level₅.shape.innerDegree norm₅.operator) :
+    E → Option (Rq level₅.shape.innerDegree))
+
+local notation "drawL" =>
+  (draw (SparseFamily terminal.innerDegree 31 11)
+      (TrigTable.codeAccepts terminal.innerDegree normTerminal.operator) :
+    E → Option (Rq terminal.innerDegree))
+
+/-- The data `Tower` of the opening for the wire messages `Wire`: the reader `Page.read`, the
+readers of `Note`, and the terminal `terminalOf` with the matrix `matrix` and the decoder `draw`
+of `Tower.Drawn` at the stage `stage`. The bases, the matrices and the coordinates of the slots
+are free, and `Tower.Drawn` fixes `stage` (`Tower.Drawn.next`). -/
+noncomputable def noteTower (total stage : ℕ) : Tower E (Wire E) Coord total where
+  read := Page.read
+  β := β
+  key := key
+  openKey := openKey
+  claim := Note.claim ∘ Page.data
+  block := block
+  β₁ := β₁
+  key₁ := key₁
+  openKey₁ := openKey₁
+  claim₁ := Note.claim₁ ∘ Page.data
+  block₁ := block₁
+  key₂ := key₂
+  openKey₂ := openKey₂
+  claim₂ := Note.claim₂ ∘ Page.data
+  block₂ := block₂
+  key₃ := key₃
+  openKey₃ := openKey₃
+  claim₃ := Note.claim₃ ∘ Page.data
+  block₃ := block₃
+  key₄ := key₄
+  openKey₄ := openKey₄
+  claim₄ := Note.claim₄ ∘ Page.data
+  block₄ := block₄
+  key₅ := key₅
+  openKey₅ := openKey₅
+  claim₅ := Note.claim₅ ∘ Page.data
+  block₅ := block₅
+  terminal := terminalOf total matrix blockL drawL stage
+  commit := Note.commit ∘ Page.data
+  value := Note.value ∘ Page.data
+  place := Note.place ∘ Page.data
+  commit₁ := Note.commit₁ ∘ Page.data
+  commit₂ := Note.commit₂ ∘ Page.data
+  commit₃ := Note.commit₃ ∘ Page.data
+  commit₄ := Note.commit₄ ∘ Page.data
+  commit₅ := Note.commit₅ ∘ Page.data
+  stateOf := Note.state ∘ Page.data
+
+variable {total stage : ℕ}
+
+local notation "notes" =>
+  noteTower β key openKey block β₁ key₁ openKey₁ block₁ key₂ openKey₂ block₂ key₃ openKey₃ block₃
+    key₄ openKey₄ block₄ key₅ openKey₅ block₅ matrix blockL total stage
+
+/-- `accepts` for the data `noteTower` with `Tower.Drawn` (Akita Theorem 10.9): the wire type
+`Wire E` is finite, and for each table of the oracle whose work slots have 57 zero work bits and
+each family of tables with the fit conditions `Fit` for the decoders `draw` of `Tower.accepts`, a
+proof exists whose first message has the commitments of the tables, the points and the values,
+and the verifier `Tower.accepts` accepts the transcript of the prover `.done proof`, which has no
+queries. So the proof of the honest prover is a prover of the game of `Tower.extraction_le`. The
+hypotheses `decodes` of `accepts` hold by `Tower.Drawn.decodes`. -/
+theorem noteTower_accepts [Nonempty Coord] (drawn : (notes).Drawn)
+    (table : Address (Wire E) total → Option Coord → E)
+    (worked : ∀ input, table input none ∈ workZeros E 57) {tables : Fin 3 → Table}
+    (live : ∀ g cell, 2 ^ ![20, 16, 16] g ≤ cell → tables g cell = 0)
+    {places : Fin 3 → List E} (lengths : ∀ g, (places g).length = ![20, 16, 16] g)
+    (fit : Fit β key openKey (rootDecode E) β₁ key₁ openKey₁ draw₁ key₂ openKey₂ draw₂ key₃
+      openKey₃ draw₃ key₄ openKey₄ draw₄ key₅ openKey₅ draw₅ drawL tables) :
+    Finite (Wire E) ∧ ∃ proof : ℕ → Wire E,
+      (OracleComp.done proof :
+        OracleComp (Address (Wire E) total) (Option Coord → E) (ℕ → Wire E)).QueryBound 0 ∧
+      (proof 0).data.commit = (fun g => (commit (key g) (tables g)).1) ∧
+      (proof 0).data.place = places ∧
+      (proof 0).data.value = (fun g => mle (places g) (lifted E (tables g))) ∧
+      (notes).accepts ((notes).body.protocol.final (.done proof) table) := by
+  have decoded := drawn.decodes
+  have next := drawn.next
+  have inside := drawn.inside
+  dsimp only [noteTower, terminalOf] at next inside
+  obtain ⟨proof, committed, placed, valued, holds⟩ := accepts β key openKey block (rootDecode E)
+    rootMass β₁ key₁ openKey₁ block₁ draw₁ 51 key₂ openKey₂ block₂ draw₂ 31 key₃ openKey₃ block₃
+    draw₃ 31 key₄ openKey₄ block₄ draw₄ 53 key₅ openKey₅ block₅ draw₅ 53 matrix blockL drawL
+    (next.symm.trans_lt inside) (notes).accepts table (fun _ b => (decoded _).1 b.1)
+    (fun _ _ => (decoded _).2.1) (fun _ _ => (decoded _).2.2.1) (fun _ _ => (decoded _).2.2.2.1)
+    (fun _ _ => (decoded _).2.2.2.2.1) (fun _ _ => (decoded _).2.2.2.2.2.1)
+    (fun _ _ => (decoded _).2.2.2.2.2.2) worked live lengths fit
+  refine ⟨inferInstance, proof, .done proof 0, committed, placed, valued, ?_⟩
+  subst next
+  exact holds
+
+/-- `noteTower_accepts` for the zero tables, with no hypothesis on the fit (`fit_zero`): for
+each table of the oracle whose work slots have 57 zero work bits, a prover with no queries exists
+whose transcript `Tower.accepts` accepts. -/
+theorem noteTower_zero [Nonempty Coord] (drawn : (notes).Drawn)
+    (table : Address (Wire E) total → Option Coord → E)
+    (worked : ∀ input, table input none ∈ workZeros E 57) :
+    ∃ prover : OracleComp (Address (Wire E) total) (Option Coord → E) (ℕ → Wire E),
+      prover.QueryBound 0 ∧ (notes).accepts ((notes).body.protocol.final prover table) := by
+  obtain ⟨-, proof, bounded, -, -, -, holds⟩ := noteTower_accepts β key openKey block β₁ key₁
+    openKey₁ block₁ key₂ openKey₂ block₂ key₃ openKey₃ block₃ key₄ openKey₄ block₄ key₅ openKey₅
+    block₅ matrix blockL drawn table worked (tables := fun _ => 0) (fun _ _ _ => rfl)
+    (places := fun g => List.replicate (![20, 16, 16] g) 0) (fun _ => List.length_replicate)
+    (fit_zero β key openKey (rootDecode E) β₁ key₁ openKey₁ draw₁ key₂ openKey₂ draw₂ key₃
+      openKey₃ draw₃ key₄ openKey₄ draw₄ key₅ openKey₅ draw₅ drawL)
+  exact ⟨_, bounded, holds⟩
+
+/-- The accept event of `Tower.extraction_le` for the data `noteTower` with `Tower.Drawn` is not
+empty: a table of the oracle and a prover with no queries exist whose transcript `Tower.accepts`
+accepts (`noteTower_zero` for a table whose work slots are a slot with 57 zero work bits, which
+exists since `|E| = q²`, `card_field`). -/
+theorem noteTower_played [Nonempty Coord] (drawn : (notes).Drawn) :
+    ∃ (table : Address (Wire E) total → Option Coord → E)
+      (prover : OracleComp (Address (Wire E) total) (Option Coord → E) (ℕ → Wire E)),
+      prover.QueryBound 0 ∧ (notes).accepts ((notes).body.protocol.final prover table) := by
+  obtain ⟨slot, worked⟩ : (workZeros E 57).Nonempty := Finset.card_pos.mp (by
+    rw [workZeros_card, card_field]
+    decide)
+  exact ⟨fun _ reply => reply.elim slot fun _ => 0, noteTower_zero β key openKey block β₁ key₁
+    openKey₁ block₁ key₂ openKey₂ block₂ key₃ openKey₃ block₃ key₄ openKey₄ block₄ key₅ openKey₅
+    block₅ matrix blockL drawn _ fun _ => worked⟩
 
 end NightstreamFPrime.Spec.Compression.Akita.Key20

@@ -339,7 +339,25 @@ lists the points that need a decision.
   argument and the Keccak transcript of Akita are one table. No Lean statement
   joins the two hash functions of the code to it. Such a statement would have
   the shape of `Spec.Sponge.Transfer`. The session bytes bind the two
-  transcripts (security model, trust item 7).
+  transcripts (security model, trust item 7). A Lean key of an Akita stage has
+  each earlier message of the argument. A key of the code has only the session
+  value: 32 bytes, the lanes 0 to 3 of the Poseidon2 state after the permutation
+  of the last absorb (`crates/ns-compress/src/transcript.rs`, `session`;
+  `crates/neo-transcript/src/poseidon2.rs`, `state_prefix_v1_2`). So two Lean
+  keys are one state of the code when the session values collide. The Lean
+  bounds have no term for this event. For the code, each bound of a final
+  verifier claim (`Claims.AkitaKey20.key20_verifier_sound`,
+  `key20_history_sound`, `key20_history_knowledge`, `key20_memory_sound`, the
+  forms of `Claims.AkitaKey30`, and `Claims.Shipped.verify_final_sound`) gets
+  the term `(C(Q_P, 2) + Q_P·Q) / q^4`, with `Q_P` the evaluations of the
+  Poseidon2 sponge, `Q` the queries of the Akita transcript and
+  `q^4 > 2^255.99`: a collision of two session values, or a session value that
+  an earlier Akita query has. This term is for a session value that is a
+  uniform function of the absorbed transcript (`[SPONGE]` under `[P2-PERM]`,
+  whose conditions for the compression transcript are open). It is not a Lean
+  theorem: a proof needs a model with two oracles and a key that is not an
+  injective function of the messages, and `Spec.Checkpoint.Protocol` has the
+  law `address_rebuild`, which such a key does not satisfy.
 - (b) The verifier `towerAccepts` is not the verifier of the pinned code. The
   difference of the norm check is removed: at the squared-norm levels the norm
   sum (85) is in the last sum-check of the range tree with the coefficient
@@ -382,7 +400,20 @@ lists the points that need a decision.
   tensor layers (`Spec.Compression.Akita.Degree2`). It has no digests: the code
   absorbs the root commitments and the last terminal block as SHA3-256 digests,
   and Lean has only the counting bound of Akita Lemma 10.47
-  (`Spec.Compression.Akita.Digest.Run.bad_le`).
+  (`Spec.Compression.Akita.Digest.Run.bad_le`). The Lean keys have the full
+  values, and no claim has a digest term. For the code, each claimed bound of
+  an opening or of a final verifier gets the term of Akita Lemma 10.47 for each
+  digest type `o`: `Σ_o (C(Q_o, 2) + Q_o·V_o) / 2^256`, with `Q_o` the queries
+  to the digest function and `V_o` the digest positions in the queries of the
+  transcript. The types are the commitment digest (3 positions at the root,
+  `akita-verifier/src/fold/root.rs`, `akita-types/src/proof/commitment.rs`) and
+  the digest of the last `t` and `e` blocks of the terminal (2 positions,
+  `akita-verifier/src/terminal/direct.rs`). Akita (213) has only the terminal
+  type. With at most `Q` queries of each kind the sum is at most
+  `6·Q² / 2^256`. This term is not a Lean theorem for the protocol. Akita
+  Lemma 10.47 needs digest functions that are independent of the transcript
+  function; the code uses Keccak-f for both, with different first bytes, and
+  this independence is a part of `[KECCAK]`.
 - (c) The bound `N_setup · q / 2^w` of `Δ_setup` in Akita Theorem 10.46 is
   above 1 at the draw width `w = 64` of the code, so it bounds nothing. The
   code uses exact rejection sampling, and
@@ -641,15 +672,33 @@ lists the points that need a decision.
   `Spec.Compression.Akita.Key30.Tower.Drawn.decodes`). If fewer than `q²`
   members pass, `draw` gives no challenge, and the verifier of each soundness
   claim accepts no transcript.
-- (r) The acceptance results `Claims.AkitaKey20.key20_opening_accepts` and
-  `Claims.AkitaKey30.key30_opening_accepts` give a proof of messages of the
-  types `Key20.Wire E` and `Key30.Wire E`. These types are infinite, because
-  their points are lists (`Note.place`), and the bound claims are for a finite
-  type of wire messages. So no Lean result gives an accepted transcript in the
-  game of a bound claim. A finite wire type, with points of the fixed lengths
-  20, 16 and 16, for the verifier and for the honest prover closes this point.
-  It changes the readers of the generic verifier, the type `Note` and the
-  acceptance proofs of the two files.
+  Lean proves one step of the certificate: the union bound and the
+  equal-marginal step of Akita Theorem H.2 for the integer predicate of the
+  code. So `Kept` follows from a count at the frequency 0
+  (`Claims.AkitaKey20.key20_kept`, `Spec.Compression.Akita.Key20.Tail`): at most
+  the fraction 0.024219975628 (degree 64) and 0.010546520952 (degree 128) of
+  the family fails the test of that frequency. The certificate of the paper
+  gives 0.023909042053 and 0.008120720198. The test of `Tail` has the table
+  error `ε + 1`, because the tables of the code satisfy `C[t + d] = −C[t]`
+  only up to 1 (`Spec.Compression.Akita.TrigTable.code_cos_one`). Lean does not
+  prove `Tail`: that needs the moments of Akita (292), the polynomial of (293)
+  and the left inclusion of Theorem H.1. The pinned Akita checkout has the
+  certificate data and a checker (`scripts/operator_norm`); the Rust code has
+  only the constant 128.
+- (r) Closed. The wire messages `Key20.Wire E` and `Key30.Wire r E` of the
+  acceptance results are a finite type for a finite `E`: the points of a
+  message are vectors of the fixed lengths of the schedule. For the Lean data
+  of these messages (`Spec.Compression.Akita.Key20.noteTower`,
+  `Spec.Compression.Akita.Key30.noteTower`) and the decoders of the bound
+  claims, the honest proof is a prover with no queries of the game of the bound
+  claim, and the verifier of that claim accepts its transcript
+  (`Claims.AkitaKey20.key20_opening_played`,
+  `Claims.AkitaKey30.key30_opening_played`). For the zero tables this needs no
+  fit hypothesis (`Spec.Compression.Akita.Key20.noteTower_played`,
+  `Spec.Compression.Akita.Key30.noteTower_played`). The proof is chosen for
+  each table, so the result is not a completeness bound. The wire type of the
+  final verifier of `key20.aks` (`Export.BoundedDepth.FinalKey20.Sheet`) keeps
+  its points as lists and is not finite.
 
 ### The results for `key30.aks`
 

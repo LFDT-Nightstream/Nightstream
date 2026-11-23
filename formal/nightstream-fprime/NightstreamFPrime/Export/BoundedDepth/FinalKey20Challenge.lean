@@ -156,7 +156,7 @@ theorem covers_one : 1 * (root.fold 0).sourceBound (root.shape 0) +
 omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] in
 /-- With `Opening.Drawn`, each slot of `K` gives a fold challenge of each group of the root, of
 the levels 1 to 5 and of the terminal, so the conditions `decodes` of the verifier hold for each
-table of stage answers. -/
+table of the oracle on keys. -/
 theorem Opening.Drawn.decodes
     (drawn : o.Drawn setup packageWidths step cap control read head) (slot : K) :
     (∀ g, (o.decode g slot).isSome) ∧ (o.decode₁ slot).isSome ∧ (o.decode₂ slot).isSome ∧

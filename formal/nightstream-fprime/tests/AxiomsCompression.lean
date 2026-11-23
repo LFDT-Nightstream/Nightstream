@@ -663,6 +663,9 @@ import NightstreamFPrime.Export.BoundedDepth.Shipped
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalHistory.soundness
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalHistory.knowledge
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.Shipped.verify_sound
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.Shipped.complete
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.Shipped.setup
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.Shipped.verify_final_sound
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.NebulaFinal.soundness
 #audit_axioms NightstreamFPrime.Export.Generic.PlanPush.push_coefficient
 #audit_axioms NightstreamFPrime.Export.Generic.PlanPush.plan_rowCount

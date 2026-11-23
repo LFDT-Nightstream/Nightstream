@@ -1,6 +1,6 @@
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Work
 
-/-! The response search of a fold of Akita in the model of one uniform table of stage answers
+/-! The response search of a fold of Akita in the model of one uniform table of the oracle on keys
 (ePrint 2026/1983, revision of 2026-11-23, Section 10.2: Lemma 10.7, Definition 10.8 and
 Theorem 10.9, (154); `first_jointly_accepted_nonce` of the pinned Akita code,
 `crates/akita-prover/src/protocol/fold_grind.rs`).

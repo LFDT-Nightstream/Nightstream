@@ -26,10 +26,12 @@ each schedule are in `Claims.Akita`.
   it (`Spec.Compression.Akita.TrigTable.filtered_code`).
 - Open: the commitment of the setup prefix in the verifier setup is the output of the Lean
   commitment algorithm by hypothesis (`registered`).
-  `key30_opening_accepts` states that the Lean verifier of the opening accepts a proof, for the
-  zero tables and the zero setup prefix only. For another setup prefix, the fit conditions of the
-  honest prover are hypotheses (`Spec.Compression.Akita.Key30.tower_complete`). No Lean result
-  compares the Lean decoders or the Lean verifier with the code. -/
+  `key30_opening_accepts` states that the Lean verifier of the opening accepts a proof, and
+  `key30_opening_played` that this proof is a prover of the game of `key30_opening_bound`, with
+  no hypothesis on the fit for the zero tables and the zero setup prefix only. For another setup
+  prefix and other tables, the fit conditions of the honest prover are hypotheses
+  (`Spec.Compression.Akita.Key30.tower_complete`). No Lean result compares the Lean decoders or
+  the Lean verifier with the code. -/
 
 namespace NightstreamFPrime.Claims.AkitaKey30
 
@@ -187,24 +189,24 @@ opening points (`live`, `lengths`: their sizes). `fit`: the fit conditions
 `Spec.Compression.Akita.Key30.Fit` (Akita Definition 10.5): for each opening point and each fold
 challenge vector that the decoders give, the response of each level satisfies `Enc` and the norm
 limit of its route. For each split `scan` of the public weight of the root (Akita (132)) and each
-table of stage answers whose slots decode to fold challenges and whose work slots have 57 zero
+table of the oracle on keys whose slots decode to fold challenges and whose work slots have 57 zero
 work bits (`worked`: 57 is the largest count of work bits of a site, and Lean does not model the
 search of the honest prover for the work bits of Akita Remark 10.18), a proof exists whose first
 message has the commitments of the tables, the points and the values, and whose transcript the
 verifier `offLinks` accepts. The proof is a sequence of messages of the type `Key30.Wire E`,
-which is infinite because its points are lists, so it is not a transcript of the game of
-`key30_opening_bound`, whose type of wire messages is finite. For the decoders `draw` of
-`Key30.Tower` with the count `Spec.Compression.Akita.Key20.Kept`, each slot decodes, so `decodes`
-to `decodesL` hold for each table (`Spec.Compression.Akita.Key30.Tower.Drawn.decodes`). `fit`
-holds in
-two cases: for the zero setup prefix and the zero tables with each decoder
+which is finite (`Spec.Compression.Akita.Key30.Note.finite`): the points are vectors, and
+`Key30.Note.place` and `Key30.Note.places` read them as lists. For the decoders `draw` of
+`Key30.Tower`, the split `Key30.Tower.scan` and the readers of `Key30.Note`, the proof is a
+prover with no queries of the game of `key30_opening_bound` (`key30_opening_played`). With the
+count `Spec.Compression.Akita.Key20.Kept`, each slot decodes, so `decodes` to `decodesL` hold for
+each table (`Spec.Compression.Akita.Key30.Tower.Drawn.decodes`). `fit` holds in two cases: for the zero setup prefix and the zero tables with each decoder
 (`Spec.Compression.Akita.Key30.fit_zero`), and for each setup prefix and each family of tables
 with decoders that give the fold challenge 0 (`Spec.Compression.Akita.Key30.fit_quiet`). For the
 challenge families of the schedule and tables that are not 0, `fit` is not a theorem: a response
 can be larger than the limit of `Enc`, and the honest prover of the Akita code has a search over
-a nonce for a response that fits. The claim is not a completeness bound: Lean has no bound on the
-probability that a response fits, and the Lean verifier has no rejection at a zero tensor
-factor. -/
+a nonce for a response that fits. The claim is an existence result for each table, not a
+completeness bound: Lean has no bound on the probability that a response fits, and the Lean
+verifier has no rejection at a zero tensor factor. -/
 theorem key30_opening_accepts
     {E : Type}
     [fieldE : Field E]
@@ -704,6 +706,119 @@ theorem key30_opening_accepts
     weight₃ key₄ openKey₄ block₄ decode₄ weight₄ key₅ openKey₅ block₅ decode₅ weight₅ key₆ openKey₆ block₆
     decode₆ weight₆ matrix blockL decodeL total inside accept table decodes decodes₁ decodes₂ decodes₃
     decodes₄ decodes₅ decodes₆ decodesL worked tables live places lengths fit
+
+/-- The proof of the honest prover of the opening of a row of
+`crates/ns-compress/artifacts/key30.aks` is a prover of the game of `key30_opening_bound` (Akita
+Theorem 10.9, Section 9 with (136), and Theorem 10.17). The data `o` of that claim is
+`Spec.Compression.Akita.Key30.noteTower`: the wire messages `Key30.Wire E` with the readers of
+`Key30.Note`, the setup prefix `flat` with the commitment and the reference decommitment of the
+Lean commitment algorithm, the decoders `draw` of `Key30.Tower`, and free bases, matrices and
+coordinates of the slots. `shared` and `drawn` are the hypotheses of `key30_opening_bound` for
+this data, and `drawn` fixes the stage `stage` of the terminal. Lean proves that the wire type is
+finite, so `key30_opening_bound` holds for `o`, and that for each table of the oracle on keys whose
+work slots have 57 zero work bits (`worked`) and each family of tables with the fit conditions
+`fit` for these decoders, a proof exists whose first message has the commitments of the tables,
+the points and the values, such that the prover `.done proof` has no queries and the verifier
+`o.accepts` accepts its transcript. So the accept event of `key30_opening_bound` is not empty
+when `fit` holds. For the zero setup prefix and the zero tables `fit` holds with no hypothesis
+(`Spec.Compression.Akita.Key30.noteTower_zero`, `Spec.Compression.Akita.Key30.noteTower_played`).
+The proof is chosen for each table: the claim is an existence result for each table, not a
+completeness bound. -/
+theorem key30_opening_played
+    {E : Type}
+    [fieldE : Field E]
+    [fintypeE : Fintype E]
+    [decidableEqE : DecidableEq E]
+    [algebraZqE : Algebra Akita.Zq E]
+    [degree2E : Akita.Degree2 E]
+    {Coord : Type}
+    [fintypeCoord : Fintype Coord]
+    [decidableEqCoord : DecidableEq Coord]
+    {r : Akita.Key30.Row}
+    (member : r ∈ Akita.Key30.rows)
+    (flat : Akita.Table)
+    (β : (g : Fin 3) → Module.Basis (Fin ((Akita.Key30.root r).planes g)) Akita.Zq E)
+    (key : (g : Fin 3) → Akita.Key ((Akita.Key30.root r).shape g))
+    (openKey : (Akita.Key30.root r).OpenKey)
+    (block : (Akita.Key30.root r).Block → Coord)
+    (β₁ : (g : Fin 2) → Module.Basis (Fin ((Akita.Key30.level₁ r).planes g)) Akita.Zq E)
+    (key₁ : (g : Fin 2) → Akita.Key ((Akita.Key30.level₁ r).shape g))
+    (openKey₁ : (Akita.Key30.level₁ r).OpenKey)
+    (block₁ : (Akita.Key30.level₁ r).Block → Coord)
+    (β₂ : Module.Basis (Fin (Akita.Key30.level₂ r).opening.planes) Akita.Zq E)
+    (key₂ : Akita.Key (Akita.Key30.level₂ r).shape)
+    (openKey₂ : Akita.OpeningKey (Akita.Key30.level₂ r).opening)
+    (block₂ : Fin (Akita.Key30.level₂ r).shape.blocks → Coord)
+    (β₃ : Module.Basis (Fin Akita.Key30.level₃.opening.planes) Akita.Zq E)
+    (key₃ : Akita.Key Akita.Key30.level₃.shape)
+    (openKey₃ : Akita.OpeningKey Akita.Key30.level₃.opening)
+    (block₃ : Fin Akita.Key30.level₃.shape.blocks → Coord)
+    (key₄ : Akita.Key Akita.Key30.level₄.shape)
+    (openKey₄ : Akita.OpeningKey Akita.Key30.level₄.opening)
+    (block₄ : Fin Akita.Key30.level₄.shape.blocks → Coord)
+    (key₅ : Akita.Key Akita.Key30.level₅.shape)
+    (openKey₅ : Akita.OpeningKey Akita.Key30.level₅.opening)
+    (block₅ : Fin Akita.Key30.level₅.shape.blocks → Coord)
+    (key₆ : Akita.Key Akita.Key30.level₆.shape)
+    (openKey₆ : Akita.OpeningKey Akita.Key30.level₆.opening)
+    (block₆ : Fin Akita.Key30.level₆.shape.blocks → Coord)
+    (matrix : Matrix (Fin Akita.Key30.terminal.innerRank)
+          (Fin Akita.Key30.terminal.blockLength × Fin Akita.Key30.terminal.sourceDigits)
+          (Akita.Rq Akita.Key30.terminal.innerDegree))
+    (blockL : Fin Akita.Key30.terminal.blocks → Coord)
+    {total stage : ℕ}
+    [nonemptyCoord : Nonempty Coord]
+    (shared : (Akita.Key30.noteTower member flat β key openKey block β₁ key₁ openKey₁ block₁ β₂ key₂ openKey₂
+          block₂ β₃ key₃ openKey₃ block₃ key₄ openKey₄ block₄ key₅ openKey₅ block₅ key₆ openKey₆ block₆
+          matrix blockL total stage).Shared)
+    (drawn : (Akita.Key30.noteTower member flat β key openKey block β₁ key₁ openKey₁ block₁ β₂ key₂ openKey₂
+          block₂ β₃ key₃ openKey₃ block₃ key₄ openKey₄ block₄ key₅ openKey₅ block₅ key₆ openKey₆ block₆
+          matrix blockL total stage).Drawn shared Akita.Extract.Page.read 0)
+    (table : Akita.Extract.Address (Akita.Key30.Wire r E) total → Option Coord → E)
+    (worked : ∀ (input : Akita.Extract.Address (Akita.Key30.Wire r E) total),
+          table input none ∈ Akita.Extract.workZeros E 57)
+    {tables : Fin 3 → Akita.Table}
+    (live : ∀ (g : Fin 3) (cell : ℕ), 2 ^ ![30, r.vars, 28] g ≤ cell → tables g cell = 0)
+    {places : Fin 3 → List E}
+    (lengths : ∀ (g : Fin 3), (places g).length = ![30, r.vars, 28] g)
+    (fit : Akita.Key30.Fit member flat β key openKey (Akita.Key30.rootDecode E r) β₁ key₁ openKey₁
+        (Akita.Key30.decode₁ E r) β₂ key₂ openKey₂
+        (Akita.Extract.draw (Akita.SparseFamily (Akita.Key30.level₂ r).opening.carrierDegree 31 10) fun _ => True)
+        β₃ key₃ openKey₃
+        (Akita.Extract.draw (Akita.SparseFamily Akita.Key30.level₃.opening.carrierDegree 31 10) fun _ => True)
+        key₄ openKey₄
+        (Akita.Extract.draw (Akita.SparseFamily Akita.Key30.level₄.shape.innerDegree 31 0) fun _ => True)
+        key₅ openKey₅
+        (Akita.Extract.draw (Akita.SparseFamily Akita.Key30.level₅.shape.innerDegree 31 11)
+          (Akita.TrigTable.codeAccepts Akita.Key30.level₅.shape.innerDegree Akita.Key30.norm₅.operator))
+        key₆ openKey₆
+        (Akita.Extract.draw (Akita.SparseFamily Akita.Key30.level₆.shape.innerDegree 31 11)
+          (Akita.TrigTable.codeAccepts Akita.Key30.level₆.shape.innerDegree Akita.Key30.norm₆.operator))
+        (Akita.Extract.draw (Akita.SparseFamily Akita.Key30.terminal.innerDegree 31 11)
+          (Akita.TrigTable.codeAccepts Akita.Key30.terminal.innerDegree Akita.Key30.normTerminal.operator))
+        tables) :
+    Finite (Akita.Key30.Wire r E) ∧
+      ∃ proof : ℕ → Akita.Key30.Wire r E,
+        (RandomOracle.OracleComp.done proof :
+            RandomOracle.OracleComp (Akita.Extract.Address (Akita.Key30.Wire r E) total) (Option Coord → E)
+              (ℕ → Akita.Key30.Wire r E)).QueryBound 0 ∧
+        ((proof 0).data.commit = fun g => (Akita.commit (key g) (tables g)).1) ∧
+        (proof 0).data.place = places ∧
+        ((proof 0).data.value = fun g => Lib.mle (places g) (Akita.lifted E (tables g))) ∧
+        (Akita.Key30.noteTower member flat β key openKey block β₁ key₁ openKey₁ block₁ β₂ key₂ openKey₂
+          block₂ β₃ key₃ openKey₃ block₃ key₄ openKey₄ block₄ key₅ openKey₅ block₅ key₆ openKey₆ block₆
+          matrix blockL total stage).accepts shared Akita.Extract.Page.read
+          (((Akita.Key30.noteTower member flat β key openKey block β₁ key₁ openKey₁ block₁ β₂ key₂ openKey₂
+            block₂ β₃ key₃ openKey₃ block₃ key₄ openKey₄ block₄ key₅ openKey₅ block₅ key₆ openKey₆ block₆
+            matrix blockL total stage).body shared Akita.Extract.Page.read 0
+              ((Akita.Key30.noteTower member flat β key openKey block β₁ key₁ openKey₁ block₁ β₂ key₂ openKey₂
+              block₂ β₃ key₃ openKey₃ block₃ key₄ openKey₄ block₄ key₅ openKey₅ block₅ key₆ openKey₆ block₆
+              matrix blockL total stage).accepts shared Akita.Extract.Page.read)).protocol.final
+            (RandomOracle.OracleComp.done proof) table) :=
+  @NightstreamFPrime.Spec.Compression.Akita.Key30.noteTower_accepts E fieldE fintypeE decidableEqE algebraZqE
+    degree2E Coord fintypeCoord decidableEqCoord r member flat β key openKey block β₁ key₁ openKey₁ block₁ β₂
+    key₂ openKey₂ block₂ β₃ key₃ openKey₃ block₃ key₄ openKey₄ block₄ key₅ openKey₅ block₅ key₆ openKey₆ block₆
+    matrix blockL total stage nonemptyCoord shared drawn table worked tables live places lengths fit
 
 /-- Soundness of the final verifier with the Akita openings of
 `crates/ns-compress/artifacts/key30.aks`, the file of the key of `2^19` blocks:

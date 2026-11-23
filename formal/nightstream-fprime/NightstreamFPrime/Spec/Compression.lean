@@ -48,6 +48,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Fold
 import NightstreamFPrime.Spec.Compression.Akita.FoldCheck
 import NightstreamFPrime.Spec.Compression.Akita.FoldComplete
 import NightstreamFPrime.Spec.Compression.Akita.FoldSumCheck
+import NightstreamFPrime.Spec.Compression.Akita.KeptTail
 import NightstreamFPrime.Spec.Compression.Akita.Key20
 import NightstreamFPrime.Spec.Compression.Akita.Key20Challenge
 import NightstreamFPrime.Spec.Compression.Akita.Key20Tower
@@ -165,7 +166,7 @@ completeness of the checks (`CheckComplete`), the trace levels (`TraceComplete`,
 instance for the schedule `key20.aks` (`Akita/Key20Complete`, `Akita/Key20Root`,
 `Akita/Key20Accept`) and for the schedule `key30.aks` (`Akita/Key30Complete`, `Akita/Key30Root`,
 `Akita/Key30Accept`), the sparse challenge families with their units and their decoders from
-one slot (`Akita/ShortUnit`, `Akita/ChallengeFamily`, `Draw`, `Akita/Key20Challenge`), and the
-shared setup with its
+one slot (`Akita/ShortUnit`, `Akita/ChallengeFamily`, `Draw`, `Akita/Key20Challenge`), the
+union bound of their filters over the frequencies (`Akita/KeptTail`), and the shared setup with its
 reduction to ordinary Module-SIS (`Akita/Setup`) and the bad events of the hashed transcript
 entries (`Akita/Digest`). -/

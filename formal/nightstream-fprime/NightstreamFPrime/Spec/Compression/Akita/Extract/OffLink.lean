@@ -12,7 +12,8 @@ with (136), Lemma 7.1, item 1, and Figure 4).
 - `offLink` gives the transcript prefix of the honest prover through the stages of an offloaded
   level: the first message has the commitment of the group 1 of the next level, the last message
   has the commitments, the values and the points of the two claims of Akita (136), and each
-  transcript with the prefix has the link `Tier.Offloaded`.
+  transcript with the prefix has the link `Tier.Offloaded`. A wire message has the points as
+  vectors `spots` of `ν` and `μ` coordinates, and `places` reads them as lists.
 
 The fit conditions `BatchFit` are hypotheses (Akita Definition 10.5). The file has no bound for
 the probability `ξ_h` of Akita (155). -/
@@ -114,10 +115,12 @@ in the message after the fold challenges, and its last message has the commitmen
 `(registry, payload)`, the values `(s_{ρ_S}, v_W)` and the points `(ρ_S, r_2)` of the two groups.
 `tried`: the nonce of the response search in the last message of `early` is below
 `responseTries`. The last message of the longer prefix has a nonce below `responseTries` too.
-Each transcript with the prefix has the link `Tier.Offloaded`. -/
-theorem offLink
+Each transcript with the prefix has the link `Tier.Offloaded`. `spotted`: the points of a wire
+message are the lists of its vectors `spots`. -/
+theorem offLink {μ ν : ℕ} {spots : Wire → (g : Fin 2) → Fin (![ν, μ] g) → E}
+    (spotted : ∀ wire, places wire = fun g => List.ofFn (spots wire g))
     (carries : Carries sendable slots T.read fun wire =>
-      (commit wire, commits wire, values wire, places wire))
+      (commit wire, commits wire, values wire, spots wire))
     {first : Wire} {early : List ((Option Coord → E) × Wire)} (on : OnPath accept table first early)
     (starts : early.length = T.start) (fits : T.finish ≤ total)
     (decodes : ∀ input b, (T.decode b (table input (T.block b))).isSome)
@@ -125,7 +128,7 @@ theorem offLink
     (tried : T.read.nonce (lastWire first early) < responseTries)
     (uniform : ∀ wire challenge table other,
       bare (T.check wire challenge table) = bare (T.check wire challenge other))
-    {draws μ ν : ℕ} (count : T.costs.length = draws) (source flat : Table)
+    {draws : ℕ} (count : T.costs.length = draws) (source flat : Table)
     (wins : WinsAt sendable slots
       (T.check (lastWire first early) (T.drawn table first early) source) draws 0
       fun result _ _ => ∃ r2 ρ : List E, r2.length = μ ∧ ρ.length = ν ∧
@@ -149,8 +152,8 @@ theorem offLink
     Tier.run (T := T) carries on starts fits decodes worked capped tried source wins fun _ game =>
       (payload, Batch.pairOf (F := fun g => (B.shape g).Payload) registry payload,
         match game with
-        | .pure (some ((r, v), (σ, s))) => (![s, v], ![σ, r])
-        | _ => (0, fun _ => []))
+        | .pure (some ((r, v), (σ, s))) => (![s, v], fun g index => (![σ, r] g).getD index 0)
+        | _ => (0, fun _ _ => 0))
   have paid : commit wire = payload := congrArg Prod.fst held
   have committed : commits (lastWire wire moves) =
       Batch.pairOf (F := fun g => (B.shape g).Payload) registry payload :=
@@ -158,8 +161,16 @@ theorem offLink
   have valued : values (lastWire wire moves) =
       ![mle ρ (lifted E flat), mle r2 (lifted E source)] :=
     congrArg (fun data => data.2.2.1) last
-  have placed : places (lastWire wire moves) = ![ρ, r2] :=
+  have spotted' : spots (lastWire wire moves) =
+      fun g (index : Fin (![ν, μ] g)) => (![ρ, r2] g).getD index 0 :=
     congrArg (fun data => data.2.2.2) last
+  have long'' : ∀ g, (![ρ, r2] g).length = ![ν, μ] g := Fin.forall_fin_two.mpr ⟨long', long⟩
+  have placed : places (lastWire wire moves) = ![ρ, r2] := by
+    rw [spotted, spotted']
+    funext g
+    refine List.ext_getElem (by rw [List.length_ofFn, long'' g]) fun _ _ inside => ?_
+    simp only [List.getElem_ofFn, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem inside,
+      Option.getD_some]
   have whole : (early ++ (answer table first early, wire) :: moves).length = T.finish := by
     rw [List.length_append, List.length_cons, counted, starts]
     exact T.finish_eq.symm

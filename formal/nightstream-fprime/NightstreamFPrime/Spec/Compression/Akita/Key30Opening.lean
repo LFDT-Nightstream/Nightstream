@@ -317,7 +317,7 @@ variable {o shared read start}
 omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] in
 /-- With `Tower.Drawn`, each slot of `E` gives a fold challenge of each group of the root and of
 the level 1, of the levels 2 to 6 and of the terminal, so the conditions `decodes` of the
-verifier hold for each table of stage answers. -/
+verifier hold for each table of the oracle on keys. -/
 theorem Tower.Drawn.decodes (drawn : o.Drawn shared read start) (slot : E) :
     (∀ g, (rootDecode E r g slot).isSome) ∧ (∀ g, (decode₁ E r g slot).isSome) ∧
       (draw₂ slot).isSome ∧ (draw₃ slot).isSome ∧ (draw₄ slot).isSome ∧ (draw₅ slot).isSome ∧
@@ -470,7 +470,7 @@ variable [Finite Wire]
 
 /-- Akita Theorem 10.17 in the form (161), with Corollary 10.49 and (206), for the opening of a
 row of `key30.aks` with the decoders `draw`. For each prover with at most `Q` queries to the
-table of the stage answers, the probability that `Tower.accepts` accepts and the extractor
+table of the oracle on keys, the probability that `Tower.accepts` accepts and the extractor
 returns no output is at most
 `(Q + 1)·(1623435/(4096·|E|) + (1458 + B_1 + B_2)/q²) + (Q + 1)·(1467 + B_1 + B_2)/budget`,
 with

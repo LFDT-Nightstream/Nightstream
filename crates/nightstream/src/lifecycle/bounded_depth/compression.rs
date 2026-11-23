@@ -454,9 +454,9 @@ impl BoundedDepth {
     }
 }
 
-const MAGIC: &[u8; 16] = b"NS-OPTIONB-FIN-2";
+const MAGIC: &[u8; 16] = b"NS-ONEINV-FIN--1";
 /// SPEC.md section 4.5.
-const LIGHT_MAGIC: &[u8; 16] = b"NS-OPTIONB-FIN-L";
+const LIGHT_MAGIC: &[u8; 16] = b"NS-ONEINV-FIN--L";
 const SHAPE: Shape = Shape {
     public_width: PUBLIC_WORDS,
     witness_columns: 0,
@@ -556,7 +556,7 @@ impl FinalProof {
             write_extension(&mut output, round);
         }
         write_extension(&mut output, &[argument.witness_value]);
-        write_extension(&mut output, &argument.inverse_values);
+        write_extension(&mut output, &[argument.shared_inverse]);
         write_extension(&mut output, &[argument.key_part]);
         output.word(argument.key_rounds.len() as u64);
         for round in &argument.key_rounds {
@@ -605,9 +605,7 @@ impl FinalProof {
                 let inverse_commitment = read_bytes(&mut input)?;
                 let rounds = read_rounds(&mut input)?;
                 let witness_value = input.extension()?;
-                let inverse_values = read_extension(&mut input, 4)?
-                    .try_into()
-                    .expect("four values");
+                let shared_inverse = input.extension()?;
                 let key_part = input.extension()?;
                 let key_rounds = read_rounds(&mut input)?;
                 let key_polynomial_value = input.extension()?;
@@ -627,7 +625,7 @@ impl FinalProof {
                         inverse_commitment,
                         rounds,
                         witness_value,
-                        inverse_values,
+                        shared_inverse,
                         key_part,
                         key_rounds,
                         key_polynomial_value,

@@ -10,8 +10,6 @@ use crate::{Error, Norm};
 pub(crate) const LANE_VARS: usize = D.trailing_zeros() as usize;
 
 pub(crate) const LOOKUPS: usize = 4;
-pub(crate) const LOOKUP_VARS: usize = 2;
-const _: () = assert!(LOOKUPS <= 1 << LOOKUP_VARS);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Slice {
@@ -129,7 +127,7 @@ impl Layout {
         let &(witness_vars, inverse_vars) = schedules
             .rows
             .iter()
-            .find(|&&(witness, inverse)| witness >= vars_for(cursor) && inverse >= table_witness_vars + LOOKUP_VARS)
+            .find(|&&(witness, inverse)| witness >= vars_for(cursor) && inverse >= table_witness_vars)
             .ok_or(Error::Layout("no Akita schedule row holds the cells"))?;
         Ok(Self {
             cells,
@@ -152,10 +150,6 @@ impl Layout {
 
     pub(crate) fn key_block_vars(&self) -> usize {
         self.key_vars - LANE_VARS - ROW_VARS
-    }
-
-    pub(crate) fn inverse_len(&self) -> usize {
-        ((LOOKUPS - 1) << self.table_witness_vars) + self.table_witness_len
     }
 
     pub(crate) fn tables(&self) -> impl Iterator<Item = (usize, Slice, u64, Slice)> + '_ {

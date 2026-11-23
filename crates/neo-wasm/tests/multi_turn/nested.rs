@@ -39,7 +39,7 @@ const MODULE: &str = r#"
 enum Callback {
     TrapBeforeStore,
     TrapAfterStore,
-    CatchAfterStore,
+    CatchAndRetry,
 }
 
 fn bindings() -> HostEventBindings {
@@ -88,7 +88,7 @@ fn runtime(behavior: Callback, word: u32) -> (Store<WasmtimeTraceRegistry>, Inst
                     .await
                     .unwrap_err();
                     assert_eq!(error.downcast_ref::<Trap>(), Some(&Trap::UnreachableCodeReached));
-                    if matches!(behavior, Callback::CatchAfterStore) {
+                    if matches!(behavior, Callback::CatchAndRetry) {
                         Ok((callback(&mut caller, "read", &[Val::I32(ADDRESS)]).await?,))
                     } else {
                         Err(error)
@@ -181,7 +181,7 @@ fn public_nested_unwind_reads_callback_write() {
 #[test]
 fn caught_callback_retry_is_not_a_top_level_unwind() {
     let word = 0x1234_5678;
-    let (mut store, instance) = runtime(Callback::CatchAfterStore, word);
+    let (mut store, instance) = runtime(Callback::CatchAndRetry, word);
     assert_eq!(invoke(&mut store, instance, "run", &[]).unwrap(), word);
     let captured = store.data().single_instance().unwrap();
     let error = normalize(captured.steps(), captured.artifacts(), Default::default()).unwrap_err();

@@ -1389,10 +1389,15 @@ dependencies = [
 name = "ns-compress"
 version = "0.1.0"
 dependencies = [
+ "akita-algebra",
+ "akita-challenges",
  "akita-config",
+ "akita-error",
  "akita-params",
  "akita-pcs",
  "akita-serialization",
+ "akita-sumcheck",
+ "akita-transcript",
  "akita-types",
  "akita-verifier",
  "jolt-field",

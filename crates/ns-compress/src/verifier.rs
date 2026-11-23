@@ -126,3 +126,7 @@ pub fn verify(
         akita: start.elapsed(),
     })
 }
+
+#[cfg(test)]
+#[path = "../tests/unit/akita_vectors.rs"]
+mod akita_vectors;

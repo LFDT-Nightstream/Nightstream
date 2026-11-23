@@ -28,6 +28,11 @@ akita-verifier = { git = "https://github.com/LayerZero-Labs/akita.git", rev = "d
 jolt-field = { git = "https://github.com/a16z/jolt", rev = "25d87ba68bde9f4a85ac986f5487b2e7b7db2699", default-features = false, features = ["asm", "solinas"] }
 
 [dev-dependencies]
+akita-algebra = { git = "https://github.com/LayerZero-Labs/akita.git", rev = "d50f700fb1a292395a717cef0e6f437c7ce2cdb1" }
+akita-error = { git = "https://github.com/LayerZero-Labs/akita.git", rev = "d50f700fb1a292395a717cef0e6f437c7ce2cdb1" }
+akita-challenges = { git = "https://github.com/LayerZero-Labs/akita.git", rev = "d50f700fb1a292395a717cef0e6f437c7ce2cdb1" }
+akita-sumcheck = { git = "https://github.com/LayerZero-Labs/akita.git", rev = "d50f700fb1a292395a717cef0e6f437c7ce2cdb1" }
+akita-transcript = { git = "https://github.com/LayerZero-Labs/akita.git", rev = "d50f700fb1a292395a717cef0e6f437c7ce2cdb1" }
 nightstream-fprime = { path = "../nightstream-fprime" }
 rand = { workspace = true }
 rand_chacha = { workspace = true }

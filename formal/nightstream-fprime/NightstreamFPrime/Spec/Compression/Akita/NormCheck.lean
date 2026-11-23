@@ -242,10 +242,10 @@ noncomputable def foldCheckSq (R : Reduction E) (b : ℕ) (support : ℕ → Pro
     [DecidablePred support] (bin : Bool) (limit : ℕ) (kernel : ℕ → ℕ → Zq) (w : Table) :
     Game (Option (List E × E)) :=
   .draw E (R.bad w) fun α =>
-  .draw (Fin R.vars → E) (rangeBad b R.vars w) fun τ0 =>
+  .draw (Fin R.vars → E) (rangeBad R.low b R.vars w) fun τ0 =>
   .draw (Fin R.batch → E) ((R.rows α).batchBad R.vars R.batch w) fun τ1 =>
   (rangeTree (rangeLeaf b) R.vars w (normLeafStage (rangeLeaf b) R.vars limit kernel support w)
-    (rangeArities b) 1 (fun _ => 1) (List.ofFn τ0) 0).bind fun
+    (rangeArities b) 1 (fun _ => 1) (rangePoint R.low τ0) 0).bind fun
     | none => .pure none
     | some (r, sClaim, y) =>
         .draw E (zeros (linePoly (mle (List.ofFn τ1) ((R.rows α).residual R.vars w))
@@ -276,8 +276,8 @@ theorem foldCheckSq_avoids (R : Reduction E) (b : ℕ) (support : ℕ → Prop)
   refine (rangeTree_avoids (rangeLeaf b) R.vars w _ (VirtSq R.vars limit kernel support w)
     (OpensSq R.vars kernel w)
     (fun nodes weights point claim => normLeafStage_avoids (rangeLeaf b) R.vars limit kernel
-      support w nodes weights point claim) (rangeArities b) 1 (fun _ => 1) (List.ofFn τ0) 0
-    List.length_ofFn).mono ?_
+      support w nodes weights point claim) (rangeArities b) 1 (fun _ => 1) (rangePoint R.low τ0) 0
+    (rangePoint_length _ _)).mono ?_
   rintro (_ | ⟨r, sClaim, y⟩) ranged
   · intro r2 v equal
     simp at equal
@@ -304,7 +304,7 @@ theorem foldCheckSq_avoids (R : Reduction E) (b : ℕ) (support : ℕ → Prop)
   refine ⟨⟨R.sound w α reduce ((R.rows α).holds_of_batched R.vars batch
     (((R.rows α).batched_iff R.vars w _).mpr holds)), rangeHolds_of_sum point ?_, binary⟩,
     energy opens⟩
-  rw [← root_sum b w (List.ofFn τ0)]
+  rw [← root_sum b w (rangePoint R.low τ0)]
   exact (rangeSound opens).symm
 
 end NightstreamFPrime.Spec.Compression.Akita

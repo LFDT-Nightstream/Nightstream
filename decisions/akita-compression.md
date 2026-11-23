@@ -760,21 +760,58 @@ lists the points that need a decision.
   From the proof bytes and the public inputs only, Lean derives each message,
   each field challenge, each proof-of-work check, each absorbed value and the
   claim chain of each sum-check, and each one equals the value of the Rust
-  verifier. The parts that Lean does not replay are the fold challenge
-  sampler (Lean squeezes its bytes and does not decode them), each end check
-  of a stage, the relation weight at the sum-check point, and the terminal
-  checks. So Lean gives no accept result for a proof. For a changed proof Lean
-  gives the result class of the Rust verifier only when the parse, the
-  trailing bytes, a proof of work or the response nonce fails. The functions
+  verifier. Lean evaluates the end checks of the tensor reduction, of each
+  stage of the range proof and of the norm check, and the integer check of
+  the norm, in the order of the code. For these stages Lean proves that the
+  verifier of the specification, on the path of the messages and the
+  challenges of the code, ends in the result of the replay function, for
+  acceptance and for rejection
+  (`Spec.Compression.Akita.Replay.rangeRun_runs`, `treeRun_runs`,
+  `leafRun_runs`, `normRun_runs`, `tensorRun_runs`, with
+  `sumcheckRun_eqSumcheck` and `sumcheckRun_plain`). The code checks also
+  `E_resp < q` and receives the final claim of the tensor reduction as a
+  message that it compares with the end of the sum-check; the specification
+  has `E_resp ≤ S_max` with `S_max < q` and no such message. The parts that
+  Lean does not replay are the fold challenge sampler (Lean squeezes its bytes
+  and does not decode them), the end check of the fused sum-check and of
+  Stage 3 (they need the relation weight at the sum-check point), and the
+  terminal checks. So Lean gives no accept result for a proof. For a changed
+  proof Lean gives the result class of the Rust verifier, at the same site,
+  when the parse, the trailing bytes, a proof of work, the response nonce or
+  one of the equations above fails first: 214 of the 216 changes of
+  `key20.aks` and the 10 changes of `key30.aks`. The two other changes fail
+  at the digest of the last block of `e` of the terminal. The functions
   for Keccak, the duplex sponge, the challenge decoder, the site order and
   the relation rows have no theorem that relates them to the Lean verifier
-  `towerAccepts`: their evidence is the equality with the Rust values on
-  these proofs. Two differences of the model are found by the replay and stay
-  open. The code puts the rows of the last group of a level first
-  (`build_relation_rhs_layout` of `crates/akita-params` of the Akita code),
-  and the Lean rows (`Spec.Compression.Akita.Batch.flatRows`) have the groups in
-  their order. The
-  equality point of the first range stage has the rotation of difference (h).
+  `towerAccepts`, and no theorem joins the stage theorems above to the replay
+  of the transcript: their evidence is the equality with the Rust values on
+  these proofs. The replay found two places where the Lean verifier did not
+  have the form of the code, and the Lean verifier now has the form of the
+  code in both. First, the code puts the rows of the last group of a level
+  before the rows of the other groups, in each row family
+  (`root_group_order` and `build_relation_rhs_layout` of `crates/akita-params`
+  of the Akita code). Akita Figure 5 has "increasing group" in a family.
+  This is a choice of the code. Akita Theorem 7.4 fixes "the canonical row
+  order" before `α` and holds for each fixed order, so the argument of the
+  paper covers the code. The Lean rows have the order of the code
+  (`Spec.Compression.Akita.groupOrder`, `Spec.Compression.Akita.place`,
+  `Spec.Compression.Akita.gather`, `Spec.Compression.Akita.Join.gather`), and
+  the replay takes its order from `groupOrder`. Second, the code draws `τ_0`
+  and uses it with its last `ℓ` coordinates first as the point of the range
+  identity (80) (`DigitRangeEqualityPoint::from_column_then_ring_challenges`
+  of `crates/akita-types` of the Akita code). `ℓ` is `log_2` of the least of
+  the degrees of `A`, `B` and `D` and of the challenge subring over the groups
+  of the level (`relation_coefficient_block_len` of
+  `crates/akita-params/src/schedule.rs`). The paper has a uniform point `τ_0`
+  with no order of the coordinates in the transcript. The point of the code is
+  uniform when `τ_0` is, so the argument of Akita Lemma 10.37 (i) covers it.
+  The Lean verifier uses `Spec.Compression.Akita.rangePoint R.low τ_0`, the bad
+  set `Spec.Compression.Akita.rangeBad` is the set of the draws whose range
+  point is bad, and its bound `μ'/|E|` is the same
+  (`Spec.Compression.Akita.density_rangeBad_le`). `ℓ` is
+  `Spec.Compression.Akita.Batch.low` and
+  `Spec.Compression.Akita.OpeningShape.low`. No number of a claim changed. The
+  vector tests fail for the groups in their own order and for `ℓ + 1`.
 
 ### The results for `key30.aks`
 

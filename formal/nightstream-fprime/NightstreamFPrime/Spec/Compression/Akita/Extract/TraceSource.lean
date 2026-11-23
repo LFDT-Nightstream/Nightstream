@@ -190,6 +190,7 @@ noncomputable def traceRelation (st : TraceStatement O E)
     (challenge : Fin S.blocks → Rq S.innerDegree) (μ : ℕ) (fits : O.cells fold ≤ 2 ^ μ) :
     FlatRelation E where
   vars := μ
+  low := O.low
   ring := O.traceRowCount
   row := traceRows O fold st challenge
   inside r c j _ _ read := (traceRows_below O fold st challenge r c j _ read).trans_le fits

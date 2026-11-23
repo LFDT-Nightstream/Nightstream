@@ -5,7 +5,8 @@ import NightstreamFPrime.Spec.Compression.Akita.RangeTree
 (ePrint 2026/1983, revision of 2026-11-23, Figure 6, Sections 6.1 and 7.4, Theorem 10.36,
 Lemma 10.37 and the terms of (189) after the fold challenge).
 
-- `rangeBad` is the bad set of the range point `τ_0`, with `density_rangeBad_le`.
+- `rangePoint` is the range point of the pinned code for the drawn `τ_0`: its last `low`
+  coordinates first. `rangeBad` is the bad set of `τ_0`, with `density_rangeBad_le`.
 - `BinaryOn support μ w` is the statement of Akita Remark 6.2: `w(x)·(w(x) + 1) = 0` at each
   position `x ∈ I_bin`.
 - `foldCheck` is the verifier for the flat witness `w`: the point `α` of the ring reduction, the
@@ -29,28 +30,61 @@ local instance : Fact (Nat.Prime fieldModulus) := ⟨FieldPrime.fieldModulus_nat
 
 variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E]
 
+section Point
+
+variable {K : Type} {μ : ℕ}
+
+/-- The range point of the pinned code for the drawn point `τ_0 ∈ E^μ`: `τ_0` with its last `low`
+coordinates first (`DigitRangeEqualityPoint::from_column_then_ring_challenges` of
+`crates/akita-types/src/proof/stage1.rs` of the Akita code). Akita (80) has a uniform point, and
+this point is uniform when `τ_0` is. -/
+def rangePoint (low : ℕ) (τ : Fin μ → K) : List K := (List.ofFn τ).rotate (μ - low)
+
+@[simp] theorem rangePoint_length (low : ℕ) (τ : Fin μ → K) : (rangePoint low τ).length = μ := by
+  simp [rangePoint]
+
+theorem turn_injective (μ k : ℕ) :
+    Function.Injective fun i : Fin μ => (⟨(i + k) % μ, Nat.mod_lt _ i.pos⟩ : Fin μ) :=
+  fun i j same => Fin.ext (Nat.ModEq.eq_of_lt_of_lt
+    (Nat.ModEq.add_right_cancel' k (Fin.mk.inj_iff.mp same)) i.isLt j.isLt)
+
+/-- The coordinate of `τ_0` at each place of `rangePoint`. -/
+noncomputable def turn (μ low : ℕ) : Equiv.Perm (Fin μ) :=
+  Equiv.ofBijective _ (Finite.injective_iff_bijective.mp (turn_injective μ (μ - low)))
+
+theorem rangePoint_eq_ofFn (low : ℕ) (τ : Fin μ → K) :
+    rangePoint low τ = List.ofFn fun i => τ (turn μ low i) := by
+  refine List.ext_getElem (by simp) fun i left right => ?_
+  simp [rangePoint, List.getElem_rotate, turn]
+
+end Point
+
 open Classical in
 /-- The bad set of the range point `τ_0 ∈ E^μ` for the witness `w`: the points where the sum (80)
-is zero for a witness with a cell outside `A_{b⋆}` (Akita Lemma 10.37 (i)). -/
-noncomputable def rangeBad (b μ : ℕ) (w : Table) : Finset (Fin μ → E) :=
+is zero at `rangePoint` for a witness with a cell outside `A_{b⋆}` (Akita Lemma 10.37 (i)). -/
+noncomputable def rangeBad (low b μ : ℕ) (w : Table) : Finset (Fin μ → E) :=
   if RangeHolds b μ w then ∅
-  else Finset.univ.filter fun τ => mle (List.ofFn τ) (rangeResidual E b w) = 0
+  else Finset.univ.filter fun τ => mle (rangePoint low τ) (rangeResidual E b w) = 0
 
 /-- The bad set of the range point has a density of at most `μ' / |E|` (Akita (189)). -/
-theorem density_rangeBad_le (b μ : ℕ) (w : Table) :
-    density (rangeBad b μ w : Finset (Fin μ → E)) ≤ μ / Fintype.card E := by
+theorem density_rangeBad_le (low b μ : ℕ) (w : Table) :
+    density (rangeBad low b μ w : Finset (Fin μ → E)) ≤ μ / Fintype.card E := by
   unfold rangeBad
   split
   · rw [density_empty]
     positivity
   · rename_i fails
-    exact density_rangeSum_le fails
+    refine (density_congr ((turn μ low).symm.arrowCongr (Equiv.refl E)) _ _ fun τ => ?_).le.trans
+      (density_rangeSum_le fails)
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and, rangePoint_eq_ofFn]
+    refine Eq.congr_left (congrArg (fun p => mle p _) (congrArg List.ofFn (funext fun i => ?_)))
+    simp [Equiv.arrowCongr]
 
-/-- A sum (80) that is zero at a range point outside the bad set gives the digit range
-statement. -/
-theorem rangeHolds_of_sum {b μ : ℕ} {w : Table} {τ : Fin μ → E}
-    (outside : τ ∉ (rangeBad b μ w : Finset (Fin μ → E)))
-    (zero : mle (List.ofFn τ) (rangeResidual E b w) = 0) : RangeHolds b μ w := by
+/-- A sum (80) that is zero at the range point of a draw outside the bad set gives the digit
+range statement. -/
+theorem rangeHolds_of_sum {low b μ : ℕ} {w : Table} {τ : Fin μ → E}
+    (outside : τ ∉ (rangeBad low b μ w : Finset (Fin μ → E)))
+    (zero : mle (rangePoint low τ) (rangeResidual E b w) = 0) : RangeHolds b μ w := by
   by_contra fails
   refine outside ?_
   rw [rangeBad, ite_eq_right fails, Finset.mem_filter]
@@ -97,17 +131,17 @@ noncomputable def fusedCheck (μ : ℕ) (support : ℕ → Prop) [DecidablePred 
         else .pure none
 
 /-- The checks of one fold for the flat witness `w` of the next level, in the order of Akita Figure
-6. The verifier draws `α`, `τ_0` and `τ_1`, runs the range tree `rangeCheck` for the sum (80) to the
-point `r_virt` and the value `s_claim`, draws `ζ_bin` at a level with compression digits and `γ`,
+6. The verifier draws `α`, `τ_0` and `τ_1`, runs the range tree `rangeCheck` for the sum (80) at
+the point `rangePoint R.low τ_0` to the point `r_virt` and the value `s_claim`, draws `ζ_bin` at a level with compression digits and `γ`,
 and runs the fused sum-check (125). The bad sets are: the bad set of the ring reduction, `rangeBad`,
 `FieldRows.batchBad`, the bad sets of `rangeCheck`, the roots of the two combinations, and the roots
 of each round of the fused sum-check. -/
 noncomputable def foldCheck (R : Reduction E) (b : ℕ) (support : ℕ → Prop)
     [DecidablePred support] (bin : Bool) (w : Table) : Game (Option (List E × E)) :=
   .draw E (R.bad w) fun α =>
-  .draw (Fin R.vars → E) (rangeBad b R.vars w) fun τ0 =>
+  .draw (Fin R.vars → E) (rangeBad R.low b R.vars w) fun τ0 =>
   .draw (Fin R.batch → E) ((R.rows α).batchBad R.vars R.batch w) fun τ1 =>
-  (rangeCheck b R.vars support w (List.ofFn τ0)).bind fun
+  (rangeCheck b R.vars support w (rangePoint R.low τ0)).bind fun
     | none => .pure none
     | some (r, sClaim) =>
         drawBin bin (zeros (linePoly (mle (List.ofFn τ1) ((R.rows α).residual R.vars w))
@@ -220,7 +254,7 @@ theorem foldCheck_avoids (R : Reduction E) (b : ℕ) (support : ℕ → Prop) [D
         R.Holds w ∧ RangeHolds b R.vars w ∧ BinaryOn support R.vars w := by
   intro α reduce τ0 point τ1 batch
   refine (avoids_bind _ _ _).mpr ?_
-  refine (rangeCheck_avoids b R.vars support w (List.ofFn τ0) List.length_ofFn).mono ?_
+  refine (rangeCheck_avoids b R.vars support w (rangePoint R.low τ0) (rangePoint_length _ _)).mono ?_
   rintro (_ | ⟨r, sClaim⟩) ranged
   · intro r2 v equal
     simp at equal
@@ -277,13 +311,13 @@ theorem fusedCheck_costLe (μ : ℕ) (support : ℕ → Prop) [DecidablePred sup
 theorem foldCheck_costLe (R : Reduction E) (b : ℕ) (support : ℕ → Prop) [DecidablePred support]
     (bin : Bool) (w : Table) : (foldCheck R b support bin w).CostLe (foldError R b bin) := by
   have reduce := density_le (C := E) (R.bad w) _ (R.bad_card w)
-  have point := density_rangeBad_le (E := E) b R.vars w
+  have point := density_rangeBad_le (E := E) R.low b R.vars w
   unfold density at point
   refine ⟨_, add_le_add_left reduce _, fun α => ⟨_, add_le_add_left point _, fun τ0 => ?_⟩⟩
   have batch := (R.rows α).density_batchBad_le R.vars (R.fits α) w
   unfold density at batch
   refine ⟨_, add_le_add_left batch _, fun τ1 => ?_⟩
-  refine costLe_bind (rangeCheck_costLe b R.vars support w (List.ofFn τ0)) ?_
+  refine costLe_bind (rangeCheck_costLe b R.vars support w (rangePoint R.low τ0)) ?_
   rintro (_ | ⟨r, sClaim⟩)
   · show (0 : ℝ) ≤ _
     positivity

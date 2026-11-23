@@ -16,9 +16,12 @@ Sections 7.2 to 7.4, Theorem 7.4 and Theorem 10.36).
   `FieldRows.density_batchBad_le` is Akita Theorem 7.4, item 3.
 - `Reduction` is a ring reduction of a relation on the flat witness: the field rows at each point
   `α`, a bad set of points `α` for each witness, and the two directions between the relation and
-  its field rows. `Reduction.batched_of_holds`, `Reduction.holds_of_batched` and
+  its field rows. `low` is the count of the last coordinates of the range point `τ_0` that the
+  pinned code puts first (`rangePoint` of `FoldCheck.lean`). `Reduction.batched_of_holds`, `Reduction.holds_of_batched` and
   `Reduction.density_accepting_le` are Akita Theorem 7.4, item 1 and the bound (122).
 - `RingRow.relocate` is a ring row with each address moved by a map.
+- `groupOrder` is the order of the groups in the rows of the pinned code, the last group first,
+  and `place` is the group and the index of each row of one family in this order.
 - `Join` joins ring rows over `Z_q` into field rows: the planes of the carrier row (102) are one
   row over `E`, with the basis `β_t` as coefficients (Akita Section 7.3, after (109), and (113)).
   `Join.poly` is the polynomial over `E` of one field row, and `Join.poly_ne_zero` states that it
@@ -135,6 +138,7 @@ states that the field rows at a point outside `bad w` give the relation, and `co
 the relation gives the field rows at each point. -/
 structure Reduction (E : Type) [Field E] [Fintype E] [Algebra Zq E] where
   vars : ℕ
+  low : ℕ
   batch : ℕ
   Holds : Table → Prop
   rows : E → FieldRows E
@@ -185,6 +189,19 @@ theorem density_accepting_le {w : Table} (fails : ¬ R.Holds w) :
     linarith
 
 end Reduction
+
+/-- The groups of a fold in the order of the rows of the pinned code: the last group, then the
+others in their order (`root_group_order` of `crates/akita-params/src/layout/opening_layout.rs`
+and `build_relation_rhs_layout` of `relation_rhs_layout.rs` of the Akita code). Akita Figure 5 has
+"increasing group"; Akita Theorem 7.4 holds for each fixed order of the rows. -/
+def groupOrder (n : ℕ) : Equiv.Perm (Fin n) := (finRotate n).symm
+
+/-- The group and the index in the group of each row of one family with `count g` rows of the
+group `g`, for the groups in the order `groupOrder`. -/
+def place {n : ℕ} (count : Fin n → ℕ) : Fin (∑ g, count g) ≃ (g : Fin n) × Fin (count g) :=
+  (finCongr (Equiv.sum_comp (groupOrder n) count).symm).trans
+    ((finSigmaFinEquiv (n := fun k => count (groupOrder n k))).symm.trans
+      (Equiv.sigmaCongrLeft (β := fun g => Fin (count g)) (groupOrder n)))
 
 /-- The join of `ring` ring rows over `Z_q` into `count` field rows: the ring row `r` is in the
 field row `slot r` with the coefficient `basis r`. The planes of the carrier row (102) are one
@@ -317,41 +334,39 @@ theorem append_independent {m n : ℕ} {a : Join E m} {b : Join E n} (left : a.I
             exact right k (fun j => c (Fin.natAdd m j)) zero j same
   exact raw
 
-/-- The field rows of each `f g`, in the order of `g`. -/
+/-- The field rows of each `f g`, with the groups in the order `groupOrder`. -/
 def gather {n : ℕ} {size : Fin n → ℕ} (f : ∀ g, Join E (size g)) : Join E (∑ g, size g) where
   count := ∑ g, (f g).count
-  slot r := finSigmaFinEquiv
-    ⟨(finSigmaFinEquiv.symm r).1, (f (finSigmaFinEquiv.symm r).1).slot (finSigmaFinEquiv.symm r).2⟩
-  basis r := (f (finSigmaFinEquiv.symm r).1).basis (finSigmaFinEquiv.symm r).2
+  slot r := (place fun g => (f g).count).symm
+    ⟨(place size r).1, (f (place size r).1).slot (place size r).2⟩
+  basis r := (f (place size r).1).basis (place size r).2
 
 theorem gather_independent {n : ℕ} {size : Fin n → ℕ} {f : ∀ g, Join E (size g)}
     (each : ∀ g, (f g).Independent) : (gather f).Independent := by
   have raw : ∀ (k : Fin (∑ g, (f g).count)) (c : Fin (∑ g, size g) → Zq),
-      (∑ r, (if (finSigmaFinEquiv ⟨(finSigmaFinEquiv.symm r).1,
-          (f (finSigmaFinEquiv.symm r).1).slot (finSigmaFinEquiv.symm r).2⟩ :
-            Fin (∑ g, (f g).count)) = k
-        then c r • (f (finSigmaFinEquiv.symm r).1).basis (finSigmaFinEquiv.symm r).2 else 0)) = 0 →
-      ∀ r, (finSigmaFinEquiv ⟨(finSigmaFinEquiv.symm r).1,
-        (f (finSigmaFinEquiv.symm r).1).slot (finSigmaFinEquiv.symm r).2⟩ :
-          Fin (∑ g, (f g).count)) = k → c r = 0 := by
+      (∑ r, (if ((place fun g => (f g).count).symm ⟨(place size r).1,
+          (f (place size r).1).slot (place size r).2⟩ : Fin (∑ g, (f g).count)) = k
+        then c r • (f (place size r).1).basis (place size r).2 else 0)) = 0 →
+      ∀ r, ((place fun g => (f g).count).symm ⟨(place size r).1,
+        (f (place size r).1).slot (place size r).2⟩ : Fin (∑ g, (f g).count)) = k → c r = 0 := by
     intro k c zero r same
-    obtain ⟨⟨h, k⟩, rfl⟩ := finSigmaFinEquiv.surjective k
-    obtain ⟨⟨g, i⟩, rfl⟩ := finSigmaFinEquiv.surjective r
-    rw [Equiv.symm_apply_apply] at same
-    obtain ⟨group, slot⟩ := Sigma.mk.inj_iff.mp (finSigmaFinEquiv.injective same)
+    obtain ⟨⟨h, k⟩, rfl⟩ := (place fun g => (f g).count).symm.surjective k
+    obtain ⟨⟨g, i⟩, rfl⟩ := (place size).symm.surjective r
+    rw [Equiv.apply_symm_apply] at same
+    obtain ⟨group, slot⟩ := Sigma.mk.inj_iff.mp ((place _).symm.injective same)
     subst group
-    refine each g k (fun i => c (finSigmaFinEquiv ⟨g, i⟩)) ?_ i (eq_of_heq slot)
+    refine each g k (fun i => c ((place size).symm ⟨g, i⟩)) ?_ i (eq_of_heq slot)
     refine Eq.trans ?_ zero
-    refine Eq.trans ?_ ((Fintype.sum_sigma _).symm.trans (finSigmaFinEquiv.sum_comp _))
+    refine Eq.trans ?_ ((Fintype.sum_sigma _).symm.trans ((place size).symm.sum_comp _))
     refine Eq.trans ?_ (Finset.sum_eq_single g (fun h _ other => Finset.sum_eq_zero fun x _ => ?_)
       fun absent => absurd (Finset.mem_univ g) absent).symm
     · refine Finset.sum_congr rfl fun x _ => ?_
-      rw [Equiv.symm_apply_apply]
+      rw [Equiv.apply_symm_apply]
       exact if_congr ⟨fun same => by rw [same],
-        fun same => eq_of_heq (Sigma.mk.inj_iff.mp (finSigmaFinEquiv.injective same)).2⟩ rfl rfl
-    · rw [Equiv.symm_apply_apply]
+        fun same => eq_of_heq (Sigma.mk.inj_iff.mp ((place _).symm.injective same)).2⟩ rfl rfl
+    · rw [Equiv.apply_symm_apply]
       exact ite_eq_right fun same =>
-        other (Sigma.mk.inj_iff.mp (finSigmaFinEquiv.injective same)).1
+        other (Sigma.mk.inj_iff.mp ((place _).symm.injective same)).1
   exact raw
 
 end Join
@@ -359,9 +374,12 @@ end Join
 /-- The relation of one fold on the flat witness of `2^vars` entries (Akita Section 7.3 and
 Figure 5): the ring rows in the normal form (110), each with its addresses inside the witness,
 the join of the ring rows into the rows over `E`, and one scalar row `Σ_u w_u·weight u = value`
-over `E` (family 6 of Figure 5). -/
+over `E` (family 6 of Figure 5). `low` is `log_2` of the coefficient block of the addresses of the
+pinned code (`relation_coefficient_variable_count` of
+`crates/akita-params/src/layout/relation_address.rs` of the Akita code). -/
 structure FlatRelation (E : Type) [CommRing E] [Algebra Zq E] where
   vars : ℕ
+  low : ℕ
   ring : ℕ
   row : Fin ring → RingRow
   inside : ∀ r c j x, j < (row r).degree → (row r).address c j = some x → x < 2 ^ vars
@@ -546,6 +564,7 @@ most `d_max − 1` points. -/
 noncomputable def free (largest batch : ℕ) (degrees : ∀ r, (rel.row r).degree ≤ largest)
     (fits : rel.join.count + 1 ≤ 2 ^ batch) : Reduction E where
   vars := rel.vars
+  low := rel.low
   batch := batch
   Holds := rel.Holds
   rows := rel.freeRows

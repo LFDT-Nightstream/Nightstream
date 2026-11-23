@@ -5,9 +5,11 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.FlatSource
 each group, and its link to the exact branch relation (ePrint 2026/1983, revision of 2026-11-23,
 Section 7.2 with Figure 5, Section 7.3, and the hypothesis of Corollary 10.32).
 
-- `gather` puts the rows of the groups of one family in the order of the groups.
-- `Batch.flatRows` has the ring rows in the order of Akita (76) and of the pinned code
-  (`crates/akita-params/src/layout/relation_rows.rs` of the Akita code): for each group the
+- `gather` puts the rows of the groups of one family in the order `groupOrder` of the pinned
+  code: the last group first.
+- `Batch.flatRows` has the ring rows in the order of the pinned code
+  (`crates/akita-params/src/layout/relation_rhs_layout.rs` of the Akita code), which is the order
+  of the families of Akita Figure 5 with the last group first in each family: for each group the
   planes of the row (102), the rows (104) and the rows (105) of each slice (`Batch.groupRows`),
   then the rows (106) of the shared matrix `D`, and the rows (47) in increasing depth, with the
   rows of `F_a` of each group before the rows of `H_a`. A row of the group `g` is the row of
@@ -46,18 +48,19 @@ theorem RingRow.Below.relocate {row : RingRow} {bound other : ℕ} {move : ℕ �
 
 variable {n : ℕ} {count : Fin n → ℕ}
 
-/-- The rows of one family for the groups, in the order of the groups (Akita Figure 5: "Within a
-family, use increasing group, slice, and matrix-row indices"). -/
+/-- The rows of one family for the groups, with the groups in the order `groupOrder` of the pinned
+code, the last group first, and increasing slice and matrix-row indices in a group (Akita
+Figure 5 has "increasing group, slice, and matrix-row indices"). -/
 def gather (rows : (g : Fin n) → Fin (count g) → RingRow) : Fin (∑ g, count g) → RingRow :=
-  fun r => rows (finSigmaFinEquiv.symm r).1 (finSigmaFinEquiv.symm r).2
+  fun r => rows (place count r).1 (place count r).2
 
 theorem forall_gather (P : RingRow → Prop) (rows : (g : Fin n) → Fin (count g) → RingRow) :
     (∀ r, P (gather rows r)) ↔ ∀ g i, P (rows g i) := by
   constructor
   · intro all g i
-    have entry := all (finSigmaFinEquiv ⟨g, i⟩)
+    have entry := all ((place count).symm ⟨g, i⟩)
     unfold gather at entry
-    rwa [Equiv.symm_apply_apply] at entry
+    rwa [Equiv.apply_symm_apply] at entry
   · exact fun all r => all _ _
 
 /-- A sum over the rows of one family for the groups is the sum over the groups of the sums over
@@ -65,7 +68,7 @@ the rows of each group. -/
 theorem sum_gather {M : Type} [AddCommMonoid M] (f : RingRow → M)
     (rows : (g : Fin n) → Fin (count g) → RingRow) :
     ∑ r, f (gather rows r) = ∑ g, ∑ i, f (rows g i) :=
-  (finSigmaFinEquiv.symm.sum_comp fun x : (g : Fin n) × Fin (count g) => f (rows x.1 x.2)).trans
+  ((place count).sum_comp fun x : (g : Fin n) × Fin (count g) => f (rows x.1 x.2)).trans
     (Fintype.sum_sigma _)
 
 /-- A sum over the cells of a table, with weights that are moved by `move`, is the sum over the
@@ -112,6 +115,14 @@ noncomputable def scalarWeight (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E
     if B.relocate g y = x then
       Akita.scalarWeight (B.opening g) (B.fold g) (β g) (st.point g) y
     else 0
+
+/-- `log_2` of the coefficient block of the relation addresses of the pinned code: the least of
+the degree of `D` and, for each group, of the degrees of `A` and `B` and of the degree of the
+challenge subring (`relation_coefficient_block_len` of `crates/akita-params/src/schedule.rs` of
+the Akita code). The range point has its last `low` coordinates first (`rangePoint`). -/
+def low : ℕ :=
+  Nat.log 2 ((List.ofFn fun g => min (min (B.shape g).innerDegree (B.shape g).outerDegree)
+    (B.carrierDegree g)).foldl min B.openDegree)
 
 /-- The number of ring rows of the group `g` after its carrier row and before the rows of
 `D`. -/
@@ -164,8 +175,8 @@ noncomputable def groupRows (g : Fin n) : Fin (B.groupPlaneRows g) → RingRow :
       (fun j => (imageRow (B.shape g).chain (outerForm (B.opening g) (B.fold g) (st.key g))
         ((B.opening g).firstCell (B.fold g)) (st.payload g) j).relocate (B.relocate g)))
 
-/-- The ring rows of one fold with opening groups in the order of Akita (76) and of the pinned
-code: for each group the rows `groupRows`, then the rows (106) of `D`, and the rows (47): for each
+/-- The ring rows of one fold with opening groups in the order of the pinned code, with the groups
+in the order `groupOrder`: for each group the rows `groupRows`, then the rows (106) of `D`, and the rows (47): for each
 group the rows of `F_1`, the rows of `H_1`, for each group the rows of `F_2`, and the rows of
 `H_2`. -/
 noncomputable def flatRows : Fin B.planeRows → RingRow :=
@@ -291,6 +302,7 @@ group, on the quotient-free route): the ring rows `flatRows` and the scalar row 
 has `μ` variables, with `cells < 2^μ`. -/
 noncomputable def flatRelation (μ : ℕ) (fits : B.cells ≤ 2 ^ μ) : FlatRelation E where
   vars := μ
+  low := B.low
   ring := B.planeRows
   row := B.flatRows β st challenge
   inside r c j _ _ read := (B.flatRows_below β st challenge r c j _ read).trans_le fits

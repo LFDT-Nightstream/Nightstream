@@ -118,6 +118,13 @@ def stride : ℕ := O.planes * O.packing
 
 theorem stride_tower : O.stride * O.carrierDegree = S.innerDegree := O.tower
 
+/-- `log_2` of the coefficient block of the relation addresses of the pinned code: the least of
+the degrees of `A`, `B` and `D` and of the degree of the challenge subring
+(`relation_coefficient_block_len` of `crates/akita-params/src/schedule.rs` of the Akita code).
+The range point has its last `low` coordinates first (`rangePoint`). -/
+def low : ℕ :=
+  Nat.log 2 (min (min S.innerDegree S.outerDegree) (min O.openDegree O.carrierDegree))
+
 /-- `d_op / d_D` for the width `d_op = k·d_car` of one partial (Akita (68)). -/
 def subcolumns : ℕ := O.planes * O.carrierDegree / O.openDegree
 

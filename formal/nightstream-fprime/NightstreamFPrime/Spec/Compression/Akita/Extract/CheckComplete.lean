@@ -328,11 +328,11 @@ theorem foldCheckSq_winsAt {width cap : ℕ} (sends : Sends sendable E width cap
     (fun nodes weights point claim => normLeafStage_winsAt sends room
       ((le_max_left _ _).trans wide) kernel support w small capped energy _ _
       (fun final length => ?_) nodes weights point claim)
-    (rangeArities b) 1 (fun _ => 1) (List.ofFn τ0) 0 List.length_ofFn
+    (rangeArities b) 1 (fun _ => 1) (rangePoint R.low τ0) 0 (rangePoint_length _ _)
     ((le_max_right _ _).trans wide) ?_)
   swap
-  · rw [root_sum b w (List.ofFn τ0)]
-    exact (mle_rangeResidual_eq_zero ranged _ List.length_ofFn).symm
+  · rw [root_sum b w (rangePoint R.low τ0)]
+    exact (mle_rangeResidual_eq_zero ranged _ (rangePoint_length _ _)).symm
   intro η
   refine drawBin_winsAt bin fun ζ => ?_
   intro γ

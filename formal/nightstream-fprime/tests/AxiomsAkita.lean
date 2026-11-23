@@ -85,6 +85,8 @@ shared setup (`Setup`) and the bad events of the hashed transcript entries (`Dig
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Join.all_independent
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Join.append
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Join.append_independent
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.groupOrder
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.place
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Join.gather
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Join.gather_independent
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.RingRow.freeWeight
@@ -223,6 +225,13 @@ shared setup (`Setup`) and the bad events of the hashed transcript entries (`Dig
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.root_sum
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.rangeCheck_avoids
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.rangeCheck_costLe
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.rangePoint
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.rangePoint_length
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.turn_injective
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.turn
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.rangePoint_eq_ofFn
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.OpeningShape.low
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.low
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.rangeBad
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.density_rangeBad_le
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.rangeHolds_of_sum

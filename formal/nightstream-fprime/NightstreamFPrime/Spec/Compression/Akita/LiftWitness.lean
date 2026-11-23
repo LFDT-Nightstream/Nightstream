@@ -205,6 +205,7 @@ def withQuotients (below : ∀ r c j x, (rel.row r).address c j = some x → x <
     (counts : G.mainCells + G.middleCells ≤ ∑ r, rel.quotientCells digits r)
     (inside : rel.quotientEnd G digits ≤ 2 ^ rel.vars) : LiftRelation E where
   vars := rel.vars
+  low := rel.low
   ring := rel.ring
   row r := (rel.row r).relocate G.place
   inside r c j x _ read := by

@@ -121,9 +121,11 @@ deriving DecidableEq, Repr
 - `payload`, `witness`: the counts of field elements of the opening payload and of the next
   witness, which at the last level is the `t` of the terminal without its last block (`last`);
 - `vars` and `batch`: the widths of `τ0` and `τ1`; `vars` is the count of rounds of each sum-check
-  of Stage 1 and Stage 2;
+  of Stage 1 and Stage 2; `low`: the count of the last coordinates of `τ0` that the range proof
+  puts first (`relation_coefficient_variable_count`);
 - `logBasis`: the opening base of the range proof (`DigitRangePlan`);
-- `euclidean`: the norm check of the Euclidean route; `compressed`: the compression digits;
+- `euclidean`: the norm check of the Euclidean route, with the cap `limit` of the squared norm of
+  the response (`response_l2_sq_cap`); `compressed`: the compression digits;
 - `stage3`: the rounds of Stage 3 when the next level opens the setup prefix;
 - `rhs`: the rows of `y` with public coefficients (each other row of `y` is zero), and
   `openingRow`: the count of rows of `y`, which is the index of the opening row. -/
@@ -134,9 +136,11 @@ structure Fold where
   witness : ℕ
   last : Bool
   vars : ℕ
+  low : ℕ
   batch : ℕ
   logBasis : ℕ
   euclidean : Bool
+  limit : ℕ
   compressed : Bool
   stage3 : Option ℕ
   rhs : List RhsRun

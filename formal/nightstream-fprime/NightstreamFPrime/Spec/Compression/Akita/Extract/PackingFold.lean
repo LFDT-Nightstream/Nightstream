@@ -367,7 +367,7 @@ theorem foldCheck_stagedTo (R : Reduction E) (base : ℕ) (support : ℕ → Pro
   unfold foldCheck foldCosts
   simp only [List.cons_append, List.append_assoc]
   refine stagedTo_draw field (density_le (C := E) (R.bad w) _ (R.bad_card w)) fun α => ?_
-  refine stagedTo_draw (exists_fair_slots varsFit) (density_rangeBad_le (E := E) base R.vars w)
+  refine stagedTo_draw (exists_fair_slots varsFit) (density_rangeBad_le (E := E) R.low base R.vars w)
     fun τ0 => ?_
   refine stagedTo_draw (exists_fair_slots batchFit)
     ((R.rows α).density_batchBad_le R.vars (R.fits α) w) fun τ1 => ?_

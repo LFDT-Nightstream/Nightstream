@@ -222,7 +222,7 @@ theorem foldCheck_winsTo (R : Reduction E) (b : ℕ) (scalar : fits E)
         ∃ r2 : List E, r2.length = R.vars ∧ result = some (r2, mle r2 (lifted E w)) := by
   intro α τ0 τ1
   refine (winsTo_bind fits _ _ _ _ _).mpr (rangeCheck_winsTo fits scalar b R.vars range support
-    ranged (List.ofFn τ0) List.length_ofFn (0 + R.vars + 1 + binDraws bin) _
+    ranged (rangePoint R.low τ0) (rangePoint_length _ _) (0 + R.vars + 1 + binDraws bin) _
     fun final length => ?_)
   dsimp only
   refine drawBin_winsTo (E := E) fits bin fun ζ fresh => ?_

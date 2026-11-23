@@ -2,6 +2,7 @@ import Std.Data.HashMap
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Wire
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Keccak
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Relation
+import NightstreamFPrime.Spec.Compression.Akita.Replay.Tensor
 
 /-! The Fiat–Shamir transcript of the pinned Akita verifier on the decoded messages of a proof
 (Akita revision `d50f700`, jolt-transcript `25d87ba`, spongefish 0.8.0).
@@ -27,6 +28,8 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.Relation
   challenges, and the computations of `Value`. The rows of the relation of a root group are the
   last coefficients of its commitment bytes. The fused claim of a fold is `stage2`
   (`Replay/Relation.lean`); `replay` records its target, relation claim and opening claim.
+- After the rounds of a sum-check, `replay` runs `sumcheckRun` (`Replay/SumCheck.lean`) on its
+  absorbed claim, its round messages and its challenges, and records the end as `<name>.output`.
 
 The model of Akita is a random oracle; the transcript has no specification in Lean. The evidence
 is the equality with the events of the vectors in `tests/AkitaVectors.lean`. -/
@@ -84,18 +87,6 @@ def decodePool (bytes : ByteArray) (len : ℕ) : Option (Array Ext) := Id.run do
 
 def worked (check : ByteArray) (bits : ℕ) : Bool := (Wire.word check 0).toNat % 2 ^ bits = 0
 
-/-- `Σ_i γ^i·c_i`. -/
-def batched (children : Array Ext) (gamma : Ext) : Ext :=
-  (children.foldl (fun (sum, weight) c => (sum + weight * c, weight * gamma))
-    (Ext.zero, Ext.one)).1
-
-/-- The input claim of the tensor reduction of one claim from the partials `p_0, p_1` and `η`: the
-rows `(p_0.c0, p_1.c0)` and `(p_0.c1, p_1.c1)` with the weights `1 − η` and `η`. -/
-def tensorClaim (partials : Array Ext) (eta : Ext) : Ext :=
-  let p0 := partials[0]!
-  let p1 := partials[1]!
-  (Ext.one - eta) * ⟨p0.c0, p1.c0⟩ + eta * ⟨p0.c1, p1.c1⟩
-
 /-- `ρ` with a zero coordinate at position `log_2 degree − 1`. -/
 def packed (degree : ℕ) (rho : Array Ext) : Array Ext :=
   let at_ := Nat.log 2 degree - 1
@@ -107,6 +98,7 @@ def commitmentRows (commitment : ByteArray) (count : ℕ) : Array Fq :=
 
 inductive Stop
   | noWork (op : ℕ) (site : String)
+  | reject (op : ℕ) (site : String)
   | mismatch (op : ℕ)
 deriving DecidableEq, Repr
 
@@ -115,6 +107,11 @@ structure Derived where
   works : Array (Site × ℕ × ℕ × Bool) := #[]
   absorbs : Array (Key × ByteArray) := #[]
   values : Array (Key × Ext) := #[]
+  ends : Array (Key × Before × Ended) := #[]
+  checks : Array Key := #[]
+  rounds : Array (Key × List (List Ext × Ext)) := #[]
+  recorded : Std.HashMap Key (Array Ext) := {}
+  integers : Std.HashMap Key ℕ := {}
   squeezed : ℕ := 0
 
 structure Replayer where
@@ -122,6 +119,7 @@ structure Replayer where
   next : ℕ
   env : Std.HashMap Key (Array Ext)
   fields : Std.HashMap Key (Array Fq)
+  integers : Std.HashMap Key ℕ
   derived : Derived
 
 abbrev ReplayM := ExceptT Stop (StateM Replayer)
@@ -174,7 +172,8 @@ def stage2Of (pub : Public) (level : ℕ) (F : Fold) : ReplayM Stage2 := do
   let claims ← recorded (at_ (if F.trace.isSome then "tensor.final_claims" else "openings"))
   let virtual ← if F.euclidean then do
       let eta ← first (at_ "norm.virtual_batch")
-      pure (eta * batched (← recorded (at_ "norm.virtual_evaluations")) eta)
+      let virtuals ← recorded (at_ "norm.virtual_evaluations")
+      pure (eta * batched virtuals.size virtuals.toList eta)
     else pure Ext.zero
   let rest := (← first (at_ "stage2_batch")) * (← first (at_ "range.image")) + virtual
   return stage2 (← recorded (at_ "tau1")).toList (← first (at_ "alpha")) runs F.openingRow rows
@@ -189,13 +188,18 @@ def value (pub : Public) (key : Key) : Value → ReplayM ByteArray
       return extBytes (← keys.foldlM (fun out k => return out ++ (← recorded k)) #[])
   | .zero => return extBytes #[Ext.zero]
   | .batched children gamma => do
-      return extBytes #[batched (← recorded children) (← first gamma)]
+      let c ← recorded children
+      return extBytes #[batched c.size c.toList (← first gamma)]
   | .norm before merge energy => do
       let claim ← match before with
-        | some (children, gamma) => do pure (batched (← recorded children) (← first gamma))
+        | some (children, gamma) => do
+            let c ← recorded children
+            pure (batched c.size c.toList (← first gamma))
         | none => pure Ext.zero
       return extBytes #[claim + (← first merge) * (← first energy)]
-  | .tensor partials eta => return extBytes #[tensorClaim (← recorded partials) (← first eta)]
+  | .tensor partials eta => do
+      let p ← recorded partials
+      return extBytes #[tensorInput (p.getD 0 Ext.zero) (p.getD 1 Ext.zero) (← first eta)]
   | .packed degree rho => return extBytes (packed degree (← recorded rho))
   | .fused F => do
       let c ← stage2Of pub key.level F
@@ -204,6 +208,37 @@ def value (pub : Public) (key : Key) : Value → ReplayM ByteArray
         #[(at_ "opening_target", c.target), (at_ "relation_claim", c.relation),
           (at_ "opening_claim", c.opening)] } }
       return extBytes #[c.fused]
+
+def pointBefore : Before → ReplayM (List Ext)
+  | .plain => pure []
+  | .point k => return (← recorded k).toList
+  | .turned k low => do
+      let τ ← recorded k
+      return τ.toList.rotate (τ.size - low)
+
+def weightsOf : Weights → ReplayM (ℕ → Ext)
+  | .ones => pure fun _ => Ext.one
+  | .powers gamma => return powExt (← first gamma)
+
+/-- Whether an equation of the verifier holds on the recorded values. -/
+def holds : Check → ReplayM Bool
+  | .tensorOpening point value partials => do
+      let p ← recorded partials
+      let head := (← recorded point).getD 0 Ext.zero
+      return (← first value).same
+        ((Ext.one - head) * p.getD 0 Ext.zero + head * p.getD 1 Ext.zero)
+  | .equal left right => return (← first left).same (← first right)
+  | .stage nodes arity weights output children => do
+      return (← first output).same
+        (stageEnd nodes arity (← weightsOf weights) (← recorded children).toList)
+  | .leaf leaf nodes weights output image => do
+      return (← first output).same (leafEnd leaf nodes (← weightsOf weights) (← first image))
+  | .energy energy limit => return decide ((((← get).integers.get? energy).getD 0) ≤ limit)
+  | .norm leaf nodes weights before point output image merge virtual => do
+      let z ← first virtual
+      return (← first output).same
+        (eqList (← pointBefore before) (← recorded point).toList *
+          leafEnd leaf nodes (← weightsOf weights) (← first image) + (← first merge) * (z * z))
 
 def step (pub : Public) (proof : ByteArray) (messages : Array Message) (i : ℕ) :
     Op → ReplayM Unit
@@ -234,7 +269,9 @@ def step (pub : Public) (proof : ByteArray) (messages : Array Message) (i : ℕ)
       let m ← message i messages
       absorb (proof.extract m.offset (m.offset + m.size))
       match m.data with
-      | .integer value => record key #[Ext.ofBase (Fq.ofNat value)]
+      | .integer value => do
+          record key #[Ext.ofBase (Fq.ofNat value)]
+          modify fun s => { s with integers := s.integers.insert key value }
       | _ => throw (.mismatch i)
   | .bounded _ _ => do
       let m ← message i messages
@@ -262,6 +299,22 @@ def step (pub : Public) (proof : ByteArray) (messages : Array Message) (i : ℕ)
         throw (.noWork i s!"FoldResponse \{ level: {level} }")
       absorb (le64 nonce)
   | .squeeze _ _ bytes => discard (squeeze bytes)
+  | .ended key rounds before => do
+      let at_ (suffix : String) (index : Option ℕ) : Key := ⟨key.level, key.site ++ suffix, index⟩
+      let messages ← (List.range rounds).mapM fun r => recorded (at_ ".round" (some r))
+      let form ← match before with
+        | .plain => pure Form.plain
+        | _ => do pure (Form.equality (← pointBefore before))
+      let rounds := (messages.map (·.toList)).zip (← recorded (at_ ".point" none)).toList
+      let some ended := sumcheckRun form (← first (at_ ".claim" none)) rounds
+        | throw (.mismatch i)
+      record (at_ ".output" none) #[ended.claim]
+      modify fun s => { s with derived := { s.derived with
+        ends := s.derived.ends.push (key, before, ended)
+        rounds := s.derived.rounds.push (key, rounds) } }
+  | .check key check => do
+      unless ← holds check do throw (.reject i key.site)
+      modify fun s => { s with derived := { s.derived with checks := s.derived.checks.push key } }
 where
   decodeExts (bytes : ByteArray) : ReplayM (Array Ext) :=
     return (Array.range (bytes.size / 16)).map fun j =>
@@ -274,8 +327,9 @@ and what it derives. -/
 def replay (pub : Public) (ops : Array Op) (proof : ByteArray) (messages : Array Message) :
     Option Stop × Derived :=
   let run : ReplayM Unit := ops.zipIdx.forM fun (op, i) => Replayer.step pub proof messages i op
-  let (result, s) := (run.run).run ⟨channel pub.session pub.descriptor, 0, {}, {}, {}⟩
-  (match result with | .ok () => none | .error stop => some stop, s.derived)
+  let (result, s) := (run.run).run ⟨channel pub.session pub.descriptor, 0, {}, {}, {}, {}⟩
+  (match result with | .ok () => none | .error stop => some stop,
+    { s.derived with recorded := s.env, integers := s.integers })
 
 /-- Each nonce of the messages is in range and each work predicate holds: the replay does not stop
 at a work. -/
@@ -284,12 +338,14 @@ def works (pub : Public) (ops : Array Op) (proof : ByteArray) (messages : Array 
   | some (.noWork _ _) => false
   | _ => true
 
-/-- The verdict on the decoded messages: `noWork` at the first work of the replay that fails, and
-otherwise the verdict `checks` of the equations, which Lean does not have yet. -/
+/-- The verdict on the decoded messages: `noWork` at the first work of the replay that fails,
+`reject` at the first equation of the replay that fails before each failed work, and otherwise
+the verdict `checks` of the equations that the replay does not have yet. -/
 def verdict (pub : Public) (ops : Array Op) (proof : ByteArray) (checks : Array Message → Verdict)
     (messages : Array Message) : Verdict :=
   match (replay pub ops proof messages).1 with
   | some (.noWork op site) => .noWork op site
+  | some (.reject op site) => .reject op site
   | _ => checks messages
 
 /-- `verifyBytes_noWork` of `docs/akita-work/match-design.md` section 5.1 for this layer: when the
@@ -310,7 +366,9 @@ theorem verifyBytes_noWork (pub : Public) (ops : Array Op) (proof : ByteArray)
       unfold verdict at outcome
       unfold works
       split at outcome
-      · rfl
+      · rename_i stopped
+        rw [stopped]
+      · cases outcome
       · exact absurd outcome (equations messages op site)
     · simp [decoded, empty] at outcome
 

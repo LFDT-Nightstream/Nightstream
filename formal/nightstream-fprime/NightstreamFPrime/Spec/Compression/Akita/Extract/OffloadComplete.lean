@@ -154,7 +154,7 @@ theorem offloadCheck_winsAt {width cap : ℕ} (sends : Sends sendable E width ca
     (admits := fun M => ∀ message : M, sendable M message) (fun _ message all => all message)
     (by omega) (rangeCheck_winsTo _ sends.scalar b R.vars
       (fun _ small message => sends.vector _ message (small.trans wide)) support ranged
-      (List.ofFn τ0) List.length_ofFn _ _ fun r length place => ?_))
+      (rangePoint R.low τ0) (rangePoint_length _ _) _ _ fun r length place => ?_))
   dsimp only
   refine drawBin_winsAt_each bin (fun ζ place => ?_) place
   intro γ

@@ -2,7 +2,8 @@ import NightstreamFPrime.Spec.Compression.Game.Game
 
 /-! One run of a game (`docs/akita-work/match-design.md` section 5.1, `Game.runs`): the game ends
 in a result when each draw takes the next challenge of a path and each receipt takes the next
-message. `Runs` is a function of the path (`runs_unique`). -/
+message. `Runs` is a function of the path (`runs_unique`), and `runs_bind` joins the run of a
+game with the run of its continuation. -/
 
 namespace NightstreamFPrime.Spec.Compression
 
@@ -52,6 +53,41 @@ theorem runs_unique {g : Game α} {path : List Move} {a b : α} (first : g.Runs 
               obtain ⟨same, first⟩ := first
               obtain ⟨_, second⟩ := second
               exact step _ first second
+
+/-- A run of `g` to `a` and then a run of `f a` is a run of `g.bind f`. -/
+theorem runs_bind {β : Type} {g : Game α} {f : α → Game β} {path rest : List Move} {a : α}
+    {b : β} (first : g.Runs path a) (second : (f a).Runs rest b) :
+    (g.bind f).Runs (path ++ rest) b := by
+  induction g generalizing path with
+  | pure x =>
+      cases path with
+      | nil =>
+          have equal : x = a := first
+          subst equal
+          exact second
+      | cons m path => cases m <;> exact first.elim
+  | draw C bad next step =>
+      cases path with
+      | nil => exact first.elim
+      | cons m path =>
+          cases m with
+          | draw c =>
+              obtain ⟨same, first⟩ := first
+              exact ⟨same, step _ first⟩
+          | recv m => exact first.elim
+  | recv M next step =>
+      cases path with
+      | nil => exact first.elim
+      | cons m path =>
+          cases m with
+          | draw c => exact first.elim
+          | recv m =>
+              obtain ⟨same, first⟩ := first
+              exact ⟨same, step _ first⟩
+
+theorem runs_bind_end {β : Type} {g : Game α} {f : α → Game β} {path : List Move} {a : α}
+    {b : β} (first : g.Runs path a) (second : (f a).Runs [] b) : (g.bind f).Runs path b := by
+  simpa using runs_bind first second
 
 end Game
 

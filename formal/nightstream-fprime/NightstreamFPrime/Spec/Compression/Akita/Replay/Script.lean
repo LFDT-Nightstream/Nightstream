@@ -12,6 +12,10 @@ schedule row and its grinding plan (Akita revision `d50f700`: `fold/root.rs`, `f
   fold, and the squeeze of the message of the fold challenges of one group.
 - `Value` says how the verifier gets each absorbed public value: from the statement, from
   recorded messages and challenges, or by a computation of the code on them.
+- `Before` is the message form of a sum-check: plain, or equality-factored with the point before
+  (`verify_sumcheck_rounds`, `verify_eq_factored_sumcheck_rounds`). The point before the first
+  stage of the range proof is `τ_0` with its last `low` coordinates first
+  (`DigitRangeEqualityPoint::from_column_then_ring_challenges`).
 - `script` follows the layout and takes the bits of each site from the next run of the plan. It
   fails when a run has another site or another loss than the layout gives, when a run of the fold
   challenges does not have the count of the layout, or when runs are left (`next_entry`, `record_fold_challenges`, `finish` of
@@ -112,6 +116,36 @@ inductive Value
   | fused (F : Fold)
 deriving Repr
 
+inductive Before
+  | plain
+  | point (key : Key)
+  | turned (key : Key) (low : ℕ)
+deriving Repr
+
+/-- The batching weights of the nodes of a stage of the range proof: 1 for the root, or the powers
+of the batch challenge of the stage before. -/
+inductive Weights
+  | ones
+  | powers (gamma : Key)
+deriving Repr
+
+/-- An equation of the verifier on recorded values (`Replay/Range.lean`, `Replay/Tensor.lean`). -/
+inductive Check
+  /-- `v = (1 − r_0)·S_0 + r_0·S_1` for the claim `(r, v)` and the column partials. -/
+  | tensorOpening (point value partials : Key)
+  /-- Two recorded values are equal. -/
+  | equal (left right : Key)
+  /-- The end of a product stage of the range proof (`stageEnd`). -/
+  | stage (nodes arity : ℕ) (weights : Weights) (output children : Key)
+  /-- The end of the leaf stage of the range proof (`leafEnd`). -/
+  | leaf (leaf nodes : ℕ) (weights : Weights) (output image : Key)
+  /-- `E_resp ≤ S_max`. -/
+  | energy (energy : Key) (limit : ℕ)
+  /-- The end of the norm sum-check: `ẽq(before, r)·leaf(s) + ζ·z²` (`normRun`). -/
+  | norm (leaf nodes : ℕ) (weights : Weights) (before : Before)
+      (point output image merge virtual : Key)
+deriving Repr
+
 inductive Op
   | absorb (key : Key) (value : Value)
   | fields (key : Key) (count : ℕ)
@@ -123,6 +157,10 @@ inductive Op
   | challenge (key : Key) (count : ℕ)
   | foldNonce (level width : ℕ)
   | squeeze (level group bytes : ℕ)
+  /-- The end of the rounds of the sum-check `key`: its point and its end claim. -/
+  | ended (key : Key) (rounds : ℕ) (before : Before)
+  /-- An equation of the verifier; `key.site` is the name of the check. -/
+  | check (key : Key) (check : Check)
 deriving Repr
 
 abbrev Build := StateT (ℕ × Array Op) (Except String)
@@ -159,12 +197,13 @@ challenges are the point `<name>.point`. The loss of a round is the degree of it
 `degree + 1` for the equality-factored rounds of Stage 1, whose message omits a factor, and
 `degree` for the others. -/
 def sumcheck (plan : Array Run) (level : ℕ) (name : String) (protocol : Protocol) (stage : ℕ)
-    (claim : Value) (rounds degree : ℕ) : Build Unit := do
+    (claim : Value) (rounds degree : ℕ) (before : Before := .plain) : Build Unit := do
   emit (.absorb ⟨level, name ++ ".claim", none⟩ claim)
   for r in [0:rounds] do
     emit (.exts ⟨level, name ++ ".round", some r⟩ degree)
     challenges plan level (.round protocol level stage r) (name ++ ".point") 1
       (if protocol = .stage1 then degree + 1 else degree)
+  emit (.ended ⟨level, name, none⟩ rounds before)
 
 /-- The response nonce of a fold, its work, and the messages of the fold challenges of its
 groups (`read_fold_response`, `VerifierFoldDraw`, `record_fold_challenges`). -/
@@ -180,14 +219,17 @@ def foldChallenges (plan : Array Run) (level : ℕ) (groups : List FoldGroup) : 
 
 /-- The tensor reduction of a level with one claim (`stages/opening_claims/extension_claim.rs`),
 after the absorb of the openings. -/
-def tensor (plan : Array Run) (level rounds : ℕ) (openings : List Key) : Build Unit := do
+def tensor (plan : Array Run) (level rounds : ℕ) (point opening : Key) : Build Unit := do
   let key (site : String) : Key := ⟨level, site, none⟩
-  emit (.absorb (key "tensor.openings") (.recorded openings))
+  emit (.absorb (key "tensor.openings") (.recorded [opening]))
   emit (.exts (key "tensor.partials") 2)
   challenges plan level (.extensionPoint level) "tensor.eta" 1 1
+  emit (.check (key "tensor.opening") (.tensorOpening point opening (key "tensor.partials")))
   sumcheck plan level "tensor.sumcheck" .extensionOpeningReduction 0
     (.tensor (key "tensor.partials") (key "tensor.eta")) rounds 2
   emit (.exts (key "tensor.final_claims") 1)
+  emit (.check (key "tensor.end")
+    (.equal (key "tensor.sumcheck.output") (key "tensor.final_claims")))
 
 /-- The stages of the range proof and the norm check of a fold (`stages/stage1.rs`). -/
 def range (plan : Array Run) (level : ℕ) (F : Fold) : Build Unit := do
@@ -198,11 +240,19 @@ def range (plan : Array Run) (level : ℕ) (F : Fold) : Build Unit := do
   let claim (k : ℕ) : Value := match batched k with
     | some (children, gamma) => .batched children gamma
     | none => .zero
+  let before (k : ℕ) : Before :=
+    if k = 0 then .turned (key "tau0") F.low else .point (key s!"range.{k - 1}.point")
+  let weights (k : ℕ) : Weights :=
+    if k = 0 then .ones else .powers (key s!"range.{k - 1}.batch")
+  let nodes (k : ℕ) : ℕ := if k = 0 then 1 else ((stages[k - 1]?).map (·.2)).getD 1
   for ((arity, children), k) in stages.zipIdx do
-    sumcheck plan level s!"range.{k}" .stage1 k (claim k) F.vars arity
+    sumcheck plan level s!"range.{k}" .stage1 k (claim k) F.vars arity (before k)
     emit (.exts (key s!"range.{k}.children") children)
+    emit (.check (key s!"range.{k}.end") (.stage (nodes k) arity (weights k)
+      (key s!"range.{k}.output") (key s!"range.{k}.children")))
     challenges plan level (.interstage level k) s!"range.{k}.batch" 1 (children - 1)
   let last := stages.length
+  let leaf := leafDegree F.logBasis
   if F.euclidean then
     emit (.integer (key "norm.response_l2_sq"))
     challenges plan level (.merge level) "norm.merge" 1 1
@@ -211,10 +261,16 @@ def range (plan : Array Run) (level : ℕ) (F : Fold) : Build Unit := do
       (leafDegree F.logBasis + 1)
     emit (.exts (key "norm.virtual_evaluations") 1)
     emit (.exts (key "range.image") 1)
+    emit (.check (key "norm.integer") (.energy (key "norm.response_l2_sq") F.limit))
+    emit (.check (key "norm.end") (.norm leaf (nodes last) (weights last) (before last)
+      (key "norm.sumcheck.point") (key "norm.sumcheck.output") (key "range.image")
+      (key "norm.merge") (key "norm.virtual_evaluations")))
     challenges plan level (.virtualBatch level) "norm.virtual_batch" 1 1
   else
-    sumcheck plan level "range.leaf" .stage1 last (claim last) F.vars (leafDegree F.logBasis)
+    sumcheck plan level "range.leaf" .stage1 last (claim last) F.vars leaf (before last)
     emit (.exts (key "range.image") 1)
+    emit (.check (key "range.leaf.end") (.leaf leaf (nodes last) (weights last)
+      (key "range.leaf.output") (key "range.image")))
 
 /-- One fold (`fold/mod.rs`, `verify_fold`), after the absorbs of its points and values. -/
 def fold (plan : Array Run) (level : ℕ) (F : Fold) : Build Unit := do
@@ -267,13 +323,13 @@ def prefix_ (plan : Array Run) (level : ℕ) (F : Fold) (before : Option Fold) :
           [back "witness_evaluation"])))
   | some _, some (rounds, degree) =>
       unless F.groups.length = 1 ∧ ¬setup do throw s!"level {level}: a trace level of one claim"
-      tensor plan level rounds [back "witness_evaluation"]
+      tensor plan level rounds (back "fused.point") (back "witness_evaluation")
       emit (.absorb (key "point.0") (.packed degree (key "tensor.sumcheck.point")))
 
 /-- The terminal (`fold/terminal.rs`, `verify_terminal_suffix`). -/
 def terminal (plan : Array Run) (level : ℕ) (T : Terminal) : Build Unit := do
   let key (site : String) : Key := ⟨level, site, none⟩
-  tensor plan level T.rounds [⟨level - 1, "witness_evaluation", none⟩]
+  tensor plan level T.rounds ⟨level - 1, "fused.point", none⟩ ⟨level - 1, "witness_evaluation", none⟩
   emit (.absorb (key "terminal.point") (.packed T.degree (key "tensor.sumcheck.point")))
   emit (.fields (key "terminal.e") T.e)
   emit (.digest (key "terminal.e_last_block_digest"))

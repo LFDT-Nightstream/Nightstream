@@ -270,6 +270,7 @@ most `2·d_max − 1` points. -/
 noncomputable def lift (largest batch : ℕ) (degrees : ∀ r, (rel.row r).degree ≤ largest)
     (fits : rel.join.count + 1 ≤ 2 ^ batch) : Reduction E where
   vars := rel.vars
+  low := rel.low
   batch := batch
   Holds := rel.Holds
   rows := rel.liftRows

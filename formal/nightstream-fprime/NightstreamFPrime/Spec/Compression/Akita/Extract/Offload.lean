@@ -133,9 +133,9 @@ noncomputable def offloadCheck (R : Reduction E) (b : ℕ) (support : ℕ → Pr
       flat) :
     Game (Option ((List E × E) × (List E × E))) :=
   .draw E (R.bad w) fun α =>
-  .draw (Fin R.vars → E) (rangeBad b R.vars w) fun τ0 =>
+  .draw (Fin R.vars → E) (rangeBad R.low b R.vars w) fun τ0 =>
   .draw (Fin R.batch → E) ((R.rows α).batchBad R.vars R.batch w) fun τ1 =>
-  (rangeCheck b R.vars support w (List.ofFn τ0)).bind fun
+  (rangeCheck b R.vars support w (rangePoint R.low τ0)).bind fun
     | none => .pure none
     | some (r, sClaim) =>
         drawBin bin (zeros (linePoly (mle (List.ofFn τ1) ((R.rows α).residual R.vars w))
@@ -168,7 +168,7 @@ theorem offloadCheck_avoids (R : Reduction E) (b : ℕ) (support : ℕ → Prop)
         R.Holds w ∧ RangeHolds b R.vars w ∧ BinaryOn support R.vars w := by
   intro α reduce τ0 point τ1 batch
   refine (avoids_bind _ _ _).mpr ?_
-  refine (rangeCheck_avoids b R.vars support w (List.ofFn τ0) List.length_ofFn).mono ?_
+  refine (rangeCheck_avoids b R.vars support w (rangePoint R.low τ0) (rangePoint_length _ _)).mono ?_
   rintro (_ | ⟨r, sClaim⟩) ranged
   · intro r2 v ρ s equal
     simp at equal
@@ -280,7 +280,7 @@ theorem offloadCheck_staged (R : Reduction E) (base : ℕ) (support : ℕ → Pr
   unfold offloadCheck foldCosts Staged
   simp only [List.cons_append, List.append_assoc]
   refine stagedTo_draw field (density_le (C := E) (R.bad w) _ (R.bad_card w)) fun α => ?_
-  refine stagedTo_draw (exists_fair_slots varsFit) (density_rangeBad_le (E := E) base R.vars w)
+  refine stagedTo_draw (exists_fair_slots varsFit) (density_rangeBad_le (E := E) R.low base R.vars w)
     fun τ0 => ?_
   refine stagedTo_draw (exists_fair_slots batchFit)
     ((R.rows α).density_batchBad_le R.vars (R.fits α) w) fun τ1 => ?_

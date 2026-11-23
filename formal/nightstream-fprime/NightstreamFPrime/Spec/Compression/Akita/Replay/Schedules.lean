@@ -17,7 +17,9 @@ message is the count of the pinned code (Akita revision `d50f700`):
 - the tensor reduction of a trace level and of the terminal has one round less than the count of
   variables of the level before (`canonical_extension_opening_reduction_shape`, split 1);
 - the rows of the relation of a level (`relation`) have the ranks of `A`, `B` and `D` and the
-  degrees of the compression maps of the shapes of the level, with the last group first.
+  degrees of the compression maps of the shapes of the level, with the groups in the order
+  `groupOrder` of the specification (`RowBatch.lean`): the last group first. `layout20With` and
+  `layout30With` take the order as an argument, for the test of another order.
 
 The schedule files hold the most bytes of the payload of `z` and the code computes it from a
 cap that Lean does not have, so `layout20` and `layout30` take it as `zMax`. -/
@@ -33,10 +35,12 @@ structure Numbers where
   payload : ℕ
   outer : ℕ
   vars : ℕ
+  low : ℕ
   batch : ℕ
   logBasis : ℕ
   trace : Option ℕ
   euclidean : Bool
+  limit : ℕ
   compressed : Bool
   setup : Bool
   rhs : List RhsRun × ℕ
@@ -57,15 +61,14 @@ def lastDegree : Option ChainShape → ℕ
 
 /-- The rows of `y` with public coefficients and the count of rows of the relation of a fold
 (`RelationRhsLayout::row_families`, `assemble_relation_rhs`, `assemble_compressed_relation_rhs`,
-`scalar_opening_row_index`, `evaluation_trace_row_index`). `groups` has for each group, in the order
-of the claims, its commitment shape and the source of its commitment rows; the relation has the
-last group first (`root_group_order`). A group has its consistency row, the rows of `A` and, for
+`scalar_opening_row_index`, `evaluation_trace_row_index`). `order` has for each group, in the order
+of the rows (`root_group_order`), its commitment shape and the source of its commitment rows. A
+group has its consistency row, the rows of `A` and, for
 each slice, the rows of `B`; then `D` has its rows; a compressed fold has then two compression maps
 with one row for each group and one for `D`. The public rows are those of `B` and `D`, or those of
 the last map when the fold is compressed. -/
-def relation (groups : List (Shape × RhsSource)) (openRank openDegree : ℕ)
+def relation (order : List (Shape × RhsSource)) (openRank openDegree : ℕ)
     (openChain : Option ChainShape) (compressed : Bool) : List RhsRun × ℕ :=
-  let order := groups.getLast?.toList ++ groups.dropLast
   let (runs, start) := order.foldl (fun (runs, start) (S, source) =>
     (runs ++ [⟨start + 1 + S.innerRank, S.outerDegree, S.slices * S.outerRank, source⟩],
       start + 1 + S.innerRank + S.slices * S.outerRank)) ([], 0)
@@ -90,9 +93,11 @@ def assemble (levels : List Numbers) (setupVars : ℕ) (terminal : Shape) (famil
         | none => (terminal.blocks - 1) * terminal.innerRank * terminal.innerDegree
       last := next.isNone
       vars := L.vars
+      low := L.low
       batch := L.batch
       logBasis := L.logBasis
       euclidean := L.euclidean
+      limit := L.limit
       compressed := L.compressed
       stage3 := if (next.map (·.setup)).getD false then some setupVars else none
       rhs := L.rhs.1
@@ -109,7 +114,7 @@ def assemble (levels : List Numbers) (setupVars : ℕ) (terminal : Shape) (famil
 /-- The numbers of a fold with opening groups: the root (`root`, the commitments of the
 statement) or a level whose groups are the setup prefix and the next witness of the level
 before. -/
-def ofBatch {n : ℕ} (B : Batch (Fin n)) (R : Level) (pairs : ℕ → ℕ × ℕ) (vars batch : ℕ)
+def ofBatch {n : ℕ} (order : Equiv.Perm (Fin n)) (B : Batch (Fin n)) (R : Level) (pairs : ℕ → ℕ × ℕ) (vars batch : ℕ)
     (base : ℕ) (root : Bool) : Numbers where
   groups := (List.finRange n).map fun g =>
     ⟨(B.shape g).blocks, (B.shape g).innerDegree, B.carrierDegree g, (pairs g).1, (pairs g).2,
@@ -117,18 +122,21 @@ def ofBatch {n : ℕ} (B : Batch (Fin n)) (R : Level) (pairs : ℕ → ℕ × �
   payload := image B.chain B.openRank B.openDegree
   outer := (List.finRange n).getLast?.map (fun g => outer (B.shape g)) |>.getD 0
   vars
+  low := B.low
   batch
   logBasis := Nat.log 2 base
   trace := none
   euclidean := false
+  limit := 0
   compressed := R.compressed
   setup := (R.groups.head?.map (·.setup)).getD false
-  rhs := relation ((List.finRange n).map fun g => (B.shape g,
-      if root then .root g.val else if ((R.groups[g.val]?).map (·.setup)).getD false then .setup
-      else .witness))
+  rhs := relation ((List.finRange n).map fun k => (B.shape (order k),
+      if root then .root (order k).val
+      else if ((R.groups[(order k).val]?).map (·.setup)).getD false then .setup else .witness))
     B.openRank B.openDegree B.chain R.compressed
 
-def ofLevel (L : Key20.Level) (R : Level) (pair : ℕ × ℕ) : Numbers :=
+def ofLevel (L : Key20.Level) (R : Level) (pair : ℕ × ℕ) (norm : Option Key20.Squared := none) :
+    Numbers :=
   let trace := (R.groups.head?.map (·.opening)) == some .trace
   let euclidean := (R.groups.head?.map (·.norm)) == some .euclidean
   { groups := [⟨L.shape.blocks, L.shape.innerDegree, L.opening.carrierDegree, pair.1, pair.2,
@@ -136,10 +144,12 @@ def ofLevel (L : Key20.Level) (R : Level) (pair : ℕ × ℕ) : Numbers :=
     payload := image L.opening.chain L.opening.openRank L.opening.openDegree
     outer := outer L.shape
     vars := L.vars
+    low := L.opening.low
     batch := L.batch
     logBasis := Nat.log 2 L.shape.openingBase
     trace := if trace then some L.shape.innerDegree else none
     euclidean
+    limit := (norm.map (·.limit)).getD 0
     compressed := R.compressed
     setup := false
     rhs := relation [(L.shape, .witness)] L.opening.openRank L.opening.openDegree L.opening.chain
@@ -147,26 +157,30 @@ def ofLevel (L : Key20.Level) (R : Level) (pair : ℕ × ℕ) : Numbers :=
 
 def rowLevel (row : Row) (i : ℕ) : Level := row.levels.getD i ⟨[], false, .quotientFree, 0, 0, 0⟩
 
-/-- The layout of `key20.aks`. -/
-def layout20 (zMax : ℕ) : Layout :=
+def layout20With (order : ∀ n, Equiv.Perm (Fin n)) (zMax : ℕ) : Layout :=
   open Key20 in
   let R := rowLevel Akita.key20
-  assemble [ofBatch root (R 0) (family 0) rootVars rootBatch (root.shape 0).openingBase true,
+  assemble [ofBatch (order 3) root (R 0) (family 0) rootVars rootBatch (root.shape 0).openingBase true,
       ofLevel level₁ (R 1) (family 1 0), ofLevel level₂ (R 2) (family 2 0),
-      ofLevel level₃ (R 3) (family 3 0), ofLevel level₄ (R 4) (family 4 0),
-      ofLevel level₅ (R 5) (family 5 0)]
+      ofLevel level₃ (R 3) (family 3 0) norm₃, ofLevel level₄ (R 4) (family 4 0) norm₄,
+      ofLevel level₅ (R 5) (family 5 0) norm₅]
     0 terminal (family 6 0) zMax
 
-/-- The layout of a row of `key30.aks`. -/
-def layout30 (r : Key30.Row) (zMax : ℕ) : Layout :=
+/-- The layout of `key20.aks`. -/
+def layout20 (zMax : ℕ) : Layout := layout20With groupOrder zMax
+
+def layout30With (order : ∀ n, Equiv.Perm (Fin n)) (r : Key30.Row) (zMax : ℕ) : Layout :=
   open Key30 in
   let R := rowLevel (if r.vars = 27 then Akita.key30W27 else Akita.key30W26)
-  assemble [ofBatch (root r) (R 0) (family 0) rootVars rootBatch ((root r).shape 0).openingBase
-        true,
-      ofBatch (level₁ r) (R 1) (family 1) vars₁ batch₁ ((level₁ r).shape 0).openingBase false,
+  assemble [ofBatch (order 3) (root r) (R 0) (family 0) rootVars rootBatch
+        ((root r).shape 0).openingBase true,
+      ofBatch (order 2) (level₁ r) (R 1) (family 1) vars₁ batch₁ ((level₁ r).shape 0).openingBase false,
       ofLevel (level₂ r) (R 2) (family 2 0), ofLevel level₃ (R 3) (family 3 0),
-      ofLevel level₄ (R 4) (family 4 0), ofLevel level₅ (R 5) (family 5 0),
-      ofLevel level₆ (R 6) (family 6 0)]
+      ofLevel level₄ (R 4) (family 4 0), ofLevel level₅ (R 5) (family 5 0) norm₅,
+      ofLevel level₆ (R 6) (family 6 0) norm₆]
     setupVars terminal (family 7 0) zMax
+
+/-- The layout of a row of `key30.aks`. -/
+def layout30 (r : Key30.Row) (zMax : ℕ) : Layout := layout30With groupOrder r zMax
 
 end NightstreamFPrime.Spec.Compression.Akita.Replay

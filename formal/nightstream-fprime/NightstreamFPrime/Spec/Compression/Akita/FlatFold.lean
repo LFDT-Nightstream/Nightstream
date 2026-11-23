@@ -563,6 +563,7 @@ noncomputable def flatRelation (β : Module.Basis (Fin O.planes) Zq E) (st : Sta
     (challenge : Fin S.blocks → Rq O.carrierDegree) (μ : ℕ) (fits : O.cells fold ≤ 2 ^ μ) :
     FlatRelation E where
   vars := μ
+  low := O.low
   ring := O.planeRows
   row := flatRows O fold β st challenge
   inside r c j _ _ read := (flatRows_below O fold β st challenge r c j _ read).trans_le fits

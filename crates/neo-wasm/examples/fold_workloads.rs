@@ -1,3 +1,6 @@
+#[path = "fold_workloads/counter.rs"]
+mod counter;
+
 use std::collections::BTreeSet;
 use std::error::Error;
 use std::num::NonZeroUsize;
@@ -5,8 +8,8 @@ use std::time::Instant;
 
 use neo_wasm::host_event_bindings::{EventBlock, ExportTemplate, HostEventBindings, Limb, SlotBinding};
 use neo_wasm::memory_semantics::preload_host_event_tables;
-use neo_wasm::nebula::{plan_ordered_slots, step_inputs, WasmApplication, WasmSize, WasmStep};
-use neo_wasm::{WasmOpcode, WasmOutputState, WasmStepState, WasmVmStep};
+use neo_wasm::nebula::{plan_ordered_slots, step_inputs, WasmApplication, WasmLimits, WasmSize, WasmStep};
+use neo_wasm::{WasmOpcode, WasmOutputState, WasmProgramArtifacts, WasmStepState, WasmVmStep};
 use nightstream::nebula::{Circuit, Geometry};
 use wasmtime::Val;
 
@@ -67,11 +70,16 @@ impl Workload {
 }
 
 struct Case {
-    workload: Workload,
+    name: &'static str,
+    region_words: u32,
     rounds: u32,
+    touched: usize,
+    run: Run,
+}
+
+struct Run {
     instructions: usize,
     trace_rows: usize,
-    touched: usize,
     initial: WasmStepState,
     last: WasmStepState,
     inputs: Vec<WasmStep>,
@@ -89,7 +97,6 @@ fn prepare(wasm: &[u8], bindings: &HostEventBindings, workload: Workload, rounds
     let (expected, touched) = workload.check(rounds, &trace);
     assert_eq!(run.results, [(expected as i32).to_string()]);
     let last = trace.last().unwrap().state_after;
-    assert!(last.is_terminal() && !last.trapped);
     assert_eq!(
         last.output,
         WasmOutputState {
@@ -98,6 +105,27 @@ fn prepare(wasm: &[u8], bindings: &HostEventBindings, workload: Workload, rounds
             value_hi: 0
         }
     );
+    let region_words = match workload {
+        Workload::Hash => 0,
+        Workload::Memory { words } => words,
+    };
+    Ok(Case {
+        name,
+        rounds,
+        region_words,
+        touched,
+        run: prepare_run(&trace, artifacts, bindings, fref)?,
+    })
+}
+
+fn prepare_run(
+    trace: &[WasmVmStep],
+    artifacts: &WasmProgramArtifacts,
+    bindings: &HostEventBindings,
+    fref: u32,
+) -> Result<Run, Box<dyn Error>> {
+    let last = trace.last().unwrap().state_after;
+    assert!(last.is_terminal() && !last.trapped);
     let pc = artifacts
         .tables
         .function_entries
@@ -109,18 +137,15 @@ fn prepare(wasm: &[u8], bindings: &HostEventBindings, workload: Workload, rounds
         neo_wasm::host_event_top_level_initial_state(&artifacts.tables, pc, bindings, fref, Default::default())?;
     assert_eq!(initial, trace[0].state_before);
     let steps = trace.len().div_ceil(ROWS.get() * STEPS_PER_SEGMENT) * STEPS_PER_SEGMENT;
-    Ok(Case {
-        workload,
-        rounds,
+    Ok(Run {
         instructions: trace
             .iter()
             .filter(|step| step.row_kind.is_program())
             .count(),
         trace_rows: trace.len(),
-        touched,
         initial,
         last,
-        inputs: step_inputs(&trace, steps, ROWS)?,
+        inputs: step_inputs(trace, steps, ROWS)?,
     })
 }
 
@@ -148,19 +173,33 @@ fn main() -> Result<(), Box<dyn Error>> {
     let artifacts = neo_wasm::extract_wasm_program_artifacts(&wasm)?;
     let mut preload = neo_wasm::preload_from_program_artifacts(&artifacts);
     preload_host_event_tables(&mut preload, &bindings, &artifacts);
-    let mut cases = Vec::new();
+    let (counter_preload, counter) = counter::prepare()?;
+    let needed = WasmLimits::of(&[&preload, &counter_preload], &[])?;
+    let base = WasmSize::Micro.limits();
+    let limits = WasmLimits {
+        pc: base.pc.max(needed.pc),
+        function: base.function.max(needed.function),
+        global: base.global.max(needed.global),
+        event: base.event.max(needed.event),
+        ..base
+    };
+    assert!(limits.holds(&needed));
+    let (regions, cells) = limits.regions()?;
+    let [rom, ram] = cells.map(|n| n.next_power_of_two().ilog2() as usize);
+    let slots = plan_ordered_slots(ROWS)?;
+    let geometry = Geometry::new(rom, ram, slots.len(), STEPS_PER_SEGMENT, 12).unwrap();
+    eprintln!("rows/step={ROWS} steps/segment={STEPS_PER_SEGMENT} trials={TRIALS} geometry={geometry:?}");
+    let app = WasmApplication::with_slots(&geometry, regions, ROWS, &slots)?;
+    let loops = app.program(&preload)?;
+    let contract = app.program(&counter_preload)?;
+    let mut cases = vec![(&contract, counter)];
     for rounds in [4, 8, 16] {
         for workload in [Workload::Hash, Workload::Memory { words: 16 }] {
-            cases.push(prepare(&wasm, &bindings, workload, rounds)?);
+            cases.push((&loops, prepare(&wasm, &bindings, workload, rounds)?));
         }
     }
-    cases.push(prepare(&wasm, &bindings, Workload::Memory { words: 4 }, 16)?);
+    cases.push((&loops, prepare(&wasm, &bindings, Workload::Memory { words: 4 }, 16)?));
 
-    let slots = plan_ordered_slots(ROWS)?;
-    let geometry = Geometry::new(11, 8, slots.len(), STEPS_PER_SEGMENT, 12).unwrap();
-    let regions = WasmSize::Micro.limits().regions()?.0;
-    let app = WasmApplication::with_slots(&geometry, regions, ROWS, &slots)?;
-    let program = app.program(&preload)?;
     let circuit = Circuit::compile(geometry, app)?;
     let prover = circuit.prover(nightstream::Engine::Optimized, 109)?;
     let verifier = circuit.verifier(nightstream::Engine::Optimized, 109)?;
@@ -169,28 +208,25 @@ fn main() -> Result<(), Box<dyn Error>> {
     for trial in 0..TRIALS {
         let count = cases.len();
         for offset in 0..count {
-            let case = &cases[(trial + offset) % count];
+            let (program, case) = &cases[(trial + offset) % count];
             let start = Instant::now();
-            let mut proof_run = prover.start(&program, case.initial)?;
-            for segment in case.inputs.chunks_exact(STEPS_PER_SEGMENT) {
+            let mut proof_run = prover.start(program, case.run.initial)?;
+            for segment in case.run.inputs.chunks_exact(STEPS_PER_SEGMENT) {
                 proof_run.segment(segment)?;
             }
             let proof = proof_run.finish()?;
             let elapsed = start.elapsed();
-            let verified = verifier.verify(&program, &case.initial, &case.last, &proof)?;
-            assert_eq!(verified.steps, case.inputs.len() as u64);
-            let (name, _) = case.workload.export();
-            let words = match case.workload {
-                Workload::Hash => 0,
-                Workload::Memory { words } => words,
-            };
+            let verified = verifier.verify(program, &case.run.initial, &case.run.last, &proof)?;
+            assert_eq!(verified.steps, case.run.inputs.len() as u64);
             println!(
-                "{}\t{name}\t{}\t{words}\t{}\t{}\t{}\t{}\t{}\t{:.3}",
+                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{:.3}",
                 trial + 1,
+                case.name,
                 case.rounds,
+                case.region_words,
                 case.touched,
-                case.instructions,
-                case.trace_rows,
+                case.run.instructions,
+                case.run.trace_rows,
                 verified.steps,
                 verified.steps - 1,
                 elapsed.as_secs_f64()

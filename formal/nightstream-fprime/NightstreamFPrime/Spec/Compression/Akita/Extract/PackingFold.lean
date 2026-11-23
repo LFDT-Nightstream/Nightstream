@@ -79,6 +79,29 @@ theorem sumcheck_staged (fair : ∃ decode : Reply → K, Fair decode) (d bound 
             (degree point (by omega)))))) fun c => induction (point ++ [c]) _ (by simp; omega)
       · exact rejected _
 
+/-- Each draw of `eqSumcheck` has the bound `(D + 1 + e)/|K|`, and an end has the entries `rest`
+after the bounds of its rounds. -/
+theorem eqSumcheck_staged (fair : ∃ decode : Reply → K, Fair decode) (D bound e : ℕ)
+    (round : List K → K[X])
+    (degree : ∀ point : List K, point.length < bound → (round point).natDegree ≤ D + 1)
+    (extra : List K → Finset K) (small : ∀ point, (extra point).card ≤ e) (τ : List K)
+    (rest : List ℝ) (tail : List K × K → List ℝ → Prop) (ended : ∀ final, tail final rest) :
+    ∀ (rounds : ℕ) (point : List K) (claim : K), point.length + rounds ≤ bound →
+      StagedTo Reply (eqSumcheck D round extra τ rounds point claim)
+        (List.replicate rounds (((D + 1 + e : ℕ) : ℝ) / Fintype.card K) ++ rest) tail := by
+  intro rounds
+  induction rounds with
+  | zero =>
+      intro point claim _
+      exact ended _
+  | succ rounds induction =>
+      intro point claim fits message
+      rw [List.replicate_succ, List.cons_append]
+      exact stagedTo_draw fair (density_le _ _ ((Finset.card_union_le _ _).trans
+        (Nat.add_le_add (zeros_card_le_of_natDegree_le ((natDegree_sub_le _ _).trans
+          (max_le (fullPoly_natDegree _ _ _ message) (degree point (by omega))))) (small point))))
+        fun c => induction (point ++ [c]) _ (by simp; omega)
+
 end Rounds
 
 section Costs
@@ -301,17 +324,16 @@ theorem rangeTree_stagedTo {β : Type} (leaf μ : ℕ) (w : Table)
   | cons a others step =>
       intro nodes weights point claim
       rw [treeCosts, List.append_assoc, List.cons_append]
-      refine (stagedTo_bind _ _ _ _).mpr (sumcheck_staged (Reply := Coord → E) field (a + 1) μ _
-        (stage_roundTruth a (others.prod * leaf) nodes μ weights point w).degree _ _ ?_ ?_ μ []
-        claim (by simp))
-      · exact fun _ => rejected _
-      · rintro ⟨r, value⟩ child
-        dsimp only
-        split
-        · exact stagedTo_draw field (density_le _ _ (zeros_card_le_of_natDegree_le
-            ((natDegree_sub_le _ _).trans (max_le (rowPoly_natDegree_le _ _)
-              (rowPoly_natDegree_le _ _))))) fun γ => step _ _ _ _
-        · exact rejected _
+      refine (stagedTo_bind _ _ _ _).mpr (eqSumcheck_staged (Reply := Coord → E) field a μ 0 _
+        (stage_roundTruth a (others.prod * leaf) nodes μ weights point w).degree (fun _ => ∅)
+        (fun _ => (Finset.card_empty).le) point _ _ ?_ μ [] claim (by simp))
+      rintro ⟨r, value⟩ child
+      dsimp only
+      split
+      · exact stagedTo_draw field (density_le _ _ (zeros_card_le_of_natDegree_le
+          ((natDegree_sub_le _ _).trans (max_le (rowPoly_natDegree_le _ _)
+            (rowPoly_natDegree_le _ _))))) fun γ => step _ _ _ _
+      · exact rejected _
 
 /-- Each draw of `rangeCheck` has its bound of `rangeCosts`, and an accepted end has the entries
 `rest` after these bounds. -/
@@ -321,16 +343,15 @@ theorem rangeCheck_stagedTo (b μ : ℕ) (support : ℕ → Prop) [DecidablePred
     StagedTo (Coord → E) (rangeCheck b μ support w τ0) (rangeCosts E μ b ++ rest) tail := by
   rw [rangeCosts, List.append_assoc]
   refine rangeTree_stagedTo (rangeLeaf b) μ w _ _ tail rejected (fun nodes weights point claim =>
-    (stagedTo_bind _ _ _ _).mpr (sumcheckWith_staged (Reply := Coord → E) exists_fair_slot
-      (rangeLeaf b + 1) μ 1 _ (leaf_roundTruth (rangeLeaf b) nodes μ weights point w).degree _
-      (fun _ => bindBad_card_le _ _) rest _ ?_ ?_ μ [] claim (by simp))) (rangeArities b) 1
+    (stagedTo_bind _ _ _ _).mpr (eqSumcheck_staged (Reply := Coord → E) exists_fair_slot
+      (rangeLeaf b) μ 1 _ (leaf_roundTruth (rangeLeaf b) nodes μ weights point w).degree _
+      (fun _ => bindBad_card_le _ _) point rest _ ?_ μ [] claim (by simp))) (rangeArities b) 1
     (fun _ => 1) τ0 0
-  · exact fun _ => rejected _
-  · rintro ⟨r, value⟩ sClaim
-    dsimp only
-    split
-    · exact ended _
-    · exact rejected _
+  rintro ⟨r, value⟩ sClaim
+  dsimp only
+  split
+  · exact ended _
+  · exact rejected _
 
 /-- Each draw of `foldCheck` has its bound of `foldCosts`, and an accepted end has the entries
 `rest` after these bounds, when an answer of the oracle has `μ'` slots or more and `s_rel` slots

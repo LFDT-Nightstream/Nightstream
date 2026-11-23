@@ -141,6 +141,18 @@ theorem sumcheckWith_bare (d : ℕ) (round other : List K → K[X])
         exact bare_draw_congr fun challenge => induction _ _
       · rw [ite_eq_right passed, ite_eq_right passed]
 
+theorem eqSumcheck_bare (D : ℕ) (round other : List K → K[X]) (extra more : List K → Finset K)
+    (τ : List K) :
+    ∀ (rounds : ℕ) (point : List K) (claim : K),
+      bare (eqSumcheck D round extra τ rounds point claim) =
+        bare (eqSumcheck D other more τ rounds point claim) := by
+  intro rounds
+  induction rounds with
+  | zero => exact fun _ _ => rfl
+  | succ rounds induction =>
+      exact fun point claim => bare_recv_congr fun message =>
+        bare_draw_congr fun challenge => induction _ _
+
 end Checks
 
 variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E]
@@ -165,23 +177,20 @@ theorem rangeTree_bare {β : Type} (leaf μ : ℕ) (w other : Table)
   | nil => exact same
   | cons a others step =>
       intro nodes weights point claim
-      refine bare_bind_congr (sumcheck_bare _ _ _ μ [] claim) fun result => ?_
-      rcases result with _ | ⟨r, value⟩
-      · rfl
-      · refine bare_recv_congr fun child => ?_
-        by_cases checked : value = mle r (eqAt point) * ∑ m ∈ Finset.range nodes,
-            weights m * ∏ t ∈ Finset.range a, entry child (m * a + t)
-        · rw [ite_eq_left checked, ite_eq_left checked]
-          exact bare_draw_congr fun γ => step _ _ _ _
-        · rw [ite_eq_right checked, ite_eq_right checked]
+      refine bare_bind_congr (eqSumcheck_bare _ _ _ _ _ point μ [] claim) fun result => ?_
+      refine bare_recv_congr fun child => ?_
+      by_cases checked : result.2 = ∑ m ∈ Finset.range nodes,
+          weights m * ∏ t ∈ Finset.range a, entry child (m * a + t)
+      · rw [ite_eq_left checked, ite_eq_left checked]
+        exact bare_draw_congr fun γ => step _ _ _ _
+      · rw [ite_eq_right checked, ite_eq_right checked]
 
 /-- The verifier of `rangeCheck` is the same for each witness. -/
 theorem rangeCheck_bare (b μ : ℕ) (support : ℕ → Prop) [DecidablePred support]
     (w other : Table) (τ0 : List E) :
     bare (rangeCheck b μ support w τ0) = bare (rangeCheck b μ support other τ0) := by
-  refine rangeTree_bare (rangeLeaf b) μ w other _ _ (fun nodes weights point claim =>
-    bare_bind_congr (sumcheckWith_bare _ _ _ _ _ μ [] claim) fun result => ?_) _ _ _ _ _
-  rcases result with _ | ⟨r, value⟩ <;> rfl
+  exact rangeTree_bare (rangeLeaf b) μ w other _ _ (fun nodes weights point claim =>
+    bare_bind_congr (eqSumcheck_bare _ _ _ _ _ point μ [] claim) fun _ => rfl) _ _ _ _ _
 
 omit [DecidableEq E] [Algebra Zq E] in
 theorem drawBin_bare_congr {β : Type} (bin : Bool) {bad other : Finset E}

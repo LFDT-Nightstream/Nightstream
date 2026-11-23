@@ -15,8 +15,10 @@ Lemma 10.7 and Corollary K.10 with (313)), with the numbers of the schedule file
   response, for each source with this bound.
 - `Key20.level₁_unfit` and `Key20.root_unfit` are this bound at level 1 and for the three groups
   of the root of `key20.aks`, and `Key20.level₁_search` and `Key20.root_search` are Akita
-  Lemma 10.7 with the `2^12` nonces of the code: no nonce gives a response that fits with
-  probability at most the bound to the power `2^12`.
+  Lemma 10.7 with (157) and the `2^12` nonces of the code: a nonce fails when a fold challenge
+  does not decode or the response does not fit, and each nonce fails with probability at most
+  the sum of the sampler term `ε` and the bound, to the power `2^12`. `Key20.level₁_search_total`
+  and `Key20.root_search_total` are the case `ε = 0` of decoders that decode each slot.
 
 The bound does not hold at the other levels by this proof. At level 2 of `key20.aks` the limit
 of `Enc` is below the limit of Akita (313), and the levels 3 to 5 and the terminal have the
@@ -28,8 +30,7 @@ namespace NightstreamFPrime.Spec.Compression.Akita
 
 open scoped BigOperators
 open NightstreamFPrime.Spec.RandomOracle (mass mass_mono)
-open NightstreamFPrime.Spec.Compression.Akita.Extract (view responseTries mass_misses_le
-  mass_view_only)
+open NightstreamFPrime.Spec.Compression.Akita.Extract (view responseTries mass_tries_le)
 
 attribute [local instance low] Classical.propDecidable
 
@@ -51,6 +52,18 @@ theorem tail_le_pow {N k ℓ T V : ℕ} (enough : 71 * k ≤ 100 * ℓ) (positiv
   calc 2 * (N : ℝ) * Real.exp (-((T : ℝ) ^ 2) / (2 * V)) ≤ 2 * N * (1 / 2 ^ k) :=
         mul_le_mul_of_nonneg_left small (by positivity)
     _ = 2 * N / 2 ^ k := by ring
+
+theorem mass_or_le {Ω : Type} [Fintype Ω] (A B : Set Ω) :
+    mass {ω | ω ∈ A ∨ ω ∈ B} ≤ mass A + mass B := by
+  unfold mass
+  rw [← Finset.expect_add_distrib]
+  refine Finset.expect_le_expect fun ω _ => ?_
+  by_cases a : ω ∈ A <;> by_cases b : ω ∈ B <;> simp [a, b]
+
+theorem mass_empty_le {Ω : Type} [Fintype Ω] {A : Set Ω} (empty : ∀ ω, ω ∉ A) : mass A ≤ 0 := by
+  unfold mass
+  refine le_of_eq (Finset.expect_eq_zero fun ω _ => ?_)
+  simp [empty ω]
 
 section Response
 
@@ -117,9 +130,11 @@ theorem level₁_unfit (block : Fin level₁.shape.blocks → Coord)
     (k := 67) (ℓ := 48) (by decide) (by decide) (by decide) (by decide)).trans ?_
   norm_num [level₁]
 
-/-- Akita Lemma 10.7 at level 1 of `key20.aks` with the `2^12` nonces of the code: for the keys
-`input` of the nonces after one transcript prefix, no nonce gives a response that satisfies `Enc`
-with probability at most `(2^−49)^4096`. -/
+/-- Akita Lemma 10.7 with (157) at level 1 of `key20.aks` with the `2^12` nonces of the code,
+for the keys `input` of the nonces after one transcript prefix. A nonce fails when a fold
+challenge does not decode (the verifier needs each decode, `Extract.DecodesAt`) or the response
+does not satisfy `Enc`. `sampler`: a fold challenge of one answer does not decode with probability
+at most `ε`. Each nonce fails with probability at most `(ε + 2^−49)^4096`. -/
 theorem level₁_search {Point : Type} [Fintype Point] [DecidableEq Point]
     (input : Fin responseTries → Point) (distinct : Function.Injective input)
     (block : Fin level₁.shape.blocks → Coord) (injective : Function.Injective block)
@@ -127,20 +142,45 @@ theorem level₁_search {Point : Type} [Fintype Point] [DecidableEq Point]
     (fair : ∀ i, SignFair (decode i))
     (sparse : ∀ i slot c, decode i slot = some c → normSq c ≤ 71)
     (source : Fin level₁.shape.blocks → level₁.shape.Source)
+    (bounded : ∀ i col, normInf (source i col) ≤ 4) {ε : ℝ}
+    (sampler : mass {look : Coord → Slot | ∃ i, decode i (look (block i)) = none} ≤ ε) :
+    mass {table : Point → Option Coord → Slot | ∀ n,
+      (∃ i, decode i (view (table (input n)) (block i)) = none) ∨
+        ¬ Encodable level₁.fold.responseBase level₁.fold.responseDigits
+          (response level₁.opening
+            (fun i => (decode i (view (table (input n)) (block i))).getD 0) source)} ≤
+      (ε + 1 / 2 ^ 49) ^ responseTries :=
+  mass_tries_le input distinct
+    {look : Coord → Slot | look ∈ {look : Coord → Slot | ∃ i, decode i (look (block i)) = none} ∨
+      look ∈ {look : Coord → Slot | ¬ Encodable level₁.fold.responseBase
+        level₁.fold.responseDigits
+        (response level₁.opening (fun i => (decode i (look (block i))).getD 0) source)}}
+    ((mass_or_le _ _).trans
+      (add_le_add sampler (level₁_unfit block injective decode fair sparse source bounded)))
+
+/-- `level₁_search` for decoders that decode each slot (`total`): the sampler term is 0, and each
+nonce fails with probability at most `(2^−49)^4096`. -/
+theorem level₁_search_total {Point : Type} [Fintype Point] [DecidableEq Point]
+    (input : Fin responseTries → Point) (distinct : Function.Injective input)
+    (block : Fin level₁.shape.blocks → Coord) (injective : Function.Injective block)
+    (decode : Fin level₁.shape.blocks → Slot → Option (Rq level₁.opening.carrierDegree))
+    (total : ∀ i slot, (decode i slot).isSome)
+    (fair : ∀ i, SignFair (decode i))
+    (sparse : ∀ i slot c, decode i slot = some c → normSq c ≤ 71)
+    (source : Fin level₁.shape.blocks → level₁.shape.Source)
     (bounded : ∀ i col, normInf (source i col) ≤ 4) :
     mass {table : Point → Option Coord → Slot | ∀ n,
-      ¬ Encodable level₁.fold.responseBase level₁.fold.responseDigits
-        (response level₁.opening
-          (fun i => (decode i (view (table (input n)) (block i))).getD 0) source)} ≤
-      (1 / 2 ^ 49) ^ responseTries :=
-  mass_misses_le input distinct
-    {reply : Option Coord → Slot | ¬ Encodable level₁.fold.responseBase
-      level₁.fold.responseDigits
-      (response level₁.opening (fun i => (decode i (view reply (block i))).getD 0) source)}
-    ((mass_view_only {look : Coord → Slot | ¬ Encodable level₁.fold.responseBase
-      level₁.fold.responseDigits
-      (response level₁.opening (fun i => (decode i (look (block i))).getD 0) source)}).le.trans
-      (level₁_unfit block injective decode fair sparse source bounded))
+      (∃ i, decode i (view (table (input n)) (block i)) = none) ∨
+        ¬ Encodable level₁.fold.responseBase level₁.fold.responseDigits
+          (response level₁.opening
+            (fun i => (decode i (view (table (input n)) (block i))).getD 0) source)} ≤
+      (1 / 2 ^ 49) ^ responseTries := by
+  have bound := level₁_search input distinct block injective decode fair sparse source bounded
+    (ε := 0) (mass_empty_le fun look ⟨i, failed⟩ => by
+      have decoded := total i (look (block i))
+      rw [failed] at decoded
+      exact Bool.false_ne_true decoded)
+  rwa [zero_add] at bound
 
 /-- Akita (149) for the root of `key20.aks`: the groups of the key polynomial, `W` and `V` with
 32, 16 and 8 blocks, the family `(31, 0)` of `R_{q,128}` with `‖c‖_2² = 31` and the family
@@ -176,9 +216,10 @@ theorem root_unfit (block : root.Block → Coord) (injective : Function.Injectiv
     refine (add_le_add (add_le_add key wide) inverse).trans ?_
     norm_num [root, Shape.key20, shapeW, shapeV]
 
-/-- Akita Lemma 10.7 for the root of `key20.aks` with the `2^12` nonces of the code: no nonce
-gives responses of the three groups that satisfy `Enc` with probability at most
-`(2^−12)^4096`. -/
+/-- Akita Lemma 10.7 with (157) for the root of `key20.aks` with the `2^12` nonces of the code.
+A nonce fails when a fold challenge of a group does not decode or the response of a group does
+not satisfy `Enc`. `sampler`: a fold challenge of one answer does not decode with probability at
+most `ε`. Each nonce fails with probability at most `(ε + 2^−12)^4096`. -/
 theorem root_search {Point : Type} [Fintype Point] [DecidableEq Point]
     (input : Fin responseTries → Point) (distinct : Function.Injective input)
     (block : root.Block → Coord) (injective : Function.Injective block)
@@ -186,20 +227,46 @@ theorem root_search {Point : Type} [Fintype Point] [DecidableEq Point]
     (fair : ∀ g i, SignFair (decode g i))
     (sparse : ∀ g i slot c, decode g i slot = some c → normSq c ≤ ![31, 71, 71] g)
     (source : (g : Fin 3) → Fin (root.shape g).blocks → (root.shape g).Source)
+    (bounded : ∀ g i col, normInf (source g i col) ≤ 512) {ε : ℝ}
+    (sampler : mass {look : Coord → Slot | ∃ g i, decode g i (look (block ⟨g, i⟩)) = none} ≤ ε) :
+    mass {table : Point → Option Coord → Slot | ∀ n,
+      (∃ g i, decode g i (view (table (input n)) (block ⟨g, i⟩)) = none) ∨
+        ∃ g, ¬ Encodable (root.fold g).responseBase (root.fold g).responseDigits
+          (response (root.opening g)
+            (fun i => (decode g i (view (table (input n)) (block ⟨g, i⟩))).getD 0) (source g))} ≤
+      (ε + 1 / 2 ^ 12) ^ responseTries :=
+  mass_tries_le input distinct
+    {look : Coord → Slot |
+      look ∈ {look : Coord → Slot | ∃ g i, decode g i (look (block ⟨g, i⟩)) = none} ∨
+      look ∈ {look : Coord → Slot | ∃ g, ¬ Encodable (root.fold g).responseBase
+        (root.fold g).responseDigits (response (root.opening g)
+          (fun i => (decode g i (look (block ⟨g, i⟩))).getD 0) (source g))}}
+    ((mass_or_le _ _).trans
+      (add_le_add sampler (root_unfit block injective decode fair sparse source bounded)))
+
+/-- `root_search` for decoders that decode each slot (`total`): the sampler term is 0, and each
+nonce fails with probability at most `(2^−12)^4096`. -/
+theorem root_search_total {Point : Type} [Fintype Point] [DecidableEq Point]
+    (input : Fin responseTries → Point) (distinct : Function.Injective input)
+    (block : root.Block → Coord) (injective : Function.Injective block)
+    (decode : (g : Fin 3) → Fin (root.shape g).blocks → Slot → Option (Rq (root.carrierDegree g)))
+    (total : ∀ g i slot, (decode g i slot).isSome)
+    (fair : ∀ g i, SignFair (decode g i))
+    (sparse : ∀ g i slot c, decode g i slot = some c → normSq c ≤ ![31, 71, 71] g)
+    (source : (g : Fin 3) → Fin (root.shape g).blocks → (root.shape g).Source)
     (bounded : ∀ g i col, normInf (source g i col) ≤ 512) :
-    mass {table : Point → Option Coord → Slot | ∀ n, ∃ g,
-      ¬ Encodable (root.fold g).responseBase (root.fold g).responseDigits
-        (response (root.opening g)
-          (fun i => (decode g i (view (table (input n)) (block ⟨g, i⟩))).getD 0) (source g))} ≤
-      (1 / 2 ^ 12) ^ responseTries :=
-  mass_misses_le input distinct
-    {reply : Option Coord → Slot | ∃ g, ¬ Encodable (root.fold g).responseBase
-      (root.fold g).responseDigits (response (root.opening g)
-        (fun i => (decode g i (view reply (block ⟨g, i⟩))).getD 0) (source g))}
-    ((mass_view_only {look : Coord → Slot | ∃ g, ¬ Encodable (root.fold g).responseBase
-      (root.fold g).responseDigits (response (root.opening g)
-        (fun i => (decode g i (look (block ⟨g, i⟩))).getD 0) (source g))}).le.trans
-      (root_unfit block injective decode fair sparse source bounded))
+    mass {table : Point → Option Coord → Slot | ∀ n,
+      (∃ g i, decode g i (view (table (input n)) (block ⟨g, i⟩)) = none) ∨
+        ∃ g, ¬ Encodable (root.fold g).responseBase (root.fold g).responseDigits
+          (response (root.opening g)
+            (fun i => (decode g i (view (table (input n)) (block ⟨g, i⟩))).getD 0) (source g))} ≤
+      (1 / 2 ^ 12) ^ responseTries := by
+  have bound := root_search input distinct block injective decode fair sparse source bounded
+    (ε := 0) (mass_empty_le fun look ⟨g, i, failed⟩ => by
+      have decoded := total g i (look (block ⟨g, i⟩))
+      rw [failed] at decoded
+      exact Bool.false_ne_true decoded)
+  rwa [zero_add] at bound
 
 end Key20
 

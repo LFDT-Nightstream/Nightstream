@@ -17,6 +17,10 @@ trust item 7). The results of Akita that hold for each schedule are in `Claims.A
   coordinate. The verifier is the Lean verifier of the opening. It is not the verifier of the pinned Akita code (`SECURITY_MODEL.md`, trust item 7).
 - Scope: no claim of this file is for `crates/ns-compress/artifacts/key30.aks`, the file of the
   key of `2^19` blocks: the claims for that file are in `Claims.AkitaKey30`.
+- Bounds: Nightstream results, not Akita Theorem 10.46. One query of the model returns all the
+  slots of a key, and the paper counts a query for each indexed coordinate stream (Akita Section
+  10.3). The file has no `(λ_FS, Q_max)`. A solution of Module-SIS is an output of the extractor,
+  so a bound with no term `breakChance` is not the knowledge error of the paper.
 - Assumptions: `[MSIS]` and `[KECCAK]`. Each bound has the term `breakChance`, or it bounds only
   the event that the extractor returns no output. Lean gives no bound on the probability that an
   output is a solution of Module-SIS. `key20_instances` and `key20_instance_list` give the
@@ -108,10 +112,10 @@ theorem key20_opening_sound
     drawn slots prover budget table tape out result
 
 /-- Akita Theorem 10.17 in the form (161) for the opening of
-`crates/ns-compress/artifacts/key20.aks` (Akita Theorem 10.46 for this schedule). It does not
-cover `key30.aks`. The model is one uniform table of the oracle on keys with independent slots, and
-the verifier is the Lean verifier `Key20.Tower.accepts`, which differs from the verifier of the
-pinned Akita code. For each prover with at most `Q` queries, the probability that the verifier
+`crates/ns-compress/artifacts/key20.aks`: a Nightstream bound in the role of Akita Theorem 10.46,
+not that theorem (Bounds, in the file header). It does not cover `key30.aks`. The model is one
+uniform table of the oracle on keys with independent slots, and the verifier is the Lean verifier
+`Key20.Tower.accepts`, which differs from the verifier of the pinned Akita code. For each prover with at most `Q` queries, the probability that the verifier
 accepts and the extractor returns no output is at most
 `(Q + 1)·(317479/(1024·q²) + 135/q²) + (Q + 1)·142/budget`: `317479/(1024·q²)` for the
 draws of the checks, `135/q²` for the 135 fold coordinates, and 142 retry loops. The draw of
@@ -583,7 +587,8 @@ the opening). It does not cover `key30.aks`. The model is one uniform table of t
 with independent slots, and the verifier is the Lean verifier `FinalKey20.finalAccepts` with the
 Lean decoders `draw`, which differs from the pinned Akita code. For each prover with at most `Q`
 queries, the probability that the verifier accepts and no proof with witnesses satisfies
-`Verifies` for the statement is at most `FinalKey20.shapesBound` at the slot probability `1/q²`:
+`Verifies` for the statement is at most the Nightstream bound `FinalKey20.shapesBound` (Bounds, in
+the file header) at the slot probability `1/q²`:
 for each claim shape, `(Q + 1)·(runCost + 317479/(1024·q²) + 135/q²) + (Q + 1)·144/budget + breakChance`.
 Lean gives no bound on `breakChance`, the probability of a solution of Module-SIS (`[MSIS]`).
 `drawn`: the conditions `FinalKey20.Opening.Drawn` of each opening. -/
@@ -1234,19 +1239,23 @@ theorem key20_instances_shared
     weight₁ weight₂ N S keys out solved
 
 /-- The response search of the root fold of `crates/ns-compress/artifacts/key20.aks` (Akita
-Lemma 10.7 with Definition 10.5, Lemma K.3 and (313); `FOLD_RESPONSE_ATTEMPTS = 2^12` of the
-pinned Akita code). The table of the oracle on keys is uniform, and `input n` is the key with the
-nonce `n` after one transcript prefix. For source blocks with digits of the base `2^10`, no
-nonce below `2^12` gives responses of the groups of the key polynomial, `W` and `V` that satisfy
-`Enc` with probability at most `(2^−12)^4096`. The bound of one nonce is the Hoeffding bound of
-Akita (303) for each group and the union bound over the groups. `fresh`: the keys of the nonces
-are different. `apart`: the fold coordinates have different slots. `fair`: the sign flips
-of a fold challenge act on the slots of each decoder (`Spec.Compression.Akita.SignFair`), which
-`Spec.Compression.Akita.signFair_signed` gives for one decoder. No Lean result gives it for the
-decoders `draw` of the soundness claims. `energy`: `‖c‖_2²` is at most 31 and 71, the values of
-the families `(31, 0)` and `(31, 10)` (`Spec.Compression.Akita.normSq_of_mem`). `digits`:
-`‖s_i‖_∞ ≤ 512`. The claim is for one prefix. It is not a bound for a complete proof: the Lean
-model has no nonce for the proof of work. -/
+Lemma 10.7 with (157), Definition 10.5, Lemma K.3 and (313); `FOLD_RESPONSE_ATTEMPTS = 2^12` of
+the pinned Akita code). The table of the oracle on keys is uniform, and `input n` is the key with
+the nonce `n` after one transcript prefix. A nonce fails when a fold challenge of a group does not
+decode, or the response of the key polynomial, of `W` or of `V` does not satisfy `Enc`. The
+verifier needs each decode (`Spec.Compression.Akita.Extract.DecodesAt`), so a decoder that gives
+no challenge makes each nonce fail. For source blocks with digits of the base `2^10`, each nonce
+below `2^12` fails with probability at most `(ε + 2^−12)^4096`. `2^−12` is the Hoeffding bound of
+Akita (303) for each group and the union bound over the groups. `sampler`: a fold challenge of
+one answer does not decode with probability at most `ε`, the sampler term of Akita (157).
+`fresh`: the keys of the nonces are different. `apart`: the fold coordinates have different
+slots. `fair`: the sign flips of a fold challenge act on the slots of each decoder
+(`Spec.Compression.Akita.SignFair`), which `Spec.Compression.Akita.signFair_signed` gives for one
+decoder. No Lean result gives it for the decoders `draw` of the soundness claims. `energy`:
+`‖c‖_2²` is at most 31 and 71, the values of the families `(31, 0)` and `(31, 10)`
+(`Spec.Compression.Akita.normSq_of_mem`). `digits`: `‖s_i‖_∞ ≤ 512`. The claim is for one prefix.
+It is not a bound for a complete proof: the event has no work bits of `FoldChallengeWork`, and
+the Lean model has no nonce for the proof of work. -/
 theorem key20_root_search
     {Slot Coord Point : Type}
     [fintypeSlot : Fintype Slot]
@@ -1265,23 +1274,66 @@ theorem key20_root_search
     (energy : ∀ g i slot c, decode g i slot = some c → Akita.normSq c ≤ ![31, 71, 71] g)
     (source : (g : Fin 3) → Fin (Akita.Key20.root.shape g).blocks →
       (Akita.Key20.root.shape g).Source)
-    (digits : ∀ g i col, Akita.normInf (source g i col) ≤ 512) :
-    RandomOracle.mass {table : Point → Option Coord → Slot | ∀ n, ∃ g,
-      ¬ Akita.Encodable (Akita.Key20.root.fold g).responseBase
-        (Akita.Key20.root.fold g).responseDigits
-        (Akita.response (Akita.Key20.root.opening g)
-          (fun i => (decode g i (Akita.Extract.view (table (input n)) (block ⟨g, i⟩))).getD 0)
-          (source g))} ≤
-      (1 / 2 ^ 12) ^ Akita.Extract.responseTries :=
+    (digits : ∀ g i col, Akita.normInf (source g i col) ≤ 512)
+    {ε : ℝ}
+    (sampler : RandomOracle.mass {look : Coord → Slot |
+      ∃ g i, decode g i (look (block ⟨g, i⟩)) = none} ≤ ε) :
+    RandomOracle.mass {table : Point → Option Coord → Slot | ∀ n,
+      (∃ g i, decode g i (Akita.Extract.view (table (input n)) (block ⟨g, i⟩)) = none) ∨
+        ∃ g, ¬ Akita.Encodable (Akita.Key20.root.fold g).responseBase
+          (Akita.Key20.root.fold g).responseDigits
+          (Akita.response (Akita.Key20.root.opening g)
+            (fun i => (decode g i (Akita.Extract.view (table (input n)) (block ⟨g, i⟩))).getD 0)
+            (source g))} ≤
+      (ε + 1 / 2 ^ 12) ^ Akita.Extract.responseTries :=
   @NightstreamFPrime.Spec.Compression.Akita.Key20.root_search Slot Coord fintypeSlot nonemptySlot
     fintypeCoord decidableEqCoord Point fintypePoint decidableEqPoint input fresh block apart
-    decode fair energy source digits
+    decode fair energy source digits ε sampler
+
+/-- `key20_root_search` for decoders that decode each slot (`total`). The sampler term is 0, and
+each nonce below `2^12` fails with probability at most `(2^−12)^4096`. The decoders
+`Spec.Compression.Akita.Key20.rootDecode` of the soundness claims decode each slot
+(`Spec.Compression.Akita.Key20.rootDecode_isSome`: the root has no filter), and no Lean result
+gives `fair` for them. The decoder of `Spec.Compression.Akita.signFair_signed` has `total` and
+`fair`. -/
+theorem key20_root_search_total
+    {Slot Coord Point : Type}
+    [fintypeSlot : Fintype Slot]
+    [nonemptySlot : Nonempty Slot]
+    [fintypeCoord : Fintype Coord]
+    [decidableEqCoord : DecidableEq Coord]
+    [fintypePoint : Fintype Point]
+    [decidableEqPoint : DecidableEq Point]
+    (input : Fin Akita.Extract.responseTries → Point)
+    (fresh : Function.Injective input)
+    (block : Akita.Key20.root.Block → Coord)
+    (apart : Function.Injective block)
+    (decode : (g : Fin 3) → Fin (Akita.Key20.root.shape g).blocks → Slot →
+      Option (Akita.Rq (Akita.Key20.root.carrierDegree g)))
+    (total : ∀ g i slot, (decode g i slot).isSome)
+    (fair : ∀ g i, Akita.SignFair (decode g i))
+    (energy : ∀ g i slot c, decode g i slot = some c → Akita.normSq c ≤ ![31, 71, 71] g)
+    (source : (g : Fin 3) → Fin (Akita.Key20.root.shape g).blocks →
+      (Akita.Key20.root.shape g).Source)
+    (digits : ∀ g i col, Akita.normInf (source g i col) ≤ 512) :
+    RandomOracle.mass {table : Point → Option Coord → Slot | ∀ n,
+      (∃ g i, decode g i (Akita.Extract.view (table (input n)) (block ⟨g, i⟩)) = none) ∨
+        ∃ g, ¬ Akita.Encodable (Akita.Key20.root.fold g).responseBase
+          (Akita.Key20.root.fold g).responseDigits
+          (Akita.response (Akita.Key20.root.opening g)
+            (fun i => (decode g i (Akita.Extract.view (table (input n)) (block ⟨g, i⟩))).getD 0)
+            (source g))} ≤
+      (1 / 2 ^ 12) ^ Akita.Extract.responseTries :=
+  @NightstreamFPrime.Spec.Compression.Akita.Key20.root_search_total Slot Coord fintypeSlot nonemptySlot
+    fintypeCoord decidableEqCoord Point fintypePoint decidableEqPoint input fresh block apart
+    decode total fair energy source digits
 
 /-- The response search of level 1 of `crates/ns-compress/artifacts/key20.aks` (Akita Lemma 10.7
-with Definition 10.5, Lemma K.3 and (313)). For 28 source blocks with digits of the base 8 and
-fold challenges with `‖c‖_2² ≤ 71`, no nonce below `2^12` gives a response that satisfies `Enc`
-with probability at most `(2^−49)^4096`. The hypotheses are those of `key20_root_search`, with
-`‖s_i‖_∞ ≤ 4` in `digits`. -/
+with (157), Definition 10.5, Lemma K.3 and (313)). A nonce fails when a fold challenge does not
+decode or the response does not satisfy `Enc`. For 28 source blocks with digits of the base 8 and
+fold challenges with `‖c‖_2² ≤ 71`, each nonce below `2^12` fails with probability at most
+`(ε + 2^−49)^4096`. The hypotheses are those of `key20_root_search`, with `‖s_i‖_∞ ≤ 4` in
+`digits`. -/
 theorem key20_level1_search
     {Slot Coord Point : Type}
     [fintypeSlot : Fintype Slot]
@@ -1299,17 +1351,56 @@ theorem key20_level1_search
     (fair : ∀ i, Akita.SignFair (decode i))
     (energy : ∀ i slot c, decode i slot = some c → Akita.normSq c ≤ 71)
     (source : Fin Akita.Key20.level₁.shape.blocks → Akita.Key20.level₁.shape.Source)
+    (digits : ∀ i col, Akita.normInf (source i col) ≤ 4)
+    {ε : ℝ}
+    (sampler : RandomOracle.mass {look : Coord → Slot | ∃ i, decode i (look (block i)) = none} ≤
+      ε) :
+    RandomOracle.mass {table : Point → Option Coord → Slot | ∀ n,
+      (∃ i, decode i (Akita.Extract.view (table (input n)) (block i)) = none) ∨
+        ¬ Akita.Encodable Akita.Key20.level₁.fold.responseBase
+          Akita.Key20.level₁.fold.responseDigits
+          (Akita.response Akita.Key20.level₁.opening
+            (fun i => (decode i (Akita.Extract.view (table (input n)) (block i))).getD 0)
+            source)} ≤
+      (ε + 1 / 2 ^ 49) ^ Akita.Extract.responseTries :=
+  @NightstreamFPrime.Spec.Compression.Akita.Key20.level₁_search Slot Coord fintypeSlot nonemptySlot
+    fintypeCoord decidableEqCoord Point fintypePoint decidableEqPoint input fresh block apart
+    decode fair energy source digits ε sampler
+
+/-- `key20_level1_search` for decoders that decode each slot (`total`). The sampler term is 0, and
+each nonce below `2^12` fails with probability at most `(2^−49)^4096`. Level 1 has no filter, so
+the decoder `draw` of the family `(31, 10)` decodes each slot
+(`Spec.Compression.Akita.Key20.draw_all`). -/
+theorem key20_level1_search_total
+    {Slot Coord Point : Type}
+    [fintypeSlot : Fintype Slot]
+    [nonemptySlot : Nonempty Slot]
+    [fintypeCoord : Fintype Coord]
+    [decidableEqCoord : DecidableEq Coord]
+    [fintypePoint : Fintype Point]
+    [decidableEqPoint : DecidableEq Point]
+    (input : Fin Akita.Extract.responseTries → Point)
+    (fresh : Function.Injective input)
+    (block : Fin Akita.Key20.level₁.shape.blocks → Coord)
+    (apart : Function.Injective block)
+    (decode : Fin Akita.Key20.level₁.shape.blocks → Slot →
+      Option (Akita.Rq Akita.Key20.level₁.opening.carrierDegree))
+    (total : ∀ i slot, (decode i slot).isSome)
+    (fair : ∀ i, Akita.SignFair (decode i))
+    (energy : ∀ i slot c, decode i slot = some c → Akita.normSq c ≤ 71)
+    (source : Fin Akita.Key20.level₁.shape.blocks → Akita.Key20.level₁.shape.Source)
     (digits : ∀ i col, Akita.normInf (source i col) ≤ 4) :
     RandomOracle.mass {table : Point → Option Coord → Slot | ∀ n,
-      ¬ Akita.Encodable Akita.Key20.level₁.fold.responseBase
-        Akita.Key20.level₁.fold.responseDigits
-        (Akita.response Akita.Key20.level₁.opening
-          (fun i => (decode i (Akita.Extract.view (table (input n)) (block i))).getD 0)
-          source)} ≤
+      (∃ i, decode i (Akita.Extract.view (table (input n)) (block i)) = none) ∨
+        ¬ Akita.Encodable Akita.Key20.level₁.fold.responseBase
+          Akita.Key20.level₁.fold.responseDigits
+          (Akita.response Akita.Key20.level₁.opening
+            (fun i => (decode i (Akita.Extract.view (table (input n)) (block i))).getD 0)
+            source)} ≤
       (1 / 2 ^ 49) ^ Akita.Extract.responseTries :=
-  @NightstreamFPrime.Spec.Compression.Akita.Key20.level₁_search Slot Coord fintypeSlot
-    nonemptySlot fintypeCoord decidableEqCoord Point fintypePoint decidableEqPoint input fresh
-    block apart decode fair energy source digits
+  @NightstreamFPrime.Spec.Compression.Akita.Key20.level₁_search_total Slot Coord fintypeSlot nonemptySlot
+    fintypeCoord decidableEqCoord Point fintypePoint decidableEqPoint input fresh block apart
+    decode total fair energy source digits
 
 /-- The count `Spec.Compression.Akita.Key20.Kept` from the count
 `Spec.Compression.Akita.Key20.Tail` at one frequency: the union bound over the `d/2` frequencies

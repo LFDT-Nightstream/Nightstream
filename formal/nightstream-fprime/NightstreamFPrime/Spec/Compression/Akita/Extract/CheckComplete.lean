@@ -8,7 +8,8 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceNorm
 
 - `Sends` states which messages of the checks satisfy the condition `sendable` of `WinsAt`: an
   element of `E`, a pair, a vector of at most `width` elements, and a natural number up to `cap`.
-- `sumcheck_winsAt` is `Game.sumcheck_winsTo` for `WinsAt`.
+- `sumcheck_winsAt` is `Game.sumcheck_winsTo` for `WinsAt`, and `eqSumcheck_winsAt` is
+  `eqSumcheck_winsTo` for `WinsAt`.
 - `foldCheckSq_winsAt` is the completeness of the checks of one fold with the direct norm check
   (`rangeTree_winsAt`, `normLeafStage_winsAt`): for integer coordinates with
   `Σ_u (z^Z_u)² = E_resp ≤ S_max`, the prover sends `E_resp`, the true round polynomials,
@@ -84,7 +85,7 @@ structure Sends (sendable : (M : Type) → M → Prop) (E : Type) (width cap : �
 def foldDrawsSq (μ b : ℕ) (bin : Bool) : ℕ :=
   0 + μ + 1 + binDraws bin + 1 + treeDraws μ (μ + 1) (rangeArities b) + 1 + 1 + 1
 
-/-- The largest number of field elements in one message of `foldCheckSq` before its fused
+/-- A bound on the number of field elements in one message of `foldCheckSq` before its fused
 sum-check. -/
 def rangeWidthSq (b : ℕ) : ℕ :=
   max (max (rangeLeaf b + 1) 2 + 1) (treeWidth (rangeArities b) 1)
@@ -166,6 +167,39 @@ theorem sumcheckWith_winsAt {d bound : ℕ} {truth : List E → E} {round : List
       exact step (point ++ [challenge]) _ 0 (by simp; omega) rfl (by omega) fun final length
         place early => ended final (by simp at length; omega) place (by omega)
 
+omit [Algebra Zq E] in
+/-- `sumcheck_winsAt` for the equality-factored sum-check: the prover sends the messages
+`(q_1, …, q_D)` of the true normalized round polynomials. -/
+theorem eqSumcheck_winsAt {D bound : ℕ} {τ : List E} {truth : List E → E}
+    {normal : List E → E[X]} (true_rounds : EqRoundTruth D bound τ truth normal)
+    (message : ∀ coefficients : Fin D → E, sendable (Fin D → E) coefficients)
+    (round : List E → E[X]) (extra : List E → Finset E) (rest : ℕ)
+    (tail : List E × E → ℕ → ℕ → Prop) :
+    ∀ (rounds : ℕ) (point : List E) (claim : E) (index : ℕ), point.length + rounds ≤ bound →
+      claim = truth point → index < slots →
+      (∀ final : List E, final.length = point.length + rounds → ∀ place ≤ index,
+        tail (final, truth final) rest place) →
+      WinsAt sendable slots (eqSumcheck D round extra τ rounds point claim) (rest + rounds) index
+        tail := by
+  intro rounds
+  induction rounds with
+  | zero =>
+      intro point claim index _ true_claim _ ended
+      rw [true_claim]
+      exact ended point rfl index le_rfl
+  | succ rounds step =>
+      intro point claim index inside true_claim room ended
+      have within : point.length < bound := by omega
+      refine ⟨room, fun i => (normal point).coeff (i + 1), message _, ?_⟩
+      intro challenge
+      show WinsAt sendable slots (eqSumcheck D round extra τ rounds (point ++ [challenge])
+        ((innerPoly claim (τ.getD point.length 0) fun i => (normal point).coeff (i + 1)).eval
+          challenge)) (rest + rounds) 0 tail
+      rw [innerPoly_tail (normal point) (true_rounds.degree point within) claim _
+        (true_claim ▸ true_rounds.halves point within), true_rounds.binds point challenge within]
+      exact step (point ++ [challenge]) _ 0 (by simp; omega) rfl (by omega) fun final length
+        place early => ended final (by simp at length; omega) place (by omega)
+
 /-- `rangeTree_winsTo` for `WinsAt`: the completeness of the range tree for a last stage with
 `WinsAt` after a draw. -/
 theorem rangeTree_winsAt {β : Type} {width cap : ℕ} (sends : Sends sendable E width cap)
@@ -193,12 +227,12 @@ theorem rangeTree_winsAt {β : Type} {width cap : ℕ} (sends : Sends sendable E
       have widths : a + 1 + 1 ≤ width ∧ nodes * a ≤ width ∧
           treeWidth others (nodes * a) ≤ width := by
         simpa [treeWidth] using wide
-      rw [List.prod_cons, mul_assoc, ← stageTruth_nil] at true_claim
+      rw [List.prod_cons, mul_assoc, ← stage_eqTruth_nil] at true_claim
       rw [treeDraws, ← Nat.add_assoc, ← Nat.add_assoc]
-      refine (winsAt_bind sendable slots _ _ _ _ _).mpr (sumcheck_winsAt
-        (stage_roundTruth a (others.prod * leaf) nodes point.length weights point w)
-        (fun coefficients => sends.vector _ coefficients widths.1) _ _ point.length [] claim 0
-        (by simp) true_claim room fun final length place early => ?_)
+      refine (winsAt_bind sendable slots _ _ _ _ _).mpr (eqSumcheck_winsAt
+        (stage_eqRoundTruth a (others.prod * leaf) nodes weights point w)
+        (fun coefficients => sends.vector _ coefficients (by omega)) _ _ _ _ point.length []
+        claim 0 (by simp) true_claim room fun final length place early => ?_)
       simp only [List.length_nil, zero_add] at length
       obtain rfl : place = 0 := by omega
       refine ⟨room, fun i => mle final (nodeTable E (others.prod * leaf) i w),
@@ -207,13 +241,13 @@ theorem rangeTree_winsAt {β : Type} {width cap : ℕ} (sends : Sends sendable E
           m * a + t < nodes * a :=
         Nat.lt_of_lt_of_le (Nat.add_lt_add_left (Finset.mem_range.mp place) _)
           (by rw [← Nat.succ_mul]; exact Nat.mul_le_mul_right a (Finset.mem_range.mp node))
-      have final_claim := stageTruth_final a (others.prod * leaf) nodes weights point final w
-      rw [length] at final_claim
+      have final_claim := stage_eqTruth_final a (others.prod * leaf) nodes weights point final w
+        length
       dsimp only
-      rw [ite_eq_left (final_claim.trans (congrArg _ (Finset.sum_congr rfl fun m node =>
+      rw [ite_eq_left (final_claim.trans (Finset.sum_congr rfl fun m node =>
         congrArg _ (Finset.prod_congr rfl fun t place =>
           (entry_of (fun i => mle final (nodeTable E (others.prod * leaf) i w))
-            (inside m t node place)).symm))))]
+            (inside m t node place)).symm)))]
       intro γ
       refine step (nodes * a) (fun m => γ ^ m) final _ length widths.2.2 ?_
       rw [rowPoly_eval]

@@ -5,9 +5,10 @@ import NightstreamFPrime.Spec.Compression.Game.Complete
 of 2026-11-23, Theorem 10.9: "All honest algebraic checks are exact identities", with
 Theorem 3.3 for the sum-checks and Theorem 7.4, item 1, for the ring reduction).
 
-- `sumcheckWith_winsTo` is `Game.sumcheck_winsTo` for `sumcheckWith`.
+- `eqSumcheck_winsTo` is `Game.sumcheck_winsTo` for the equality-factored sum-check: the
+  prover sends the true normalized round polynomials without their constant coefficients.
 - `treeDraws`, `rangeDraws` and `foldDraws` count the draws, and `treeWidth` and `rangeWidth` are
-  the largest numbers of field elements in one message. `rangeTree_winsTo`, `leafStage_winsTo`
+  bounds on the number of field elements in one message. `rangeTree_winsTo`, `leafStage_winsTo`
   and `rangeCheck_winsTo` are the completeness of the range tree of Akita Section 6.1.
 - `foldCheck_winsTo` states that for a witness with the relation, the digit range statement and
   the binary statement, the prover has a message for each draw sequence, and `foldCheck` ends in
@@ -26,15 +27,18 @@ local instance : Fact (Nat.Prime fieldModulus) := ⟨FieldPrime.fieldModulus_nat
 variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] (fits : Type → Prop)
 
 omit [Algebra Zq E] in
-/-- `Game.sumcheck_winsTo` for the sum-check with a second bad set in each round. -/
-theorem sumcheckWith_winsTo {d bound : ℕ} {truth : List E → E} {round : List E → E[X]}
-    (true_rounds : RoundTruth d bound truth round) (message : fits (Fin (d + 1) → E))
-    (extra : List E → Finset E) (rest : ℕ) (tail : Option (List E × E) → ℕ → Bool → Prop) :
+/-- `Game.sumcheck_winsTo` for the equality-factored sum-check: for a true normalized claim, the
+messages `(q_1, …, q_D)` of the true normalized round polynomials give the true normalized
+claims, and the final claim is the true value. -/
+theorem eqSumcheck_winsTo {D bound : ℕ} {τ : List E} {truth : List E → E}
+    {normal : List E → E[X]} (true_rounds : EqRoundTruth D bound τ truth normal)
+    (message : fits (Fin D → E)) (round : List E → E[X]) (extra : List E → Finset E) (rest : ℕ)
+    (tail : List E × E → ℕ → Bool → Prop) :
     ∀ (rounds : ℕ) (point : List E) (claim : E), point.length + rounds ≤ bound →
       claim = truth point →
       (∀ final : List E, final.length = point.length + rounds →
-        tail (some (final, truth final)) rest true) →
-      WinsTo fits (sumcheckWith d round extra rounds point claim) (rest + rounds) true tail := by
+        tail (final, truth final) rest true) →
+      WinsTo fits (eqSumcheck D round extra τ rounds point claim) (rest + rounds) true tail := by
   intro rounds
   induction rounds with
   | zero =>
@@ -44,14 +48,13 @@ theorem sumcheckWith_winsTo {d bound : ℕ} {truth : List E → E} {round : List
   | succ rounds step =>
       intro point claim inside true_claim ended
       have within : point.length < bound := by omega
-      refine ⟨rfl, message, fun index => (round point).coeff index, ?_⟩
-      dsimp only
-      rw [coeffPoly_coeff (round point) (true_rounds.degree point within),
-        ite_eq_left (true_claim ▸ true_rounds.halves point within)]
+      refine ⟨rfl, message, fun i => (normal point).coeff (i + 1), ?_⟩
       intro challenge
-      show WinsTo fits (sumcheckWith d round extra rounds (point ++ [challenge])
-        ((round point).eval challenge)) (rest + rounds) true tail
-      rw [true_rounds.binds point challenge within]
+      show WinsTo fits (eqSumcheck D round extra τ rounds (point ++ [challenge])
+        ((innerPoly claim (τ.getD point.length 0) fun i => (normal point).coeff (i + 1)).eval
+          challenge)) (rest + rounds) true tail
+      rw [innerPoly_tail (normal point) (true_rounds.degree point within) claim _
+        (true_claim ▸ true_rounds.halves point within), true_rounds.binds point challenge within]
       exact step (point ++ [challenge]) _ (by simp; omega) rfl fun final length =>
         ended final (by simp at length; omega)
 
@@ -81,8 +84,9 @@ def treeDraws (μ last : ℕ) : List ℕ → ℕ
   | [] => last
   | _ :: rest => treeDraws μ last rest + 1 + μ
 
-/-- The largest number of field elements in one message of the range tree before its last stage:
-the coefficients of a round polynomial or the claims of the children of one level. -/
+/-- A bound on the number of field elements in one message of the range tree before its last
+stage: `a + 2` for the `a` coefficients of a round message of a product level of degree `a`, and
+the claims of the children of one level. -/
 def treeWidth : List ℕ → ℕ → ℕ
   | [], _ => 0
   | a :: rest, nodes => max (a + 1 + 1) (max (nodes * a) (treeWidth rest (nodes * a)))
@@ -90,7 +94,8 @@ def treeWidth : List ℕ → ℕ → ℕ
 /-- The number of the draws of `rangeCheck`. -/
 def rangeDraws (μ b : ℕ) : ℕ := treeDraws μ μ (rangeArities b)
 
-/-- The largest number of field elements in one message of `rangeCheck`. -/
+/-- A bound on the number of field elements in one message of `rangeCheck`: `rangeLeaf b + 2` for
+the round messages of the last stage, and `treeWidth`. -/
 def rangeWidth (b : ℕ) : ℕ := max (rangeLeaf b + 1 + 1) (treeWidth (rangeArities b) 1)
 
 /-- The number of the draws of `foldCheck`: `α`, `τ_0`, `τ_1`, the draws of the range tree,
@@ -136,12 +141,12 @@ theorem rangeTree_winsTo {β : Type} (leaf μ : ℕ) (w : Table)
   | cons a others step =>
       intro nodes weights point claim long vector true_claim
       subst long
-      rw [List.prod_cons, mul_assoc, ← stageTruth_nil] at true_claim
+      rw [List.prod_cons, mul_assoc, ← stage_eqTruth_nil] at true_claim
       rw [treeDraws, ← Nat.add_assoc, ← Nat.add_assoc]
-      refine (winsTo_bind fits _ _ _ _ _).mpr (sumcheck_winsTo fits
-        (stage_roundTruth a (others.prod * leaf) nodes point.length weights point w)
-        (vector _ (le_max_left _ _)) _ _ point.length [] claim (by simp) true_claim
-        fun final length => ?_)
+      refine (winsTo_bind fits _ _ _ _ _).mpr (eqSumcheck_winsTo fits
+        (stage_eqRoundTruth a (others.prod * leaf) nodes weights point w)
+        (vector _ ((show a ≤ a + 1 + 1 by omega).trans (le_max_left _ _))) _ _ _ _ point.length []
+        claim (by simp) true_claim fun final length => ?_)
       simp only [List.length_nil, zero_add] at length
       refine ⟨rfl, vector _ ((le_max_left _ _).trans (le_max_right _ _)),
         fun i => mle final (nodeTable E (others.prod * leaf) i w), ?_⟩
@@ -149,13 +154,12 @@ theorem rangeTree_winsTo {β : Type} (leaf μ : ℕ) (w : Table)
           m * a + t < nodes * a :=
         Nat.lt_of_lt_of_le (Nat.add_lt_add_left (Finset.mem_range.mp place) _)
           (by rw [← Nat.succ_mul]; exact Nat.mul_le_mul_right a (Finset.mem_range.mp node))
-      have last := stageTruth_final a (others.prod * leaf) nodes weights point final w
-      rw [length] at last
+      have last := stage_eqTruth_final a (others.prod * leaf) nodes weights point final w length
       dsimp only
-      rw [ite_eq_left (last.trans (congrArg _ (Finset.sum_congr rfl fun m node => congrArg _
+      rw [ite_eq_left (last.trans (Finset.sum_congr rfl fun m node => congrArg _
         (Finset.prod_congr rfl fun t place =>
           (entry_of (fun i => mle final (nodeTable E (others.prod * leaf) i w))
-            (inside m t node place)).symm))))]
+            (inside m t node place)).symm)))]
       intro γ
       refine step (nodes * a) (fun m => γ ^ m) final _ length
         (fun n small => vector n ((small.trans (le_max_right _ _)).trans (le_max_right _ _))) ?_
@@ -167,7 +171,7 @@ theorem rangeTree_winsTo {β : Type} (leaf μ : ℕ) (w : Table)
 /-- The completeness of the last stage of the range tree on the coefficient route: for a true
 claim, the prover sends the true round polynomials and the value `s̃(r_virt)`. -/
 theorem leafStage_winsTo (scalar : fits E) (leaf μ : ℕ)
-    (round : fits (Fin (leaf + 1 + 1) → E)) (support : ℕ → Prop) [DecidablePred support]
+    (round : fits (Fin leaf → E)) (support : ℕ → Prop) [DecidablePred support]
     (w : Table) (rest : ℕ) (tail : Option (List E × E) → ℕ → Bool → Prop)
     (ended : ∀ r : List E, r.length = μ → tail (some (r, mle r (derived E w))) rest false)
     (nodes : ℕ) (weights : ℕ → E) (point : List E) (claim : E) (long : point.length = μ)
@@ -175,16 +179,14 @@ theorem leafStage_winsTo (scalar : fits E) (leaf μ : ℕ)
       weights m * mle point (nodeTable E leaf m w)) :
     WinsTo fits (leafStage leaf μ support w nodes weights point claim) (rest + μ) true tail := by
   subst long
-  rw [← leafTruth_nil] at true_claim
-  refine (winsTo_bind fits _ _ _ _ _).mpr (sumcheckWith_winsTo fits
-    (leaf_roundTruth leaf nodes point.length weights point w) round _ rest _ point.length []
-    claim (by simp) true_claim fun final length => ?_)
+  rw [← leaf_eqTruth_nil] at true_claim
+  refine (winsTo_bind fits _ _ _ _ _).mpr (eqSumcheck_winsTo fits
+    (leaf_eqRoundTruth leaf nodes weights point w) round _ _ rest _ point.length [] claim
+    (by simp) true_claim fun final length => ?_)
   simp only [List.length_nil, zero_add] at length
-  have last := leafTruth_final leaf nodes weights point final w
-  rw [length] at last
   refine ⟨rfl, scalar, mle final (derived E w), ?_⟩
   dsimp only
-  rw [ite_eq_left last]
+  rw [ite_eq_left (leaf_eqTruth_final leaf nodes weights point final w length)]
   exact ended final length
 
 /-- The completeness of `rangeCheck`: for a witness with the digit range statement, the prover
@@ -197,7 +199,8 @@ theorem rangeCheck_winsTo (scalar : fits E) (b μ : ℕ)
     WinsTo fits (rangeCheck b μ support w τ0) (rest + rangeDraws μ b) true tail := by
   refine rangeTree_winsTo fits (rangeLeaf b) μ w _ μ rest tail
     (fun nodes weights point claim => leafStage_winsTo fits scalar (rangeLeaf b) μ
-      (vector _ (le_max_left _ _)) support w rest tail ended nodes weights point claim)
+      (vector _ ((show rangeLeaf b ≤ rangeLeaf b + 1 + 1 by omega).trans (le_max_left _ _)))
+      support w rest tail ended nodes weights point claim)
     (rangeArities b) 1 (fun _ => 1) τ0 0 long
     (fun n small => vector n (small.trans (le_max_right _ _))) ?_
   rw [root_sum b w τ0]

@@ -16,7 +16,9 @@ adversary 6 and trust item 7). The claims for the schedule file
 
 - Model: the answers of the stages are one uniform table on the keys of the stage inputs (their
   messages) with independent slots, and an answer of one stage has one slot for each fold
-  coordinate.
+  coordinate. One query returns all the slots of a key. The paper counts a query for each
+  indexed coordinate stream (Akita Section 10.3), and no Lean result relates the two counts, so
+  the bounds of the claims are Nightstream results and not the bounds of the paper.
 - Assumptions: none. When an extractor of a claim can return a solution of Module-SIS, the claim
   gives no bound on the probability of that output. -/
 
@@ -28,11 +30,12 @@ attribute [local instance low] Classical.propDecidable
 attribute [local instance] NightstreamFPrime.Export.BoundedDepth.FinalKey20.instAlgebraZqK
 
 
-/-- Akita Theorem 10.17 in the form (161), for a fixed environment. The model is one uniform table
-of answers on keys with independent slots, and a limit `budget` on the attempts of each retry loop
-of the extractor. For each prover with at most `Q` queries to the table and each structure with
-the conditions of Akita Definition 10.16 (`lawful`), the probability that the verifier accepts
-and the extractor returns no output is at most `(Q + 1)·ε_ck + (Q + 1)·L/budget`. `ε_ck` is the
+/-- Akita Theorem 10.17 in the form (161), for a fixed environment, as a Nightstream result in the
+query count of the model. The model is one uniform table of answers on keys with independent
+slots, and a limit `budget` on the attempts of each retry loop of the extractor. For each prover
+with at most `Q` queries to the table and each structure with the conditions of Akita Definition
+10.16 (`lawful`), the probability that the verifier accepts and the extractor returns no output
+is at most `(Q + 1)·ε_ck + (Q + 1)·L/budget`. `ε_ck` is the
 sum of the stage errors and `L` is the number of retry loops. The term `(Q + 1)·L/budget` is not
 in the paper, whose extractor has an expected run time. Akita Definition 10.16 has
 `e_r = Σ_u 1/|S_{r,u}|` at an indexed stage, and Akita Remark 10.18 gives the work credit

@@ -70,6 +70,7 @@ parts of the verifier game (`BackComplete`) and the two checkpoints of the argum
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.foldCostsSq_length
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.sumcheck_winsAt
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.sumcheckWith_winsAt
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.eqSumcheck_winsAt
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.rangeTree_winsAt
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.normLeafStage_winsAt
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.foldCheckSq_winsAt
@@ -354,3 +355,7 @@ parts of the verifier game (`BackComplete`) and the two checkpoints of the argum
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.level₁_search
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.root_unfit
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.root_search
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.root_search_total
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.level₁_search_total
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.mass_or_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.mass_empty_le

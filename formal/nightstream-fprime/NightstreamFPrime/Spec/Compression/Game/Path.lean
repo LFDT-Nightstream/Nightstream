@@ -1,0 +1,58 @@
+import NightstreamFPrime.Spec.Compression.Game.Game
+
+/-! One run of a game (`docs/akita-work/match-design.md` section 5.1, `Game.runs`): the game ends
+in a result when each draw takes the next challenge of a path and each receipt takes the next
+message. `Runs` is a function of the path (`runs_unique`). -/
+
+namespace NightstreamFPrime.Spec.Compression
+
+namespace Game
+
+/-- One step of a path: the challenge of a draw or the message of a receipt, with its type. -/
+inductive Move : Type 1
+  | draw {C : Type} (challenge : C)
+  | recv {M : Type} (message : M)
+
+variable {α : Type}
+
+/-- The game ends in `result` when each draw takes the next challenge of `path`, each receipt
+takes the next message, and no step of `path` is left at the end. -/
+def Runs : Game α → List Move → α → Prop
+  | pure a, [], result => a = result
+  | draw C _ next, Move.draw (C := C') c :: path, result =>
+      ∃ same : C' = C, Runs (next (cast same c)) path result
+  | recv M next, Move.recv (M := M') m :: path, result =>
+      ∃ same : M' = M, Runs (next (cast same m)) path result
+  | _, _, _ => False
+
+theorem runs_unique {g : Game α} {path : List Move} {a b : α} (first : g.Runs path a)
+    (second : g.Runs path b) : a = b := by
+  induction g generalizing path with
+  | pure x =>
+      cases path with
+      | nil => exact first.symm.trans second
+      | cons m path => cases m <;> exact first.elim
+  | draw C bad next step =>
+      cases path with
+      | nil => exact first.elim
+      | cons m path =>
+          cases m with
+          | draw c =>
+              obtain ⟨same, first⟩ := first
+              obtain ⟨_, second⟩ := second
+              exact step _ first second
+          | recv m => exact first.elim
+  | recv M next step =>
+      cases path with
+      | nil => exact first.elim
+      | cons m path =>
+          cases m with
+          | draw c => exact first.elim
+          | recv m =>
+              obtain ⟨same, first⟩ := first
+              obtain ⟨_, second⟩ := second
+              exact step _ first second
+
+end Game
+
+end NightstreamFPrime.Spec.Compression

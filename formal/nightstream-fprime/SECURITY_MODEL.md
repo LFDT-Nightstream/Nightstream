@@ -109,8 +109,8 @@ scope note.
   are a direct ℓ∞ estimate. The estimator of the Akita authors gives 154.23 bits for the main key in that model, and no Sage
   run gives that number again. On 2026-11-20 the owner selected the method of
   the main-key record for each instance: the Sage `lattice-estimator` at `norm = 2` and the length
-  `bound · √(m·d)` (the script `scripts/estimate_nebula_sis.sage`), which gives the recorded 127.20
-  bits of the main key again. **The owner's target is 128 bits against a classical attacker (2026-11-22), and by this method two outer
+  `bound · √(m·d)`. By this method, `sage -python scripts/estimate_akita_sis.sage` gives the recorded 127.20 bits of
+  the main key again, and each Akita number below (`scripts/akita_sis_estimates.csv`, trust item 7). **The owner's target is 128 bits against a classical attacker (2026-11-22), and by this method two outer
   matrices of the shipped schedule files are below it.** In the ADPS16 classical model the main key has 140.16 bits.
   Each matrix below 128 bits is a matrix `B` of rank 1 over the ring of degree 128: level 2 of `key20.aks` (width 1092,
   bound 31) at 122.06 bits, and level 2 of `key30.aks` (width 4224, bound 15) at 123.81 bits, with 124.39 bits for the
@@ -124,9 +124,11 @@ scope note.
   `Claims.AkitaKey20.key20_instances` states that this list is complete for the term `breakChance` below. For the opening of
   `key30.aks`, the instances are the 18 instances of `Claims.AkitaKey30.key30_instance_list`, and
   `Claims.AkitaKey30.key30_instances` states that this list is complete for the term `breakChance` of the claims of that
-  file. Lean does not prove the hardness of an instance. The Akita matrices are views of one setup vector. For a uniform
-  vector, the advantage against the views is the sum of the advantages against a uniform matrix of each instance (Akita
-  Lemma 10.20 (i), `Spec.Compression.Akita.Setup.shared_setup_eq`). The solver of a Lean extraction result runs the
+  file. Lean does not prove the hardness of an instance. The Akita matrices are views of one setup vector. For each algorithm `B` on a
+  uniform vector and uniform data independent of it, the probability that `B` returns a view and a solution for that view is the sum over the views `I`
+  of the success probability, against a uniform matrix of view `I`, of the algorithm `B_I` that Lean derives from `B`
+  (Akita Lemma 10.20 (i), `Spec.Compression.Akita.Setup.shared_setup_eq`, `Spec.Compression.Akita.Setup.embedded`).
+  This gives no number for `breakChance`. The solver of a Lean extraction result runs the
   prover `K̂ + (Q + 1)(K̂ − 1)` times in expectation, for the tree size `K̂` (`Claims.Akita.checkpoint_runs`). In
   `Claims.AkitaKey20.key20_verifier_sound`, the term of this entry is `Export.BoundedDepth.FinalAkita.breakChance`: the
   probability that the extractor returns a solution for the key commitment, for a matrix of the root or of a level, or
@@ -258,7 +260,7 @@ each head.
 | `AkitaKey20/decodes`, `AkitaKey20/decodes₁`, `AkitaKey20/decodes₂`, `AkitaKey20/decodes₃`, `AkitaKey20/decodes₄`, `AkitaKey20/decodes₅`, `AkitaKey20/decodesL`, `AkitaKey30/decodes`, `AkitaKey30/decodes₁`, `AkitaKey30/decodes₂`, `AkitaKey30/decodes₃`, `AkitaKey30/decodes₄`, `AkitaKey30/decodes₅`, `AkitaKey30/decodes₆`, `AkitaKey30/decodesL` | `Eq` | game | adversary 6: `Claims.AkitaKey20.key20_opening_accepts` and `Claims.AkitaKey30.key30_opening_accepts` are for each table on message keys whose slots decode to fold challenges |
 | `AkitaKey20/worked`, `AkitaKey30/worked` | `Membership.mem` | game | adversary 6: `Claims.AkitaKey20.key20_opening_accepts` and `Claims.AkitaKey30.key30_opening_accepts` are for each table on message keys whose work slots have 57 zero work bits (`Spec.Compression.Akita.Extract.workZeros`), in place of the nonce search of the honest prover |
 | `AkitaKey20/live`, `AkitaKey20/lengths`, `AkitaKey20/fit`, `AkitaKey30/live`, `AkitaKey30/lengths`, `AkitaKey30/fit` | `*` | game | adversary 6: `Claims.AkitaKey20.key20_opening_accepts` and `Claims.AkitaKey30.key30_opening_accepts` are for tables of the key polynomial, `W` and `V` with the sizes of the schedule, for points with their counts of coordinates, and for the setup prefix and the tables whose honest responses satisfy the fit conditions of Akita Definition 10.5 for each fold challenge vector that the decoders give (`Spec.Compression.Akita.Key20.Fit`, `Spec.Compression.Akita.Key30.Fit`). `Spec.Compression.Akita.Key20.fit_zero`, `Spec.Compression.Akita.Key30.fit_zero`, `Spec.Compression.Akita.Key20.fit_quiet` and `Spec.Compression.Akita.Key30.fit_quiet` give data that satisfies them. For the challenge families of the schedule and data that is not 0, no Lean result gives `fit` |
-| `AkitaKey20/fresh`, `AkitaKey20/apart`, `AkitaKey20/fair`, `AkitaKey20/energy`, `AkitaKey20/digits` | `*` | game | adversary 6: `Claims.AkitaKey20.key20_root_search` and `Claims.AkitaKey20.key20_level1_search` are for one transcript prefix with different keys of the nonces, different slots of the fold coordinates, decoders on which the sign flips of a challenge act (`Spec.Compression.Akita.SignFair`; `Spec.Compression.Akita.signFair_signed` gives one), challenges with the energy of the families, and source blocks with the digit bound of the level. No Lean result gives `fair` for the decoders `Spec.Compression.Akita.Extract.draw` |
+| `AkitaKey20/fresh`, `AkitaKey20/apart`, `AkitaKey20/fair`, `AkitaKey20/energy`, `AkitaKey20/digits`, `AkitaKey20/sampler`, `AkitaKey20/total` | `*` | game | adversary 6: `Claims.AkitaKey20.key20_root_search` and `Claims.AkitaKey20.key20_level1_search` bound the event that each nonce fails, where a nonce fails when a fold challenge does not decode or the response does not fit. `sampler` is the probability `ε` that a fold challenge of one answer does not decode (the sampler term of Akita (157)), and the bound is `(ε + δ)^4096`. `Claims.AkitaKey20.key20_root_search_total` and `Claims.AkitaKey20.key20_level1_search_total` are the case `ε = 0` of decoders that decode each slot (`total`). The claims are for one transcript prefix with different keys of the nonces, different slots of the fold coordinates, decoders on which the sign flips of a challenge act (`Spec.Compression.Akita.SignFair`; `Spec.Compression.Akita.signFair_signed` gives one), challenges with the energy of the families, and source blocks with the digit bound of the level. No Lean result gives `fair` for the decoders `Spec.Compression.Akita.Extract.draw` |
 | `AkitaKey20/blocks`, `AkitaKey20/use.blocks` | `Eq` | link | `crates/ns-compress/artifacts/key20.aks`, `each_schedule_file_has_its_pinned_digest_and_its_rows`: the file of the key of 512 blocks has its pinned digest, and Rust `SCHEDULES` has the Lean schedules (`schedules_and_variables_are_lean_constants`). The claims are for a verifier that takes this key. The key of the light relation of the reference application has `2^19` blocks (row `Final.light_gate_complete/shipped`), so these claims do not cover it |
 | `AkitaKey20/use.laid`, `AkitaKey30/use.laid` | `Export.BoundedDepth.FinalVerifier.Setup.Laid` | game | `SPEC.md` Algorithm 10: step 5 lays out the claims, and the claim is for claims that pass the layout |
 | `AkitaKey20/use.zeros`, `AkitaKey30/use.zeros` | `Eq` | lean | `Export.BoundedDepth.FinalKey20.laidSetup_use`, for the setup `Export.BoundedDepth.FinalKey20.laidSetup` of the Akita claims of the final verifier, and `Export.BoundedDepth.FinalKey30.Opening.knowledge` for this setup under `key30.aks`. No Lean result compares `Export.BoundedDepth.FinalKey20.laidZeros` with the Rust code (trust item 7) |
@@ -683,7 +685,7 @@ not change terminal source checks.
   (`Export.BoundedDepth.RunCompleteness.Verifies`). The same sum bounds the
   probability that this verifier accepts and no such steps lead from `z0` to
   `zi` (`Claims.Ivc.verifier_sound`). `SPEC.md`
-  section 9 gives the theorem of each verifier entry point.
+  section 9 gives the theorem of each verifier entry point, or the reason that it is open.
 - **Knowledge form:** HyperNova Definition 11 (ii) states knowledge
   soundness: its event is on the witnesses that the extractor returns. The
   same sum bounds the probability of an extraction failure: the terminal
@@ -925,7 +927,10 @@ not change terminal source checks.
      norm. There is no allowance for more targets, because the main key is one SHAKE128 matrix and so it has one target.
      The owner approved this method (`decisions/field-2p64-59-ring-x64.md`). The sister project ProtogaLattice computed
      these values with lattice-estimator commit `3e48ef4` and Sage 10.9. A Nightstream run of 2026-11-20 with the same
-     commit gives the three numbers again (`scripts/estimate_nebula_sis.sage`). The owner selected `κ = 18` on
+     commit gives the three numbers again: the row `main key` of `scripts/akita_sis_estimates.csv`, which
+     `scripts/estimate_akita_sis.sage` writes (trust item 7). `scripts/estimate_nebula_sis.sage` has the calls of the
+     method for the prior profile, another modulus and the ring degree 54, so it does not give these numbers. The
+     owner selected `κ = 18` on
      2026-11-13. The models are heuristic generic lattice attacks. They are not a proof for structured Module-SIS or
      for the fixed public seed. The method is that of the SuperNeo parameter estimate: the Euclidean route, `norm = 2` at
      the length `β · √(m·d)`. The direct ℓ∞ model of the Akita table gives 154.23 bits (block size 582) for this
@@ -1159,7 +1164,12 @@ not change terminal source checks.
      no query budget, no bound on the size of the extraction tree and no reduction loss. The paper has a complete
      formula, that of Theorem 10.46, and no evaluated end-to-end number for a schedule. Akita has no audit and no
      analysis in the quantum random-oracle model.
-   - *What Lean proves of Akita.* The results are the claims of `Claims.Akita` and `Claims.AkitaKey20`. The main claim is
+   - *What Lean proves of Akita.* The results are the claims of `Claims.Akita` and `Claims.AkitaKey20`. They and the
+     claims of `Claims.AkitaKey30` are Nightstream bounds, not the bound of Akita Theorem 10.46. One query of the model
+     returns all the slots of a key, and the paper counts a query for each indexed coordinate stream (Akita Section
+     10.3). No Lean result relates the two counts, and the shipped files have no `(λ_FS, Q_max)`. A bound with no term
+     `breakChance` is for acceptance with no output of the extractor, and a solution of Module-SIS is an output, so
+     it is not the knowledge error of the paper. The main claim is
      `Claims.AkitaKey20.key20_verifier_sound`, from `Export.BoundedDepth.FinalKey20.sound`. It is for the schedule of
      `key20.aks`: a root of three groups, level 1 with coefficient packing, levels 2 to 5 with evaluation trace and the
      terminal, with the quotient-lift check at the root and at level 1, and with the squared-norm route at levels 3 to 5
@@ -1225,7 +1235,7 @@ not change terminal source checks.
      (`Spec.Compression.Verifier.Rejects`) with a probability of at most `tableError + omegaError`
      (`Spec.Compression.Verifier.rejects_mass_le`). This acceptance has two hypotheses that no Lean result gives:
      `leads`, the honest run of Π_CCS on the fresh instance, and `fit`, the fit of the honest responses. The
-     completeness of Akita Theorem 10.9 is not perfect: a response does not fit with a probability. The verifier has the nonce of the response search with its limit `2^12` (`Spec.Compression.Akita.Extract.Tier.Decodes`). For the root and level 1 of `key20.aks` and decoders with `Spec.Compression.Akita.SignFair`, no nonce fits after one prefix with probability at most `(2^−12)^4096` and `(2^−49)^4096` (`Claims.AkitaKey20.key20_root_search`, `Claims.AkitaKey20.key20_level1_search`). No Lean result joins these bounds to `fit`.
+     completeness of Akita Theorem 10.9 is not perfect: a response does not fit with a probability. The verifier has the nonce of the response search with its limit `2^12` (`Spec.Compression.Akita.Extract.Tier.Decodes`). For the root and level 1 of `key20.aks` and decoders with `Spec.Compression.Akita.SignFair`, each nonce fails after one prefix (a fold challenge does not decode, or the response does not fit) with probability at most `(ε + 2^−12)^4096` and `(ε + 2^−49)^4096`, where `ε` is the sampler term of Akita (157) (`Claims.AkitaKey20.key20_root_search`, `Claims.AkitaKey20.key20_level1_search`), and `ε = 0` for decoders that decode each slot (`Claims.AkitaKey20.key20_root_search_total`, `Claims.AkitaKey20.key20_level1_search_total`). No Lean result joins these bounds to `fit`.
      At the other levels the bound is the response-model premise of Akita (152) and (340), which the paper calls heuristic: its text "motivates this premise but does not prove it" (Akita Appendix K). `key20.aks` is the
      file of the test key of `2^9` blocks, and the claims of this item do not cover `key30.aks` (item below). The Lean
      verifier differs from the pinned code (`decisions/akita-compression.md`). The
@@ -1255,8 +1265,8 @@ not change terminal source checks.
    - *Differences between the paper, the code and the Lean model.* `decisions/akita-compression.md`, section
      "Differences between the paper, the code and the Lean model", has them: (a) to (j) for each schedule, and (k) to
      (o) for the opening with an offloaded root. In short: the model is one uniform table on message keys with
-     independent slots, which is the slot reading of `[KECCAK]`; the Lean verifier is not the verifier of the pinned
-     code; the bound `N_setup · q / 2^w` of `Δ_setup` bounds nothing at the draw width of the code; the code
+     independent slots, which is the slot reading of `[KECCAK]`, and one query returns all the slots of a key; the
+     Lean verifier is not the verifier of the pinned code; the bound `N_setup · q / 2^w` of `Δ_setup` bounds nothing at the draw width of the code; the code
      declares no `(λ_FS, Q_max)`; and the Lean extractor has the limit `budget` on the attempts of each retry loop.
    - *The Keccak family `[KECCAK]`.* Akita makes its challenges with a Keccak-f duplex sponge, its digests with
      SHA3-256, its session identifier with SHAKE128 and its setup with SHAKE256. No step circuit computes these
@@ -1290,10 +1300,12 @@ not change terminal source checks.
      model is a direct ℓ∞ attack, or the Euclidean attack for a bound on ℓ2, on the scalar instance `(n·d, m·d)`. The
      estimator is the estimator of the Akita authors. A run of it in a copy of the pinned code reproduces the two cells
      of Table 10 of the paper, 147.34 and 153.17 bits. It gives 171.99 bits or more for each of the 46 ℓ∞ instances of
-     the two files (the exhaustive search for 27 of them, an uncertified search for a local minimum for the others) and
-     173.57 bits or more for each of the 3 instances in ℓ2. The lowest of `key20.aks` are `A` of level 2, `(128, 4, 512,
-     ∞, 126852)`, at 171.99 bits and `B` of level 2, `(128, 1, 1092, ∞, 31)`, at 172.51 bits. No estimate is independent
-     of the Akita authors: no `lattice-estimator` run exists for an Akita instance. (ii) The degrees. Table 10 of the
+     the two files and 173.57 bits or more for each of the 3 instances in ℓ2. For 27 of the 46 the search was
+     exhaustive. For the other 19 it was a search for a local minimum that the estimator does not certify, so these 19
+     numbers are estimates and not floors: Akita Appendix G accepts a floor only from a certified search. The files of
+     this run are not in the repository. The lowest of `key20.aks` are `A` of level 2, `(128, 4, 512, ∞, 126852)`, at
+     171.99 bits and `B` of level 2, `(128, 1, 1092, ∞, 31)`, at 172.51 bits. The Sage `lattice-estimator` runs of (v)
+     are in another model. (ii) The degrees. Table 10 of the
      paper (Akita Appendix G) has the degrees 32 and 16 for the compression maps at `q = 2^64 − 59`, with a floor of 128
      bits for each instance and more than 125 bits for the family. The pinned code has 64 and 32 since the Akita commit
      `dfdbd767` of 2026-10-20, which raised the floor to 169 bits. So Nightstream runs larger degrees than the table of
@@ -1307,7 +1319,11 @@ not change terminal source checks.
      a larger degree. The first-stage cell of Table 10, `(32, 1, 2048, ∞, 1)` at 147.34 bits, covers `F_1` and `H_1` by
      width and descent, and `F_2` and `H_2` by width. The reductions carry the 169 bits to no other instance. (v) The
      target. The owner's target is 128 bits against a classical attacker (2026-11-22), by the method of the main-key
-     record in the ADPS16 classical model (the `MSIS` entry of the section Assumptions). The main key has 140.16 bits.
+     record in the ADPS16 classical model (the `MSIS` entry of the section Assumptions). The command
+     `python3 scripts/akita_sis_instances.py` lists the matrix views of the two files: 43 and 108 views, 49 distinct
+     and 24 maximal. With a checkout of `lattice-estimator` at commit `3e48ef4` on `PYTHONPATH`, the command
+     `sage -python scripts/estimate_akita_sis.sage` writes the numbers of the main key and of each distinct view to
+     `scripts/akita_sis_estimates.csv`. The main key has 140.16 bits.
      Two matrices `B` of rank 1 are below the target: level 2 of `key20.aks` at 122.06 bits, and level 2 of `key30.aks`
      at 123.81 bits and 124.39 bits for its two rows. Each other instance has 134.90 bits or more. The 169 bits of (i)
      are a number of the direct ℓ∞ model and not of this method. The schedule files are not changed, so the change of

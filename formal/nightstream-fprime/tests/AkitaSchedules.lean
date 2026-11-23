@@ -1,5 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.Key20Instances
 import NightstreamFPrime.Spec.Compression.Akita.Key30Instances
+import NightstreamFPrime.Spec.Compression.Akita.Key20Opening
+import NightstreamFPrime.Spec.Compression.Akita.Key30Opening
 import NightstreamFPrime.Spec.Compression.Akita.Rows
 import NightstreamFPrime.Spec.Compression.Akita.Shapes
 
@@ -19,7 +21,9 @@ matrix `A`, `B` and `D` of `key20.aks` and `A` of its terminal is below an insta
 after the two compression maps has the degree, the rank, the width, the norm and the priced bound
 of a matrix of the file. The two rows of `key30.aks` have the same comparison with the list
 `Key30.instances` (`Spec/Compression/Akita/Key30Instances.lean`). A file does not hold the
-compression maps. Lake does not track the files, so
+compression maps. The counts `count_pm1` and `count_pm2` of each group of each level and of the
+terminal are the pair of `Key20.families` and `Key30.families`, the families of the decoders of
+the Lean verifier (`Key20.families_drawn`, `Key30.families_drawn`, `Tower.Drawn.family`). Lake does not track the files, so
 `scripts/validate.sh` runs this file again. -/
 
 namespace AkitaSchedules
@@ -141,12 +145,13 @@ def holds (path : System.FilePath) (expected : List Row) (shape : Shape)
 def squared (norm : Key20.Squared) : List ℕ :=
   [norm.limit, 2 ^ norm.vars, 2 ^ Nat.clog 2 (64 * norm.operator ^ 2 * norm.limit)]
 
-/-- The numbers of a group of a level: `numbers`, the ring degree of its fold challenges, the
-degree, the rank and the certified base of `D`, the compression of the payloads of `B` and `D`,
-the count of variables of a table with its cells, and the numbers of its norm route. -/
-def entry (S : Shape) (O : OpeningShape S) (fold : Descriptor) (norm : Option Key20.Squared) :
-    List ℕ :=
-  numbers S fold ++ [O.carrierDegree, O.openDegree, O.openRank, S.certifiedBase,
+/-- The numbers of a group of a level: the pair `(n₁, n₂)` of its challenge family, `numbers`,
+the ring degree of its fold challenges, the degree, the rank and the certified base of `D`, the
+compression of the payloads of `B` and `D`, the count of variables of a table with its cells, and
+the numbers of its norm route. -/
+def entry (family : ℕ × ℕ) (S : Shape) (O : OpeningShape S) (fold : Descriptor)
+    (norm : Option Key20.Squared) : List ℕ :=
+  family.1 :: family.2 :: numbers S fold ++ [O.carrierDegree, O.openDegree, O.openRank, S.certifiedBase,
     S.chain.isSome.toNat, O.chain.isSome.toNat,
     Nat.clog 2 (S.blocks * S.blockLength * S.innerDegree)] ++
     (norm.map squared).getD [fold.innerBound S]
@@ -207,54 +212,60 @@ rows over `E` before the scalar row and its count `s_rel`. -/
 def tower : List (List (List ℕ) × List ℕ) :=
   open Key20 in
   let groups := List.finRange 3
-  let trace (L : Key20.Level) (norm : Option Squared) :=
-    ([entry L.shape L.opening L.fold norm],
+  let trace (level : ℕ) (L : Key20.Level) (norm : Option Squared) :=
+    ([entry (family level 0) L.shape L.opening L.fold norm],
       [columns L.shape L.opening, L.opening.cells L.fold, L.vars, L.opening.traceRowCount,
         L.batch])
-  [(groups.map fun g => entry (root.shape g) (root.opening g) (root.fold g) none,
+  [(groups.map fun g => entry (family 0 g.val) (root.shape g) (root.opening g) (root.fold g) none,
       [(groups.map fun g => columns (root.shape g) (root.opening g)).sum,
         aligned (root.quotientRoom quotientDigits) (groupsAlign root), rootVars, root.rowCount,
         rootBatch]),
-    ([entry level₁.shape level₁.opening level₁.fold none],
+    ([entry (family 1 0) level₁.shape level₁.opening level₁.fold none],
       [columns level₁.shape level₁.opening,
         aligned (level₁.opening.quotientRoom level₁.fold quotientDigits) (block level₁.opening),
         level₁.vars, level₁.opening.rowCount, level₁.batch]),
-    trace level₂ none, trace level₃ norm₃, trace level₄ norm₄, trace level₅ norm₅]
+    trace 2 level₂ none, trace 3 level₃ norm₃, trace 4 level₄ norm₄, trace 5 level₅ norm₅]
 
 /-- The numbers of the levels of a row of `Key30.lean`, in the form of `tower`. -/
 def tower30 (r : Key30.Row) : List (List (List ℕ) × List ℕ) :=
   open Key30 in
-  let groups {n : ℕ} (B : Batch (Fin n)) (digits vars batch : ℕ) :=
-    ((List.finRange n).map fun g => entry (B.shape g) (B.opening g) (B.fold g) none,
+  let groups {n : ℕ} (level : ℕ) (B : Batch (Fin n)) (digits vars batch : ℕ) :=
+    ((List.finRange n).map fun g =>
+        entry (family level g.val) (B.shape g) (B.opening g) (B.fold g) none,
       [((List.finRange n).map fun g => columns (B.shape g) (B.opening g)).sum,
         aligned (B.quotientRoom digits) (groupsAlign B), vars, B.rowCount, batch])
-  let packing (L : Key20.Level) :=
-    ([entry L.shape L.opening L.fold none],
+  let packing (level : ℕ) (L : Key20.Level) :=
+    ([entry (family level 0) L.shape L.opening L.fold none],
       [columns L.shape L.opening,
         aligned (L.opening.quotientRoom L.fold quotientDigits) (block L.opening), L.vars,
         L.opening.rowCount, L.batch])
-  let trace (L : Key20.Level) (norm : Option Key20.Squared) :=
-    ([entry L.shape L.opening L.fold norm],
+  let trace (level : ℕ) (L : Key20.Level) (norm : Option Key20.Squared) :=
+    ([entry (family level 0) L.shape L.opening L.fold norm],
       [columns L.shape L.opening, L.opening.cells L.fold, L.vars, L.opening.traceRowCount,
         L.batch])
-  [groups (root r) quotientDigits₀ rootVars rootBatch,
-    groups (level₁ r) quotientDigits vars₁ batch₁,
-    packing (level₂ r), packing level₃, trace level₄ none, trace level₅ norm₅,
-    trace level₆ norm₆]
+  [groups 0 (root r) quotientDigits₀ rootVars rootBatch,
+    groups 1 (level₁ r) quotientDigits vars₁ batch₁,
+    packing 2 (level₂ r), packing 3 level₃, trace 4 level₄ none, trace 5 level₅ norm₅,
+    trace 6 level₆ norm₆]
 
 /-- The numbers of a terminal in the fields of `fileTerminal`. -/
-def terminalNumbers (S : Shape) (norm : Key20.Squared) : List ℕ :=
-  [S.blocks, S.blockLength, S.sourceBase, S.sourceDigits, S.innerRank, S.innerDegree,
-    S.blockLength * S.sourceDigits] ++ squared norm
+def terminalNumbers (family : ℕ × ℕ) (S : Shape) (norm : Key20.Squared) : List ℕ :=
+  [family.1, family.2, S.blocks, S.blockLength, S.sourceBase, S.sourceDigits, S.innerRank,
+    S.innerDegree, S.blockLength * S.sourceDigits] ++ squared norm
+
+/-- The counts `count_pm1` and `count_pm2` of a challenge family of the file. -/
+def fileFamily (config : Json) : Except String (List ℕ) := do
+  return [← nat config ["count_pm1"], ← nat config ["count_pm2"]]
 
 /-- The fields of a group of a level for `entry`. The fold challenges of a level with evaluation
 trace are in the ring of `A`. -/
 def fileEntry (params group : Json) : Except String (List ℕ) := do
   let (shape, vars, norm) ← groupNumbers group
+  let family ← fileFamily (← field group ["opening", "fold_challenge_config"])
   let method ← field group ["opening", "opening_method"]
   let matrix := ["open_matrix", "sis_table_key"]
   let payload := (← compressed params).toNat
-  return shape ++ [
+  return family ++ shape ++ [
     ← nat method ["SubringCoefficientPacking", "challenge_subring_dimension"] <|>
       pure (shape.headD 0),
     ← nat params (matrix ++ ["ring_dimension"]),
@@ -297,7 +308,8 @@ def fileTower (schedule : Json) : Except String (List (List (List ℕ) × List �
 def fileTerminal (value : Json) : Except String (List ℕ) := do
   let inner ← value.getObjVal? "inner"
   let (degree, norm) ← route inner
-  return [← nat value ["blocks", "live_blocks"], ← nat value ["blocks", "positions_per_block"],
+  return (← fileFamily (← value.getObjVal? "fold_challenge_config")) ++
+    [← nat value ["blocks", "live_blocks"], ← nat value ["blocks", "positions_per_block"],
     2 ^ (← nat inner ["digits", "log_basis"]), ← nat inner ["digits", "num_digits"],
     ← nat inner ["matrix", "output_rank"], degree, ← nat inner ["matrix", "input_width"]] ++ norm
 
@@ -382,9 +394,9 @@ def instancesHold (path : System.FilePath) (listed : List (ℕ × ℕ × ℕ × 
 #eval holds "../../crates/ns-compress/artifacts/key30.aks" [key30W27, key30W26] Shape.key30
   Descriptor.key30
 #eval towerHolds "../../crates/ns-compress/artifacts/key20.aks"
-  [(tower, terminalNumbers Key20.terminal Key20.normTerminal)]
+  [(tower, terminalNumbers (Key20.family 6 0) Key20.terminal Key20.normTerminal)]
 #eval towerHolds "../../crates/ns-compress/artifacts/key30.aks" <| Key30.rows.map fun r =>
-  (tower30 r, terminalNumbers Key30.terminal Key30.normTerminal)
+  (tower30 r, terminalNumbers (Key30.family 7 0) Key30.terminal Key30.normTerminal)
 #eval setupHolds "../../crates/ns-compress/artifacts/key30.aks"
 #eval (do unless segmentsAligned do throw <| IO.userError "an alignment of the code is not empty"
   : IO Unit)

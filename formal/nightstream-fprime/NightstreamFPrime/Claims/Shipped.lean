@@ -83,7 +83,9 @@ blocks): `Claims.AkitaKey30.key30_history_sound` at this configuration. For each
 most `queries` queries to the oracle whose accepted statements have at most `depth` steps, the
 probability of a false history is at most `FinalKey30.shapesBound` plus `IvcSecurity.walkBound`.
 The hypotheses on the Akita openings (`shared`, `drawn`, `coords`) are those of
-`Claims.AkitaKey30.key30_history_sound`. -/
+`Claims.AkitaKey30.key30_history_sound`. The bound is a Nightstream bound (`Claims.AkitaKey30`,
+Bounds) for the Lean verifier of the Akita opening, not for the pinned Akita verifier that Rust
+calls, so the entry point is open in `SPEC.md` section 9. -/
 theorem verify_final_sound
     {ajtai : Shipped.Ajtai}
     {mode : FinalVerifier.Mode}

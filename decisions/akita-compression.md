@@ -329,7 +329,17 @@ lists the points that need a decision.
   input is `Protocol.rebuild` of the key and the table, and a checkpoint retry
   replaces each entry of the message subtree (`Protocol.regrow`). It follows
   the sponge of the code, which does not absorb a challenge that it squeezes
-  (`spongefish` `duplex_sponge.rs`, `squeeze`). What stays open: the code
+  (`spongefish` `duplex_sponge.rs`, `squeeze`). The count of queries is not
+  that of the paper. One query of the model returns all the slots of a key,
+  and the paper counts a query for each indexed coordinate stream toward one
+  budget (Akita Section 10.3). No Lean result relates the two counts, so the
+  `Q` of a Lean bound is not the `Q` of Akita Theorem 10.46, and the Lean
+  bounds are Nightstream results. A Lean bound with no term `breakChance` is
+  for acceptance with no output of the extractor, and a solution of
+  Module-SIS is an output. So that bound is not the knowledge error (210) of
+  Theorem 10.46, which adds the Module-SIS advantage of each instance, and no
+  Lean result has the query ceiling `Q_max` of the paper (difference (d)).
+  What stays open: the code
   absorbs public values that it computes from earlier challenges, for example
   the input claim of a sum-check (`akita-sumcheck/src/proof_stream.rs`), and
   the Lean model has no encoding of the messages of the code, so no Lean
@@ -480,11 +490,33 @@ lists the points that need a decision.
   product degrees `(2)`, `(4)` and `(2, 4)` for the bases 16, 32 and 64, leaf
   polynomials of 4 factors, and the powers of one challenge for the claims of
   the children of a level. Its bad sets have the bound of Akita (187)
-  (`Spec.Compression.Akita.rangeCheck_costLe`). One point stays: a round
-  message of the Lean sum-check has each coefficient of the round polynomial,
-  and the code sends the round polynomial without its equality factor and
-  without its constant term. A transcript of the code gives a transcript of
-  the Lean verifier, and Lean has no statement of this map.
+  (`Spec.Compression.Akita.rangeCheck_costLe`). Each stage of the tree is the
+  equality-factored sum-check of the code (Akita Section 3.5;
+  `Spec.Compression.Akita.eqSumcheck`, from
+  `verify_eq_factored_sumcheck_rounds` of
+  `crates/akita-sumcheck/src/proof_stream.rs` of the Akita code): a round
+  message is the inner polynomial without its constant term, the verifier
+  keeps the normalized claim, and the end check has no equality factor. So
+  Lean and the code check the same equations on each input of a stage
+  (`Spec.Compression.Akita.Replay.sumcheckRun_eqSumcheck`). The bad set of a
+  round is the set of the roots of the full round polynomial `E·eq(τ, X)·q(X)`
+  minus the true one, so the bound (187) does not change. In the plain
+  sum-checks (tensor, norm, fused, Stage 3), the code sends the round
+  polynomial without its linear term, and Lean receives each coefficient. A
+  message of the code gives the one Lean message that passes the round check,
+  and each such Lean message comes from one message of the code
+  (`Spec.Compression.Akita.Replay.plainCode_coefficients`,
+  `Spec.Compression.Akita.Replay.coefficients_plainCode`). So the two
+  verifiers give the same result
+  (`Spec.Compression.Akita.Replay.sumcheckRun_plain`).
+  One point stays: the equality point of the first stage in the code is `τ_0`
+  with its last `ℓ` coordinates first, for `ℓ = log_2` of the least carrier
+  degree of the level (`from_column_then_ring_challenges` of
+  `crates/akita-types/src/proof/stage1.rs` of the Akita code), and Lean uses
+  `τ_0` in the order of its draw. This order is the order of the variables of
+  the witness table, so it is a part of the map from the witness table of the
+  model to the table of the code, with the order of the quotient segment of
+  difference (b).
 - (i) The fold of the paper has a nonce of the response search, with a limit
   that the verifier enforces (Akita Section 5.4 and Figure 4, step 2). The
   pinned code has a response nonce `n` with `n < 2^12` (`FoldResponse`, with
@@ -524,10 +556,19 @@ lists the points that need a decision.
   (`crates/akita-params/src/sis/fold_linf_cap.rs`), gives the probability
   `7/8` or less that one group does not fit
   (`Spec.Compression.Akita.sized_tail`). With the numbers of `key20.aks`, one
-  nonce fails with probability at most `2^−12` at the root (the three groups
-  together) and `2^−49` at level 1, so no nonce below `2^12` fits with
-  probability at most `(2^−12)^4096` and `(2^−49)^4096`
+  response does not fit with probability at most `2^−12` at the root (the
+  three groups together) and `2^−49` at level 1. A nonce fails when a fold
+  challenge does not decode or the response does not fit, as in Akita
+  Lemma 10.7 with (157). With the probability `ε` that a fold challenge of
+  one answer does not decode, each nonce below `2^12` fails with probability
+  at most `(ε + 2^−12)^4096` and `(ε + 2^−49)^4096`
   (`Claims.AkitaKey20.key20_root_search`, `Claims.AkitaKey20.key20_level1_search`).
+  For decoders that decode each slot, `ε = 0`
+  (`Claims.AkitaKey20.key20_root_search_total`,
+  `Claims.AkitaKey20.key20_level1_search_total`). The decoders `draw` of the
+  root and of level 1 decode each slot, because these levels have no filter
+  (`Spec.Compression.Akita.Key20.rootDecode_isSome`,
+  `Spec.Compression.Akita.Key20.draw_all`).
   This proof gives no bound at the other levels. The limit of `Enc` is below
   the limit of Akita (313) at level 2 of `key20.aks` and at the group of the
   setup prefix of level 1 and at levels 2 and 4 of `key30.aks`: the planner
@@ -535,9 +576,20 @@ lists the points that need a decision.
   with the Euclidean route and the terminal have a filter, and their limit
   `S_max` is a Markov bound of `1/40` on a modeled source energy
   (`specs/selective-l2-fold-security-sizing.md` of the Akita code). At these
-  levels the bound of one nonce is the premise of Akita (340): `39/40` for one
-  response by the model of the code, which gives `(39/40)^4096 < 2^−149`.
-  The same computation outside Lean gives bounds below 1 for the three groups
+  levels the bound of one nonce is the premise of Akita (340), which is a
+  joint bound: the response is encodable and passes the norm check, and
+  (157) adds the failure of the sampler. The model of the code gives the
+  probability `39/40` that one response fails the norm check, conditional on
+  its source envelope, so `(39/40)^4096 < 2^−149` bounds only the event that
+  no nonce passes the norm check. A response can pass the norm check and not
+  be encodable. At level 5 of `key30.aks` the largest positive coefficient
+  that `Enc` encodes is 2,015 (two digits of the base 64), and the
+  coefficient 2,016 has the square 4,064,256, which is below the norm limit
+  1,370,973,736 of the level. So the deterministic route of Akita Appendix K,
+  `S_max < (T + 1)²`, does not apply. No Lean result and no computation of
+  this record gives the joint bound of encoding, norm and sampler. The
+  Hoeffding computation of the root and level 1 of `key20.aks`, done outside
+  Lean, gives bounds below 1 for the three groups
   of the root, the witness group of level 1 and level 3 of `key30.aks`, and
   Lean has no statement for that file.
 - (j) `Spec.Checkpoint.Structure.Lawful` has inclusions where Akita Definition
@@ -699,6 +751,30 @@ lists the points that need a decision.
   each table, so the result is not a completeness bound. The wire type of the
   final verifier of `key20.aks` (`Export.BoundedDepth.FinalKey20.Sheet`) keeps
   its points as lists and is not finite.
+- (s) The Lean replay of real proof bytes. Lean has computable functions that
+  read the bytes of an opening proof of the pinned code
+  (`Spec/Compression/Akita/Replay/`), and
+  `formal/nightstream-fprime/tests/AkitaVectors.lean` and
+  `tests/AkitaSumcheckVectors.lean` run them on four accepted proofs and two
+  files of changed proofs (`formal/nightstream-fprime/tests/vectors/akita/`).
+  From the proof bytes and the public inputs only, Lean derives each message,
+  each field challenge, each proof-of-work check, each absorbed value and the
+  claim chain of each sum-check, and each one equals the value of the Rust
+  verifier. The parts that Lean does not replay are the fold challenge
+  sampler (Lean squeezes its bytes and does not decode them), each end check
+  of a stage, the relation weight at the sum-check point, and the terminal
+  checks. So Lean gives no accept result for a proof. For a changed proof Lean
+  gives the result class of the Rust verifier only when the parse, the
+  trailing bytes, a proof of work or the response nonce fails. The functions
+  for Keccak, the duplex sponge, the challenge decoder, the site order and
+  the relation rows have no theorem that relates them to the Lean verifier
+  `towerAccepts`: their evidence is the equality with the Rust values on
+  these proofs. Two differences of the model are found by the replay and stay
+  open. The code puts the rows of the last group of a level first
+  (`build_relation_rhs_layout` of `crates/akita-params` of the Akita code),
+  and the Lean rows (`Spec.Compression.Akita.Batch.flatRows`) have the groups in
+  their order. The
+  equality point of the first range stage has the rotation of difference (h).
 
 ### The results for `key30.aks`
 
@@ -791,17 +867,19 @@ differences (k) to (p) of the section above apply.
 
 The owner decided to remove the claims that end in `_with_akita`
 (2026-11-22), and the removal is done. The four claims of `Claims.Final` that
-end in `_with_akita` and the claim `verify_final_sound` of `Claims.Shipped`
+end in `_with_akita` and the earlier claim `verify_final_sound` of `Claims.Shipped`
 took Akita Theorem 10.46 as a premise, and they are deleted. The premise rows
 `akita.theorem1046`, `akita.admissible`, `akita.admitted`, `akita.budget`,
 `binding`, `accepts` and `composition` and the entry `AKITA` of the list of
 assumptions are deleted with them. The claims of `Claims.AkitaKey20` and
 `Claims.AkitaKey30` have the extraction and the composition with the game as
 theorems under their hypotheses. The entry points `verify_final` of `SPEC.md`
-cite `Claims.AkitaKey30.key30_history_sound` and
-`Claims.AkitaKey30.key30_memory_sound`, whose verifier is the Lean verifier
-that the differences (a) to (p) separate from the pinned code. No claim states
-the final verifier at the shipped packages of the reference application.
+are open. They cite `Claims.AkitaKey30.key30_history_sound` and
+`Claims.AkitaKey30.key30_memory_sound` as the bounds of the modeled verifier,
+whose verifier is the Lean verifier that the differences (a) to (p) separate
+from the pinned code that Rust calls. `Claims.Shipped.verify_final_sound`
+states `Claims.AkitaKey30.key30_history_sound` at the shipped packages of the
+reference application, with the same verifier.
 
 ### Open points
 
@@ -918,7 +996,9 @@ trust item 7, gives the facts).
   the scalar instance `(n·d, m·d)`, with the estimator of the Akita authors. A
   run of this estimator in a copy of the pinned code reproduces the two cells
   of Table 10 of the paper and gives 171.99 bits or more for each ℓ∞ instance
-  of both files. No estimate is independent of the Akita authors. The price
+  of both files. These numbers are estimates: for 19 of the 46 ℓ∞ views the
+  search was for a local minimum that the estimator does not certify, and
+  Akita Appendix G accepts a floor only from a certified search. The price
   does not include attacks on the ring or module structure, the loss of the
   reduction, or the sum over the instances that share one setup stream, which
   is about 170.9 bits for each file in that model. The owner's target is 128
@@ -926,8 +1006,10 @@ trust item 7, gives the facts).
   record of the main key
   ([`field-2p64-59-ring-x64.md`](./field-2p64-59-ring-x64.md), Security
   calculation): the Sage `lattice-estimator` at `norm = 2` and the length
-  `bound · √(m·d)` (`scripts/estimate_nebula_sis.sage`), which the owner
-  selected for each instance on 2026-11-20. In the ADPS16 classical model the
+  `bound · √(m·d)`, which the owner selected for each instance on
+  2026-11-20. `scripts/estimate_akita_sis.sage` gives the numbers of the main
+  key and of each matrix view of the two files by this method
+  (`scripts/akita_sis_estimates.csv`). In the ADPS16 classical model the
   main key has 140.16 bits. Two matrices `B` of rank 1 over the ring of degree
   128 are below the target: level 2 of `key20.aks`, `(128, 1, 1092, ∞, 31)`,
   at 122.06 bits, and level 2 of `key30.aks`, `(128, 1, 4224, ∞, 15)`, at

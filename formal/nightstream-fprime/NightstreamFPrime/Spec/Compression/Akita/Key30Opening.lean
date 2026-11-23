@@ -215,6 +215,36 @@ local notation "draw₆" =>
       (TrigTable.codeAccepts level₆.shape.innerDegree norm₆.operator) :
     E → Option (Rq level₆.shape.innerDegree))
 
+/-- The pair `(n₁, n₂)` of the challenge family of each group of each level of a row of
+`key30.aks`, and then of the terminal: the fields `count_pm1` and `count_pm2` of the file. -/
+def families : List (List (ℕ × ℕ)) :=
+  [[(31, 0), (31, 0), (31, 0)], [(31, 0), (31, 0)], [(31, 10)], [(31, 10)], [(31, 0)],
+    [(31, 11)], [(31, 11)], [(31, 11)]]
+
+/-- The pair of `families` for a group of a level. -/
+def family (level group : ℕ) : ℕ × ℕ := (families.getD level []).getD group (0, 0)
+
+omit [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree2 E] in
+/-- The decoders of `Tower.accepts` are `draw` of the families of `families`. -/
+theorem families_drawn :
+    (∀ g, rootDecode E r g =
+      draw (SparseFamily ((root r).carrierDegree g) (family 0 g).1 (family 0 g).2)
+        fun _ => True) ∧
+    (∀ g, decode₁ E r g =
+      draw (SparseFamily ((level₁ r).carrierDegree g) (family 1 g).1 (family 1 g).2)
+        fun _ => True) ∧
+    draw₂ = draw (SparseFamily (OpeningShape.carrierDegree (Key20.Level.opening (level₂ r)))
+      (family 2 0).1 (family 2 0).2) (fun _ => True) ∧
+    draw₃ = draw (SparseFamily level₃.opening.carrierDegree (family 3 0).1 (family 3 0).2)
+      (fun _ => True) ∧
+    draw₄ = draw (SparseFamily level₄.shape.innerDegree (family 4 0).1 (family 4 0).2)
+      (fun _ => True) ∧
+    draw₅ = draw (SparseFamily level₅.shape.innerDegree (family 5 0).1 (family 5 0).2)
+      (TrigTable.codeAccepts level₅.shape.innerDegree norm₅.operator) ∧
+    draw₆ = draw (SparseFamily level₆.shape.innerDegree (family 6 0).1 (family 6 0).2)
+      (TrigTable.codeAccepts level₆.shape.innerDegree norm₆.operator) :=
+  ⟨fun g => by fin_cases g <;> rfl, fun g => by fin_cases g <;> rfl, rfl, rfl, rfl, rfl, rfl⟩
+
 local notation "zeroth" =>
   offBatch o.β o.key o.openKey o.claim rootVars (And.left (root_sized r member)) 8 quotientDigits₀
     (And.left (And.right (root_sized r member))) rootBatch
@@ -313,6 +343,14 @@ structure Tower.Drawn : Prop where
 
 variable {o shared read start}
   {accept : Prefix Wire (Option Coord → E) total → Prop}
+
+omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] in
+/-- The decoder of the terminal is `draw` of the last family of `families`. -/
+theorem Tower.Drawn.family (drawn : o.Drawn shared read start) :
+    Terminal.decode o.terminal =
+      draw (SparseFamily Key30.terminal.innerDegree (family 7 0).1 (family 7 0).2)
+        (TrigTable.codeAccepts Key30.terminal.innerDegree normTerminal.operator) :=
+  drawn.decodeL
 
 omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] in
 /-- With `Tower.Drawn`, each slot of `E` gives a fold challenge of each group of the root and of

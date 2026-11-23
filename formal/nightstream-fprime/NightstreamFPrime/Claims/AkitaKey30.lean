@@ -9,14 +9,17 @@ The results for the Akita openings of the compressed proof under the schedule fi
 `SECURITY_MODEL.md` adversary 6 and trust item 7). The claims for `key20.aks` and the claims for
 each schedule are in `Claims.Akita`.
 
-- Model: the model of `Claims.Akita`. The answers of the stages are one uniform table on the
-  keys of the stage inputs, with independent slots. The verifier is the Lean verifier of the opening with an offloaded root. It
-  is not the verifier of the pinned Akita code.
-- Assumptions: `[MSIS]` and `[KECCAK]`. Each bound has the term `breakChance`, or it bounds only
-  the event that the extractor returns no output. `key30_instances` and `key30_instance_list`
-  give the instances of Module-SIS that `breakChance` is about, and Lean does not prove their
-  hardness. `key30_instances_shared` gives a solution for the view of one setup vector of an
-  instance of the 54 views of the row, when the matrices are these views.
+- Model: the model of `Claims.Akita`. The answers of the stages are one uniform table on the keys
+  of the stage inputs, with independent slots. The verifier is the Lean verifier of the opening
+  with an offloaded root. It is not the verifier of the pinned Akita code.
+- Bounds: Nightstream results, not Akita Theorem 10.46. One query returns all the slots of a key,
+  and the paper counts a query for each indexed coordinate stream (Akita Section 10.3). The file
+  has no `(λ_FS, Q_max)`. Each bound has the term `breakChance`, or it bounds only the event that
+  the extractor returns no output, and a solution of Module-SIS is an output.
+- Assumptions: `[MSIS]` and `[KECCAK]`. `key30_instances` and `key30_instance_list` give the
+  instances of Module-SIS that `breakChance` is about, and Lean does not prove their hardness.
+  `key30_instances_shared` gives a solution for the view of one setup vector of an instance of
+  the 54 views of the row, when the matrices are these views.
 - Setup: the hypothesis `shared` states that the matrices `A`, `B` and `D` of the root are the
   views of the setup prefix (Akita (35)). From it Lean proves the split of the public weight of
   the root into the setup part (Akita (132)) in the form of the pinned Akita code, with the
@@ -24,14 +27,14 @@ each schedule are in `Claims.Akita`.
 - The filters of the challenge families are the predicate of the pinned Akita code
   (`Spec.Compression.Akita.TrigTable.codeAccepts`), and the operator bound `Γ` is a theorem for
   it (`Spec.Compression.Akita.TrigTable.filtered_code`).
-- Open: the commitment of the setup prefix in the verifier setup is the output of the Lean
-  commitment algorithm by hypothesis (`registered`).
-  `key30_opening_accepts` states that the Lean verifier of the opening accepts a proof, and
-  `key30_opening_played` that this proof is a prover of the game of `key30_opening_bound`, with
-  no hypothesis on the fit for the zero tables and the zero setup prefix only. For another setup
-  prefix and other tables, the fit conditions of the honest prover are hypotheses
-  (`Spec.Compression.Akita.Key30.tower_complete`). No Lean result compares the Lean decoders or
-  the Lean verifier with the code. -/
+- Open: `drawn.kept`, `drawn.registered` (the commitment of the setup prefix in the verifier setup
+  is the output of the Lean commitment algorithm, which the offloaded root adds), and the terminal
+  decoder and the key commitment of `drawn` (`SECURITY_MODEL.md`, Premises). `key30_opening_accepts`
+  states that the Lean verifier of the opening accepts a proof, and `key30_opening_played` that
+  this proof is a prover of the game of `key30_opening_bound`, with no hypothesis on the fit for
+  the zero tables and the zero setup prefix only. For another setup prefix and other tables, the
+  fit conditions of the honest prover are hypotheses (`Spec.Compression.Akita.Key30.tower_complete`).
+  No Lean result compares the Lean decoders or the Lean verifier with the code. -/
 
 namespace NightstreamFPrime.Claims.AkitaKey30
 
@@ -121,22 +124,19 @@ theorem key30_opening_sound
     algebraZqE degree2E Wire Coord fintypeCoord decidableEqCoord nonemptyCoord total r member o shared read
     drawn slots prover budget table tape out result
 
-/-- The extraction bound for the opening of a row of `crates/ns-compress/artifacts/key30.aks`
-(Akita Theorem 10.46 with Lemma 9.1 for this schedule). The model is the model of
-`Claims.Akita.checkpoint_extraction`, and the verifier is the Lean verifier
+/-- The Nightstream extraction bound (Bounds above), not Akita Theorem 10.46, for the opening of
+a row of `crates/ns-compress/artifacts/key30.aks`, with Akita Lemma 9.1 for the offloaded root.
+The model is that of `Claims.Akita.checkpoint_extraction`, and the verifier is the Lean verifier
 `Key30.Tower.accepts`, which differs from the verifier of the pinned Akita code. For each prover
 with at most `Q` queries, the probability that the verifier accepts and the extractor returns no
-output is at most
-`(Q + 1)·(1623435/(4096·q²) + (1458 + B_1 + B_2)/q²) +
+output is at most `(Q + 1)·(1623435/(4096·q²) + (1458 + B_1 + B_2)/q²) +
 (Q + 1)·(1467 + B_1 + B_2)/budget`. `B_1` and `B_2` are the live blocks of the witness group of
 level 1 and of level 2 of the row: 167 and 44 for `W` of 27 variables, and 158 and 43 for `W` of
-26 variables. The draw of each check has the factor `2^{−g}` for the work bits `g` of its site
-in the Akita code (Akita Remark 10.18, `Extract.workBits`), and the fold terms have no work
-credit. The bound has no term for the
-probability that an output is a solution of Module-SIS (`[MSIS]`). The operator bound of the
-filtered families is a theorem for the filter of the code. With `drawn`, each slot gives a fold
-challenge at each level (`Spec.Compression.Akita.Key30.Tower.Drawn.decodes`, from the count
-`drawn.kept` of Akita Table 12). -/
+26 variables. The draw of each check has the factor `2^{−g}` for the work bits `g` of its site in
+the Akita code (Akita Remark 10.18, `Extract.workBits`), and the fold terms have no work credit.
+A solution of Module-SIS (`[MSIS]`) is an output, and the bound has no term for it. With `drawn`,
+each slot gives a fold challenge at each level (`Spec.Compression.Akita.Key30.Tower.Drawn.decodes`,
+from the count `drawn.kept` of Akita Table 12). -/
 theorem key30_opening_bound
     {E : Type}
     [fieldE : Field E]
@@ -827,7 +827,7 @@ Section 9). The claim is for each claim shape of the family and for the proof of
 for the two rows of the file. The verifier is the Lean verifier `FinalKey30.finalAccepts`, not
 the verifier of the pinned Akita code. For each prover with at most `Q` queries to the oracle,
 the probability that the verifier accepts and no proof with witnesses satisfies `Verifies` is at
-most `FinalKey30.shapesBound`: for each shape,
+most the Nightstream bound `FinalKey30.shapesBound` (Bounds above): for each shape,
 `(Q + 1)·(runCost + 1623435/(4096·q²) + (1458 + B_1 + B_2)/q²) +
 (Q + 1)·(1469 + B_1 + B_2)/budget + breakChance`. Lean gives no bound on `breakChance`, the
 probability that the extractor returns a solution of Module-SIS (`[MSIS]`). `drawn`: the

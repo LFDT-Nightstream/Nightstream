@@ -1,6 +1,6 @@
 import NightstreamFPrime.Spec.Compression.Game.SumCheck
 
-/-! The honest prover of a public-coin game (Akita, ePrint 2026/1983, revision of 2026-10-15,
+/-! The honest prover of a public-coin game (Akita, ePrint 2026/1983, revision of 2026-11-23,
 Theorem 10.9: "All honest algebraic checks are exact identities").
 
 - `WinsTo fits game draws fresh tail` states that a prover has a message for each draw sequence

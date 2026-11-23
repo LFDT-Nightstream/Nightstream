@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Key30
 import NightstreamFPrime.Spec.Compression.Akita.Key20Complete
 
 /-! The numbers of the honest prover of the opening of Akita for the schedule file
-`crates/ns-compress/artifacts/key30.aks` (Akita, ePrint 2026/1983, revision of 2026-10-15,
+`crates/ns-compress/artifacts/key30.aks` (Akita, ePrint 2026/1983, revision of 2026-11-23,
 Theorem 10.9 with Lemma 10.7, Section 9 with (136), Figure 4 and Section 8.2). The conditions on
 the numbers that `Key30.lean` does not state, in the form of `Key20Complete.lean` and
 `Key20Root.lean`.

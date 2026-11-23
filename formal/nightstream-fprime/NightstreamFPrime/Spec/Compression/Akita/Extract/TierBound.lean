@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Checkpoint.Runs
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Tier
 
 /-! The stage errors, the retry loops and the tree size of one level of the opening suffix of
-Akita over the later stages (ePrint 2026/1983, revision of 2026-10-15, Proposition 10.44 (iv):
+Akita over the later stages (ePrint 2026/1983, revision of 2026-11-23, Proposition 10.44 (iv):
 the tree size and the sum (206) of the stage errors).
 
 - `Tier.fork_chargeFrom`, `Tier.fork_loopsFrom` and `Tier.fork_treeFrom` are the values of the
@@ -27,7 +27,7 @@ open NightstreamFPrime.Spec.Checkpoint
 
 section Finish
 
-variable {Point Coord Slot Proof : Type} (protocol : Protocol Point (Coord → Slot) Proof)
+variable {Addr Point Coord Slot Proof : Type} (protocol : Protocol Addr Point (Coord → Slot) Proof)
 
 theorem finish_chargeFrom (level : ℕ) : (finish protocol).chargeFrom level = 0 := by
   refine Finset.sum_eq_zero fun later _ => ?_
@@ -53,7 +53,7 @@ section Fork
 
 variable {Inner BreakM CandM KeyM WitM : Type} {accept : Prefix Wire (Option Coord → Slot) total →
   Prop}
-  {mid : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
+  {mid : Structure (Address Wire total) (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
     BreakM CandM
     KeyM WitM}
   {source : Inner → Source}
@@ -134,7 +134,7 @@ end Fork
 
 variable [Fintype Coord] [DecidableEq Coord]
   {Inner BreakT CandT KeyT WitT : Type} {accept : Prefix Wire (Option Coord → Slot) total → Prop}
-  {tail : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
+  {tail : Structure (Address Wire total) (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
     BreakT CandT
     KeyT WitT}
   {source : Inner → Source} {clash : Inner → Inner → BreakT}

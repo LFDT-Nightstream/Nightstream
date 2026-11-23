@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.Extract.FlatSource
 
 /-! The relation of one fold of Akita with the evaluation-trace opening method on the flat
-witness, for one claim in one group (ePrint 2026/1983, revision of 2026-10-15, Section 7.1 with
+witness, for one claim in one group (ePrint 2026/1983, revision of 2026-11-23, Section 7.1 with
 (98), (101) and (103), Section 7.2 with Figure 5, Section 7.3 with (108) to (110), and the
 hypothesis of Corollary 10.32).
 

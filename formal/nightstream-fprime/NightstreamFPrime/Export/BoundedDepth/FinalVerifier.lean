@@ -27,8 +27,7 @@ On each path that avoids the bad sets, `Verifies` accepts an accepted statement 
 from `W` (`Setup.proofOf`, `game_avoids`), and each bad set has density at most
 `1/2^119 + 38/fieldModulus²` (`game_densityLe`). So in the state-restoration experiment with `q` queries, the
 verifier accepts a statement without such a proof with probability at most
-`q · (1/2^119 + 38/fieldModulus²)` (`soundness`). With Akita openings, `real_soundness` adds the
-error of the Akita opening under the premises of `Spec.Compression.Akita.Use.wins_le`. -/
+`q · (1/2^119 + 38/fieldModulus²)` (`soundness`). -/
 
 set_option autoImplicit false
 
@@ -637,20 +636,5 @@ theorem soundness (premises : Premises setup packageWidths)
   restore_sound _ s _ _ ((game_avoids setup step cap control premises).mono fun _ verifies o
       equal => ⟨_, verifies o equal⟩)
     (game_densityLe setup) (by unfold finalError; positivity) q
-
-/-- With Akita openings, the final verifier accepts a statement for which no proof with
-witnesses satisfies `Verifies` with probability at most `q · (1/2^119 + 38/fieldModulus²)` plus
-the error of the Akita opening. `event` is this event for the prover `real` with Akita openings, and
-`composition` relates it to the game prover `s` (`Spec.Compression.Akita.Use.wins_le`). -/
-theorem real_soundness (premises : Premises setup packageWidths) (opening : Compression.Akita.Use)
-    (real : Compression.Akita.Prover opening.scheme opening.claims) (event : real.Tape → Prop)
-    (s : Strategy (Option (Option (Outcome logicalWidth publicFits)))) (q : ℕ)
-    (akita : opening.Knowledge real) (binding : opening.Binding)
-    (accepts : ∀ tape, event tape → opening.Opens real tape)
-    (composition : opening.Composition real event
-      (prob s (restore setup.game q []) (Wins setup packageWidths step cap control))) :
-    (real.tape.toOuterMeasure {tape | event tape}).toReal ≤ q * finalError + opening.error real := by
-  linarith [soundness setup step cap control premises s q,
-    opening.wins_le real event _ akita binding accepts composition]
 
 end NightstreamFPrime.Export.BoundedDepth.FinalVerifier

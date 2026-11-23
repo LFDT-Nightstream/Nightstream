@@ -1,7 +1,7 @@
 import Mathlib.Algebra.Polynomial.Roots
 import NightstreamFPrime.Spec.Compression.Akita.Opening
 
-/-! The checks of the ring relations of Akita (ePrint 2026/1983, revision of 2026-10-15,
+/-! The checks of the ring relations of Akita (ePrint 2026/1983, revision of 2026-11-23,
 Sections 3.6 and 7.3): the quotient-lift form and the quotient-free form.
 
 - `RingRow` is one ring row in the normal form (110): for each occurrence `c` a public multiplier

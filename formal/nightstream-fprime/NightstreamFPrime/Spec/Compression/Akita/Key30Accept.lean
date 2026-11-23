@@ -5,7 +5,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.GroupComplete
 
 /-! The verifier `offLinks` of the opening of Akita for a row of the schedule file
 `crates/ns-compress/artifacts/key30.aks` accepts a proof (Akita, ePrint 2026/1983, revision of
-2026-10-15, Theorem 10.9, Section 9 with (136), Figure 4 and Section 8.2). The theorem
+2026-11-23, Theorem 10.9, Section 9 with (136), Figure 4 and Section 8.2). The theorem
 `Key30.tower_suffix` bounds an event of this verifier, and `Key30.tower_complete` has hypotheses
 on the wire messages, on the setup prefix and on the responses of the honest prover. This file
 has no such hypothesis.
@@ -305,7 +305,7 @@ coordinates. `fit`: the fit conditions `Fit`, which `fit_zero` and `fit_quiet` g
 cases. -/
 theorem accepts {total : ℕ} (inside : Tier.finish sixth < total)
     (accept : Prefix (Wire r E) (Option Coord → E) total → Prop)
-    (table : Prefix (Wire r E) (Option Coord → E) total → Option Coord → E)
+    (table : Address (Wire r E) total → Option Coord → E)
     (decodes : ∀ input b, (decode b.1 (table input (some (block b)))).isSome)
     (decodes₁ : ∀ input b, (decode₁ b.1 (table input (some (block₁ b)))).isSome)
     (decodes₂ : ∀ input i, (decode₂ (table input (some (block₂ i)))).isSome)
@@ -337,6 +337,26 @@ theorem accepts {total : ℕ} (inside : Tier.finish sixth < total)
         (Note.commit₄ ∘ Page.data : Wire r E → _) (Note.commit₅ ∘ Page.data : Wire r E → _)
         (Note.commit₆ ∘ Page.data : Wire r E → _) (Note.state ∘ Page.data : Wire r E → _)
         ((transcript total accept).final (.done proof) table) := by
+  simp only [final_done]
+  set table := fun input : Prefix (Wire r E) (Option Coord → E) total => table input.address
+  replace decodes : ∀ input b, (decode b.1 (table input (some (block b)))).isSome :=
+    fun input => decodes input.address
+  replace decodes₁ : ∀ input b, (decode₁ b.1 (table input (some (block₁ b)))).isSome :=
+    fun input => decodes₁ input.address
+  replace decodes₂ : ∀ input i, (decode₂ (table input (some (block₂ i)))).isSome :=
+    fun input => decodes₂ input.address
+  replace decodes₃ : ∀ input i, (decode₃ (table input (some (block₃ i)))).isSome :=
+    fun input => decodes₃ input.address
+  replace decodes₄ : ∀ input i, (decode₄ (table input (some (block₄ i)))).isSome :=
+    fun input => decodes₄ input.address
+  replace decodes₅ : ∀ input i, (decode₅ (table input (some (block₅ i)))).isSome :=
+    fun input => decodes₅ input.address
+  replace decodes₆ : ∀ input i, (decode₆ (table input (some (block₆ i)))).isSome :=
+    fun input => decodes₆ input.address
+  replace decodesL : ∀ input i, (decodeL (table input (some (blockL i)))).isSome :=
+    fun input => decodesL input.address
+  replace worked : ∀ input, table input none ∈ workZeros E 57 := fun input => worked input.address
+  clear_value table
   obtain ⟨start, started⟩ : ∃ start, start = Tier.finish sixth := ⟨_, rfl⟩
   rw [← started] at inside ⊢
   obtain ⟨base, based⟩ : ∃ base : Note r E, base = {

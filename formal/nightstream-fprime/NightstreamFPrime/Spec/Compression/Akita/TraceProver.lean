@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Terminal
 import NightstreamFPrime.Spec.Compression.Akita.TracePack
 
 /-! The honest prover of one fold of Akita with the evaluation-trace opening method and of the
-terminal, for one claim (ePrint 2026/1983, revision of 2026-10-15, Figure 4, steps 1 and 2,
+terminal, for one claim (ePrint 2026/1983, revision of 2026-11-23, Figure 4, steps 1 and 2,
 Section 8.2, and the deterministic part of Lemma 10.7).
 
 - `Shape.Bounded` has the conditions on a shape for the commitment algorithm with a bounded

@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Setup
 import NightstreamFPrime.Spec.Compression.Akita.Extract.PairComplete
 
 /-! A finite type of wire messages for two packing folds of Akita (ePrint 2026/1983, revision of
-2026-10-15, Figure 4: the messages of the prover), with the condition `Full` of
+2026-11-23, Figure 4: the messages of the prover), with the condition `Full` of
 `packingPair_complete`.
 
 - `Letter` has a claim of each level, a commitment and the digit vectors of the second level,

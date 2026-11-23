@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Key20Instances
 import NightstreamFPrime.Spec.Compression.Akita.Key30Opening
 
 /-! The instances of Module-SIS of the opening of the schedule file
-`crates/ns-compress/artifacts/key30.aks` (Akita, ePrint 2026/1983, revision of 2026-10-15,
+`crates/ns-compress/artifacts/key30.aks` (Akita, ePrint 2026/1983, revision of 2026-11-23,
 Definition 3.2, Table 3, Section 9 with Lemma 9.1, Section 10.3 and Appendix G).
 
 - `views r` has the instance of each matrix of the tower of `Extract/OffTower.lean` for the

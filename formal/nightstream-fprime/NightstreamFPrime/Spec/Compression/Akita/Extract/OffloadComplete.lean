@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.Offload
 import NightstreamFPrime.Spec.Compression.Akita.Extract.CheckComplete
 
 /-! The completeness of the checks of an offloaded fold of Akita (ePrint 2026/1983, revision of
-2026-10-15, Section 9 with (132) to (136), and Theorem 10.9: "All honest algebraic checks are
+2026-11-23, Section 9 with (132) to (136), and Theorem 10.9: "All honest algebraic checks are
 exact identities").
 
 - `offloadDraws` is the number of the draws of `offloadCheck`: the draws of `foldCheck` and the

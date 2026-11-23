@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.FreshGame
 import NightstreamFPrime.Spec.Compression.Akita.Extract.SplitGame
 
 /-! The game of the final verifier in two parts, with the Akita openings as data (SPEC.md,
-Algorithm 10; Akita, ePrint 2026/1983, revision of 2026-10-15, Definition 10.16 (vii)).
+Algorithm 10; Akita, ePrint 2026/1983, revision of 2026-11-23, Definition 10.16 (vii)).
 
 `Setup.game` tests the three openings against the tables that the prover names. Here the game
 after `W` is the stages of two checkpoints, and the test of the openings is outside them.

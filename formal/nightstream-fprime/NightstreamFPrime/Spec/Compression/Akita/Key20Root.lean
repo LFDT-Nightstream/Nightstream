@@ -4,7 +4,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.RootComplete
 /-! The honest prover of the opening of Akita for the schedule file
 `crates/ns-compress/artifacts/key20.aks`: the batching root, the root fold of the key polynomial,
 `W` and `V`, the packing level 1, the trace levels 2 to 5 and the terminal (Akita, ePrint
-2026/1983, revision of 2026-10-15, Theorem 10.9 with Lemma 10.7, Figure 4 and Section 8.2).
+2026/1983, revision of 2026-11-23, Theorem 10.9 with Lemma 10.7, Figure 4 and Section 8.2).
 
 - `root_folds`, `level₁_bounded`, `level₁_fold`, `root_cells`, `root_segments` and `lifts` are
   the conditions of `Extract.tower_complete` on the numbers of the root and of the level 1: the

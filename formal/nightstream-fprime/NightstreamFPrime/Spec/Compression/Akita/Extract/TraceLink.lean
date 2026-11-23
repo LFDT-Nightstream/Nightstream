@@ -5,7 +5,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.TerminalSuffix
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceLevel
 
 /-! The link from a level of the opening suffix of Akita to a receiver with the evaluation-trace
-opening method, for `k = 2` (ePrint 2026/1983, revision of 2026-10-15, Section 5.2 with
+opening method, for `k = 2` (ePrint 2026/1983, revision of 2026-11-23, Section 5.2 with
 Theorem 5.1, Section 5.3 with (65) and (66), Section 7.1 with (95) to (101), Section 8.2 with
 (130), Figure 4, step 0, and Lemma 10.42 (ii)).
 
@@ -291,7 +291,7 @@ variable {key' : Key S'} {openKey' : OpeningKey O'} {weight' : ℕ}
     (Weak O') Wire Coord Slot Result' Source'}
 
 variable {T} {accept : Prefix Wire (Option Coord → Slot) total → Prop}
-  {tail : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
+  {tail : Structure (Address Wire total) (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
     BreakT CandT
     KeyT (Option (Weak O'))}
   {error : ℝ} {loops tree : ℕ}

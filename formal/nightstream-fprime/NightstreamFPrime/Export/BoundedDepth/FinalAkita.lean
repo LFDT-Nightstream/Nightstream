@@ -4,7 +4,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.Decoders
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Tower
 
 /-! The final verifier over the Akita opening of the key polynomial, `W` and `V` (SPEC.md,
-Algorithm 10; Akita, ePrint 2026/1983, revision of 2026-10-15, Theorem 10.17, Proposition 10.44
+Algorithm 10; Akita, ePrint 2026/1983, revision of 2026-11-23, Theorem 10.17, Proposition 10.44
 and Theorem 10.46).
 
 The layout of the argument is a function of `pc` and of the depths of the slots. The stages of
@@ -149,7 +149,7 @@ theorem compose_sized (premises : Premises setup packageWidths) (laid : setup.La
 section Chain
 
 variable {Inner BreakT CandT KeyT : Type} {accept : Prefix Wire (Option Coord → K) total → Prop}
-  {body : Structure (Prefix Wire (Option Coord → K) total) (Option Coord) K (ℕ → Wire) Inner BreakT
+  {body : Structure (Address Wire total) (Prefix Wire (Option Coord → K) total) (Option Coord) K (ℕ → Wire) Inner BreakT
     CandT KeyT
     (Option B.Weak)}
   {key : (g : Fin 3) → Key (B.shape g)} {openKey : B.OpenKey} {mass : Fin 3 → ℕ}
@@ -190,7 +190,7 @@ theorem final_suffix (sized : Compose.Sized C vf)
   have chain := Compose.suffix sized ran embed embedded later
   exact chain
 
-variable (prover : OracleComp (Prefix Wire (Option Coord → K) total) (Option Coord → K) (ℕ → Wire))
+variable (prover : OracleComp (Address Wire total) (Option Coord → K) (ℕ → Wire))
 
 /-- An output of the extractor for the final verifier over an Akita opening (Akita
 Theorem 10.17). The verifier accepts the transcript of the prover. The output gives a proof with
@@ -209,8 +209,8 @@ theorem final_extract_sound (sized : Compose.Sized C vf)
       (keyBase (setup.params shape)))
     (covers : factorBound * (B.fold 0).sourceBound (B.shape 0) + 2 * mass 0 * sourceBound ≤
       innerBound)
-    (budget : ℕ) (table : Prefix Wire (Option Coord → K) total → Option Coord → K)
-    (tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget (Structure.protocol
+    (budget : ℕ) (table : Address Wire total → Option Coord → K)
+    (tape : Tape (Address Wire total) (Option Coord) K budget (Structure.protocol
       whole).stages)
     (out : Inner ⊕ BreakT)
     (result : Checkpoint.extract whole prover budget table tape = some out) :
@@ -243,7 +243,7 @@ theorem final_extraction_le (sized : Compose.Sized C vf)
       (OpensAt (Compose.root C vf) commit value place key mass) body error loops tree)
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ}
     (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget
+    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) K budget
           (Structure.protocol whole).stages,
         (if accept ((Structure.protocol whole).final prover table) ∧
           Checkpoint.extract whole prover budget table tape = none then (1 : ℝ) else 0) ≤
@@ -260,7 +260,7 @@ theorem final_runs_le (sized : Compose.Sized C vf)
     (later : Tier.Suffix accept (Compose.root C vf)
       (OpensAt (Compose.root C vf) commit value place key mass) body error loops tree)
     {queries : ℕ} (bounded : prover.QueryBound queries) (budget : ℕ) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget
+    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) K budget
           (Structure.protocol whole).stages,
         (extractRuns whole prover budget table tape : ℝ) ≤
       (4 * tree : ℕ) + (queries + 1) * ((4 * tree : ℕ) - 1) :=
@@ -271,7 +271,7 @@ variable (accept body key openKey mass) in
 /-- The probability that the extractor returns a solution of Module-SIS (`Solved`): the term of
 the Module-SIS assumption in the soundness of the final verifier. The extractor is the solver. -/
 noncomputable def breakChance (honest : Certified (B.shape 0)) (innerBound budget : ℕ) : ℝ :=
-  𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget
+  𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) K budget
       (Structure.protocol whole).stages,
     if ∃ out, Checkpoint.extract whole prover budget table tape = some out ∧
       Solved body key honest innerBound out then (1 : ℝ) else 0
@@ -293,7 +293,7 @@ theorem final_sound (sized : Compose.Sized C vf)
     (covers : factorBound * (B.fold 0).sourceBound (B.shape 0) + 2 * mass 0 * sourceBound ≤
       innerBound)
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 _tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget
+    𝔼 table, 𝔼 _tape : Tape (Address Wire total) (Option Coord) K budget
           (Structure.protocol whole).stages,
         (if accept ((Structure.protocol whole).final prover table) ∧
             ¬ Proved setup packageWidths step cap control head
@@ -391,14 +391,14 @@ theorem three_sound [Finite Wire] {peak : Fin 3 → ℕ} {peak' : ℕ}
     (base' : 2 ≤ fold'.responseBase) (small' : S'.certifiedBase < fieldModulus)
     (varsFit' : μ' ≤ Fintype.card Coord) (batchFit' : batch' ≤ Fintype.card Coord)
     (inside : Tier.finish second ≤ total)
-    (prover : OracleComp (Prefix Wire (Option Coord → K) total) (Option Coord → K) (ℕ → Wire))
+    (prover : OracleComp (Address Wire total) (Option Coord → K) (ℕ → Wire))
     {honest : Certified (B.shape 0)} {factorBound sourceBound innerBound : ℕ}
     (registered : ∀ anchor, honest.Opens factorBound sourceBound (key 0) (bound anchor 0)
       (keyBase (setup.params shape)))
     (covers : factorBound * (B.fold 0).sourceBound (B.shape 0) + 2 * mass 0 * sourceBound ≤
       innerBound)
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 _tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget
+    𝔼 table, 𝔼 _tape : Tape (Address Wire total) (Option Coord) K budget
           (Structure.protocol whole).stages,
         (if accepts ((Structure.protocol whole).final prover table) ∧
             ¬ Proved setup packageWidths step cap control head
@@ -606,7 +606,7 @@ local notation "ready" next:max =>
     units sparse response uniform small varsFit batchFit groupsFit sized₁ sized₂ sized₃ sized₄
     sized₅ inside injectiveL unitsL sparseL next
 
-variable (prover : OracleComp (Prefix Wire (Option Coord → K) total) (Option Coord → K) (ℕ → Wire))
+variable (prover : OracleComp (Address Wire total) (Option Coord → K) (ℕ → Wire))
 
 /-- `final_extract_sound` for the opening with the tower of `tower_ready` (Akita Theorem 10.17):
 an output of the extractor gives a proof with witnesses that `Verifies` accepts for the statement
@@ -619,8 +619,8 @@ theorem tower_extract_sound (next : Terminal.start L = Tier.finish fifth)
       (keyBase (setup.params shape)))
     (covers : factorBound * (B.fold 0).sourceBound (B.shape 0) + 2 * mass 0 * sourceBound ≤
       innerBound)
-    (budget : ℕ) (table : Prefix Wire (Option Coord → K) total → Option Coord → K)
-    (tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget (Structure.protocol
+    (budget : ℕ) (table : Address Wire total → Option Coord → K)
+    (tape : Tape (Address Wire total) (Option Coord) K budget (Structure.protocol
       whole).stages)
     (out : _) (result : Checkpoint.extract whole prover budget table tape = some out) :
     accepts ((Structure.protocol whole).final prover table) ∧
@@ -640,7 +640,7 @@ batching root, `Σ_b p_b + Σ_j ε_j` for each level and `B_term·p_term` for th
 `loops` is one for the root, `B_ℓ + 1` for each level and `B_term` for the terminal. -/
 theorem tower_extraction_le (next : Terminal.start L = Tier.finish fifth) {queries : ℕ}
     (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget
+    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) K budget
           (Structure.protocol whole).stages,
         (if accepts ((Structure.protocol whole).final prover table) ∧
           Checkpoint.extract whole prover budget table tape = none then (1 : ℝ) else 0) ≤
@@ -656,7 +656,7 @@ is the product of 2 for the root, `2·(B_ℓ + 1)` for each level and `B_term + 
 terminal (Akita Theorem 10.17, the cost). -/
 theorem tower_runs_le (next : Terminal.start L = Tier.finish fifth) {queries : ℕ}
     (bounded : prover.QueryBound queries) (budget : ℕ) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget
+    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) K budget
           (Structure.protocol whole).stages,
         (extractRuns whole prover budget table tape : ℝ) ≤
       (4 * towerTree : ℕ) + (queries + 1) * ((4 * towerTree : ℕ) - 1) :=
@@ -678,7 +678,7 @@ theorem tower_sound (next : Terminal.start L = Tier.finish fifth)
     (covers : factorBound * (B.fold 0).sourceBound (B.shape 0) + 2 * mass 0 * sourceBound ≤
       innerBound)
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 _tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget
+    𝔼 table, 𝔼 _tape : Tape (Address Wire total) (Option Coord) K budget
           (Structure.protocol whole).stages,
         (if accepts ((Structure.protocol whole).final prover table) ∧
             ¬ Proved setup packageWidths step cap control head
@@ -881,7 +881,7 @@ local notation "ready" next:max =>
     units sparse response uniform small varsFit batchFit groupsFit sized₁ sized₂ sized₃ sized₄
     sized₅ normed₃ normed₄ normed₅ inside injectiveL unitsL boundedL next
 
-variable (prover : OracleComp (Prefix Wire (Option Coord → K) total) (Option Coord → K) (ℕ → Wire))
+variable (prover : OracleComp (Address Wire total) (Option Coord → K) (ℕ → Wire))
 
 /-- `final_extract_sound` for the opening with the tower of `mixed_ready` (Akita Theorem 10.17):
 an output of the extractor gives a proof with witnesses that `Verifies` accepts for the statement
@@ -895,8 +895,8 @@ theorem mixed_extract_sound (next : Terminal.start L = Tier.finish fifth)
       (keyBase (setup.params shape)))
     (covers : factorBound * (B.fold 0).sourceBound (B.shape 0) + 2 * mass 0 * sourceBound ≤
       innerBound)
-    (budget : ℕ) (table : Prefix Wire (Option Coord → K) total → Option Coord → K)
-    (tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget (Structure.protocol
+    (budget : ℕ) (table : Address Wire total → Option Coord → K)
+    (tape : Tape (Address Wire total) (Option Coord) K budget (Structure.protocol
       whole).stages)
     (out : _) (result : Checkpoint.extract whole prover budget table tape = some out) :
     accepts ((Structure.protocol whole).final prover table) ∧
@@ -917,7 +917,7 @@ batching root, `Σ_b p_b + Σ_j ε_j` for each level and `B_term·p_term` for th
 the levels 3 to 5 are the bounds `foldCostsSq` of the checks with the direct norm check. -/
 theorem mixed_extraction_le (next : Terminal.start L = Tier.finish fifth) {queries : ℕ}
     (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget
+    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) K budget
           (Structure.protocol whole).stages,
         (if accepts ((Structure.protocol whole).final prover table) ∧
           Checkpoint.extract whole prover budget table tape = none then (1 : ℝ) else 0) ≤
@@ -933,7 +933,7 @@ is the product of 2 for the root, `2·(B_ℓ + 1)` for each level and `B_term + 
 terminal (Akita Theorem 10.17, the cost). -/
 theorem mixed_runs_le (next : Terminal.start L = Tier.finish fifth) {queries : ℕ}
     (bounded : prover.QueryBound queries) (budget : ℕ) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget
+    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) K budget
           (Structure.protocol whole).stages,
         (extractRuns whole prover budget table tape : ℝ) ≤
       (4 * towerTree : ℕ) + (queries + 1) * ((4 * towerTree : ℕ) - 1) :=
@@ -955,7 +955,7 @@ theorem mixed_sound (next : Terminal.start L = Tier.finish fifth)
     (covers : factorBound * (B.fold 0).sourceBound (B.shape 0) + 2 * mass 0 * sourceBound ≤
       innerBound)
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 _tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget
+    𝔼 table, 𝔼 _tape : Tape (Address Wire total) (Option Coord) K budget
           (Structure.protocol whole).stages,
         (if accepts ((Structure.protocol whole).final prover table) ∧
             ¬ Proved setup packageWidths step cap control head

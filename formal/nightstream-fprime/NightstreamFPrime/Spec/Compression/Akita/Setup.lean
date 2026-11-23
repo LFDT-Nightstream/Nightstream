@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Euclid
 import NightstreamFPrime.Spec.RandomOracle
 
 /-! The shared setup of Akita and its reduction to ordinary Module-SIS (ePrint 2026/1983, revision
-of 2026-10-15, Section 4.3 with (35) and (36), and Lemma 10.20 (i) with (168)).
+of 2026-11-23, Section 4.3 with (35) and (36), and Lemma 10.20 (i) with (168)).
 
 - `Instance` is one instance `I = (d_I, n_I, m_I, p_I, η_I)` of the inventory. `view I S` is the
   prefix view `M_I(S)` of the flat setup vector `S` (35), and `Instance.Kernel` is a solution of

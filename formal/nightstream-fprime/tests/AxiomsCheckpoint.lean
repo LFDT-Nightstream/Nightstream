@@ -24,6 +24,11 @@ import NightstreamFPrime.Spec.Checkpoint
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.Protocol.path_congr
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.Protocol.stage_path
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.Protocol.cut_path
+#audit_axioms NightstreamFPrime.Spec.Checkpoint.Protocol.rebuild_path
+#audit_axioms NightstreamFPrime.Spec.Checkpoint.Protocol.address_path
+#audit_axioms NightstreamFPrime.Spec.Checkpoint.Protocol.stage_rebuild
+#audit_axioms NightstreamFPrime.Spec.Checkpoint.Protocol.rebuild_update
+#audit_axioms NightstreamFPrime.Spec.Checkpoint.Protocol.sum_rebuild
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.Protocol.input
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.Protocol.final
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.Protocol.asked
@@ -34,6 +39,7 @@ import NightstreamFPrime.Spec.Checkpoint
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.Protocol.stage_input
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.Protocol.cut_input
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.Protocol.last_input
+#audit_axioms NightstreamFPrime.Spec.Checkpoint.Protocol.rebuild_input
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.Protocol.input_congr
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.Protocol.stage_asked_le
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.Protocol.sum_asked_le
@@ -47,6 +53,8 @@ import NightstreamFPrime.Spec.Checkpoint
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.Protocol.regrow_regrow
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.Protocol.regrow_update
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.Protocol.expect_regrow
+#audit_axioms NightstreamFPrime.Spec.Checkpoint.Protocol.rebuild_setSlot
+#audit_axioms NightstreamFPrime.Spec.Checkpoint.Protocol.rebuild_regrow
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.Kind
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.Structure
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.Structure.Lawful

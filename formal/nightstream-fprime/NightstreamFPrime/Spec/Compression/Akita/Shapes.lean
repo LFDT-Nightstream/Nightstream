@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.Commit
 
 /-! The commitment shape of the compression key in the schedule files `key20.aks` and `key30.aks`
-of `crates/ns-compress/artifacts/` (Akita, ePrint 2026/1983, revision of 2026-10-15, (28)).
+of `crates/ns-compress/artifacts/` (Akita, ePrint 2026/1983, revision of 2026-11-23, (28)).
 
 - `Shape.key20` and `Shape.key30` have the numbers of the first group of the root level, which is
   the group of the key polynomial. The two rows of `key30.aks` have one key group.

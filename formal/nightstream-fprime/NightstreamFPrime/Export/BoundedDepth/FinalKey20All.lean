@@ -3,7 +3,7 @@ import NightstreamFPrime.Export.BoundedDepth.FinalRows
 
 /-! The final verifier over the Akita opening of the schedule file
 `crates/ns-compress/artifacts/key20.aks` for each claim shape and for the proof of zero steps
-(SPEC.md, Algorithm 10; Akita, ePrint 2026/1983, revision of 2026-10-15, Theorem 10.17).
+(SPEC.md, Algorithm 10; Akita, ePrint 2026/1983, revision of 2026-11-23, Theorem 10.17).
 
 `FinalKey20.sound` is for the final proofs of one claim shape: one `pc` and one depth for each
 slot. The layout of the argument, the zeros of the opening point of `V` and the key polynomial
@@ -59,7 +59,7 @@ variable {Wire Reply : Type} [Nonempty Reply] {total : ℕ}
 
 /-- Each stage input of a transcript has the first message of the proof. -/
 theorem path_first (accept : Prefix Wire Reply total → Prop) (proof : ℕ → Wire)
-    (table : Prefix Wire Reply total → Reply) :
+    (table : Address Wire total → Reply) :
     ∀ level, ((transcript total accept).path proof table level).first = proof 0
   | 0 => rfl
   | level + 1 => by
@@ -72,7 +72,7 @@ theorem path_first (accept : Prefix Wire Reply total → Prop) (proof : ℕ → 
 
 /-- The stage inputs of a transcript are the same for each predicate of the verifier. -/
 theorem path_accept (accept other : Prefix Wire Reply total → Prop) (proof : ℕ → Wire)
-    (table : Prefix Wire Reply total → Reply) :
+    (table : Address Wire total → Reply) :
     ∀ level, (transcript total accept).path proof table level =
       (transcript total other).path proof table level
   | 0 => rfl
@@ -81,18 +81,18 @@ theorem path_accept (accept other : Prefix Wire Reply total → Prop) (proof : �
       rfl
 
 /-- The complete transcript of a prover for a table of the oracle. -/
-noncomputable def played (prover : OracleComp (Prefix Wire Reply total) Reply (ℕ → Wire))
-    (table : Prefix Wire Reply total → Reply) : Prefix Wire Reply total :=
+noncomputable def played (prover : OracleComp (Address Wire total) Reply (ℕ → Wire))
+    (table : Address Wire total → Reply) : Prefix Wire Reply total :=
   (transcript total fun _ => True).final prover table
 
 theorem played_eq (accept : Prefix Wire Reply total → Prop)
-    (prover : OracleComp (Prefix Wire Reply total) Reply (ℕ → Wire))
-    (table : Prefix Wire Reply total → Reply) :
+    (prover : OracleComp (Address Wire total) Reply (ℕ → Wire))
+    (table : Address Wire total → Reply) :
     (transcript total accept).final prover table = played prover table :=
   path_accept accept _ (prover.run table) table total
 
-theorem played_first (prover : OracleComp (Prefix Wire Reply total) Reply (ℕ → Wire))
-    (table : Prefix Wire Reply total → Reply) :
+theorem played_first (prover : OracleComp (Address Wire total) Reply (ℕ → Wire))
+    (table : Address Wire total → Reply) :
     (played prover table).first = prover.run table 0 :=
   path_first _ (prover.run table) table total
 
@@ -119,10 +119,11 @@ theorem laidSetup_use (setup : FinalVerifier.Setup mode logicalWidth publicFits)
 /-- The data of the Akita opening of `key20.aks` for the final proofs of one claim shape: the
 parameters of `FinalKey20.sound`. `shape` has `pc` and the depths. `bound anchor g` is the
 commitment of the group `g` that a stage input fixes. `honest` is a certified decommitment of the
-key commitment, with the bounds `factorBound`, `sourceBound` and `innerBound` of
-`FinalAkita.final_extract_sound`. The other fields are the keys, the claims, the decoders of the
-fold challenges and the readers of the messages of the root, of the levels 1 to 5 and of the
-terminal. -/
+key commitment, with the bounds `factorBound` and `sourceBound` of
+`FinalAkita.final_extract_sound`. The radius of the reduction for the key commitment is `η_A` of
+the key group, `(root.fold 0).innerBound (root.shape 0)`. The other fields are the keys, the
+claims, the decoders of the fold challenges and the readers of the messages of the root, of the
+levels 1 to 5 and of the terminal. -/
 structure Opening (logicalWidth : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth) (Wire Coord : Type) (total : ℕ) where
@@ -182,7 +183,6 @@ structure Opening (logicalWidth : Nat)
   honest : Certified (root.shape 0)
   factorBound : ℕ
   sourceBound : ℕ
-  innerBound : ℕ
 
 variable (setup : FinalVerifier.Setup mode logicalWidth publicFits) (packageWidths : Fin 2 → ℕ)
   (step : AppState → AppWitness → AppState) (cap : ℕ) (control : AppState → AppWitness → Fin 2)
@@ -310,7 +310,7 @@ structure Opening.Sized (p : ℝ) : Prop where
   registered : ∀ anchor, o.honest.Opens o.factorBound o.sourceBound (o.key 0) (o.bound anchor 0)
     (keyBase (FinalVerifier.Setup.params S₀ o.shape))
   covers : o.factorBound * (root.fold 0).sourceBound (root.shape 0) + 2 * o.mass 0 * o.sourceBound ≤
-    o.innerBound
+    (root.fold 0).innerBound (root.shape 0)
 
 /-- The conditions `Compose.Sized` of the final verifier for the shape of `o`, and the suffix of
 its Akita opening with 142 retry loops and the sum of the stage errors at most `317479/(1024·|K|) +
@@ -380,14 +380,14 @@ theorem Opening.ready {p : ℝ} (premises : Premises setup packageWidths)
       (start := Compose.root C vf) sized.chance sized.chance₁ sized.chance₂ sized.chance₃
       sized.chance₄ sized.chance₅ sized.chanceL, by decide⟩
 
-variable (prover : OracleComp (Prefix Wire (Option Coord → K) total) (Option Coord → K) (ℕ → Wire))
+variable (prover : OracleComp (Address Wire total) (Option Coord → K) (ℕ → Wire))
 
 /-- The proof with witnesses that the extractor gives for the shape of `o`: the proof
 `Setup.envelope` of the table `W` of a certificate, for the statement and the claims of the first
 message of the prover. It is the bottom proof when the extractor returns no certificate. -/
-noncomputable def Opening.proof (budget : ℕ) (table : Prefix Wire (Option Coord → K) total → Option
+noncomputable def Opening.proof (budget : ℕ) (table : Address Wire total → Option
   Coord → K)
-    (tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget total) :
+    (tape : Tape (Address Wire total) (Option Coord) K budget total) :
     Terminal.ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits) :=
   match Checkpoint.extract whole prover budget table tape with
   | some (.inl certificate) =>
@@ -405,7 +405,7 @@ noncomputable def Opening.breakChance (budget : ℕ) : ℝ :=
   FinalAkita.breakChance S₀ packageWidths step cap control o.shape read head o.bound
     (o.accepts setup packageWidths step cap control read head)
     (o.tower setup packageWidths step cap control read head) o.key o.openKey o.mass Sum.inl prover
-    o.honest o.innerBound budget
+    o.honest ((root.fold 0).innerBound (root.shape 0)) budget
 
 /-- Knowledge soundness of the final verifier for the shape of `o` (Akita Theorem 10.17). For
 each prover with at most `Q` queries to the oracle, the probability that the verifier
@@ -418,7 +418,7 @@ theorem Opening.knowledge {p : ℝ} (premises : Premises setup packageWidths)
     (blocks : setup.keyBlocks = 512) (coords : 28 ≤ Fintype.card Coord)
     (sized : o.Sized setup packageWidths step cap control read head p) {queries : ℕ}
     (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget total,
+    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) K budget total,
         (if o.accepts setup packageWidths step cap control read head (played prover table) ∧
             ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths cap control
               (head (played prover table).first).statement
@@ -452,7 +452,7 @@ theorem Opening.knowledge {p : ℝ} (premises : Premises setup packageWidths)
         Checkpoint.extract whole prover budget table tape = none) ∨
       ∃ out, Checkpoint.extract whole prover budget table tape = some out ∧
         Solved (o.tower setup packageWidths step cap control read head) o.key o.honest
-          o.innerBound out := by
+          ((root.fold 0).innerBound (root.shape 0)) out := by
     rintro ⟨accepted, refuted⟩
     rw [played_first] at refuted
     rw [← same] at accepted
@@ -492,13 +492,13 @@ def finalAccepts (point : Prefix Wire (Option Coord → K) total) : Prop :=
     ∃ index, kind point.first = some index ∧
       (family index).accepts setup packageWidths step cap control read head point
 
-variable (prover : OracleComp (Prefix Wire (Option Coord → K) total) (Option Coord → K) (ℕ → Wire))
+variable (prover : OracleComp (Address Wire total) (Option Coord → K) (ℕ → Wire))
 
 /-- The proof with witnesses of the extractor for the final verifier: the bottom proof for a
 statement of zero steps, and `Opening.proof` of the shape that the first message names. -/
-noncomputable def finalProof (budget : ℕ) (table : Prefix Wire (Option Coord → K) total → Option
+noncomputable def finalProof (budget : ℕ) (table : Address Wire total → Option
   Coord → K)
-    (tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget total) :
+    (tape : Tape (Address Wire total) (Option Coord) K budget total) :
     Terminal.ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits) :=
   if Terminal.StatementValid (head (prover.run table 0)).statement ∧
       (head (prover.run table 0)).statement.iteration = 0 ∧
@@ -535,7 +535,7 @@ theorem knowledge_all {p : ℝ} (premises : Premises setup packageWidths)
     (sized : ∀ index,
       (family index).Sized setup packageWidths step cap control read head p) {queries : ℕ}
     (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget total,
+    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) K budget total,
         (if finalAccepts setup packageWidths step cap control read head kind family
               (played prover table) ∧
             ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths cap control
@@ -605,7 +605,7 @@ theorem sound_all {p : ℝ} (premises : Premises setup packageWidths)
       shapesBound setup packageWidths step cap control read head family prover p queries
         budget := by
   have flat (value : ℝ) : value =
-      𝔼 _tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget total, value :=
+      𝔼 _tape : Tape (Address Wire total) (Option Coord) K budget total, value :=
     (Finset.expect_const Finset.univ_nonempty value).symm
   refine le_trans (Finset.expect_le_expect fun table _ => ?_)
     (knowledge_all setup packageWidths step cap control read head kind family prover premises

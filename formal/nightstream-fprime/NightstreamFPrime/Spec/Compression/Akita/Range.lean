@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.FieldPrime
 import NightstreamFPrime.Spec.Compression.Lib.Density
 import NightstreamFPrime.Spec.Compression.Akita.Euclid
 
-/-! The norm checks of Akita for the next witness (ePrint 2026/1983, revision of 2026-10-15,
+/-! The norm checks of Akita for the next witness (ePrint 2026/1983, revision of 2026-11-23,
 Section 6): the digit range check, the fused check of the compression digits, and the norm
 certificate of the two routes.
 

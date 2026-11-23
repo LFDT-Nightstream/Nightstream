@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.CheckComplete
 
 /-! The honest prover of a level of Akita with the tensor reduction on a Fiat–Shamir transcript,
 and the links of the verifier to a next trace level (Akita, ePrint 2026/1983, revision of
-2026-10-15, Theorem 10.9 with Lemma 10.7, Figure 4, steps 0, 1, 3 and 5).
+2026-11-23, Theorem 10.9 with Lemma 10.7, Figure 4, steps 0, 1, 3 and 5).
 
 - `honestTraceClaim` is the claim of the honest prover of a trace level for a packed polynomial
   `f̄` and a point `(ρ_pack, ρ_pos, ρ_blk)` with the factor `θ`, and `honestTraceClaim_satisfies`
@@ -489,7 +489,7 @@ theorem OnPath.accepts {holds : Prefix Wire Reply total → Prop} {first : Wire}
     (each : ∀ stage : Prefix Wire Reply total, stage.first = first → stage.rest = moves →
       holds stage) :
     ∃ proof : ℕ → Wire, proof 0 = first ∧
-      holds ((transcript total accept).final (.done proof) table) := by
+      holds (pointPath total accept proof table total) := by
   obtain ⟨proof, bounded, zero, complete⟩ := on.final whole
   exact ⟨proof, zero, complete ▸ each ⟨first, moves, bounded⟩ rfl rfl⟩
 

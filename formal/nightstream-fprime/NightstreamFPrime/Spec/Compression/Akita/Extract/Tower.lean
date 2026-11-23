@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.LiftSource
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceNorm
 
 /-! The opening suffix of Akita for a batching root, a fold with opening groups, a packing level,
-four trace levels and the terminal (ePrint 2026/1983, revision of 2026-10-15, (127), Section 6.2,
+four trace levels and the terminal (ePrint 2026/1983, revision of 2026-11-23, (127), Section 6.2,
 Proposition 10.44, Theorem 10.46, "Batching root", Corollary 10.35 and Corollary 10.49 with
 (206)).
 

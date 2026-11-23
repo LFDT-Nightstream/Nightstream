@@ -1,6 +1,6 @@
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Wire
 
-/-! A small instance of two packing folds of Akita (ePrint 2026/1983, revision of 2026-10-15,
+/-! A small instance of two packing folds of Akita (ePrint 2026/1983, revision of 2026-11-23,
 Theorem 10.9 and Theorem 10.17) with each parameter a numeral. It shows that the hypotheses of
 `packingPair_extraction_le` and of `packingPair_complete` hold together for one verifier.
 
@@ -200,7 +200,7 @@ matrices, each table, each opening point and each table of the oracle whose work
 zero work bits, the verifier accepts the transcript of a proof with the claim of the honest
 prover. -/
 theorem complete (source : Table) (point : Point (opening 1 1) Zq)
-    (table : Prefix Wire (Option Coord → Zq) (Tier.finish second) → Option Coord → Zq)
+    (table : Address Wire (Tier.finish second) → Option Coord → Zq)
     (worked : ∀ input, table input none ∈ workZeros Zq 57) :
     ∃ proof : ℕ → Wire,
       (proof 0).root = honestClaim (basis 1 1) key openKey source point ∧
@@ -224,10 +224,10 @@ theorem complete (source : Table) (point : Point (opening 1 1) Zq)
 (Akita Theorem 10.17 for two levels): the bound holds for each prover, and by `complete` its
 event has the transcripts of the honest prover. -/
 theorem extraction_le
-    (prover : OracleComp (Prefix Wire (Option Coord → Zq) (Tier.finish second)) (Option Coord → Zq)
+    (prover : OracleComp (Address Wire (Tier.finish second)) (Option Coord → Zq)
       (ℕ → Wire))
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → Zq) (Tier.finish second)) (Option Coord) Zq
+    𝔼 table, 𝔼 tape : Tape (Address Wire (Tier.finish second)) (Option Coord) Zq
           budget
           (Structure.protocol chain).stages,
         (if pairAccepts first second Letter.payload Letter.digits

@@ -4,7 +4,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceLink
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceNorm
 
 /-! The completeness of the checks of a trace level of Akita (ePrint 2026/1983, revision of
-2026-10-15, Theorem 10.9 with Lemma 10.7, Theorem 3.3, Theorem 5.1, item 1, and Section 6.2).
+2026-11-23, Theorem 10.9 with Lemma 10.7, Theorem 3.3, Theorem 5.1, item 1, and Section 6.2).
 
 - `Sends` states which messages of the checks satisfy the condition `sendable` of `WinsAt`: an
   element of `E`, a pair, a vector of at most `width` elements, and a natural number up to `cap`.

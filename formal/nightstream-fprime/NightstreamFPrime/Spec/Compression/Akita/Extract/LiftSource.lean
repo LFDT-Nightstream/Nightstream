@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.LiftWitness
 import NightstreamFPrime.Spec.Compression.Akita.Extract.BatchChain
 
 /-! The checks of one fold of Akita on the quotient-lift route for the witness that the next
-level commits to, for one group and for opening groups (ePrint 2026/1983, revision of 2026-10-15,
+level commits to, for one group and for opening groups (ePrint 2026/1983, revision of 2026-11-23,
 Section 5.5 with (76), Section 7.3 with (111) and (112), Lemma 7.1, Lemma 10.42 (i), and
 Appendix L.2 with (348)).
 
@@ -424,7 +424,7 @@ theorem liftFold_suffix [Nonempty Coord] {total : ℕ}
     {N : Tier (Fin S'.blocks) (fun _ => Rq O'.carrierDegree) (Claim O' E)
       (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S')) (Witness O' fold')
       (Weak O') Wire Coord E Result' Source'}
-    {tail : Structure (Prefix Wire (Option Coord → E) total) (Option Coord) E (ℕ → Wire) Inner
+    {tail : Structure (Address Wire total) (Prefix Wire (Option Coord → E) total) (Option Coord) E (ℕ → Wire) Inner
       BreakT CandT KeyT
       (Option (Weak O'))}
     {error : ℝ} {loops tree : ℕ} {peak : ℕ} (injective : Function.Injective block)
@@ -541,7 +541,7 @@ theorem liftBatch_suffix [Nonempty Coord] {total : ℕ}
     {N : Tier (Fin S'.blocks) (fun _ => Rq O'.carrierDegree) (Claim O' E)
       (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S')) (Witness O' fold')
       (Weak O') Wire Coord E Result' Source'}
-    {tail : Structure (Prefix Wire (Option Coord → E) total) (Option Coord) E (ℕ → Wire) Inner
+    {tail : Structure (Address Wire total) (Prefix Wire (Option Coord → E) total) (Option Coord) E (ℕ → Wire) Inner
       BreakT CandT KeyT
       (Option (Weak O'))}
     {error : ℝ} {loops tree : ℕ} {peak : Fin n → ℕ} (injective : Function.Injective block)

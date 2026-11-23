@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita
 import NightstreamFPrime.Spec.Compression.Akita.Commit
 
 /-! Binding of the Akita commitment of the compression key (ePrint 2026/1983, revision of
-2026-10-15), by a reduction to solutions of Module-SIS.
+2026-11-23), by a reduction to solutions of Module-SIS.
 
 - `chainCollision` and `chainCollision_isSome` are Akita Lemma 4.3: two openings of one payload
   that differ give a solution for the original map or for a compression map.

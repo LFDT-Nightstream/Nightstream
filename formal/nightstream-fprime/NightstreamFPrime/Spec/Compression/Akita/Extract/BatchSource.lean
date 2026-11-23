@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.BatchRows
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Honest
 
 /-! The checks of one fold of Akita with opening groups for a flat witness that the next level
-commits to, and their completeness (ePrint 2026/1983, revision of 2026-10-15, Section 10.3,
+commits to, and their completeness (ePrint 2026/1983, revision of 2026-11-23, Section 10.3,
 "Successor source", Lemma 10.42 (i), and Lemma 10.7 with Theorem 10.9).
 
 - `Batch.ofFlat` reads the digit vectors of the groups from a table in the order of

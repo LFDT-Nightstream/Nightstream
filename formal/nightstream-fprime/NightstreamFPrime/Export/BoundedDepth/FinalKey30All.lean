@@ -6,7 +6,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Key30Instances
 /-! The final verifier over the Akita opening of the schedule file
 `crates/ns-compress/artifacts/key30.aks` for each claim shape and for the proof of zero steps,
 with the decoders `draw` of the sparse challenge families (SPEC.md, Algorithm 10;
-`SECURITY_MODEL.md`, adversaries 4 and 6; Akita, ePrint 2026/1983, revision of 2026-10-15,
+`SECURITY_MODEL.md`, adversaries 4 and 6; Akita, ePrint 2026/1983, revision of 2026-11-23,
 Section 3.2, (23), Section 9 with Lemma 9.1, Definition 9.2 E1 and Theorem 10.17).
 
 A finite family of claim shapes has one `Opening` for each shape. The row of the file, the layout
@@ -75,8 +75,9 @@ is the row of the file, and `shape` has `pc` and the depths. `bound anchor g` is
 of the group `g` that a stage input fixes. `tower` has the keys, the claims, the coordinates of
 the fold challenges and the readers of the messages of the root, of the levels 1 to 6 and of the
 terminal, with the setup prefix and its commitment. `honest` is a certified decommitment of the
-key commitment, with the bounds `factorBound`, `sourceBound` and `innerBound` of
-`FinalAkita.final_extract_sound`. -/
+key commitment, with the bounds `factorBound` and `sourceBound` of
+`FinalAkita.final_extract_sound`. The radius of the reduction for the key commitment is `η_A` of
+the key group of the row. -/
 structure Opening (logicalWidth : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth) (Wire Coord : Type) (total : ℕ) where
@@ -88,7 +89,6 @@ structure Opening (logicalWidth : Nat)
   honest : Certified ((Key30.root row).shape 0)
   factorBound : ℕ
   sourceBound : ℕ
-  innerBound : ℕ
 
 variable (setup : FinalVerifier.Setup mode logicalWidth publicFits) (packageWidths : Fin 2 → ℕ)
   (step : AppState → AppWitness → AppState) (cap : ℕ) (control : AppState → AppWitness → Fin 2)
@@ -139,16 +139,27 @@ structure Opening.Drawn : Prop where
   registered : ∀ anchor, o.honest.Opens o.factorBound o.sourceBound (o.tower.key 0)
     (o.bound anchor 0) (keyBase (FinalVerifier.Setup.params S₀ o.shape))
   covers : o.factorBound * ((Key30.root o.row).fold 0).sourceBound ((Key30.root o.row).shape 0) +
-    2 * Key30.mass 0 * o.sourceBound ≤ o.innerBound
+    2 * Key30.mass 0 * o.sourceBound ≤
+      ((Key30.root o.row).fold 0).innerBound ((Key30.root o.row).shape 0)
 
-variable (prover : OracleComp (Prefix Wire (Option Coord → K) total) (Option Coord → K) (ℕ → Wire))
+/-- The condition `covers` of `Opening.Drawn` holds for each row, the factor bound 1, the source
+bound `b/2` of the key group and `ω = 31`: the norm `β̄_∞ + κ̄_1·b/2 = 136249343` is at most
+`η_A = 16642998148` (`Descriptor.key30_covers`). -/
+theorem covers_one (r : Key30.Row) :
+    1 * ((Key30.root r).fold 0).sourceBound ((Key30.root r).shape 0) +
+        2 * Key30.mass 0 * (((Key30.root r).shape 0).sourceBase / 2) ≤
+      ((Key30.root r).fold 0).innerBound ((Key30.root r).shape 0) := by
+  rw [Nat.one_mul]
+  exact Descriptor.key30_covers
+
+variable (prover : OracleComp (Address Wire total) (Option Coord → K) (ℕ → Wire))
 
 /-- The proof with witnesses that the extractor gives for the shape of `o`: the proof
 `Setup.envelope` of the table `W` of a certificate, for the statement and the claims of the first
 message of the prover. It is the bottom proof when the extractor returns no certificate. -/
-noncomputable def Opening.proof (budget : ℕ) (table : Prefix Wire (Option Coord → K) total → Option
+noncomputable def Opening.proof (budget : ℕ) (table : Address Wire total → Option
   Coord → K)
-    (tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget total) :
+    (tape : Tape (Address Wire total) (Option Coord) K budget total) :
     Terminal.ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits) :=
   match Checkpoint.extract whole prover budget table tape with
   | some (.inl certificate) =>
@@ -166,7 +177,8 @@ noncomputable def Opening.breakChance (budget : ℕ) : ℝ :=
   FinalAkita.breakChance S₀ packageWidths step cap control o.shape read head o.bound
     (o.accepts setup packageWidths step cap control read head shared)
     (o.body setup packageWidths step cap control read head shared) o.tower.key o.tower.openKey
-    Key30.mass Sum.inl prover o.honest o.innerBound budget
+    Key30.mass Sum.inl prover o.honest
+    (((Key30.root o.row).fold 0).innerBound ((Key30.root o.row).shape 0)) budget
 
 /-- The bound of the final verifier for the shape of `o`:
 `(Q + 1)·(runCost + 1623435/(4096·|K|) + (1458 + B_1 + B_2)/q²) + (Q + 1)·(1469 + B_1 +
@@ -193,7 +205,7 @@ theorem Opening.knowledge (premises : Premises setup packageWidths)
     (blocks : setup.keyBlocks = 524288) (coords : 40 ≤ Fintype.card Coord)
     (drawn : o.Drawn setup packageWidths step cap control read head shared) {queries : ℕ}
     (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget total,
+    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) K budget total,
         (if o.accepts setup packageWidths step cap control read head shared
               (played prover table) ∧
             ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths cap control
@@ -253,7 +265,8 @@ theorem Opening.knowledge (premises : Premises setup packageWidths)
         Checkpoint.extract whole prover budget table tape = none) ∨
       ∃ out, Checkpoint.extract whole prover budget table tape = some out ∧
         Solved (o.body setup packageWidths step cap control read head shared) o.tower.key
-          o.honest o.innerBound out := by
+          o.honest (((Key30.root o.row).fold 0).innerBound ((Key30.root o.row).shape 0))
+          out := by
     rintro ⟨accepted, refuted⟩
     rw [played_first] at refuted
     rw [← same] at accepted
@@ -280,21 +293,19 @@ over the Akita opening of `key30.aks` (Akita Lemma 10.20, Table 3 and Lemma 9.1)
 output of the extractor with `Solved`, the event of `FinalAkita.breakChance`: a solution for the
 key commitment from `tableCollision`, or a witness of `R_bind` of the opening. Then a matrix of
 the opening has a solution that gives a solution of an instance of the list (`Key30.Reduced`).
-`inner`: the bound `innerBound` of the reduction for the key commitment is at most `η_A` of the
-key group. -/
+The radius of the reduction for the key commitment is `η_A` of the key group. -/
 theorem Opening.reduced
-    (inner : o.innerBound ≤
-      ((Key30.root o.row).fold 0).innerBound ((Key30.root o.row).shape 0))
     {out : _ ⊕ _}
     (solved : Solved (o.body setup packageWidths step cap control read head shared) o.tower.key
-      o.honest o.innerBound out) :
+      o.honest (((Key30.root o.row).fold 0).innerBound ((Key30.root o.row).shape 0))
+      out) :
     Key30.Reduced Key30.instances o.tower.key o.tower.openKey o.tower.key₁ o.tower.openKey₁
       o.tower.key₂ o.tower.openKey₂ o.tower.key₃ o.tower.openKey₃ o.tower.key₄ o.tower.openKey₄
       o.tower.key₅ o.tower.openKey₅ o.tower.key₆ o.tower.openKey₆ o.tower.terminal.matrix := by
   rcases out with certificate | brk
   · obtain ⟨ω, -, found⟩ := solved
     obtain ⟨z, -⟩ := Option.isSome_iff_exists.mp found
-    exact Or.inl (Or.inl ⟨0, Key30.reduced_key o.member inner z⟩)
+    exact Or.inl (Or.inl ⟨0, Key30.reduced_key o.member le_rfl z⟩)
   · exact Key30.reduced o.member brk solved
 
 omit [Nonempty Coord] [Finite Wire] in
@@ -306,16 +317,15 @@ theorem Opening.reduced_shared {N : ℕ} {S : Fin N → Zq}
     (keys : Key30.Shared S o.tower.key o.tower.openKey o.tower.key₁ o.tower.openKey₁
       o.tower.key₂ o.tower.openKey₂ o.tower.key₃ o.tower.openKey₃ o.tower.key₄ o.tower.openKey₄
       o.tower.key₅ o.tower.openKey₅ o.tower.key₆ o.tower.openKey₆ o.tower.terminal.matrix)
-    (inner : o.innerBound ≤
-      ((Key30.root o.row).fold 0).innerBound ((Key30.root o.row).shape 0))
     {out : _ ⊕ _}
     (solved : Solved (o.body setup packageWidths step cap control read head shared) o.tower.key
-      o.honest o.innerBound out) :
+      o.honest (((Key30.root o.row).fold 0).innerBound ((Key30.root o.row).shape 0))
+      out) :
     Setup.Solved (Key30.views o.row) S := by
   rcases out with certificate | brk
   · obtain ⟨ω, -, found⟩ := solved
     obtain ⟨z, -⟩ := Option.isSome_iff_exists.mp found
-    exact Key30.reduced_key_shared (keys.1.1 0) inner z
+    exact Key30.reduced_key_shared (keys.1.1 0) le_rfl z
   · exact Key30.reduced_shared keys brk solved
 
 end One
@@ -325,7 +335,7 @@ section All
 variable {ι : Type} [Fintype ι] (kind : Wire → Option ι)
   (family : ι → Opening logicalWidth publicFits Wire Coord total)
   (shared : ∀ index, (family index).tower.Shared)
-  (prover : OracleComp (Prefix Wire (Option Coord → K) total) (Option Coord → K) (ℕ → Wire))
+  (prover : OracleComp (Address Wire total) (Option Coord → K) (ℕ → Wire))
 
 /-- The final verifier over the Akita openings of `key30.aks` (SPEC.md Algorithm 10):
 `FinalShapes.finalAccepts` for the verifiers `Opening.accepts` of the family. It accepts a
@@ -412,7 +422,7 @@ noncomputable def adversary :
 /-- The final verifier accepts `(i, z0, zi)` for the table of the oracle, and no `i` valid steps
 of `program` lead from `z0` to `zi` (`FinalShapes.FalseHistory`). -/
 def FalseHistory (program : Stage1.Application.Program)
-    (table : Prefix Wire (Option Coord → K) total → Option Coord → K) : Prop :=
+    (table : Address Wire total → Option Coord → K) : Prop :=
   FinalShapes.FalseHistory head kind
     (fun index => (family index).accepts setup packageWidths step cap control read head
       (shared index))
@@ -507,7 +517,7 @@ theorem history_knowledge_drawn
     keysShaped admitted depth depthBound
 
 variable {p : Nebula.Plan} (app : Nebula.PortApp p.toGeometry)
-  (claim : (Prefix Wire (Option Coord → K) total → Option Coord → K) →
+  (claim : (Address Wire total → Option Coord → K) →
     PMF (Lifecycle.Nebula.EndToEnd.MemoryStatement app.width))
 
 local notation "verifiers" => fun index =>

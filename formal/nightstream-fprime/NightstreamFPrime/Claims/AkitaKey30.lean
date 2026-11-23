@@ -5,12 +5,12 @@ import NightstreamFPrime.Spec.Compression.Akita.Key30Accept
 
 The results for the Akita openings of the compressed proof under the schedule file
 `crates/ns-compress/artifacts/key30.aks`, the file of the key of `2^19` blocks (Akita, ePrint
-2026/1983, revision of 2026-10-15, Section 9; `SPEC.md` Algorithm 10 and section 9;
+2026/1983, revision of 2026-11-23, Section 9; `SPEC.md` Algorithm 10 and section 9;
 `SECURITY_MODEL.md` adversary 6 and trust item 7). The claims for `key20.aks` and the claims for
 each schedule are in `Claims.Akita`.
 
-- Model: the model of `Claims.Akita`. The answers of the stages are one uniform table with
-  independent slots. The verifier is the Lean verifier of the opening with an offloaded root. It
+- Model: the model of `Claims.Akita`. The answers of the stages are one uniform table on the
+  keys of the stage inputs, with independent slots. The verifier is the Lean verifier of the opening with an offloaded root. It
   is not the verifier of the pinned Akita code.
 - Assumptions: `[MSIS]` and `[KECCAK]`. Each bound has the term `breakChance`, or it bounds only
   the event that the extractor returns no output. `key30_instances` and `key30_instance_list`
@@ -70,10 +70,10 @@ theorem key30_opening_sound
     {read : Akita.Extract.Reader Wire}
     (drawn : o.Drawn shared read 0)
     (slots : 28 ≤ Fintype.card Coord)
-    (prover : RandomOracle.OracleComp (Akita.Extract.Prefix Wire (Option Coord → E) total) (Option Coord → E) (ℕ → Wire))
+    (prover : RandomOracle.OracleComp (Akita.Extract.Address Wire total) (Option Coord → E) (ℕ → Wire))
     (budget : ℕ)
-    (table : Akita.Extract.Prefix Wire (Option Coord → E) total → Option Coord → E)
-    (tape : Checkpoint.Tape (Akita.Extract.Prefix Wire (Option Coord → E) total) (Option Coord) E budget
+    (table : Akita.Extract.Address Wire total → Option Coord → E)
+    (tape : Checkpoint.Tape (Akita.Extract.Address Wire total) (Option Coord) E budget
           (o.body shared read 0 (o.accepts shared read)).protocol.stages)
     (out : Akita.Extract.Opened (Akita.Key30.root r).Weak
             (Akita.Extract.Opened (Akita.Key30.level₁ r).Weak
@@ -132,7 +132,9 @@ level 1 and of level 2 of the row: 167 and 44 for `W` of 27 variables, and 158 a
 in the Akita code (Akita Remark 10.18, `Extract.workBits`), and the fold terms have no work
 credit. The bound has no term for the
 probability that an output is a solution of Module-SIS (`[MSIS]`). The operator bound of the
-filtered families is a theorem for the filter of the code. -/
+filtered families is a theorem for the filter of the code. With `drawn`, each slot gives a fold
+challenge at each level (`Spec.Compression.Akita.Key30.Tower.Drawn.decodes`, from the count
+`drawn.kept` of Akita Table 12). -/
 theorem key30_opening_bound
     {E : Type}
     [fieldE : Field E]
@@ -154,7 +156,7 @@ theorem key30_opening_bound
     [finiteWire : Finite Wire]
     (drawn : o.Drawn shared read 0)
     (slots : 28 ≤ Fintype.card Coord)
-    (prover : RandomOracle.OracleComp (Akita.Extract.Prefix Wire (Option Coord → E) total) (Option Coord → E) (ℕ → Wire))
+    (prover : RandomOracle.OracleComp (Akita.Extract.Address Wire total) (Option Coord → E) (ℕ → Wire))
     {queries : ℕ}
     (bounded : prover.QueryBound queries)
     {budget : ℕ}
@@ -189,7 +191,12 @@ table of stage answers whose slots decode to fold challenges and whose work slot
 work bits (`worked`: 57 is the largest count of work bits of a site, and Lean does not model the
 search of the honest prover for the work bits of Akita Remark 10.18), a proof exists whose first
 message has the commitments of the tables, the points and the values, and whose transcript the
-verifier `offLinks` accepts. So the event of `key30_opening_bound` is not empty. `fit` holds in
+verifier `offLinks` accepts. The proof is a sequence of messages of the type `Key30.Wire E`,
+which is infinite because its points are lists, so it is not a transcript of the game of
+`key30_opening_bound`, whose type of wire messages is finite. For the decoders `draw` of
+`Key30.Tower` with the count `Spec.Compression.Akita.Key20.Kept`, each slot decodes, so `decodes`
+to `decodesL` hold for each table (`Spec.Compression.Akita.Key30.Tower.Drawn.decodes`). `fit`
+holds in
 two cases: for the zero setup prefix and the zero tables with each decoder
 (`Spec.Compression.Akita.Key30.fit_zero`), and for each setup prefix and each family of tables
 with decoders that give the fold challenge 0 (`Spec.Compression.Akita.Key30.fit_quiet`). For the
@@ -334,25 +341,25 @@ theorem key30_opening_accepts
               Akita.Key30.level₆.tail).finish <
           total)
     (accept : Akita.Extract.Prefix (Akita.Key30.Wire r E) (Option Coord → E) total → Prop)
-    (table : Akita.Extract.Prefix (Akita.Key30.Wire r E) (Option Coord → E) total → Option Coord → E)
-    (decodes : ∀ (input : Akita.Extract.Prefix (Akita.Key30.Wire r E) (Option Coord → E) total)
+    (table : Akita.Extract.Address (Akita.Key30.Wire r E) total → Option Coord → E)
+    (decodes : ∀ (input : Akita.Extract.Address (Akita.Key30.Wire r E) total)
           (b : (Akita.Key30.root r).Block), (decode b.fst (table input (some (block b)))).isSome = true)
-    (decodes₁ : ∀ (input : Akita.Extract.Prefix (Akita.Key30.Wire r E) (Option Coord → E) total)
+    (decodes₁ : ∀ (input : Akita.Extract.Address (Akita.Key30.Wire r E) total)
           (b : (Akita.Key30.level₁ r).Block), (decode₁ b.fst (table input (some (block₁ b)))).isSome = true)
-    (decodes₂ : ∀ (input : Akita.Extract.Prefix (Akita.Key30.Wire r E) (Option Coord → E) total)
+    (decodes₂ : ∀ (input : Akita.Extract.Address (Akita.Key30.Wire r E) total)
           (i : Fin (Akita.Key30.level₂ r).shape.blocks),
           (decode₂ (table input (some (block₂ i)))).isSome = true)
-    (decodes₃ : ∀ (input : Akita.Extract.Prefix (Akita.Key30.Wire r E) (Option Coord → E) total)
+    (decodes₃ : ∀ (input : Akita.Extract.Address (Akita.Key30.Wire r E) total)
           (i : Fin Akita.Key30.level₃.shape.blocks), (decode₃ (table input (some (block₃ i)))).isSome = true)
-    (decodes₄ : ∀ (input : Akita.Extract.Prefix (Akita.Key30.Wire r E) (Option Coord → E) total)
+    (decodes₄ : ∀ (input : Akita.Extract.Address (Akita.Key30.Wire r E) total)
           (i : Fin Akita.Key30.level₄.shape.blocks), (decode₄ (table input (some (block₄ i)))).isSome = true)
-    (decodes₅ : ∀ (input : Akita.Extract.Prefix (Akita.Key30.Wire r E) (Option Coord → E) total)
+    (decodes₅ : ∀ (input : Akita.Extract.Address (Akita.Key30.Wire r E) total)
           (i : Fin Akita.Key30.level₅.shape.blocks), (decode₅ (table input (some (block₅ i)))).isSome = true)
-    (decodes₆ : ∀ (input : Akita.Extract.Prefix (Akita.Key30.Wire r E) (Option Coord → E) total)
+    (decodes₆ : ∀ (input : Akita.Extract.Address (Akita.Key30.Wire r E) total)
           (i : Fin Akita.Key30.level₆.shape.blocks), (decode₆ (table input (some (block₆ i)))).isSome = true)
-    (decodesL : ∀ (input : Akita.Extract.Prefix (Akita.Key30.Wire r E) (Option Coord → E) total)
+    (decodesL : ∀ (input : Akita.Extract.Address (Akita.Key30.Wire r E) total)
           (i : Fin Akita.Key30.terminal.blocks), (decodeL (table input (some (blockL i)))).isSome = true)
-    (worked : ∀ (input : Akita.Extract.Prefix (Akita.Key30.Wire r E) (Option Coord → E) total),
+    (worked : ∀ (input : Akita.Extract.Address (Akita.Key30.Wire r E) total),
           table input none ∈ Akita.Extract.workZeros E 57)
     {tables : Fin 3 → Akita.Table}
     (live : ∀ (g : Fin 3) (cell : ℕ), 2 ^ ![30, r.vars, 28] g ≤ cell → tables g cell = 0)
@@ -734,7 +741,7 @@ theorem key30_verifier_sound
     (kind : Wire → Option ι)
     (family : ι → FinalKey30.Opening logicalWidth publicFits Wire Coord total)
     (shared : ∀ (index : ι), (family index).tower.Shared)
-    (prover : RandomOracle.OracleComp (Akita.Extract.Prefix Wire (Option Coord → K) total) (Option Coord → K) (ℕ → Wire))
+    (prover : RandomOracle.OracleComp (Akita.Extract.Address Wire total) (Option Coord → K) (ℕ → Wire))
     [finiteWire : Finite Wire]
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {cubeFits : Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
@@ -772,8 +779,10 @@ against a false history: `Claims.Final.history_sound` in the game with Akita ope
 Theorem 10.17 with Section 9). The model and the verifier are those of `key30_verifier_sound`.
 For each prover with at most `Q` queries, the probability that the verifier accepts
 `(i, z0, zi)` and no `i` valid steps lead from `z0` to `zi` is at most `FinalKey30.shapesBound`
-plus `IvcSecurity.walkBound` under `[HN-A1]`. Lean gives no bound on the term `breakChance` of
-`shapesBound` (`[MSIS]`). -/
+plus `IvcSecurity.walkBound` under `[HN-A1]`. `depthBound`: the prover controls the iteration of
+its statement, and the claim is for provers whose accepted statement has an iteration of at most
+`depth` for each table, as in `Claims.Final.history_sound`. Lean gives no bound on the term
+`breakChance` of `shapesBound` (`[MSIS]`). -/
 theorem key30_history_sound
     {logicalWidth : ℕ}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
@@ -796,7 +805,7 @@ theorem key30_history_sound
     (kind : Wire → Option ι)
     (family : ι → FinalKey30.Opening logicalWidth publicFits Wire Coord total)
     (shared : ∀ (index : ι), (family index).tower.Shared)
-    (prover : RandomOracle.OracleComp (Akita.Extract.Prefix Wire (Option Coord → K) total) (Option Coord → K) (ℕ → Wire))
+    (prover : RandomOracle.OracleComp (Akita.Extract.Address Wire total) (Option Coord → K) (ℕ → Wire))
     [finiteWire : Finite Wire]
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {cubeFits : Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
@@ -832,7 +841,7 @@ theorem key30_history_sound
               (FinalKey30.adversary setup complete.packageWidth step cap control read head kind family shared
                 prover budget))))
     (depth : ℕ)
-    (depthBound : ∀ (table : Akita.Extract.Prefix Wire (Option Coord → K) total → Option Coord → K),
+    (depthBound : ∀ (table : Akita.Extract.Address Wire total → Option Coord → K),
           FinalKey30.finalAccepts setup complete.packageWidth step cap control read head kind family shared
               (FinalKey20.played prover table) →
             (head (FinalKey20.played prover table).first).statement.iteration ≤ depth) :
@@ -861,7 +870,8 @@ theorem key30_history_sound
 with the Akita openings of `crates/ns-compress/artifacts/key30.aks`. The probability that the
 final verifier accepts and the witnesses that the reverse extractor returns are not a history of
 the accepted statement is at most `FinalKey30.shapesBound` plus `IvcSecurity.walkBound` under
-`[HN-A1]`. Lean gives no bound on the term `breakChance` of `shapesBound` (`[MSIS]`). -/
+`[HN-A1]`. `depthBound` is that of `key30_history_sound`. Lean gives no bound on the term
+`breakChance` of `shapesBound` (`[MSIS]`). -/
 theorem key30_history_knowledge
     {logicalWidth : ℕ}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
@@ -884,7 +894,7 @@ theorem key30_history_knowledge
     (kind : Wire → Option ι)
     (family : ι → FinalKey30.Opening logicalWidth publicFits Wire Coord total)
     (shared : ∀ (index : ι), (family index).tower.Shared)
-    (prover : RandomOracle.OracleComp (Akita.Extract.Prefix Wire (Option Coord → K) total) (Option Coord → K) (ℕ → Wire))
+    (prover : RandomOracle.OracleComp (Akita.Extract.Address Wire total) (Option Coord → K) (ℕ → Wire))
     [finiteWire : Finite Wire]
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {cubeFits : Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
@@ -920,7 +930,7 @@ theorem key30_history_knowledge
               (FinalKey30.adversary setup complete.packageWidth step cap control read head kind family shared
                 prover budget))))
     (depth : ℕ)
-    (depthBound : ∀ (table : Akita.Extract.Prefix Wire (Option Coord → K) total → Option Coord → K),
+    (depthBound : ∀ (table : Akita.Extract.Address Wire total → Option Coord → K),
           FinalKey30.finalAccepts setup complete.packageWidth step cap control read head kind family shared
               (FinalKey20.played prover table) →
             (head (FinalKey20.played prover table).first).statement.iteration ≤ depth) :
@@ -988,7 +998,7 @@ theorem key30_memory_sound
     (kind : Wire → Option ι)
     (family : ι → FinalKey30.Opening logicalWidth publicFits Wire Coord total)
     (shared : ∀ (index : ι), (family index).tower.Shared)
-    (prover : RandomOracle.OracleComp (Akita.Extract.Prefix Wire (Option Coord → K) total)
+    (prover : RandomOracle.OracleComp (Akita.Extract.Address Wire total)
           (Option Coord → K) (ℕ → Wire))
     [finiteWire : Finite Wire]
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
@@ -1017,7 +1027,7 @@ theorem key30_memory_sound
           (IvcWalk.back setup.ajtai setup.circuitKeys exports) Admitted StageAdmitted Efficient)
     {p : Nebula.Plan}
     (app : Nebula.PortApp p.toGeometry)
-    (claim : (Akita.Extract.Prefix Wire (Option Coord → K) total → Option Coord → K) →
+    (claim : (Akita.Extract.Address Wire total → Option Coord → K) →
           PMF (Nebula.EndToEnd.MemoryStatement app.width))
     (rows : ∀ (circuit : Fin 2),
           (setup.rows (↑circuit : ℕ)).matrices =
@@ -1210,9 +1220,9 @@ theorem key30_instance_list :
 extractor that is a solution of Module-SIS (`solved`): for the key commitment, or a witness of
 `R_bind` of the opening. A witness of `R_bind` of the level 1 has also the solution of Akita
 Lemma 9.1 for the commitment of the setup prefix. Then a matrix of the opening has a solution
-that gives a solution of an instance of the list, at the bound that the file prices. `inner`:
-the bound of the reduction for the key commitment is at most `η_A = 16642998148` of the key
-group. Lean does not prove that an instance is hard (`[MSIS]`). -/
+that gives a solution of an instance of the list, at the bound that the file prices. The radius
+of the reduction for the key commitment is `η_A = 16642998148` of the key group. Lean does not
+prove that an instance is hard (`[MSIS]`). -/
 theorem key30_instances
     {logicalWidth : ℕ}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
@@ -1232,7 +1242,6 @@ theorem key30_instances
     [decidableEqCoord : DecidableEq Coord]
     {o : FinalKey30.Opening logicalWidth publicFits Wire Coord total}
     {shared : o.tower.Shared}
-    (inner : o.innerBound ≤ ((Akita.Key30.root o.row).fold 0).innerBound ((Akita.Key30.root o.row).shape 0))
     {out : Akita.Extract.Opened (Akita.Key30.root o.row).Weak
             (Akita.Extract.Opened (Akita.Key30.level₁ o.row).Weak
               (Akita.Extract.Opened (Akita.Weak (Akita.Key30.level₂ o.row).opening)
@@ -1268,19 +1277,19 @@ theorem key30_instances
                             o.tower.terminal.matrix o.tower.terminal.weight o.tower.terminal.bound)}
     (solved : FinalAkita.Solved
           (FinalKey30.Opening.body setup packageWidths step cap control read head o shared) o.tower.key
-          o.honest o.innerBound out) :
+          o.honest (((Akita.Key30.root o.row).fold 0).innerBound ((Akita.Key30.root o.row).shape 0)) out) :
     Akita.Key30.Reduced Akita.Key30.instances o.tower.key o.tower.openKey o.tower.key₁ o.tower.openKey₁
       o.tower.key₂ o.tower.openKey₂ o.tower.key₃ o.tower.openKey₃ o.tower.key₄ o.tower.openKey₄
       o.tower.key₅ o.tower.openKey₅ o.tower.key₆ o.tower.openKey₆ o.tower.terminal.matrix :=
   @NightstreamFPrime.Export.BoundedDepth.FinalKey30.Opening.reduced logicalWidth publicFits mode setup
-    packageWidths step cap control Wire Coord total read head fintypeCoord decidableEqCoord o shared inner
-    out solved
+    packageWidths step cap control Wire Coord total read head fintypeCoord decidableEqCoord o shared out
+    solved
 
 
 /-- The join of the list `Key30.views` with the shared setup (Akita Section 4.3 with (35),
 Table 3, Lemma 10.20 and Lemma 9.1). `keys`: each matrix of the opening is the view of one flat
 setup vector `S` with the degree, the rank and the width of its instance in `views`, as the code
-reads it from one stream from the offset 0. `shared`, `solved` and `inner` are those of
+reads it from one stream from the offset 0. `shared` and `solved` are those of
 `key30_instances`; at `S` the setup prefix `flat`, `keys` gives `shared`
 (`Spec.Compression.Akita.Key30.Tower.shared_of_views`). Then an instance `I` of the 54 views of
 the row has a solution of Module-SIS for the view `M_I(S)` of `S` itself, at the bound of the
@@ -1311,7 +1320,6 @@ theorem key30_instances_shared
     (keys : Akita.Key30.Shared S o.tower.key o.tower.openKey o.tower.key₁ o.tower.openKey₁
           o.tower.key₂ o.tower.openKey₂ o.tower.key₃ o.tower.openKey₃ o.tower.key₄ o.tower.openKey₄
           o.tower.key₅ o.tower.openKey₅ o.tower.key₆ o.tower.openKey₆ o.tower.terminal.matrix)
-    (inner : o.innerBound ≤ ((Akita.Key30.root o.row).fold 0).innerBound ((Akita.Key30.root o.row).shape 0))
     {out : Akita.Extract.Opened (Akita.Key30.root o.row).Weak
             (Akita.Extract.Opened (Akita.Key30.level₁ o.row).Weak
               (Akita.Extract.Opened (Akita.Weak (Akita.Key30.level₂ o.row).opening)
@@ -1347,10 +1355,10 @@ theorem key30_instances_shared
                             o.tower.terminal.matrix o.tower.terminal.weight o.tower.terminal.bound)}
     (solved : FinalAkita.Solved
           (FinalKey30.Opening.body setup packageWidths step cap control read head o shared) o.tower.key
-          o.honest o.innerBound out) :
+          o.honest (((Akita.Key30.root o.row).fold 0).innerBound ((Akita.Key30.root o.row).shape 0)) out) :
     Akita.Setup.Solved (Akita.Key30.views o.row) S :=
   @NightstreamFPrime.Export.BoundedDepth.FinalKey30.Opening.reduced_shared logicalWidth publicFits mode
     setup packageWidths step cap control Wire Coord total read head fintypeCoord decidableEqCoord o shared N
-    S keys inner out solved
+    S keys out solved
 
 end NightstreamFPrime.Claims.AkitaKey30

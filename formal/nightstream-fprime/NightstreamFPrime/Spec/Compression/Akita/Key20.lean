@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.Tower
 
 /-! The numbers of the schedule file `crates/ns-compress/artifacts/key20.aks` for the tower of
 `Extract/Tower.lean`: the root with three opening groups, the packing level 1, the trace levels 2
-to 5 and the terminal (Akita, ePrint 2026/1983, revision of 2026-10-15, (28), (53), (55), (69),
+to 5 and the terminal (Akita, ePrint 2026/1983, revision of 2026-11-23, (28), (53), (55), (69),
 (75), (76), (84) and Section 9.3). `tests/AkitaSchedules.lean` compares each number that the file
 holds with the file.
 

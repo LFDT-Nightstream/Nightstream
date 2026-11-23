@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.FoldCheck
 
 /-! The direct norm check of Akita for the Euclidean route, in the checks of one fold
-(ePrint 2026/1983, revision of 2026-10-15, Sections 6.2 and 6.3 with (81) to (85) and (90) to
+(ePrint 2026/1983, revision of 2026-11-23, Sections 6.2 and 6.3 with (81) to (85) and (90) to
 (93), Lemma 6.3, and Lemma 10.34 with (184)), in the order of the pinned Akita code
 (`crates/akita-verifier/src/stages/physical_l2_norm.rs` and `stage1.rs`).
 

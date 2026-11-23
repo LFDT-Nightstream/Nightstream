@@ -1,7 +1,7 @@
 import Mathlib.Logic.Equiv.Fin.Basic
 import NightstreamFPrime.Spec.Compression.Akita.Ring
 
-/-! The Akita commitment of one polynomial (ePrint 2026/1983, revision of 2026-10-15, Section 4.5)
+/-! The Akita commitment of one polynomial (ePrint 2026/1983, revision of 2026-11-23, Section 4.5)
 and its decommitment relation (Akita Definitions 10.21 and 10.22).
 
 - `Shape` has the numbers of the commitment shape (Akita (28)): the ring degrees, the ranks, the

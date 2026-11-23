@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceLink
 
 /-! A trace level of the opening suffix of Akita on the Euclidean route (ePrint 2026/1983, revision
-of 2026-10-15, Section 6.2 with (83), Lemma 10.23 with (177), Corollaries 10.26, 10.32 and 10.35
+of 2026-11-23, Section 6.2 with (83), Lemma 10.23 with (177), Corollaries 10.26, 10.32 and 10.35
 (ii), and Lemma 10.34 with (184)).
 
 - `traceSq` is the opening method of a trace fold on the Euclidean route. Its exact branch
@@ -121,7 +121,7 @@ variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {S' : Shape} {O' :
     (Option (List E × E × E)) Table}
   {total : ℕ} [Fintype Slot] [Nonempty Slot] [Fintype Coord] [DecidableEq Coord]
   {Inner BreakT CandT KeyT : Type} {m : ℕ} {accept : Prefix Wire (Option Coord → Slot) total → Prop}
-  {tail : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
+  {tail : Structure (Address Wire total) (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
     BreakT CandT
     KeyT (Option (Weak O'))}
   {error : ℝ} {loops tree : ℕ}

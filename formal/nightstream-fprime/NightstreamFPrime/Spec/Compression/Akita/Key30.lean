@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.Key20
 
 /-! The numbers of the schedule file `crates/ns-compress/artifacts/key30.aks`, the file of the key
-of `2^19` blocks (Akita, ePrint 2026/1983, revision of 2026-10-15, (28), (53), (55), (69), (75),
+of `2^19` blocks (Akita, ePrint 2026/1983, revision of 2026-11-23, (28), (53), (55), (69), (75),
 (76), (84), Section 9 with (136), and Section 9.3). `tests/AkitaSchedules.lean` compares each
 number that the file holds with the file.
 

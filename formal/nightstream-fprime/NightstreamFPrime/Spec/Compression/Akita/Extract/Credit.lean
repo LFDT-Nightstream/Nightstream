@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceLink
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceNorm
 
 /-! The stage errors of the checks of one level with the work bits of the Akita code (Akita,
-ePrint 2026/1983, revision of 2026-10-15, Remark 10.18 and (146); `transcript_grinding/plan.rs`):
+ePrint 2026/1983, revision of 2026-11-23, Remark 10.18 and (146); `transcript_grinding/plan.rs`):
 each bound of a draw times `2^{−g}` for the work bits `g = workBits L` of the loss `L` of the site
 of the draw in the code.
 

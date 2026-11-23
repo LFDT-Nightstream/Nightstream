@@ -119,6 +119,7 @@ statement (`Export/BoundedDepth/FinalShapes`, `FinalMemory`, `FinalKey30All`), a
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.Tower.onSetup_shared
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.Tower.scan
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.Tower.Drawn.fits
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.Tower.Drawn.decodes
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.Tower.suffix
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.Tower.extract_sound
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.Tower.extraction_le
@@ -148,6 +149,7 @@ statement (`Export/BoundedDepth/FinalShapes`, `FinalMemory`, `FinalKey30All`), a
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalMemory.memory_sound
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey30.Opening.knowledge
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey30.Opening.reduced
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey30.covers_one
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey30.Opening.reduced_shared
 #audit_axioms NightstreamFPrime.Claims.AkitaKey30.key30_instances_shared
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey30.verifier_sound_drawn

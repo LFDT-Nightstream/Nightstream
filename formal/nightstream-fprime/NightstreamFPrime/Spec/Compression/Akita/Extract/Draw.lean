@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.Staged
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Tier
 
 /-! Decoders of the fold challenges from one slot of an answer of the oracle, and their slot
-probability (Akita, ePrint 2026/1983, revision of 2026-10-15, Section 3.2, (23) and Lemma 10.1).
+probability (Akita, ePrint 2026/1983, revision of 2026-11-23, Section 3.2, (23) and Lemma 10.1).
 
 - `slotChance_le_of_fibres`: a decoder for which each challenge has at most `size` slots has the
   slot probability at most `size/|Slot|`. `slotChance_le_pow` is the bound `2^-k` for
@@ -11,10 +11,11 @@ probability (Akita, ePrint 2026/1983, revision of 2026-10-15, Section 3.2, (23) 
   for at most one slot, and `le_slotChance` states that no decoder with a challenge has a
   smaller slot probability.
 - `draw family keep` is a decoder onto the members of `family` that pass the filter `keep`
-  (the accepted family `C^acc` of Akita (23)): a fixed injection of the slots into `family`, and
-  no challenge for a slot whose member does not pass. It is not the rank decoder of the Akita
-  code (`crates/akita-challenges/src/sampler/stream.rs`). `exists_pick` gives the injection when
-  `|Slot| ≤ |family|`. -/
+  (the accepted family `C^acc` of Akita (23)): a fixed injection of the slots into these
+  members. It is not the rank decoder of the Akita code
+  (`crates/akita-challenges/src/sampler/stream.rs`). `exists_pick` gives an injection into a set
+  with `|Slot|` members or more, and `draw_isSome` gives a challenge for each slot when `|Slot|`
+  members or more pass the filter. -/
 
 set_option autoImplicit false
 
@@ -85,31 +86,30 @@ section Draw
 variable {Slot Ring : Type} {family : Set Ring} {keep : Ring → Prop}
 
 /-- A decoder onto the members of `family` that pass `keep`: the member of a slot under a fixed
-injection of the slots into `family` when it passes `keep`, and no challenge when it does not
-pass, or when no injection exists. -/
+injection of the slots into the members that pass, and no challenge when no injection exists. -/
 noncomputable def draw (family : Set Ring) (keep : Ring → Prop) (slot : Slot) : Option Ring :=
-  if fits : ∃ pick : Slot → Ring, Function.Injective pick ∧ ∀ s, pick s ∈ family then
-    if keep (fits.choose slot) then some (fits.choose slot) else none
+  if fits : ∃ pick : Slot → Ring, Function.Injective pick ∧ ∀ s, pick s ∈ {c ∈ family | keep c}
+  then some (fits.choose slot)
   else none
 
 theorem exists_of_draw {slot : Slot} {c : Ring} (decoded : draw family keep slot = some c) :
-    ∃ fits : ∃ pick : Slot → Ring, Function.Injective pick ∧ ∀ s, pick s ∈ family,
-      fits.choose slot = c ∧ keep c := by
+    ∃ fits : ∃ pick : Slot → Ring, Function.Injective pick ∧ ∀ s, pick s ∈ {c ∈ family | keep c},
+      fits.choose slot = c := by
   unfold draw at decoded
-  split_ifs at decoded with fits kept
-  exact ⟨fits, Option.some.inj decoded, Option.some.inj decoded ▸ kept⟩
+  split_ifs at decoded with fits
+  exact ⟨fits, Option.some.inj decoded⟩
 
 /-- A challenge of `draw` is a member of the family that passes the filter. -/
 theorem draw_mem {slot : Slot} {c : Ring} (decoded : draw family keep slot = some c) :
     c ∈ family ∧ keep c := by
-  obtain ⟨fits, rfl, kept⟩ := exists_of_draw decoded
-  exact ⟨fits.choose_spec.2 slot, kept⟩
+  obtain ⟨fits, rfl⟩ := exists_of_draw decoded
+  exact fits.choose_spec.2 slot
 
 /-- `draw` gives each challenge for at most one slot. -/
 theorem draw_injective (a b : Slot) (c : Ring) (left : draw family keep a = some c)
     (right : draw family keep b = some c) : a = b := by
-  obtain ⟨fits, same, -⟩ := exists_of_draw left
-  obtain ⟨_, same', -⟩ := exists_of_draw right
+  obtain ⟨fits, same⟩ := exists_of_draw left
+  obtain ⟨_, same'⟩ := exists_of_draw right
   exact fits.choose_spec.1 (same.trans same'.symm)
 
 /-- The slot probability of `draw` is at most `1/|Slot|`. -/
@@ -129,11 +129,12 @@ theorem exists_pick [Fintype Slot] [Nonempty Slot] (enough : Fintype.card Slot �
   exact ⟨fun s => (into s).1, fun a b same => into.injective (Subtype.ext same),
     fun s => (into s).2⟩
 
-/-- Without a filter, `draw` gives a challenge for each slot, when the family has `|Slot|`
-members or more. -/
-theorem draw_isSome [Fintype Slot] [Nonempty Slot] (enough : Fintype.card Slot ≤ Nat.card family)
-    (slot : Slot) : (draw family (fun _ => True) slot).isSome := by
-  rw [draw, dite_eq_left (exists_pick enough), ite_eq_left trivial]
+/-- `draw` gives a challenge for each slot when `|Slot|` members of the family or more pass the
+filter. -/
+theorem draw_isSome [Fintype Slot] [Nonempty Slot]
+    (enough : Fintype.card Slot ≤ Nat.card {c ∈ family | keep c}) (slot : Slot) :
+    (draw family keep slot).isSome := by
+  rw [draw, dite_eq_left (exists_pick enough)]
   rfl
 
 end Draw

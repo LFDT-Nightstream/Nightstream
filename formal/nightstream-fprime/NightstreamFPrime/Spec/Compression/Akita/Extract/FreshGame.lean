@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Fresh
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Uniform
 
 /-! Π_CCS on one source as the stages of a Fiat–Shamir transcript (Akita, ePrint 2026/1983,
-revision of 2026-10-15, Definition 10.16 (vii): the bad sets of the stages of a checkpoint
+revision of 2026-11-23, Definition 10.16 (vii): the bad sets of the stages of a checkpoint
 segment; SPEC.md Algorithm 10, step 7).
 
 - `costs` has the bound of each draw of `Fresh.game` in its order: `α`, `γ` and the round

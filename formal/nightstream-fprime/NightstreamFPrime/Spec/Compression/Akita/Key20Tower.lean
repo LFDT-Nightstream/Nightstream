@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Key20
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Credit
 
 /-! The opening suffix of Akita for the schedule file `crates/ns-compress/artifacts/key20.aks`
-(Akita, ePrint 2026/1983, revision of 2026-10-15, Proposition 10.44, Theorem 10.46, Corollary
+(Akita, ePrint 2026/1983, revision of 2026-11-23, Proposition 10.44, Theorem 10.46, Corollary
 10.35 (ii) and Corollary 10.49 with (206)).
 
 - `tower_suffix` is `mixedTower_suffix` for the numbers of `Key20.lean`, under the verifier

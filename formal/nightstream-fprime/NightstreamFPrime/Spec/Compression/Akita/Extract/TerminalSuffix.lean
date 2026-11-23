@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.Recursion
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Route
 
 /-! The evaluation-trace terminal of Akita as the last stages of the opening suffix (ePrint
-2026/1983, revision of 2026-10-15, Section 8.2, Proposition 10.29, and Proposition 10.44 with its
+2026/1983, revision of 2026-11-23, Section 8.2, Proposition 10.29, and Proposition 10.44 with its
 proof, "Certificates", "Terminal fold" and "Checkpoints").
 
 - `Terminal` has the data of the terminal with its fold challenge at the stage `start` of a
@@ -170,7 +170,7 @@ Akita Proposition 10.29, which returns the certificate `Sourced` of the referenc
 later stage is plain, and a certificate after the stage `start` is an accepting transcript. A
 witness of `R_bind` is a solution of Module-SIS for `A_term`. -/
 noncomputable def body :
-    Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire)
+    Structure (Address Wire total) (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire)
       (Prefix Wire (Option Coord → Slot) total × Option (TerminalFork S))
       (Option (route.Kernel L.matrix L.weight L.bound)) Unit (Rq S.innerDegree)
       (Option (TerminalFork S)) where

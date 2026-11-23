@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.Extract.PairComplete
 
 /-! The honest prover of the checks of one level on a Fiat–Shamir transcript, for checks with more
-than one message between two draws (Akita, ePrint 2026/1983, revision of 2026-10-15,
+than one message between two draws (Akita, ePrint 2026/1983, revision of 2026-11-23,
 Theorem 10.9: "All honest algebraic checks are exact identities").
 
 The checks of a level with the direct norm check or with the tensor reduction send two or three

@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Challenge
 import NightstreamFPrime.Spec.Compression.Akita.ShortUnit
 
 /-! The sparse challenge families of Akita with the magnitudes 1 and 2 (ePrint 2026/1983,
-revision of 2026-10-15, Section 3.2).
+revision of 2026-11-23, Section 3.2).
 
 - `SparseFamily d n₁ n₂` is the family `C` for the ring degree `d` and the counts `n₁` and `n₂`
   of the coefficients `±1` and `±2`. The Akita code (revision `d50f700f`,

@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Challenge
 import NightstreamFPrime.Spec.Compression.Akita.Opening
 
 /-! One fold of Akita with direct coefficient packing, for one claim in one group, on the
-coefficient-norm route (ePrint 2026/1983, revision of 2026-10-15, Sections 5.4, 5.5 and 7.2, and
+coefficient-norm route (ePrint 2026/1983, revision of 2026-11-23, Sections 5.4, 5.5 and 7.2, and
 Definition 10.22, Lemma 10.23 and Corollary 10.32).
 
 - `vecNormInf_gadget_le_of_balanced` and `vecNormInf_gadget_sub_le` are the envelopes (77) and

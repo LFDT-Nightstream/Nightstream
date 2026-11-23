@@ -4,7 +4,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Key20Challenge
 
 /-! The final verifier over the Akita opening of `key20.aks` with the decoders `draw` of the
 sparse challenge families (SPEC.md, Algorithm 10; Akita, ePrint 2026/1983, revision of
-2026-10-15, Section 3.2, (23), Definition 9.2 E1 and Theorem 10.17).
+2026-11-23, Section 3.2, (23), Definition 9.2 E1 and Theorem 10.17).
 
 - `Opening.Drawn` has the hypotheses of `FinalKey20.sound` on an opening whose decoders are
   `draw` of the families of the Akita code: `(31, 10)` for the groups of `W` and `V` and for the
@@ -13,7 +13,8 @@ sparse challenge families (SPEC.md, Algorithm 10; Akita, ePrint 2026/1983, revis
   `TrigTable.codeAccepts` of the code. It has no hypothesis on units, on `‖c‖_1`, on the
   operator bound or on the slot probability: the filter of the code accepts only elements with
   `‖c‖_mul,2 ≤ Γ` (`TrigTable.filtered_code`; Akita Appendix H, Theorem H.1).
-- `Opening.Drawn.sized` gives `Opening.Sized` with the slot probability `p = 1/q²`.
+- `Opening.Drawn.sized` gives `Opening.Sized` with the slot probability `p = 1/q²`, and
+  `Opening.Drawn.decodes` gives a fold challenge for each slot at each level.
 - `verifier_sound_drawn` is `verifier_sound` for a family of openings with `Opening.Drawn`.
 - `history_sound_drawn` and `history_knowledge_drawn` are `history_sound` and
   `history_knowledge` for such a family.
@@ -102,8 +103,9 @@ local notation "fifth" =>
 decoders `draw` of the sparse challenge families of the Akita code. `decode` to `decodeL`,
 `mass`, `peak` and `weight₁` to `weight₅`: the decoders and the numbers `ω` and `c_max` of `o`
 are those of the families, with the filter `TrigTable.codeAccepts` of the code for `Γ` = 13,
-18, 18 and 18 at the levels 3 to 5 and at the terminal (Akita (23)). The other fields are those
-of `Opening.Sized` that are not about a challenge family. -/
+18, 18 and 18 at the levels 3 to 5 and at the terminal (Akita (23)). `kept`: `2^128` members or
+more of each filtered family pass the filter (Akita Table 12). The other fields are those of
+`Opening.Sized` that are not about a challenge family. -/
 structure Opening.Drawn : Prop where
   laid : setup.Laid o.shape
   early : ∀ anchor g, g ≠ 2 → o.bound anchor g = o.bound (anchor.take 0) g
@@ -137,9 +139,35 @@ structure Opening.Drawn : Prop where
   registered : ∀ anchor, o.honest.Opens o.factorBound o.sourceBound (o.key 0) (o.bound anchor 0)
     (keyBase (FinalVerifier.Setup.params S₀ o.shape))
   covers : o.factorBound * (root.fold 0).sourceBound (root.shape 0) + 2 * o.mass 0 * o.sourceBound ≤
-    o.innerBound
+    (root.fold 0).innerBound (root.shape 0)
+  kept : Key20.Kept
 
 variable {o}
+
+/-- The condition `covers` of `Opening.Drawn` holds for the factor bound 1, the source bound `b/2`
+of the key group and `ω = 31`: the norm `β̄_∞ + κ̄_1·b/2 = 293887` is at most `η_A = 32505732`
+(`Descriptor.key20_covers`). -/
+theorem covers_one : 1 * (root.fold 0).sourceBound (root.shape 0) +
+    2 * Key20.rootMass 0 * ((root.shape 0).sourceBase / 2) ≤
+      (root.fold 0).innerBound (root.shape 0) := by
+  rw [Nat.one_mul]
+  exact Descriptor.key20_covers
+
+omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] in
+/-- With `Opening.Drawn`, each slot of `K` gives a fold challenge of each group of the root, of
+the levels 1 to 5 and of the terminal, so the conditions `decodes` of the verifier hold for each
+table of stage answers. -/
+theorem Opening.Drawn.decodes
+    (drawn : o.Drawn setup packageWidths step cap control read head) (slot : K) :
+    (∀ g, (o.decode g slot).isSome) ∧ (o.decode₁ slot).isSome ∧ (o.decode₂ slot).isSome ∧
+      (o.decode₃ slot).isSome ∧ (o.decode₄ slot).isSome ∧ (o.decode₅ slot).isSome ∧
+      (Terminal.decode o.terminal slot).isSome := by
+  rw [drawn.decode, drawn.decode₁, drawn.decode₂, drawn.decode₃, drawn.decode₄, drawn.decode₅,
+    drawn.decodeL]
+  exact ⟨fun g => Key20.rootDecode_isSome g slot, Key20.draw_all Key20.families_large.1 slot,
+    Key20.draw_all ((by decide : 2 ^ 128 ≤ 2 ^ 129).trans Key20.families_large.2.2) slot,
+    Key20.draw_kept drawn.kept.2 slot, Key20.draw_kept drawn.kept.1 slot,
+    Key20.draw_kept drawn.kept.1 slot, Key20.draw_kept drawn.kept.1 slot⟩
 
 omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] in
 /-- An opening with `Opening.Drawn` has `Opening.Sized` with the slot probability `p = 1/q²`:
@@ -249,7 +277,7 @@ section All
 
 variable {ι : Type} [Fintype ι] (kind : Wire → Option ι)
   (family : ι → Opening logicalWidth publicFits Wire Coord total)
-  (prover : OracleComp (Prefix Wire (Option Coord → K) total) (Option Coord → K) (ℕ → Wire))
+  (prover : OracleComp (Address Wire total) (Option Coord → K) (ℕ → Wire))
     [Finite Wire]
 
 /-- Soundness of the final verifier with Akita openings whose decoders are the decoders `draw`
@@ -358,7 +386,7 @@ theorem history_knowledge_drawn
     positive admitted depth depthBound
 
 variable {p : Nebula.Plan} (app : Nebula.PortApp p.toGeometry)
-  (claim : (Prefix Wire (Option Coord → K) total → Option Coord → K) →
+  (claim : (Address Wire total → Option Coord → K) →
     PMF (Lifecycle.Nebula.EndToEnd.MemoryStatement app.width))
 
 local notation "verifiers" => fun index =>

@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.FlatWitness
 
 /-! The relation of one fold of Akita with coefficient packing on the flat witness, for one claim
-in one group, and its link to the exact branch relation (ePrint 2026/1983, revision of 2026-10-15,
+in one group, and its link to the exact branch relation (ePrint 2026/1983, revision of 2026-11-23,
 Section 7.2 with Figure 5, Section 7.3 with (108) to (110), and the hypothesis of
 Corollary 10.32).
 

@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.Batch
 import NightstreamFPrime.Spec.Compression.Akita.Setup
 
-/-! Reductions between instances of Module-SIS (Akita, ePrint 2026/1983, revision of 2026-10-15,
+/-! Reductions between instances of Module-SIS (Akita, ePrint 2026/1983, revision of 2026-11-23,
 Definition 3.2, Section 4.4 with (38) and (39), and Section 10.3), and the instances of the
 matrices of a commitment and of an opening.
 

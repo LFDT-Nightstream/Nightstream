@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.Euclid
 
 /-! One fold of Akita with the evaluation-trace opening method, for one claim in one group
-(ePrint 2026/1983, revision of 2026-10-15, Sections 5.3, 7.1 and 7.2, Definition 10.22,
+(ePrint 2026/1983, revision of 2026-11-23, Sections 5.3, 7.1 and 7.2, Definition 10.22,
 Lemma 10.23 and Corollary 10.32).
 
 At a trace level the fold challenges are elements of the A ring `R = R_{q,d_A}`, and a partial

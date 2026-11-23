@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Fold
 import NightstreamFPrime.Spec.Compression.Lib.Cube
 
 /-! The honest prover of one fold of Akita with direct coefficient packing, for one claim
-(ePrint 2026/1983, revision of 2026-10-15, Figure 4, steps 1 and 2), the deterministic part of
+(ePrint 2026/1983, revision of 2026-11-23, Figure 4, steps 1 and 2), the deterministic part of
 Akita Lemma 10.7, and the layout of the scalar opening.
 
 - `Encodable b δ` is `Enc` of Akita (147): each coefficient is in `[−M, T]`, the interval of `δ`

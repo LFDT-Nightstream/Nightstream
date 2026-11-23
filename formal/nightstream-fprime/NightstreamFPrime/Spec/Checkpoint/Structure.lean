@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Checkpoint.Protocol
 import Mathlib.Algebra.BigOperators.Intervals
 
-/-! The checkpoint structure of Akita Definition 10.16 (ePrint 2026/1983, pp. 76–77), in the
+/-! The checkpoint structure of Akita Definition 10.16 (ePrint 2026/1983, pp. 77–78), in the
 restricted form of the proof path of Akita: each extraction stage is an indexed binary stage. -/
 
 set_option autoImplicit false
@@ -19,20 +19,20 @@ inductive Kind (Coord : Type) where
   | checkpoint (span : ℕ)
   | plain
 
-/-- The data of Definition 10.16. The answer at a stage input is a tuple of independent uniform
-slots, one for each coordinate. This is the model of one squeeze run: one long output at one
-transcript prefix, of which coordinate `u` of the challenge is a fixed slot. It is not one oracle
-output for each coordinate: the paper gives each coordinate `(ξ_r, u)` its own table entry, and
-here one query to `ξ_r` returns all slots. `key level coordinate` decodes one slot to a challenge value `ρ_{r,u}`, or to `none`
-for a value that makes the verifier reject. `weight` is `1/|S_{r,u}|` and `error` is `ε_r` of a
+/-- The data of Definition 10.16. The answer at a key is a tuple of independent uniform slots, one
+for each coordinate. This is the model of one squeeze run: one long output at one key, of which
+coordinate `u` of the challenge is a fixed slot. It is not one oracle output for each coordinate:
+the paper gives each coordinate `(⟨ξ_r⟩, u)` its own table entry, and here one query to `⟨ξ_r⟩`
+returns all slots. `key level coordinate` decodes one slot to a challenge value `ρ_{r,u}`, or to
+`none` for a value that makes the verifier reject. `weight` is `1/|S_{r,u}|` and `error` is `ε_r` of a
 checkpoint or plain stage. `holds level` is the certificate set `Y_level`, `breaks` is the set `T`
 of the witnesses of `R_bind`, `combine` is `Comb_r`, `candidate` is `Cand_ℓ`, `good` is `Good_ℓ`,
 `collide` is `Coll_ℓ`, `refuted level ξ w` is `D(ξ; w) = 1` in the segment of the checkpoint
 `level`, `bad` is `Bad_j(ξ; w)`, and `witness` is `Wit`. `point` is the transcript prefix that a
 certificate records. `work level` is the set of the answers whose work-predicate bits are zero,
 and `chance level` is `2^{−g_r}` (Remark 10.18, Proposition 10.3). -/
-structure Structure (Point Coord Slot Proof Cert Break Cand Key Witness : Type) where
-  protocol : Protocol Point (Coord → Slot) Proof
+structure Structure (Addr Point Coord Slot Proof Cert Break Cand Key Witness : Type) where
+  protocol : Protocol Addr Point (Coord → Slot) Proof
   kind : ℕ → Kind Coord
   key : ℕ → Coord → Slot → Option Key
   weight : ℕ → Coord → ℝ
@@ -52,11 +52,11 @@ structure Structure (Point Coord Slot Proof Cert Break Cand Key Witness : Type) 
   witness : Cert → Witness
   relation : Point → Witness → Prop
 
-variable {Point Coord Slot Proof Cert Break Cand Key Witness : Type}
+variable {Addr Point Coord Slot Proof Cert Break Cand Key Witness : Type}
 
 namespace Structure
 
-variable (structure_ : Structure Point Coord Slot Proof Cert Break Cand Key Witness)
+variable (structure_ : Structure Addr Point Coord Slot Proof Cert Break Cand Key Witness)
 
 /-- The conditions of Definition 10.16. Theorem 10.17 assumes items (iv)–(viii) for each auxiliary
 environment in `Good`; here the environment is fixed and the conditions are hypotheses. -/
@@ -157,7 +157,7 @@ structure Lawful [Fintype Coord] [DecidableEq Coord] [Fintype Slot] : Prop where
     structure_.relation statement (structure_.witness certificate)
 
 /-- The stage error `ε_r`: `e_r = 2^{−g_r}·Σ_u 1/|S_{r,u}|` for an indexed stage. In the model of
-one squeeze run, this is also the weight (159) of a stage input of stage `r`, because one query
+one squeeze run, this is also the weight (159) of a key of stage `r`, because one query
 reads all coordinates. The factor `2^{−g_r}` is that of Remark 10.18: the extractor keeps the work
 bits when it forks a coordinate, so a fork fails only at an answer with zero work bits. -/
 noncomputable def charge (level : ℕ) : ℝ :=

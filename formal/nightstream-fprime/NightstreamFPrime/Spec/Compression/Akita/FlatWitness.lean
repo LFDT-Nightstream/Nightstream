@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.Layout
 
 /-! The flat witness of one fold of Akita with coefficient packing, for one claim in one group
-(ePrint 2026/1983, revision of 2026-10-15, Section 5.5 with (75) and (76), and Appendix L.2 with
+(ePrint 2026/1983, revision of 2026-11-23, Section 5.5 with (75) and (76), and Appendix L.2 with
 (346) and (347)).
 
 - `Witness.flat` is the flat witness of the quotient-free route: the segments `ẑ`, `ê`, `t̂`, then

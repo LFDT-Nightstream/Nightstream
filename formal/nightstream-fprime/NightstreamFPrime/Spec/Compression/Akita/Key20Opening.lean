@@ -2,14 +2,16 @@ import NightstreamFPrime.Spec.Compression.Akita.Key20Challenge
 
 /-! The opening of Akita for the schedule file `crates/ns-compress/artifacts/key20.aks` with the
 decoders `draw` of the sparse challenge families, as one statement (Akita, ePrint 2026/1983,
-revision of 2026-10-15, Theorem 10.17, Proposition 10.44, Theorem 10.46 and (206)).
+revision of 2026-11-23, Theorem 10.17, Proposition 10.44, Theorem 10.46 and (206)).
 
 - `Tower` has the data of the opening: the matrices, the readers of the messages, the
   coordinates of the fold challenges and the terminal. The batching root is at the stage 0.
 - `Tower.accepts` is the verifier `towerLinks` for this data, and `Tower.body` is its checkpoint
   structure `towerRoot`. The decoder of each level is `draw` of its family, with the filter
   `TrigTable.codeAccepts` of the Akita code at the levels 3 to 5 and at the terminal.
-- `Tower.Drawn` has the hypotheses of `tower_suffix` that are not theorems for these decoders.
+- `Tower.Drawn` has the hypotheses of `tower_suffix` that are not theorems for these decoders,
+  and the count `Kept` of the filtered families. `Tower.Drawn.decodes`: each slot gives a fold
+  challenge at each level.
 - `Tower.suffix` is `tower_suffix` with `towerError_le` at the slot probability `1/q²`
   (`slotChance_draw`).
 - `Tower.extract_sound` and `Tower.extraction_le` are `Tier.Suffix.extract_sound` and
@@ -158,7 +160,8 @@ noncomputable def Tower.body :=
 `draw`. `injective` to `injectiveL`: the fold coordinates of each level have different slots.
 `next` and `inside`: the fold challenge of the terminal is the stage after the stages of the
 level 5, and it is a stage of the transcript. `decodeL`: the decoder of the terminal is `draw`
-of the family `(31, 11)` with the filter of the Akita code for `Γ` = 18. -/
+of the family `(31, 11)` with the filter of the Akita code for `Γ` = 18. `kept`: `2^128` members
+or more of each filtered family pass the filter (Akita Table 12). -/
 structure Tower.Drawn : Prop where
   injective : Function.Injective o.block
   injective₁ : Function.Injective o.block₁
@@ -171,8 +174,23 @@ structure Tower.Drawn : Prop where
   injectiveL : Function.Injective (Terminal.block o.terminal)
   decodeL : Terminal.decode o.terminal = draw (SparseFamily Key20.terminal.innerDegree 31 11)
     (TrigTable.codeAccepts Key20.terminal.innerDegree normTerminal.operator)
+  kept : Kept
 
 variable {o}
+
+omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] in
+/-- With `Tower.Drawn`, each slot of `E` gives a fold challenge of each group of the root, of the
+levels 1 to 5 and of the terminal, so the conditions `decodes` of the verifier hold for each
+table of stage answers. -/
+theorem Tower.Drawn.decodes (drawn : o.Drawn) (slot : E) :
+    (∀ g, (rootDecode E g slot).isSome) ∧ (draw₁ slot).isSome ∧ (draw₂ slot).isSome ∧
+      (draw₃ slot).isSome ∧ (draw₄ slot).isSome ∧ (draw₅ slot).isSome ∧
+      (Terminal.decode o.terminal slot).isSome := by
+  refine ⟨fun g => rootDecode_isSome g slot, draw_all families_large.1 slot,
+    draw_all ((by decide : 2 ^ 128 ≤ 2 ^ 129).trans families_large.2.2) slot,
+    draw_kept drawn.kept.2 slot, draw_kept drawn.kept.1 slot, draw_kept drawn.kept.1 slot, ?_⟩
+  rw [drawn.decodeL]
+  exact draw_kept drawn.kept.1 slot
 
 /-- Akita Proposition 10.44 and Theorem 10.46 for the opening of `key20.aks` with the decoders
 `draw`: the stages of `Tower.body` are a suffix from the stage 0 under the verifier
@@ -248,10 +266,10 @@ first certificate has a certified decommitment of the commitment of each group o
 (`OpensAt`). Each other output is a solution of Module-SIS for a matrix of a group, of a level,
 or for `A_term`. -/
 theorem Tower.extract_sound (drawn : o.Drawn) (slots : 22 ≤ Fintype.card Coord)
-    (prover : OracleComp (Prefix Wire (Option Coord → E) total) (Option Coord → E) (ℕ → Wire))
+    (prover : OracleComp (Address Wire total) (Option Coord → E) (ℕ → Wire))
       (budget : ℕ)
-    (table : Prefix Wire (Option Coord → E) total → Option Coord → E)
-    (tape : Tape (Prefix Wire (Option Coord → E) total) (Option Coord) E budget
+    (table : Address Wire total → Option Coord → E)
+    (tape : Tape (Address Wire total) (Option Coord) E budget
       o.body.protocol.stages) :
     ∀ out ∈ Checkpoint.extract o.body prover budget table tape,
       o.accepts (o.body.protocol.final prover table) ∧
@@ -273,10 +291,10 @@ output is at most `(Q + 1)·(317479/(1024·|E|) + 135/q²) + (Q + 1)·142/budget
 (`card_field`). The probability is over the uniform table and the tape of the extractor. The
 bound has no term for the probability that the output is a solution of Module-SIS. -/
 theorem Tower.extraction_le (drawn : o.Drawn) (slots : 22 ≤ Fintype.card Coord)
-    (prover : OracleComp (Prefix Wire (Option Coord → E) total) (Option Coord → E) (ℕ → Wire))
+    (prover : OracleComp (Address Wire total) (Option Coord → E) (ℕ → Wire))
       {queries : ℕ}
     (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → E) total) (Option Coord) E budget
+    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) E budget
           o.body.protocol.stages,
         (if o.accepts (o.body.protocol.final prover table) ∧
           Checkpoint.extract o.body prover budget table tape = none then (1 : ℝ) else 0) ≤

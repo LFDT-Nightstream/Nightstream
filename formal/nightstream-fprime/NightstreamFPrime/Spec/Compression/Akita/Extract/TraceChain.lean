@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceLink
 
 /-! The opening suffix of Akita for a packing level over a trace level over the terminal, for
-`k = 2` (ePrint 2026/1983, revision of 2026-10-15, (127), Proposition 10.44, Theorem 10.17 and
+`k = 2` (ePrint 2026/1983, revision of 2026-11-23, (127), Proposition 10.44, Theorem 10.17 and
 Corollary 10.49 with (206)).
 
 - `tripleAccepts` is the verifier of two levels and the terminal: the link `Tier.TraceLinked` from
@@ -60,7 +60,7 @@ def tripleAccepts (point : Prefix Wire (Option Coord → Slot) total) : Prop :=
 
 /-- The checkpoint structure of the trace level `B` over the terminal. -/
 noncomputable def tripleLast :
-    Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire)
+    Structure (Address Wire total) (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire)
       (Opened (Weak O') (Prefix Wire (Option Coord → Slot) total × Option (TerminalFork S'')))
       (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S') ⊕
         Option (ShortKernel L.matrix (8 * L.weight * L.bound)))
@@ -78,7 +78,7 @@ noncomputable def tripleLast :
 of `R_bind` is a solution of Module-SIS for `B`, `D` or a compression map of `A`, for the matrix
 `A`, `B`, `D` or a compression map of `B`, or for `A_term`. -/
 noncomputable def triple :
-    Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire)
+    Structure (Address Wire total) (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire)
       (Opened (Weak O)
         (Opened (Weak O') (Prefix Wire (Option Coord → Slot) total × Option (TerminalFork S''))))
       (Brk ⊕ (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S') ⊕
@@ -229,11 +229,11 @@ theorem traceTriple_extract_sound {peak peak' peak'' : ℕ} (injective : Functio
     (injective'' : Function.Injective L.block)
     (units'' : UnitDifferences L.family)
     (sparse'' : ∀ challenge ∈ L.family, Sparse L.weight peak'' challenge)
-    (prover : OracleComp (Prefix Wire (Option Coord → E) total)
+    (prover : OracleComp (Address Wire total)
       (Option Coord → E) (ℕ → Wire))
     (budget : ℕ)
-    (table : Prefix Wire (Option Coord → E) total → Option Coord → E)
-    (tape : Tape (Prefix Wire (Option Coord → E) total) (Option Coord) E
+    (table : Address Wire total → Option Coord → E)
+    (tape : Tape (Address Wire total) (Option Coord) E
       budget (Structure.protocol chain).stages)
     (out : Opened (Weak O) (Opened (Weak O') (Prefix Wire (Option Coord → E) total ×
         Option (TerminalFork S''))) ⊕
@@ -287,10 +287,10 @@ theorem traceTriple_extraction_le {peak peak' peak'' : ℕ} (injective : Functio
     (injective'' : Function.Injective L.block)
     (units'' : UnitDifferences L.family)
     (sparse'' : ∀ challenge ∈ L.family, Sparse L.weight peak'' challenge)
-    (prover : OracleComp (Prefix Wire (Option Coord → E) total)
+    (prover : OracleComp (Address Wire total)
       (Option Coord → E) (ℕ → Wire))
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → E) total) (Option Coord)
+    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord)
           E budget (Structure.protocol chain).stages,
         (if tripleAccepts first second L quarter' quarter'' commit stateOf
             ((Structure.protocol chain).final prover table) ∧
@@ -320,10 +320,10 @@ theorem traceTriple_runs_le {peak peak' peak'' : ℕ} (injective : Function.Inje
     (injective'' : Function.Injective L.block)
     (units'' : UnitDifferences L.family)
     (sparse'' : ∀ challenge ∈ L.family, Sparse L.weight peak'' challenge)
-    (prover : OracleComp (Prefix Wire (Option Coord → E) total)
+    (prover : OracleComp (Address Wire total)
       (Option Coord → E) (ℕ → Wire))
     {queries : ℕ} (bounded : prover.QueryBound queries) (budget : ℕ) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → E) total) (Option Coord)
+    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord)
           E budget (Structure.protocol chain).stages,
         (extractRuns chain prover budget table tape : ℝ) ≤
       (2 * (S.blocks + 1) * (2 * (S'.blocks + 1) * (S''.blocks + 1)) : ℕ) +

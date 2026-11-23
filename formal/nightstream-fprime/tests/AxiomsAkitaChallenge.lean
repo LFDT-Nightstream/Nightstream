@@ -1,7 +1,7 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Spec.Compression
 import NightstreamFPrime.Export.BoundedDepth.FinalKey20Challenge
-import NightstreamFPrime.Claims.Akita
+import NightstreamFPrime.Claims.AkitaKey20
 
 /-! Axiom audits for the sparse challenge families of the Akita opening: the units of short ring
 elements (`Spec/Compression/Akita/ShortUnit`), the families with their norms, their size and
@@ -54,6 +54,9 @@ decoders (`Export/BoundedDepth/FinalKey20Challenge`), and the claim `key20_memor
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.draw_sparse
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.families_large
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.slots_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.Kept
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.draw_kept
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.draw_all
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.slotChance_draw
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.pow_lt_slotChance
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.rootTwos
@@ -67,13 +70,16 @@ decoders (`Export/BoundedDepth/FinalKey20Challenge`), and the claim `key20_memor
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.Tower.accepts
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.Tower.body
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.Tower.Drawn
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.Tower.Drawn.decodes
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.Tower.suffix
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.Tower.extract_sound
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.Tower.extraction_le
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.Opening.Drawn
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.Opening.Drawn.sized
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.Opening.Drawn.decodes
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.covers_one
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.verifier_sound_drawn
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.history_sound_drawn
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.history_knowledge_drawn
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.memory_sound_drawn
-#audit_axioms NightstreamFPrime.Claims.Akita.key20_memory_sound
+#audit_axioms NightstreamFPrime.Claims.AkitaKey20.key20_memory_sound

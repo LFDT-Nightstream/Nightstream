@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Key30Tower
 
 /-! The final verifier over the Akita opening of a row of the schedule file
 `crates/ns-compress/artifacts/key30.aks` (SPEC.md, Algorithm 10; Akita, ePrint 2026/1983, revision
-of 2026-10-15, Section 9 with Lemma 9.1, Theorem 10.17, Proposition 10.44 and Theorem 10.46).
+of 2026-11-23, Section 9 with Lemma 9.1, Theorem 10.17, Proposition 10.44 and Theorem 10.46).
 
 `sound` is `FinalAkita.final_sound` for the suffix `Key30.tower_suffix` of the opening with an
 offloaded root, with the bound `Key30.towerError_le` of its stage errors and its retry loops.
@@ -300,14 +300,14 @@ theorem sound [Finite Wire] {peak : Fin 3 → ℕ} {peak₁ : Fin 2 → ℕ}
     (chance₃ : slotChance decode₃ ≤ p) (chance₄ : slotChance decode₄ ≤ p)
     (chance₅ : slotChance decode₅ ≤ p) (chance₆ : slotChance decode₆ ≤ p)
     (chanceL : slotChance (Terminal.decode L) ≤ p)
-    (prover : OracleComp (Prefix Wire (Option Coord → K) total) (Option Coord → K) (ℕ → Wire))
+    (prover : OracleComp (Address Wire total) (Option Coord → K) (ℕ → Wire))
     {honest : Certified ((root r).shape 0)} {factorBound sourceBound innerBound : ℕ}
     (registered : ∀ anchor, honest.Opens factorBound sourceBound (key 0) (bound anchor 0)
       (keyBase (setup.params shape)))
     (covers : factorBound * ((root r).fold 0).sourceBound ((root r).shape 0) +
       2 * mass 0 * sourceBound ≤ innerBound)
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 _tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget
+    𝔼 table, 𝔼 _tape : Tape (Address Wire total) (Option Coord) K budget
           (Structure.protocol whole).stages,
         (if accepts ((Structure.protocol whole).final prover table) ∧
             ¬ Proved setup packageWidths step cap control head

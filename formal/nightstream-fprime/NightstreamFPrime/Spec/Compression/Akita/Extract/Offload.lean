@@ -1,6 +1,6 @@
 import NightstreamFPrime.Spec.Compression.Akita.Extract.LiftSource
 
-/-! The checks of an offloaded fold of Akita (ePrint 2026/1983, revision of 2026-10-15, Section 9
+/-! The checks of an offloaded fold of Akita (ePrint 2026/1983, revision of 2026-11-23, Section 9
 with (132) to (135), and Lemma 9.1 with its proof in Appendix D.2).
 
 The verifier of an offloaded fold does not read the setup in the final check of the fused

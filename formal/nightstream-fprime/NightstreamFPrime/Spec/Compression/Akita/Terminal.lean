@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.TraceFold
 
 /-! The evaluation-trace terminal of Akita, for its one claim (ePrint 2026/1983, revision of
-2026-10-15, Section 8.2 and Proposition 10.29).
+2026-11-23, Section 8.2 and Proposition 10.29).
 
 The numbers of the terminal are those of a commitment shape `S`: `B_term = S.blocks`,
 `M_term = S.blockLength`, the base `b_term = S.sourceBase` with `δ_com = S.sourceDigits`, the

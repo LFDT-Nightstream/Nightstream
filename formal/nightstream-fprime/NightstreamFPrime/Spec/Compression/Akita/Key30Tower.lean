@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Key30
 import NightstreamFPrime.Spec.Compression.Akita.Extract.OffTower
 
 /-! The opening suffix of Akita for the schedule file `crates/ns-compress/artifacts/key30.aks`
-(Akita, ePrint 2026/1983, revision of 2026-10-15, Section 9 with (136) and Lemma 9.1,
+(Akita, ePrint 2026/1983, revision of 2026-11-23, Section 9 with (136) and Lemma 9.1,
 Proposition 10.44, Theorem 10.46, Corollary 10.35 (ii) and Corollary 10.49 with (206)).
 
 - `tower_suffix` is `offTower_suffix` for the numbers of a row of `Key30.lean`, under a verifier

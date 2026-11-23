@@ -5,7 +5,7 @@ import NightstreamFPrime.Spec.Compression.Akita.ChallengeFamily
 import NightstreamFPrime.Spec.Compression.Akita.Euclid
 import NightstreamFPrime.Spec.Compression.Akita.Prover
 
-/-! The tail bound of an honest fold response of Akita (ePrint 2026/1983, revision of 2026-10-15,
+/-! The tail bound of an honest fold response of Akita (ePrint 2026/1983, revision of 2026-11-23,
 Appendix K: Definition K.1, Lemmas K.2 and K.3, and Corollary K.10 with (313)), and the sizing
 rule of the Akita code (revision `d50f700f`, `crates/akita-params/src/sis/fold_linf_cap.rs`).
 

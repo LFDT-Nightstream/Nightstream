@@ -2,7 +2,7 @@ import Mathlib.Analysis.SpecialFunctions.Log.Base
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Recursion
 
 /-! The Fiat–Shamir budget of the opening suffix of Akita (ePrint 2026/1983, revision of
-2026-10-15, the condition (195), Corollary 10.48 with (214) and (215), and the sum (206)).
+2026-11-23, the condition (195), Corollary 10.48 with (214) and (215), and the sum (206)).
 
 - `effectiveStrength` is `λ^eff_FS` of (214). `budget_iff` states that the condition (195) is
   `λ_FS ≤ λ^eff_FS`, and `effectiveStrength_le` is the ceiling (215).
@@ -144,7 +144,7 @@ variable {Wire Coord Slot : Type} {total : ℕ} [Fintype Slot] [Nonempty Slot] [
   [DecidableEq Coord] {Inner BreakT CandT KeyT Wit : Type}
   {accept : Prefix Wire (Option Coord → Slot) total → Prop} {start : ℕ}
   {Opens : Prefix Wire (Option Coord → Slot) total → Wit → Prop}
-  {body : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
+  {body : Structure (Address Wire total) (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
     BreakT CandT
     KeyT Wit}
   {error : ℝ} {loops tree : ℕ}
@@ -162,11 +162,11 @@ most `Q ≤ Q_max` queries makes the verifier accept with no output of the extra
 probability of at most `2^{−λ} + (Q + 1)·loops/budget`. -/
 theorem Suffix.extraction_le_strength (suffix : Suffix accept start Opens body error loops tree)
     (root : start = 0)
-    (prover : OracleComp (Prefix Wire (Option Coord → Slot) total) (Option Coord → Slot) (ℕ → Wire))
+    (prover : OracleComp (Address Wire total) (Option Coord → Slot) (ℕ → Wire))
     {queries queryMax : ℕ} (bounded : prover.QueryBound queries) (within : queries ≤ queryMax)
     {strength : ℝ} (budgeted : (queryMax + 1) * error ≤ (2 : ℝ) ^ (-strength)) {budget : ℕ}
     (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot budget
+    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) Slot budget
           body.protocol.stages,
         (if body.protocol.accept (body.protocol.final prover table) ∧
           Checkpoint.extract body prover budget table tape = none then (1 : ℝ) else 0) ≤

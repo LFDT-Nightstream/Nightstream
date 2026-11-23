@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.SetupView
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Offload
 
 /-! The split (132) of the public weight of an offloaded fold of Akita (ePrint 2026/1983, revision
-of 2026-10-15, Section 9 with (132) and (133)).
+of 2026-11-23, Section 9 with (132) and (133)).
 
 The matrices `A`, `B` and `D` of a level are views of the shared setup vector `S`
 (`Batch.Statement.over`), and the compression maps `F` and `H` are local. Each public multiplier

@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.Extract.SetupWeight
 
 /-! The split (132) of the public weight of an offloaded fold in the form of the pinned Akita code
-(ePrint 2026/1983, revision of 2026-10-15, Section 9 with (132) and (133);
+(ePrint 2026/1983, revision of 2026-11-23, Section 9 with (132) and (133);
 `eval_flat_at_point_with_deferred_setup` in `crates/akita-verifier/src/relation/evaluation.rs` and
 `PreparedLiftedRelationPoint::new` in `crates/akita-verifier/src/relation/prepared_point.rs` of
 the Akita code).

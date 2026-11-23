@@ -3,7 +3,7 @@ import Mathlib.Data.ZMod.ValMinAbs
 import Mathlib.RingTheory.AdjoinRoot
 import NightstreamFPrime.Spec.Algebra
 
-/-! The rings and the norms of Akita (ePrint 2026/1983, revision of 2026-10-15, Section 3.1), and
+/-! The rings and the norms of Akita (ePrint 2026/1983, revision of 2026-11-23, Section 3.1), and
 Module-SIS (Akita Definition 3.2).
 
 - `Rq d` is `Z_q[X]/(X^d + 1)` for `q = 2^64 − 59` and a ring degree `d`. `coeff x i` is

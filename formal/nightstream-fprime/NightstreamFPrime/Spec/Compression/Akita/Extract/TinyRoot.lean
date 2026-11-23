@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.LiftSource
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Tiny
 
 /-! A small instance of the batching root of Akita over a fold with three opening groups over a
-last packing fold (ePrint 2026/1983, revision of 2026-10-15, Theorem 10.46, "Batching root" and
+last packing fold (ePrint 2026/1983, revision of 2026-11-23, Theorem 10.46, "Batching root" and
 "Root claims", and Theorem 10.17) with each parameter a numeral. It shows that the hypotheses of
 `batchRoot_extraction_le` hold together, for three groups with three shapes.
 
@@ -126,10 +126,10 @@ output of the extractor has, for each of the three groups, a certified decommitm
 commitment of the group to a table with the claimed value at the point of the group, or it is a
 solution of Module-SIS for a matrix of a group or of a level. -/
 theorem root_extract_sound
-    (prover : OracleComp (Prefix Wire (Option Slots → Zq) (Tier.finish second)) (Option Slots → Zq)
+    (prover : OracleComp (Address Wire (Tier.finish second)) (Option Slots → Zq)
       (ℕ → Wire))
-    (budget : ℕ) (table : Prefix Wire (Option Slots → Zq) (Tier.finish second) → Option Slots → Zq)
-    (tape : Tape (Prefix Wire (Option Slots → Zq) (Tier.finish second)) (Option Slots) Zq budget
+    (budget : ℕ) (table : Address Wire (Tier.finish second) → Option Slots → Zq)
+    (tape : Tape (Address Wire (Tier.finish second)) (Option Slots) Zq budget
       (Structure.protocol chain).stages)
     (out : Opened groups.Weak
         (Opened (Weak (opening 4 256)) (Prefix Wire (Option Slots → Zq) (Tier.finish second))) ⊕
@@ -170,10 +170,10 @@ variable [Finite Wire]
 Theorem 10.17 for the batching root, a fold with three opening groups and a last packing fold):
 the bound holds for each prover. -/
 theorem root_extraction_le
-    (prover : OracleComp (Prefix Wire (Option Slots → Zq) (Tier.finish second)) (Option Slots → Zq)
+    (prover : OracleComp (Address Wire (Tier.finish second)) (Option Slots → Zq)
       (ℕ → Wire))
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Slots → Zq) (Tier.finish second)) (Option Slots) Zq
+    𝔼 table, 𝔼 tape : Tape (Address Wire (Tier.finish second)) (Option Slots) Zq
       budget
           (Structure.protocol chain).stages,
         (if accepts ((Structure.protocol chain).final prover table) ∧
@@ -199,10 +199,10 @@ theorem root_extraction_le
 
 /-- `batchRoot_runs_le` for the small instance, with no hypothesis on the parameters. -/
 theorem root_runs_le
-    (prover : OracleComp (Prefix Wire (Option Slots → Zq) (Tier.finish second)) (Option Slots → Zq)
+    (prover : OracleComp (Address Wire (Tier.finish second)) (Option Slots → Zq)
       (ℕ → Wire))
     {queries : ℕ} (bounded : prover.QueryBound queries) (budget : ℕ) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Slots → Zq) (Tier.finish second)) (Option Slots) Zq
+    𝔼 table, 𝔼 tape : Tape (Address Wire (Tier.finish second)) (Option Slots) Zq
       budget
           (Structure.protocol chain).stages,
         (extractRuns chain prover budget table tape : ℝ) ≤

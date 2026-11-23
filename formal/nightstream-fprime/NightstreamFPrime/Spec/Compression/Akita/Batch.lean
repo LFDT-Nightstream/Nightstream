@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.Fold
 
 /-! One fold of Akita with direct coefficient packing for a family of opening groups, with one
-claim in each group (ePrint 2026/1983, revision of 2026-10-15, Sections 5.1 and 5.4, Figure 5,
+claim in each group (ePrint 2026/1983, revision of 2026-11-23, Sections 5.1 and 5.4, Figure 5,
 Definition 10.22, Lemma 10.23 and Corollary 10.32).
 
 The groups `g : G` have their own commitment shape, challenge ring, opening point and response.

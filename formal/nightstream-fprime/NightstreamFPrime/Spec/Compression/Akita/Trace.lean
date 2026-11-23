@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Commit
 import NightstreamFPrime.Spec.Compression.Akita.Embed
 
 /-! The extension field in the ring, the packing map `ψ` and the trace identity of Akita for
-`k = 2` (ePrint 2026/1983, revision of 2026-10-15, Section 3.1 with (21), and Section 7.1 with
+`k = 2` (ePrint 2026/1983, revision of 2026-11-23, Section 3.1 with (21), and Section 7.1 with
 (96) and (97)).
 
 The tower is `d = 2·k·m` with `k = 2`, so `d = 4·m`. The extension field is a ring `E` with

@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.CheckComplete
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Wire
 
 /-! A type of wire messages for the honest prover of an opening of Akita (ePrint 2026/1983,
-revision of 2026-10-15, Figure 4: the messages of the prover), with the conditions `Sends` and
+revision of 2026-11-23, Figure 4: the messages of the prover), with the conditions `Sends` and
 `Carries` of `Extract/Play.lean` and `Extract/CheckComplete.lean`.
 
 - `Cell` has the data of one message of the checks: `width` elements of `E` and a natural number

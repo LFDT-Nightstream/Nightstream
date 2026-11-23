@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.Offload
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Tower
 
 /-! The opening suffix of Akita for a schedule with an offloaded root (ePrint 2026/1983, revision
-of 2026-10-15, Section 9 with (136) and Lemma 9.1, Proposition 10.44, Theorem 10.46 and
+of 2026-11-23, Section 9 with (136) and Lemma 9.1, Proposition 10.44, Theorem 10.46 and
 Corollary 10.49 with (206)).
 
 The levels have the order of a row of `key30.aks`: the batching root, the offloaded root fold

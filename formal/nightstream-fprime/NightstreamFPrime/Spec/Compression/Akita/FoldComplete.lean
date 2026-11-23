@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.FoldCheck
 import NightstreamFPrime.Spec.Compression.Game.Complete
 
 /-! The completeness of the checks `foldCheck` of one fold of Akita (ePrint 2026/1983, revision
-of 2026-10-15, Theorem 10.9: "All honest algebraic checks are exact identities", with
+of 2026-11-23, Theorem 10.9: "All honest algebraic checks are exact identities", with
 Theorem 3.3 for the sum-checks and Theorem 7.4, item 1, for the ring reduction).
 
 - `sumcheckWith_winsTo` is `Game.sumcheck_winsTo` for `sumcheckWith`.

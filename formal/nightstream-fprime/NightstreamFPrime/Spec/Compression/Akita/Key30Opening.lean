@@ -4,7 +4,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.SetupFactor
 
 /-! The opening of Akita for a row of the schedule file `crates/ns-compress/artifacts/key30.aks`
 with the decoders `draw` of the sparse challenge families, as one statement (Akita, ePrint
-2026/1983, revision of 2026-10-15, Section 3.2, Section 9 with Lemma 9.1, Theorem 10.17,
+2026/1983, revision of 2026-11-23, Section 3.2, Section 9 with Lemma 9.1, Theorem 10.17,
 Proposition 10.44, Theorem 10.46 and (206)).
 
 The Akita code (revision `d50f700f`, `crates/akita-challenges/src/config.rs`) has the family
@@ -27,7 +27,9 @@ family `(31, 11)` for the degree 64.
   `start`, and `Tower.body` is its checkpoint structure `offRoot`. The decoder of each level is
   `draw` of its family: `(31, 0)` for the root and for the levels 1 and 4, `(31, 10)` for the
   levels 2 and 3, and `(31, 11)` with the filter of the code for the levels 5 and 6.
-- `Tower.Drawn` has the hypotheses of `tower_suffix` that are not theorems for these decoders.
+- `Tower.Drawn` has the hypotheses of `tower_suffix` that are not theorems for these decoders,
+  and the count `Key20.Kept` of the filtered families. `Tower.Drawn.decodes`: each slot gives a
+  fold challenge at each level.
 - `Tower.suffix` is `tower_suffix` with `towerError_le` at the slot probability `1/q²`
   (`Key20.slotChance_draw`).
 - `Tower.accepts`, `Tower.extract_sound` and `Tower.extraction_le` are the verifier with the
@@ -290,7 +292,8 @@ prefix `flat` is this table with zeros after its cells, and `reference` is the d
 the algorithm (`Batch.registered_commit`). `next` and `inside`: the fold challenge of the
 terminal is the stage after the stages of the level 6, and it is a stage of the transcript.
 `decodeL`: the decoder of the terminal is `draw` of the family `(31, 11)` with the filter of the
-code for `Γ` = 18. -/
+code for `Γ` = 18. `kept`: `2^128` members or more of each filtered family pass the filter (Akita
+Table 12). -/
 structure Tower.Drawn : Prop where
   injective : Function.Injective o.block
   injective₁ : Function.Injective o.block₁
@@ -306,9 +309,27 @@ structure Tower.Drawn : Prop where
   injectiveL : Function.Injective (Terminal.block o.terminal)
   decodeL : Terminal.decode o.terminal = draw (SparseFamily Key30.terminal.innerDegree 31 11)
     (TrigTable.codeAccepts Key30.terminal.innerDegree normTerminal.operator)
+  kept : Key20.Kept
 
 variable {o shared read start}
   {accept : Prefix Wire (Option Coord → E) total → Prop}
+
+omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] in
+/-- With `Tower.Drawn`, each slot of `E` gives a fold challenge of each group of the root and of
+the level 1, of the levels 2 to 6 and of the terminal, so the conditions `decodes` of the
+verifier hold for each table of stage answers. -/
+theorem Tower.Drawn.decodes (drawn : o.Drawn shared read start) (slot : E) :
+    (∀ g, (rootDecode E r g slot).isSome) ∧ (∀ g, (decode₁ E r g slot).isSome) ∧
+      (draw₂ slot).isSome ∧ (draw₃ slot).isSome ∧ (draw₄ slot).isSome ∧ (draw₅ slot).isSome ∧
+      (draw₆ slot).isSome ∧ (Terminal.decode o.terminal slot).isSome := by
+  have large : 2 ^ 128 ≤ Nat.card (SparseFamily 128 31 0) :=
+    (by decide : 2 ^ 128 ≤ 2 ^ 129).trans Key20.families_large.2.2
+  refine ⟨fun _ => Key20.draw_all large slot, fun _ => Key20.draw_all large slot,
+    Key20.draw_all Key20.families_large.1 slot, Key20.draw_all Key20.families_large.1 slot,
+    Key20.draw_all large slot, Key20.draw_kept drawn.kept.1 slot,
+    Key20.draw_kept drawn.kept.1 slot, ?_⟩
+  rw [drawn.decodeL]
+  exact Key20.draw_kept drawn.kept.1 slot
 
 omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] in
 /-- The stage of the batching root is a stage of the transcript: the stages of the levels and the
@@ -428,10 +449,10 @@ each group of the root, with `κ̄_1 = 2ω` and `β̄_∞ = Δ^cert_f`, to a tab
 value at the claimed point (`OpensAt`). Each other output is a solution of Module-SIS for a
 matrix of a group, of a level, or for `A_term`. -/
 theorem Tower.extract_sound (drawn : o.Drawn shared read 0) (slots : 28 ≤ Fintype.card Coord)
-    (prover : OracleComp (Prefix Wire (Option Coord → E) total) (Option Coord → E) (ℕ → Wire))
+    (prover : OracleComp (Address Wire total) (Option Coord → E) (ℕ → Wire))
       (budget : ℕ)
-    (table : Prefix Wire (Option Coord → E) total → Option Coord → E)
-    (tape : Tape (Prefix Wire (Option Coord → E) total) (Option Coord) E budget
+    (table : Address Wire total → Option Coord → E)
+    (tape : Tape (Address Wire total) (Option Coord) E budget
       (Structure.protocol whole).stages) :
     ∀ out ∈ Checkpoint.extract whole prover budget table tape,
       o.accepts shared read ((Structure.protocol whole).final prover table) ∧
@@ -457,10 +478,10 @@ with
 extractor. The bound has no term for the probability that the output is a solution of
 Module-SIS. -/
 theorem Tower.extraction_le (drawn : o.Drawn shared read 0) (slots : 28 ≤ Fintype.card Coord)
-    (prover : OracleComp (Prefix Wire (Option Coord → E) total) (Option Coord → E) (ℕ → Wire))
+    (prover : OracleComp (Address Wire total) (Option Coord → E) (ℕ → Wire))
       {queries : ℕ}
     (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → E) total) (Option Coord) E budget
+    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) E budget
           (Structure.protocol whole).stages,
         (if o.accepts shared read ((Structure.protocol whole).final prover table) ∧
           Checkpoint.extract whole prover budget table tape = none

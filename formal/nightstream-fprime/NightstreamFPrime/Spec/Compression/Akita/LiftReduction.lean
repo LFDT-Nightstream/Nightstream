@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.RowBatch
 
 /-! The quotient-lift reduction of the relation of one fold of Akita (ePrint 2026/1983, revision
-of 2026-10-15, Sections 5.5 and 7.3, Lemma 7.1 and Theorem 10.36).
+of 2026-11-23, Sections 5.5 and 7.3, Lemma 7.1 and Theorem 10.36).
 
 - `QuotientRead` has the positions of the digits of the quotient `Q_r` of one ring row in the flat
   witness (the segments `Q̂` of Akita (76)) and the public weights that recompose one coefficient.

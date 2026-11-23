@@ -4,7 +4,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceComplete
 
 /-! The honest prover of the compression argument before the Akita opening: the two checkpoint
 segments of `Compose` (SPEC.md Algorithm 9, steps 5 to 11 and Rejects; Algorithm 10; Akita,
-ePrint 2026/1983, revision of 2026-10-15, Theorem 10.9).
+ePrint 2026/1983, revision of 2026-11-23, Theorem 10.9).
 
 - `Compose.Ran.lengths`: on a transcript with the conditions `Compose.Ran`, the points of the
   three claims of the Akita opening have `laneVars + keyBlockVars + rowVars`, `witnessVars` and
@@ -281,8 +281,8 @@ theorem accepts [Nonempty Coord] {accept : Prefix Wire (Option Coord → E) tota
         ∀ stage : Prefix Wire (Option Coord → E) total, stage.first = first →
           stage.rest = moves ++ later → links stage) :
     ∃ proof : ℕ → Wire, proof 0 = first ∧
-      C.Ran vf commit value place ((transcript total accept).final (.done proof) table) ∧
-      links ((transcript total accept).final (.done proof) table) := by
+      C.Ran vf commit value place (pointPath total accept proof table total) ∧
+      links (pointPath total accept proof table total) := by
   obtain ⟨moves, τ, claims, length, on', fresh, apart, opened, committed, places, values, each⟩ :=
     run wf matrix columns rows key_fits lead_bare fits sends wide room short carriesM carriesR
       table dodges on starts W counts distinct settled leads

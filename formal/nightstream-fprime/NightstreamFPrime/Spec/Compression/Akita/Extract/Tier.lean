@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Fold
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Segment
 
 /-! One level of the opening suffix of Akita as a part of a checkpoint structure (ePrint 2026/1983,
-revision of 2026-10-15, Proposition 10.44 with its proof, and Lemma 10.42).
+revision of 2026-11-23, Proposition 10.44 with its proof, and Lemma 10.42).
 
 - `Method` has the exact branch relation, the weak opening and the reduction of Akita
   Corollary 10.32 of one opening method. Its fold coordinates have the index type `Block`, and the
@@ -409,7 +409,7 @@ section Fork
 
 variable [Fintype Block] {Inner BreakM CandM KeyM WitM : Type}
   (accept : Prefix Wire (Option Coord → Slot) total → Prop)
-  (mid : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
+  (mid : Structure (Address Wire total) (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
     BreakM CandM
     KeyM WitM)
   (source : Inner → Source)
@@ -434,7 +434,7 @@ the later stages (Akita Definition 10.16 (iv) with Corollary 10.32). The stage h
 for each fold coordinate. A certificate at the stage `start` is an accepting transcript with a
 weak opening of the claim of the level. -/
 noncomputable def fork :
-    Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) (Opened Weak
+    Structure (Address Wire total) (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) (Opened Weak
       Inner)
       (Brk ⊕ BreakM) CandM ((Σ b, Ring b) ⊕ KeyM) (Option Weak) where
   protocol := transcript total accept
@@ -858,7 +858,7 @@ end Fork
 
 variable [Fintype Block] {Inner BreakT CandT KeyT WitT : Type}
   (accept : Prefix Wire (Option Coord → Slot) total → Prop)
-  (tail : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
+  (tail : Structure (Address Wire total) (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
     BreakT CandT
     KeyT WitT)
   (source : Inner → Source) (clash : Inner → Inner → BreakT)
@@ -868,7 +868,7 @@ Definition 10.16 for the stages from `start`): the indexed stage `fork` of the f
 over the checkpoint segment `segment` of the checks. The candidate of the checkpoint is the
 successor source `source` of a certificate of the later stages, and `clash` is `Coll_ℓ`. -/
 noncomputable def over :
-    Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) (Opened Weak
+    Structure (Address Wire total) (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) (Opened Weak
       Inner)
       (Brk ⊕ BreakT) (Source ⊕ CandT) ((Σ b, Ring b) ⊕ KeyT) (Option Weak) :=
   T.fork accept (T.segment.over accept tail source clash fun _ _ => True) source

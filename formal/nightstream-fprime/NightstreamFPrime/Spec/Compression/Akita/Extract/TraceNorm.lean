@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.NormCheck
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceRoute
 
 /-! A committed trace level of the opening suffix of Akita on the Euclidean route, with the direct
-norm check in the checks of the fold (ePrint 2026/1983, revision of 2026-10-15, Sections 6.2 and
+norm check in the checks of the fold (ePrint 2026/1983, revision of 2026-11-23, Sections 6.2 and
 6.3 with (81) to (93), Lemma 6.3, Lemma 10.34 with (184), Lemma 10.37 and Proposition 10.44).
 
 - `Shape.normKernel` is the kernel `K(u, x)` of the integer coordinates `z^Z_u` of (81) in the

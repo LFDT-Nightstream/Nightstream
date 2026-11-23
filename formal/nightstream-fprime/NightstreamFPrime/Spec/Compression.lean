@@ -117,7 +117,7 @@ steps (`Lib`), the exact algebraic identities of the argument (`Algebra`), and t
 soundness bound and its completeness for the honest prover (`Verifier`), and the production
 instance of the argument (`Production`), with the ring equations of a claim as the opening
 and the evaluations of `Spec.CE.Holds` (`Claim`), and Π_CCS on one source as a game (`Fresh`),
-and Akita as a polynomial commitment scheme with the premises of `[AKITA]` (`Akita`), with the
+and Akita as a polynomial commitment scheme (`Akita`), with the
 Akita commitment (`Akita/Commitment`, `Akita/Commit`), the shapes of the key group of the schedule
 files (`Akita/Shapes`), the numbers of the levels of `key20.aks` (`Akita/Key20`) and the binding
 of the commitment of the compression key from Module-SIS

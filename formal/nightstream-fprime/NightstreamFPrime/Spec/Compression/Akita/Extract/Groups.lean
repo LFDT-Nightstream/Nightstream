@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Binding
 import NightstreamFPrime.Spec.Compression.Akita.Extract.BatchLevel
 
 /-! A level of the opening suffix of Akita whose successor is a fold with opening groups, and the
-setup-prefix group of an offloaded fold (ePrint 2026/1983, revision of 2026-10-15, Section 9 with
+setup-prefix group of an offloaded fold (ePrint 2026/1983, revision of 2026-11-23, Section 9 with
 (136), Lemma 9.1 with its proof in Appendix D.2, Corollary 10.25 with (162) to (164), and
 Proposition 10.44).
 
@@ -193,7 +193,7 @@ variable {count : ℕ} {B : Batch (Fin count)} {E : Type} [Field E] [Fintype E] 
     (B.LevelBreak key openKey fun g => 2 * (2 * mass g) * (B.fold g).sourceBound (B.shape g))
     B.Witness B.Weak Wire Coord Slot Result Source}
   {Inner BreakT CandT KeyT : Type} {accept : Prefix Wire (Option Coord → Slot) total → Prop}
-  {body : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
+  {body : Structure (Address Wire total) (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
     BreakT CandT
     KeyT (Option B.Weak)}
   {error : ℝ} {loops tree : ℕ}
@@ -347,7 +347,7 @@ noncomputable def groupCollide {G : Type} {B : Batch G} (g : G) (key : Key (B.sh
   | _, _ => none
 
 variable {T} {accept : Prefix Wire (Option Coord → Slot) total → Prop}
-  {tail : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
+  {tail : Structure (Address Wire total) (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
     BreakT CandT
     KeyT (Option B.Weak)}
   {error : ℝ} {loops tree : ℕ}

@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Honest
 
 /-! The verifier `pairAccepts` of two packing folds accepts the proofs of the honest prover
-(Akita, ePrint 2026/1983, revision of 2026-10-15, Theorem 10.9 with Lemma 10.7 and Figure 4).
+(Akita, ePrint 2026/1983, revision of 2026-11-23, Theorem 10.9 with Lemma 10.7 and Figure 4).
 The extraction theorems `packingPair_extract_sound`, `packingPair_extraction_le` and
 `packingPair_runs_le` bound an event of this verifier, so they are not empty statements.
 
@@ -184,13 +184,21 @@ theorem packingPair_complete (fits : Type → Prop)
       Encodable fold'.responseBase fold'.responseDigits
         (response O' challenge' (commit key'
           (honest β openKey point fold challenge (commit key source).2).flat).2.source))
-    (table : Prefix Wire (Option Coord → E) (Tier.finish second) → Option Coord → E)
+    (table : Address Wire (Tier.finish second) → Option Coord → E)
     (decodes : ∀ input i, (decode (table input (some (block i)))).isSome)
     (decodes' : ∀ input i, (decode' (table input (some (block' i)))).isSome)
     (worked : ∀ input, table input none ∈ workZeros E 57) :
     ∃ proof : ℕ → Wire, claim (proof 0) = honestClaim β key openKey source point ∧
       pairAccepts first second payloadOf witnessOf
         ((Structure.protocol chain).final (.done proof) table) := by
+  set table := fun input : Prefix Wire (Option Coord → E) (Tier.finish second) =>
+    table input.address with keyed
+  replace decodes : ∀ input i, (decode (table input (some (block i)))).isSome :=
+    fun input => decodes input.address
+  replace decodes' : ∀ input i, (decode' (table input (some (block' i)))).isSome :=
+    fun input => decodes' input.address
+  replace worked : ∀ input, table input none ∈ workZeros E 57 := fun input => worked input.address
+  clear_value table
   have stages : Tier.finish second =
       foldDraws μ S.certifiedBase (O.compressed fold) + 1 + (foldDraws μ' S'.certifiedBase
         (O'.compressed fold') + 1) := by
@@ -319,8 +327,8 @@ theorem packingPair_complete (fits : Type → Prop)
   refine ⟨proof, zero ▸ root, ?_⟩
   show pairAccepts first second payloadOf witnessOf
     ((transcript (Tier.finish second) (pairAccepts first second payloadOf witnessOf)).final
-      (.done proof) table)
-  rw [← accepts, complete]
+      (.done proof) _)
+  rw [final_done, ← keyed, ← accepts, complete]
   obtain ⟨stage, staged⟩ : ∃ stage : Prefix Wire (Option Coord → E) (Tier.finish second),
       stage = ⟨wire0, early ++ (reply1, wire2) :: moves', bounded⟩ := ⟨_, rfl⟩
   rw [← staged]

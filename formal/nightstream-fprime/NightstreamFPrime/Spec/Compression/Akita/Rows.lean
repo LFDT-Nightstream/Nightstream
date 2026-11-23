@@ -2,7 +2,7 @@ import Mathlib.Data.List.Basic
 
 /-! The rows of the Akita schedule files `crates/ns-compress/artifacts/key20.aks` and
 `crates/ns-compress/artifacts/key30.aks` (SPEC.md section 3), and the conditions of Akita
-(ePrint 2026/1983, revision of 2026-10-15) Section 9.3 that a file decides.
+(ePrint 2026/1983, revision of 2026-11-23) Section 9.3 that a file decides.
 
 - `Row` holds the fields of a file row that these conditions read. `tests/AkitaSchedules.lean`
   reads both files and fails when a row of a file is not its Lean row.

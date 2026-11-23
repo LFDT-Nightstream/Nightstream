@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Checkpoint.Structure
 
 /-! The checkpoint structure of a suffix of the stages of a protocol (Akita, ePrint 2026/1983,
-revision of 2026-10-15, Definition 10.16, as the proof of Proposition 10.44 uses it: the stages of
+revision of 2026-11-23, Definition 10.16, as the proof of Proposition 10.44 uses it: the stages of
 the opening suffix are the stages of its levels in their order).
 
 - `Structure.LawfulFrom protocol start` has the conditions of Definition 10.16 for the stages from
@@ -17,16 +17,16 @@ namespace NightstreamFPrime.Spec.Checkpoint
 open scoped BigOperators
 open NightstreamFPrime.Spec.RandomOracle (mass)
 
-variable {Point Coord Slot Proof Cert Break Cand Key Witness : Type}
+variable {Addr Point Coord Slot Proof Cert Break Cand Key Witness : Type}
 
 namespace Structure
 
-variable (structure_ : Structure Point Coord Slot Proof Cert Break Cand Key Witness)
+variable (structure_ : Structure Addr Point Coord Slot Proof Cert Break Cand Key Witness)
 
 /-- The conditions (i) to (vii) of Akita Definition 10.16 for the stages from `start`. The stage
 inputs are those of `protocol`. -/
 structure LawfulFrom [Fintype Coord] [DecidableEq Coord] [Fintype Slot]
-    (protocol : Protocol Point (Coord → Slot) Proof) (start : ℕ) : Prop where
+    (protocol : Protocol Addr Point (Coord → Slot) Proof) (start : ℕ) : Prop where
   segment : ∀ level span, start ≤ level → structure_.kind level = .checkpoint span →
     level + span < protocol.stages ∧
       ∀ later, level < later → later ≤ level + span → structure_.kind later = .plain
@@ -154,8 +154,8 @@ end Structure
 
 /-- The structure after the last stage of a protocol: each stage is plain, and a certificate is
 an accepting transcript (Akita Definition 10.16 (ii)). It has no witness of `R_bind`. -/
-def finish (protocol : Protocol Point (Coord → Slot) Proof) :
-    Structure Point Coord Slot Proof Point Unit Unit Unit Unit where
+def finish (protocol : Protocol Addr Point (Coord → Slot) Proof) :
+    Structure Addr Point Coord Slot Proof Point Unit Unit Unit Unit where
   protocol := protocol
   kind _ := .plain
   key _ _ _ := none
@@ -177,7 +177,7 @@ def finish (protocol : Protocol Point (Coord → Slot) Proof) :
   relation _ _ := True
 
 theorem finish_lawfulFrom [Fintype Coord] [DecidableEq Coord] [Fintype Slot]
-    (protocol : Protocol Point (Coord → Slot) Proof) (start : ℕ) :
+    (protocol : Protocol Addr Point (Coord → Slot) Proof) (start : ℕ) :
     (finish protocol).LawfulFrom protocol start where
   segment _ _ _ isCheckpoint := absurd isCheckpoint (by simp [finish])
   key_some _ _ _ _ _ _ isIndexed := absurd isIndexed (by simp [finish])

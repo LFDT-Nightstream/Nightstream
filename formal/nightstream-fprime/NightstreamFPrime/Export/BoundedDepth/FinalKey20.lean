@@ -5,7 +5,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Key20Tower
 
 /-! The final verifier over the Akita opening of the schedule file
 `crates/ns-compress/artifacts/key20.aks` (SPEC.md, Algorithm 10; Akita, ePrint 2026/1983, revision
-of 2026-10-15, Theorem 10.17, Proposition 10.44 and Theorem 10.46).
+of 2026-11-23, Theorem 10.17, Proposition 10.44 and Theorem 10.46).
 
 `sound` is `FinalAkita.mixed_sound` for the numbers of `Spec/Compression/Akita/Key20.lean`, with
 the bound `Key20.towerError_le` of the stage errors of the opening and its 142 retry loops.
@@ -285,14 +285,14 @@ theorem sound [Finite Wire] {peak : Fin 3 → ℕ} (premises : Premises setup pa
     (chance₂ : slotChance decode₂ ≤ p) (chance₃ : slotChance decode₃ ≤ p)
     (chance₄ : slotChance decode₄ ≤ p) (chance₅ : slotChance decode₅ ≤ p)
     (chanceL : slotChance (Terminal.decode L) ≤ p)
-    (prover : OracleComp (Prefix Wire (Option Coord → K) total) (Option Coord → K) (ℕ → Wire))
+    (prover : OracleComp (Address Wire total) (Option Coord → K) (ℕ → Wire))
     {honest : Certified (root.shape 0)} {factorBound sourceBound innerBound : ℕ}
     (registered : ∀ anchor, honest.Opens factorBound sourceBound (key 0) (bound anchor 0)
       (keyBase (setup.params shape)))
     (covers : factorBound * (root.fold 0).sourceBound (root.shape 0) + 2 * mass 0 * sourceBound ≤
       innerBound)
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 _tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget
+    𝔼 table, 𝔼 _tape : Tape (Address Wire total) (Option Coord) K budget
           (Structure.protocol whole).stages,
         (if accepts ((Structure.protocol whole).final prover table) ∧
             ¬ Proved setup packageWidths step cap control head
@@ -399,7 +399,7 @@ theorem complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
     (reads : ∀ point, Terminal.read L point = statementOf (point.wire (Terminal.start L)))
     (clears : ∀ point, Terminal.partials L point = partialsOf (point.wire (Terminal.start L)))
     (nonces : ∀ wire, Terminal.nonce L wire = read.nonce wire)
-    (table : Prefix Wire (Option Coord → K) total → Option Coord → K)
+    (table : Address Wire total → Option Coord → K)
     (calm : ∀ input, sample (Coord → K) (Fin (setup.params shape).lookups → Zq)
       (view (table input)) ∉ Compression.Verifier.tableHit (setup.params shape))
     (regular : ∀ input,
@@ -453,6 +453,28 @@ theorem complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
           normTerminal.limit) :
     ∃ proof : ℕ → Wire, proof 0 = given ∧
       accepts ((transcript total accept).final (.done proof) table) := by
+  simp only [final_done]
+  set table := fun input : Prefix Wire (Option Coord → K) total => table input.address
+  replace calm : ∀ input, sample (Coord → K) (Fin (setup.params shape).lookups → Zq) (view (table input)) ∉ Compression.Verifier.tableHit (setup.params shape) :=
+    fun input => calm input.address
+  replace regular : ∀ input, sample (Coord → K) (Compression.Verifier.Challenges (setup.params shape)) (view (table input)) ∉ Compression.Verifier.omegaBad (setup.params shape) :=
+    fun input => regular input.address
+  replace decodes : ∀ input b, (decode b.1 (table input (some (block b)))).isSome :=
+    fun input => decodes input.address
+  replace decodes₁ : ∀ input i, (decode₁ (table input (some (block₁ i)))).isSome :=
+    fun input => decodes₁ input.address
+  replace decodes₂ : ∀ input i, (decode₂ (table input (some (block₂ i)))).isSome :=
+    fun input => decodes₂ input.address
+  replace decodes₃ : ∀ input i, (decode₃ (table input (some (block₃ i)))).isSome :=
+    fun input => decodes₃ input.address
+  replace decodes₄ : ∀ input i, (decode₄ (table input (some (block₄ i)))).isSome :=
+    fun input => decodes₄ input.address
+  replace decodes₅ : ∀ input i, (decode₅ (table input (some (block₅ i)))).isSome :=
+    fun input => decodes₅ input.address
+  replace decodesL : ∀ input i, (Terminal.decode L (table input (some (Terminal.block L i)))).isSome :=
+    fun input => decodesL input.address
+  replace worked : ∀ input, table input none ∈ workZeros K 57 := fun input => worked input.address
+  clear_value table
   obtain ⟨wf, -, matrix, columns, rows, key_fits⟩ := FinalVerifier.laid_facts setup use.laid
   obtain ⟨keyLength, wLength, vLength, -⟩ := key20_points setup shape use
   have fits : Compose.root C vf ≤ total := by

@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.BatchFlat
 import NightstreamFPrime.Spec.Compression.Akita.Extract.FlatSource
 
 /-! The relation of one fold of Akita with opening groups on the flat witness, for one claim in
-each group, and its link to the exact branch relation (ePrint 2026/1983, revision of 2026-10-15,
+each group, and its link to the exact branch relation (ePrint 2026/1983, revision of 2026-11-23,
 Section 7.2 with Figure 5, Section 7.3, and the hypothesis of Corollary 10.32).
 
 - `gather` puts the rows of the groups of one family in the order of the groups.

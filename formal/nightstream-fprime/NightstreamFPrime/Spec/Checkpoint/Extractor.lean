@@ -17,58 +17,58 @@ open NightstreamFPrime.Spec.RandomOracle (OracleComp)
 
 attribute [local instance low] Classical.propDecidable
 
-variable {Point Coord Slot Proof Cert Break Cand Key Witness : Type}
+variable {Addr Point Coord Slot Proof Cert Break Cand Key Witness : Type}
 
 /-- The fresh samples of the retry loops of one node: a fresh table and a tape of the child for
 each attempt. The loop of coordinate `u` of an indexed stage reads `some u`; the loop of a
 checkpoint reads `none`. -/
-abbrev Loops (Point Coord Slot : Type) (budget : ℕ) (Inner : Type) : Type :=
-  Option Coord → Fin budget → (Point → Coord → Slot) × Inner
+abbrev Loops (Addr Coord Slot : Type) (budget : ℕ) (Inner : Type) : Type :=
+  Option Coord → Fin budget → (Addr → Coord → Slot) × Inner
 
 /-- The tape of the node with `depth` stages below it. -/
-def Tape (Point Coord Slot : Type) (budget : ℕ) : ℕ → Type
+def Tape (Addr Coord Slot : Type) (budget : ℕ) : ℕ → Type
   | 0 => Unit
-  | depth + 1 => Tape Point Coord Slot budget depth ×
-      Loops Point Coord Slot budget (Tape Point Coord Slot budget depth)
+  | depth + 1 => Tape Addr Coord Slot budget depth ×
+      Loops Addr Coord Slot budget (Tape Addr Coord Slot budget depth)
 
 namespace Tape
 
 variable {budget depth : ℕ}
 
-def own (tape : Tape Point Coord Slot budget (depth + 1)) : Tape Point Coord Slot budget depth :=
-  (show Tape Point Coord Slot budget depth ×
-    Loops Point Coord Slot budget (Tape Point Coord Slot budget depth) from tape).1
+def own (tape : Tape Addr Coord Slot budget (depth + 1)) : Tape Addr Coord Slot budget depth :=
+  (show Tape Addr Coord Slot budget depth ×
+    Loops Addr Coord Slot budget (Tape Addr Coord Slot budget depth) from tape).1
 
-def loops (tape : Tape Point Coord Slot budget (depth + 1)) :
-    Loops Point Coord Slot budget (Tape Point Coord Slot budget depth) :=
-  (show Tape Point Coord Slot budget depth ×
-    Loops Point Coord Slot budget (Tape Point Coord Slot budget depth) from tape).2
+def loops (tape : Tape Addr Coord Slot budget (depth + 1)) :
+    Loops Addr Coord Slot budget (Tape Addr Coord Slot budget depth) :=
+  (show Tape Addr Coord Slot budget depth ×
+    Loops Addr Coord Slot budget (Tape Addr Coord Slot budget depth) from tape).2
 
-instance fintype [Fintype Point] [DecidableEq Point] [Fintype Coord] [DecidableEq Coord]
-    [Fintype Slot] (budget : ℕ) : (depth : ℕ) → Fintype (Tape Point Coord Slot budget depth)
+instance fintype [Fintype Addr] [DecidableEq Addr] [Fintype Coord] [DecidableEq Coord]
+    [Fintype Slot] (budget : ℕ) : (depth : ℕ) → Fintype (Tape Addr Coord Slot budget depth)
   | 0 => inferInstanceAs (Fintype Unit)
   | depth + 1 =>
       letI := fintype budget depth
-      inferInstanceAs (Fintype (Tape Point Coord Slot budget depth ×
-        Loops Point Coord Slot budget (Tape Point Coord Slot budget depth)))
+      inferInstanceAs (Fintype (Tape Addr Coord Slot budget depth ×
+        Loops Addr Coord Slot budget (Tape Addr Coord Slot budget depth)))
 
 instance nonempty [Nonempty Slot] (budget : ℕ) :
-    (depth : ℕ) → Nonempty (Tape Point Coord Slot budget depth)
+    (depth : ℕ) → Nonempty (Tape Addr Coord Slot budget depth)
   | 0 => ⟨()⟩
   | depth + 1 =>
       have := nonempty budget depth
-      inferInstanceAs (Nonempty (Tape Point Coord Slot budget depth ×
-        Loops Point Coord Slot budget (Tape Point Coord Slot budget depth)))
+      inferInstanceAs (Nonempty (Tape Addr Coord Slot budget depth ×
+        Loops Addr Coord Slot budget (Tape Addr Coord Slot budget depth)))
 
-theorem expect_succ [Fintype Point] [DecidableEq Point] [Fintype Coord] [DecidableEq Coord]
+theorem expect_succ [Fintype Addr] [DecidableEq Addr] [Fintype Coord] [DecidableEq Coord]
     [Fintype Slot]
-    (value : Tape Point Coord Slot budget depth →
-      Loops Point Coord Slot budget (Tape Point Coord Slot budget depth) → ℝ) :
-    𝔼 tape : Tape Point Coord Slot budget (depth + 1), value tape.own tape.loops =
+    (value : Tape Addr Coord Slot budget depth →
+      Loops Addr Coord Slot budget (Tape Addr Coord Slot budget depth) → ℝ) :
+    𝔼 tape : Tape Addr Coord Slot budget (depth + 1), value tape.own tape.loops =
       𝔼 own, 𝔼 loops, value own loops := by
   have split := Finset.expect_product'
-    (Finset.univ : Finset (Tape Point Coord Slot budget depth))
-    (Finset.univ : Finset (Loops Point Coord Slot budget (Tape Point Coord Slot budget depth)))
+    (Finset.univ : Finset (Tape Addr Coord Slot budget depth))
+    (Finset.univ : Finset (Loops Addr Coord Slot budget (Tape Addr Coord Slot budget depth)))
     value
   rw [Finset.univ_product_univ] at split
   exact split
@@ -85,50 +85,51 @@ def certOr (default : Cert) : Option (Cert ⊕ Break) → Cert
 
 section Nodes
 
-variable [DecidableEq Point] [DecidableEq Coord]
-  (structure_ : Structure Point Coord Slot Proof Cert Break Cand Key Witness)
-  (prover : OracleComp Point (Coord → Slot) Proof) {Inner : Type}
+variable [DecidableEq Addr] [DecidableEq Point] [DecidableEq Coord]
+  (structure_ : Structure Addr Point Coord Slot Proof Cert Break Cand Key Witness)
+  (prover : OracleComp Addr (Coord → Slot) Proof) {Inner : Type}
 
 /-- The child node on a table, stopped after its first run of `A` when the run selects another
 stage input. -/
 noncomputable def guarded (level : ℕ) (anchor : Point)
-    (child : (Point → Coord → Slot) → Inner → Option (Cert ⊕ Break))
-    (table : Point → Coord → Slot) (tape : Inner) : Option (Cert ⊕ Break) :=
+    (child : (Addr → Coord → Slot) → Inner → Option (Cert ⊕ Break))
+    (table : Addr → Coord → Slot) (tape : Inner) : Option (Cert ⊕ Break) :=
   if structure_.protocol.input prover table level = anchor then child table tape else none
 
 /-- One attempt at coordinate `coordinate` of the indexed stage `level`: the slot of the
-coordinate at `anchor` is drawn again. -/
+coordinate at the key of `anchor` is drawn again. -/
 noncomputable def indexedTry (level : ℕ)
-    (child : (Point → Coord → Slot) → Inner → Option (Cert ⊕ Break))
-    (table : Point → Coord → Slot) (anchor : Point) (coordinate : Coord)
-    (sample : (Point → Coord → Slot) × Inner) : Option (Cert ⊕ Break) :=
+    (child : (Addr → Coord → Slot) → Inner → Option (Cert ⊕ Break))
+    (table : Addr → Coord → Slot) (anchor : Point) (coordinate : Coord)
+    (sample : (Addr → Coord → Slot) × Inner) : Option (Cert ⊕ Break) :=
   guarded structure_ prover level anchor child
-    (setSlot table anchor coordinate (sample.1 anchor coordinate)) sample.2
+    (setSlot table (structure_.protocol.address anchor) coordinate
+      (sample.1 (structure_.protocol.address anchor) coordinate)) sample.2
 
 /-- The loop of one coordinate finds no successful attempt, or finds one with the decoded value
 of the reference run. -/
 noncomputable def indexedFails (level budget : ℕ)
-    (child : (Point → Coord → Slot) → Inner → Option (Cert ⊕ Break))
-    (table : Point → Coord → Slot) (anchor : Point) (coordinate : Coord)
-    (attempts : Fin budget → (Point → Coord → Slot) × Inner) : Prop :=
+    (child : (Addr → Coord → Slot) → Inner → Option (Cert ⊕ Break))
+    (table : Addr → Coord → Slot) (anchor : Point) (coordinate : Coord)
+    (attempts : Fin budget → (Addr → Coord → Slot) × Inner) : Prop :=
   (firstPass (fun sample =>
       (indexedTry structure_ prover level child table anchor coordinate sample).isSome)
     budget attempts).elim True fun sample =>
-      structure_.key level coordinate (sample.1 anchor coordinate) =
-        structure_.key level coordinate (table anchor coordinate)
+      structure_.key level coordinate (sample.1 (structure_.protocol.address anchor) coordinate) =
+        structure_.key level coordinate (table (structure_.protocol.address anchor) coordinate)
 
 noncomputable def indexedChild (level budget : ℕ)
-    (child : (Point → Coord → Slot) → Inner → Option (Cert ⊕ Break))
-    (table : Point → Coord → Slot) (anchor : Point) (coordinate : Coord)
-    (attempts : Fin budget → (Point → Coord → Slot) × Inner) : Option (Cert ⊕ Break) :=
+    (child : (Addr → Coord → Slot) → Inner → Option (Cert ⊕ Break))
+    (table : Addr → Coord → Slot) (anchor : Point) (coordinate : Coord)
+    (attempts : Fin budget → (Addr → Coord → Slot) × Inner) : Option (Cert ⊕ Break) :=
   (firstPass (fun sample =>
       (indexedTry structure_ prover level child table anchor coordinate sample).isSome)
     budget attempts).bind (indexedTry structure_ prover level child table anchor coordinate)
 
 noncomputable def indexedCombine (level : ℕ) (coordinates : List Coord) (budget : ℕ)
-    (child : (Point → Coord → Slot) → Inner → Option (Cert ⊕ Break))
-    (table : Point → Coord → Slot) (reference : Cert)
-    (loops : Loops Point Coord Slot budget Inner) : Option (Cert ⊕ Break) :=
+    (child : (Addr → Coord → Slot) → Inner → Option (Cert ⊕ Break))
+    (table : Addr → Coord → Slot) (reference : Cert)
+    (loops : Loops Addr Coord Slot budget Inner) : Option (Cert ⊕ Break) :=
   if ∃ coordinate ∈ coordinates, indexedFails structure_ prover level budget child table
       (structure_.protocol.input prover table level) coordinate (loops (some coordinate)) then none
   else
@@ -143,33 +144,33 @@ noncomputable def indexedCombine (level : ℕ) (coordinates : List Coord) (budge
 /-- The node `E_r` of an indexed extraction stage: the reference continuation, then for each
 coordinate one continuation whose answer differs from the reference in that coordinate only. -/
 noncomputable def indexedNode (level : ℕ) (coordinates : List Coord) (budget : ℕ)
-    (child : (Point → Coord → Slot) → Inner → Option (Cert ⊕ Break))
-    (table : Point → Coord → Slot) (own : Inner) (loops : Loops Point Coord Slot budget Inner) :
+    (child : (Addr → Coord → Slot) → Inner → Option (Cert ⊕ Break))
+    (table : Addr → Coord → Slot) (own : Inner) (loops : Loops Addr Coord Slot budget Inner) :
     Option (Cert ⊕ Break) :=
   match child table own with
   | some (.inl reference) =>
       indexedCombine structure_ prover level coordinates budget child table reference loops
   | other => other
 
-/-- One attempt of step 3 of a checkpoint: a fresh table on `Sub(anchor)`. -/
+/-- One attempt of step 3 of a checkpoint: a fresh table on `Sub(⟨anchor⟩)`. -/
 noncomputable def checkpointTry (level : ℕ)
-    (child : (Point → Coord → Slot) → Inner → Option (Cert ⊕ Break))
-    (table : Point → Coord → Slot) (anchor : Point) (sample : (Point → Coord → Slot) × Inner) :
+    (child : (Addr → Coord → Slot) → Inner → Option (Cert ⊕ Break))
+    (table : Addr → Coord → Slot) (anchor : Point) (sample : (Addr → Coord → Slot) × Inner) :
     Option (Cert ⊕ Break) :=
   guarded structure_ prover level anchor child
-    (structure_.protocol.regrow level anchor table sample.1) sample.2
+    (structure_.protocol.regrow level (structure_.protocol.address anchor) table sample.1) sample.2
 
 noncomputable def checkpointChild (level budget : ℕ)
-    (child : (Point → Coord → Slot) → Inner → Option (Cert ⊕ Break))
-    (table : Point → Coord → Slot) (anchor : Point)
-    (attempts : Fin budget → (Point → Coord → Slot) × Inner) : Option (Cert ⊕ Break) :=
+    (child : (Addr → Coord → Slot) → Inner → Option (Cert ⊕ Break))
+    (table : Addr → Coord → Slot) (anchor : Point)
+    (attempts : Fin budget → (Addr → Coord → Slot) × Inner) : Option (Cert ⊕ Break) :=
   (firstPass (fun sample => (checkpointTry structure_ prover level child table anchor sample).isSome)
     budget attempts).bind (checkpointTry structure_ prover level child table anchor)
 
 /-- Steps 2 to 4 of a checkpoint. -/
 noncomputable def checkpointRetry (level budget : ℕ)
-    (child : (Point → Coord → Slot) → Inner → Option (Cert ⊕ Break))
-    (table : Point → Coord → Slot) (found : Cert) (loops : Loops Point Coord Slot budget Inner) :
+    (child : (Addr → Coord → Slot) → Inner → Option (Cert ⊕ Break))
+    (table : Addr → Coord → Slot) (found : Cert) (loops : Loops Addr Coord Slot budget Inner) :
     Option (Cert ⊕ Break) :=
   if structure_.good level found then some (.inl found)
   else
@@ -183,8 +184,8 @@ noncomputable def checkpointRetry (level budget : ℕ)
 
 /-- The node `E_ℓ` of a checkpoint (Appendix E.2, steps 1 to 4). -/
 noncomputable def checkpointNode (level budget : ℕ)
-    (child : (Point → Coord → Slot) → Inner → Option (Cert ⊕ Break))
-    (table : Point → Coord → Slot) (own : Inner) (loops : Loops Point Coord Slot budget Inner) :
+    (child : (Addr → Coord → Slot) → Inner → Option (Cert ⊕ Break))
+    (table : Addr → Coord → Slot) (own : Inner) (loops : Loops Addr Coord Slot budget Inner) :
     Option (Cert ⊕ Break) :=
   match child table own with
   | some (.inl found) => checkpointRetry structure_ prover level budget child table found loops
@@ -193,7 +194,7 @@ noncomputable def checkpointNode (level budget : ℕ)
 /-- The node `E_level` with `depth` stages below it. The node of depth 0 runs `A^J` and returns
 the transcript when the verifier accepts. -/
 noncomputable def node (budget : ℕ) :
-    (depth : ℕ) → ℕ → (Point → Coord → Slot) → Tape Point Coord Slot budget depth →
+    (depth : ℕ) → ℕ → (Addr → Coord → Slot) → Tape Addr Coord Slot budget depth →
       Option (Cert ⊕ Break)
   | 0, _, table, _ =>
       if structure_.protocol.accept (structure_.protocol.final prover table) then
@@ -210,30 +211,30 @@ noncomputable def node (budget : ℕ) :
       | .plain => node budget depth (level + 1) table tape.own
 
 theorem node_indexed (budget : ℕ) {depth level : ℕ} {coordinates : List Coord}
-    (indexed : structure_.kind level = .indexed coordinates) (table : Point → Coord → Slot)
-    (tape : Tape Point Coord Slot budget (depth + 1)) :
+    (indexed : structure_.kind level = .indexed coordinates) (table : Addr → Coord → Slot)
+    (tape : Tape Addr Coord Slot budget (depth + 1)) :
     node structure_ prover budget (depth + 1) level table tape =
       indexedNode structure_ prover level coordinates budget
         (node structure_ prover budget depth (level + 1)) table tape.own tape.loops := by
   simp only [node, indexed]
 
 theorem node_checkpoint (budget : ℕ) {depth level span : ℕ}
-    (checkpoint : structure_.kind level = .checkpoint span) (table : Point → Coord → Slot)
-    (tape : Tape Point Coord Slot budget (depth + 1)) :
+    (checkpoint : structure_.kind level = .checkpoint span) (table : Addr → Coord → Slot)
+    (tape : Tape Addr Coord Slot budget (depth + 1)) :
     node structure_ prover budget (depth + 1) level table tape =
       checkpointNode structure_ prover level budget
         (node structure_ prover budget depth (level + 1)) table tape.own tape.loops := by
   simp only [node, checkpoint]
 
 theorem node_plain (budget : ℕ) {depth level : ℕ} (plain : structure_.kind level = .plain)
-    (table : Point → Coord → Slot) (tape : Tape Point Coord Slot budget (depth + 1)) :
+    (table : Addr → Coord → Slot) (tape : Tape Addr Coord Slot budget (depth + 1)) :
     node structure_ prover budget (depth + 1) level table tape =
       node structure_ prover budget depth (level + 1) table tape.own := by
   simp only [node, plain]
 
 /-- The extractor `E_1` with at most `budget` attempts in each retry loop. -/
-noncomputable def extract (budget : ℕ) (table : Point → Coord → Slot)
-    (tape : Tape Point Coord Slot budget structure_.protocol.stages) : Option (Cert ⊕ Break) :=
+noncomputable def extract (budget : ℕ) (table : Addr → Coord → Slot)
+    (tape : Tape Addr Coord Slot budget structure_.protocol.stages) : Option (Cert ⊕ Break) :=
   node structure_ prover budget structure_.protocol.stages 0 table tape
 
 /-- The last stage through which the output of a node records the transcript: the next indexed
@@ -245,7 +246,7 @@ def Structure.frontier : ℕ → ℕ → ℕ
       | .indexed _ => level
       | _ => Structure.frontier depth (level + 1)
 
-omit [DecidableEq Point] [DecidableEq Coord] in
+omit [DecidableEq Addr] [DecidableEq Point] [DecidableEq Coord] in
 theorem Structure.le_frontier (depth level : ℕ) : level ≤ structure_.frontier depth level := by
   induction depth generalizing level with
   | zero => exact le_rfl
@@ -255,7 +256,7 @@ theorem Structure.le_frontier (depth level : ℕ) : level ≤ structure_.frontie
       · exact le_rfl
       · exact (Nat.le_succ level).trans (induction (level + 1))
 
-omit [DecidableEq Point] [DecidableEq Coord] in
+omit [DecidableEq Addr] [DecidableEq Point] [DecidableEq Coord] in
 theorem Structure.plain_le_frontier (count : ℕ) :
     ∀ depth level, count ≤ depth →
       (∀ later, level ≤ later → later < level + count → structure_.kind later = .plain) →
@@ -272,56 +273,58 @@ theorem Structure.plain_le_frontier (count : ℕ) :
 
 /-- Invariant (2) of Appendix E.2 for an output: a certificate is in `Y_level` and its transcript
 agrees with that of `A^J` through `frontier`; a tagged output is in `T`. -/
-def Certified (level frontier : ℕ) (table : Point → Coord → Slot) : Cert ⊕ Break → Prop
+def Certified (level frontier : ℕ) (table : Addr → Coord → Slot) : Cert ⊕ Break → Prop
   | .inl certificate => structure_.holds level certificate ∧ ∀ earlier ≤ frontier,
       structure_.protocol.cut earlier (structure_.point certificate) =
         some (structure_.protocol.input prover table earlier)
   | .inr broken => structure_.breaks broken
 
 /-- Invariants (2) and (3) of Appendix E.2 for a node. -/
-def Sound (child : (Point → Coord → Slot) → Inner → Option (Cert ⊕ Break))
+def Sound (child : (Addr → Coord → Slot) → Inner → Option (Cert ⊕ Break))
     (level frontier : ℕ) : Prop :=
   ∀ table tape out, child table tape = some out →
     structure_.protocol.accept (structure_.protocol.final prover table) ∧
       Certified structure_ prover level frontier table out
 
-omit [DecidableEq Coord] in
+omit [DecidableEq Addr] [DecidableEq Coord] in
 theorem guarded_eq_some {level : ℕ} {anchor : Point}
-    {child : (Point → Coord → Slot) → Inner → Option (Cert ⊕ Break)}
-    {table : Point → Coord → Slot} {tape : Inner} {out : Cert ⊕ Break} :
+    {child : (Addr → Coord → Slot) → Inner → Option (Cert ⊕ Break)}
+    {table : Addr → Coord → Slot} {tape : Inner} {out : Cert ⊕ Break} :
     guarded structure_ prover level anchor child table tape = some out ↔
       structure_.protocol.input prover table level = anchor ∧ child table tape = some out := by
   unfold guarded
   split <;> simp [*]
 
 theorem indexedChild_eq_some {level budget : ℕ}
-    {child : (Point → Coord → Slot) → Inner → Option (Cert ⊕ Break)}
-    {table : Point → Coord → Slot} {anchor : Point} {coordinate : Coord}
-    {attempts : Fin budget → (Point → Coord → Slot) × Inner} {out : Cert ⊕ Break}
+    {child : (Addr → Coord → Slot) → Inner → Option (Cert ⊕ Break)}
+    {table : Addr → Coord → Slot} {anchor : Point} {coordinate : Coord}
+    {attempts : Fin budget → (Addr → Coord → Slot) × Inner} {out : Cert ⊕ Break}
     (found : indexedChild structure_ prover level budget child table anchor coordinate attempts =
       some out) :
     ∃ sample, firstPass (fun sample =>
         (indexedTry structure_ prover level child table anchor coordinate sample).isSome)
         budget attempts = some sample ∧
-      structure_.protocol.input prover
-        (setSlot table anchor coordinate (sample.1 anchor coordinate)) level = anchor ∧
-      child (setSlot table anchor coordinate (sample.1 anchor coordinate)) sample.2 = some out := by
+      structure_.protocol.input prover (setSlot table (structure_.protocol.address anchor)
+        coordinate (sample.1 (structure_.protocol.address anchor) coordinate)) level = anchor ∧
+      child (setSlot table (structure_.protocol.address anchor) coordinate
+        (sample.1 (structure_.protocol.address anchor) coordinate)) sample.2 = some out := by
   obtain ⟨sample, first, tried⟩ := Option.bind_eq_some_iff.mp found
   exact ⟨sample, first, (guarded_eq_some structure_ prover).mp tried⟩
 
 omit [DecidableEq Coord] in
 theorem checkpointChild_eq_some {level budget : ℕ}
-    {child : (Point → Coord → Slot) → Inner → Option (Cert ⊕ Break)}
-    {table : Point → Coord → Slot} {anchor : Point}
-    {attempts : Fin budget → (Point → Coord → Slot) × Inner} {out : Cert ⊕ Break}
+    {child : (Addr → Coord → Slot) → Inner → Option (Cert ⊕ Break)}
+    {table : Addr → Coord → Slot} {anchor : Point}
+    {attempts : Fin budget → (Addr → Coord → Slot) × Inner} {out : Cert ⊕ Break}
     (found : checkpointChild structure_ prover level budget child table anchor attempts =
       some out) :
     ∃ sample, firstPass (fun sample =>
         (checkpointTry structure_ prover level child table anchor sample).isSome)
         budget attempts = some sample ∧
-      structure_.protocol.input prover
-        (structure_.protocol.regrow level anchor table sample.1) level = anchor ∧
-      child (structure_.protocol.regrow level anchor table sample.1) sample.2 = some out := by
+      structure_.protocol.input prover (structure_.protocol.regrow level
+        (structure_.protocol.address anchor) table sample.1) level = anchor ∧
+      child (structure_.protocol.regrow level (structure_.protocol.address anchor) table sample.1)
+        sample.2 = some out := by
   obtain ⟨sample, first, tried⟩ := Option.bind_eq_some_iff.mp found
   exact ⟨sample, first, (guarded_eq_some structure_ prover).mp tried⟩
 
@@ -330,9 +333,9 @@ variable [Fintype Coord] [Fintype Slot]
 theorem indexedNode_sound (lawful : structure_.Lawful) {level frontier : ℕ}
     {coordinates : List Coord} (indexed : structure_.kind level = .indexed coordinates)
     (within : level < structure_.protocol.stages) (deep : level + 1 ≤ frontier)
-    {child : (Point → Coord → Slot) → Inner → Option (Cert ⊕ Break)}
+    {child : (Addr → Coord → Slot) → Inner → Option (Cert ⊕ Break)}
     (sound : Sound structure_ prover child (level + 1) frontier) (budget : ℕ)
-    (table : Point → Coord → Slot) (own : Inner) (loops : Loops Point Coord Slot budget Inner)
+    (table : Addr → Coord → Slot) (own : Inner) (loops : Loops Addr Coord Slot budget Inner)
     (out : Cert ⊕ Break)
     (result : indexedNode structure_ prover level coordinates budget child table own loops =
       some out) :
@@ -409,8 +412,9 @@ theorem indexedNode_sound (lawful : structure_.Lawful) {level frontier : ℕ}
             rcases tried with certificate | other
             · obtain ⟨same, childRan⟩ := (guarded_eq_some structure_ prover).mp ran
               obtain ⟨_, heldChild, agreesChild⟩ := sound _ _ _ childRan
-              refine ⟨heldChild, ?_, _, sample.1 (structure_.protocol.input prover table level)
-                coordinate, agreesChild (level + 1) deep, ?_, ?_⟩
+              refine ⟨heldChild, ?_, _, sample.1 (structure_.protocol.address
+                (structure_.protocol.input prover table level)) coordinate,
+                agreesChild (level + 1) deep, ?_, ?_⟩
               · rw [← same]
                 exact agreesChild level (Nat.le_of_succ_le deep)
               · rw [structure_.protocol.last_input prover _ within,
@@ -437,9 +441,9 @@ theorem indexedNode_sound (lawful : structure_.Lawful) {level frontier : ℕ}
 
 theorem checkpointNode_sound (lawful : structure_.Lawful) {level span frontier : ℕ}
     (checkpoint : structure_.kind level = .checkpoint span) (deep : level + 1 ≤ frontier)
-    {child : (Point → Coord → Slot) → Inner → Option (Cert ⊕ Break)}
+    {child : (Addr → Coord → Slot) → Inner → Option (Cert ⊕ Break)}
     (sound : Sound structure_ prover child (level + 1) frontier) (budget : ℕ)
-    (table : Point → Coord → Slot) (own : Inner) (loops : Loops Point Coord Slot budget Inner)
+    (table : Addr → Coord → Slot) (own : Inner) (loops : Loops Addr Coord Slot budget Inner)
     (out : Cert ⊕ Break)
     (result : checkpointNode structure_ prover level budget child table own loops = some out) :
     structure_.protocol.accept (structure_.protocol.final prover table) ∧
@@ -522,8 +526,8 @@ theorem node_sound (lawful : structure_.Lawful) (budget : ℕ) :
 
 /-- The output of the extractor (Definition 10.15): a witness of the relation for the statement of
 the prover (item (viii) of Definition 10.16), or a witness of `R_bind`. -/
-theorem extract_sound (lawful : structure_.Lawful) (budget : ℕ) (table : Point → Coord → Slot)
-    (tape : Tape Point Coord Slot budget structure_.protocol.stages) (out : Cert ⊕ Break)
+theorem extract_sound (lawful : structure_.Lawful) (budget : ℕ) (table : Addr → Coord → Slot)
+    (tape : Tape Addr Coord Slot budget structure_.protocol.stages) (out : Cert ⊕ Break)
     (result : extract structure_ prover budget table tape = some out) :
     structure_.protocol.accept (structure_.protocol.final prover table) ∧
       Sum.elim (fun certificate => structure_.relation (structure_.protocol.input prover table 0)

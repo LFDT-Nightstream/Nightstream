@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Checkpoint.Indexed
 import NightstreamFPrime.Spec.Checkpoint.Segment
 
-/-! Akita Theorem 10.17, checkpoint extraction (ePrint 2026/1983, p. 77, proof in Appendix E.2),
+/-! Akita Theorem 10.17, checkpoint extraction (ePrint 2026/1983, p. 78, proof in Appendix E.2),
 in the restricted form of the proof path of Akita: indexed binary extraction stages, checkpoints
 and plain stages. The environment and the tape of the prover are fixed, as in (284). -/
 
@@ -14,46 +14,47 @@ open NightstreamFPrime.Spec.RandomOracle (OracleComp)
 
 attribute [local instance low] Classical.propDecidable
 
-variable {Point Coord Slot Proof Cert Break Cand Key Witness : Type}
-  [Fintype Point] [DecidableEq Point] [Fintype Coord] [DecidableEq Coord] [Fintype Slot]
-  [Nonempty Slot]
-  (structure_ : Structure Point Coord Slot Proof Cert Break Cand Key Witness)
-  (prover : OracleComp Point (Coord → Slot) Proof)
+variable {Addr Point Coord Slot Proof Cert Break Cand Key Witness : Type}
+  [Fintype Addr] [DecidableEq Addr] [Fintype Point] [DecidableEq Point] [Fintype Coord]
+  [DecidableEq Coord] [Fintype Slot] [Nonempty Slot]
+  (structure_ : Structure Addr Point Coord Slot Proof Cert Break Cand Key Witness)
+  (prover : OracleComp Addr (Coord → Slot) Proof)
 
 /-- The probability that the verifier accepts and the node returns no output. -/
 noncomputable def miss (budget depth level : ℕ) : ℝ :=
-  𝔼 table, 𝔼 tape : Tape Point Coord Slot budget depth,
+  𝔼 table, 𝔼 tape : Tape Addr Coord Slot budget depth,
     if structure_.protocol.accept (structure_.protocol.final prover table) ∧
       node structure_ prover budget depth level table tape = none then (1 : ℝ) else 0
 
 /-- The loss of one stage in the success recurrences of Appendix E.2. -/
-noncomputable def stageLoss (level : ℕ) (table : Point → Coord → Slot) : ℝ :=
+noncomputable def stageLoss (level : ℕ) (table : Addr → Coord → Slot) : ℝ :=
   match structure_.kind level with
-  | .indexed _ => ∑ point, if point ∈ structure_.protocol.asked prover table ∧
-      structure_.protocol.stage point = level then structure_.charge level else 0
-  | .checkpoint span => ∑ point, if point ∈ structure_.protocol.asked prover table ∧
-      level ≤ structure_.protocol.stage point ∧ structure_.protocol.stage point ≤ level + span
-      then structure_.error (structure_.protocol.stage point) else 0
+  | .indexed _ => ∑ key, if key ∈ structure_.protocol.asked prover table ∧
+      structure_.protocol.rank key = level then structure_.charge level else 0
+  | .checkpoint span => ∑ key, if key ∈ structure_.protocol.asked prover table ∧
+      level ≤ structure_.protocol.rank key ∧ structure_.protocol.rank key ≤ level + span
+      then structure_.error (structure_.protocol.rank key) else 0
   | .plain => 0
 
-noncomputable def loss : ℕ → ℕ → (Point → Coord → Slot) → ℝ
+noncomputable def loss : ℕ → ℕ → (Addr → Coord → Slot) → ℝ
   | 0, _, _ => 0
   | depth + 1, level, table =>
       stageLoss structure_ prover level table + loss depth (level + 1) table
 
-/-- `Σ_{a ∈ Addr(J)} ϵ(a)` over the stage inputs of the stages from `level`. -/
-noncomputable def chargeFrom (level : ℕ) (table : Point → Coord → Slot) : ℝ :=
-  ∑ point, if point ∈ structure_.protocol.asked prover table ∧
-    level ≤ structure_.protocol.stage point then structure_.charge (structure_.protocol.stage point)
+/-- `Σ_{a ∈ Addr(J)} ϵ(a)` over the keys of the stages from `level`. -/
+noncomputable def chargeFrom (level : ℕ) (table : Addr → Coord → Slot) : ℝ :=
+  ∑ key, if key ∈ structure_.protocol.asked prover table ∧
+    level ≤ structure_.protocol.rank key then structure_.charge (structure_.protocol.rank key)
     else 0
 
-omit [Nonempty Slot] in
+omit [Fintype Point] [DecidableEq Point] [Nonempty Slot] in
 private theorem chargeFrom_nonnegative (lawful : structure_.Lawful) (level : ℕ)
-    (table : Point → Coord → Slot) : 0 ≤ chargeFrom structure_ prover level table :=
+    (table : Addr → Coord → Slot) : 0 ≤ chargeFrom structure_ prover level table :=
   Finset.sum_nonneg fun _ _ => by split <;> simp [structure_.charge_nonnegative lawful]
 
-omit [Fintype Coord] [DecidableEq Coord] [Fintype Slot] [Nonempty Slot] in
-private theorem loss_plain (table : Point → Coord → Slot) (count : ℕ) :
+omit [Fintype Point] [DecidableEq Point] [Fintype Coord] [DecidableEq Coord] [Fintype Slot]
+  [Nonempty Slot] in
+private theorem loss_plain (table : Addr → Coord → Slot) (count : ℕ) :
     ∀ depth level, count ≤ depth →
       (∀ later, level ≤ later → later < level + count → structure_.kind later = .plain) →
       loss structure_ prover depth level table =
@@ -72,7 +73,7 @@ private theorem loss_plain (table : Point → Coord → Slot) (count : ℕ) :
       · omega
       · omega
 
-omit [Fintype Point] [DecidableEq Point] [Nonempty Slot] in
+omit [Fintype Addr] [DecidableEq Addr] [Fintype Point] [DecidableEq Point] [Nonempty Slot] in
 private theorem charge_segment (lawful : structure_.Lawful) {level span : ℕ}
     (checkpoint : structure_.kind level = .checkpoint span) {stage : ℕ} (low : level ≤ stage)
     (high : stage ≤ level + span) : structure_.charge stage = structure_.error stage := by
@@ -83,11 +84,11 @@ private theorem charge_segment (lawful : structure_.Lawful) {level span : ℕ}
   · rw [checkpoint]
   · rw [plain stage above high]
 
-omit [Nonempty Slot] in
+omit [Fintype Point] [DecidableEq Point] [Nonempty Slot] in
 /-- The telescoped losses are at most the sum of the weights of the queried addresses: the error
 of each plain stage appears once, because the stage lies in one segment (Appendix E.2,
 "Conclusion"). -/
-theorem loss_le_chargeFrom (lawful : structure_.Lawful) (table : Point → Coord → Slot) :
+theorem loss_le_chargeFrom (lawful : structure_.Lawful) (table : Addr → Coord → Slot) :
     ∀ depth level, level + depth = structure_.protocol.stages →
       loss structure_ prover depth level table ≤ chargeFrom structure_ prover level table := by
   intro depth
@@ -103,10 +104,10 @@ theorem loss_le_chargeFrom (lawful : structure_.Lawful) (table : Point → Coord
             (by omega))).trans ?_
           unfold stageLoss chargeFrom
           rw [kindEq, ← Finset.sum_add_distrib]
-          refine Finset.sum_le_sum fun point _ => ?_
-          have nonnegative := structure_.charge_nonnegative lawful (structure_.protocol.stage point)
-          by_cases queried : point ∈ structure_.protocol.asked prover table
-          · rcases Nat.lt_trichotomy (structure_.protocol.stage point) level with less | equal | more
+          refine Finset.sum_le_sum fun key _ => ?_
+          have nonnegative := structure_.charge_nonnegative lawful (structure_.protocol.rank key)
+          by_cases queried : key ∈ structure_.protocol.asked prover table
+          · rcases Nat.lt_trichotomy (structure_.protocol.rank key) level with less | equal | more
             · simp [queried, Nat.ne_of_lt less, Nat.not_le.mpr less,
                 Nat.not_le.mpr (Nat.lt_succ_of_lt less)]
             · simp [queried, equal]
@@ -119,34 +120,35 @@ theorem loss_le_chargeFrom (lawful : structure_.Lawful) (table : Point → Coord
             (by omega))).trans ?_
           unfold stageLoss chargeFrom
           rw [kindEq, ← Finset.sum_add_distrib]
-          refine Finset.sum_le_sum fun point _ => ?_
-          have nonnegative := structure_.charge_nonnegative lawful (structure_.protocol.stage point)
-          by_cases queried : point ∈ structure_.protocol.asked prover table
-          · by_cases low : level ≤ structure_.protocol.stage point
-            · by_cases high : structure_.protocol.stage point ≤ level + span
-              · have none : ¬ level + 1 + span ≤ structure_.protocol.stage point := by omega
+          refine Finset.sum_le_sum fun key _ => ?_
+          have nonnegative := structure_.charge_nonnegative lawful (structure_.protocol.rank key)
+          by_cases queried : key ∈ structure_.protocol.asked prover table
+          · by_cases low : level ≤ structure_.protocol.rank key
+            · by_cases high : structure_.protocol.rank key ≤ level + span
+              · have none : ¬ level + 1 + span ≤ structure_.protocol.rank key := by omega
                 simp [queried, low, high, none,
                   charge_segment structure_ lawful kindEq low high]
-              · have far : level + 1 + span ≤ structure_.protocol.stage point := by omega
+              · have far : level + 1 + span ≤ structure_.protocol.rank key := by omega
                 simp [queried, low, high, far]
-            · have none : ¬ level + 1 + span ≤ structure_.protocol.stage point := by omega
+            · have none : ¬ level + 1 + span ≤ structure_.protocol.rank key := by omega
               simp [queried, low, none]
           · simp [queried]
         · refine (add_le_add le_rfl (induction depth (Nat.lt_succ_self depth) (level + 1)
             (by omega))).trans ?_
           unfold stageLoss chargeFrom
           rw [kindEq, zero_add]
-          refine Finset.sum_le_sum fun point _ => ?_
-          have nonnegative := structure_.charge_nonnegative lawful (structure_.protocol.stage point)
-          by_cases queried : point ∈ structure_.protocol.asked prover table ∧
-              level + 1 ≤ structure_.protocol.stage point
+          refine Finset.sum_le_sum fun key _ => ?_
+          have nonnegative := structure_.charge_nonnegative lawful (structure_.protocol.rank key)
+          by_cases queried : key ∈ structure_.protocol.asked prover table ∧
+              level + 1 ≤ structure_.protocol.rank key
           · rw [ite_eq_left queried, ite_eq_left ⟨queried.1, Nat.le_of_succ_le queried.2⟩]
           · rw [ite_eq_right queried]
             split <;> linarith
 
+omit [Fintype Point] in
 private theorem miss_succ_le (budget depth level : ℕ)
-    (parent : (Point → Coord → Slot) → Tape Point Coord Slot budget depth →
-      Loops Point Coord Slot budget (Tape Point Coord Slot budget depth) → Option (Cert ⊕ Break))
+    (parent : (Addr → Coord → Slot) → Tape Addr Coord Slot budget depth →
+      Loops Addr Coord Slot budget (Tape Addr Coord Slot budget depth) → Option (Cert ⊕ Break))
     (same : ∀ table tape, node structure_ prover budget (depth + 1) level table tape =
       parent table tape.own tape.loops) :
     miss structure_ prover budget (depth + 1) level ≤
@@ -227,8 +229,8 @@ theorem miss_le (lawful : structure_.Lawful) {queries : ℕ} (bounded : prover.Q
         have stage := indexed_miss_le structure_ prover lawful kindEq inside bounded positive
           accepts
         have here : stageLoss structure_ prover level = fun table =>
-            ∑ point, if point ∈ structure_.protocol.asked prover table ∧
-              structure_.protocol.stage point = level then structure_.charge level else 0 := by
+            ∑ key, if key ∈ structure_.protocol.asked prover table ∧
+              structure_.protocol.rank key = level then structure_.charge level else 0 := by
           funext table
           unfold stageLoss
           rw [kindEq]
@@ -244,10 +246,10 @@ theorem miss_le (lawful : structure_.Lawful) {queries : ℕ} (bounded : prover.Q
         have stage := checkpoint_miss_le structure_ prover lawful kindEq deep bounded positive
           childSound
         have here : stageLoss structure_ prover level = fun table =>
-            ∑ point, if point ∈ structure_.protocol.asked prover table ∧
-              level ≤ structure_.protocol.stage point ∧
-              structure_.protocol.stage point ≤ level + span
-              then structure_.error (structure_.protocol.stage point) else 0 := by
+            ∑ key, if key ∈ structure_.protocol.asked prover table ∧
+              level ≤ structure_.protocol.rank key ∧
+              structure_.protocol.rank key ≤ level + span
+              then structure_.error (structure_.protocol.rank key) else 0 := by
           funext table
           unfold stageLoss
           rw [kindEq]
@@ -260,8 +262,8 @@ theorem miss_le (lawful : structure_.Lawful) {queries : ℕ} (bounded : prover.Q
       · refine (miss_succ_le structure_ prover budget depth level
           (fun table own _ => node structure_ prover budget depth (level + 1) table own)
           (node_plain structure_ prover budget kindEq)).trans ?_
-        have none : (𝔼 table, 𝔼 own : Tape Point Coord Slot budget depth,
-            𝔼 _loops : Loops Point Coord Slot budget (Tape Point Coord Slot budget depth),
+        have none : (𝔼 table, 𝔼 own : Tape Addr Coord Slot budget depth,
+            𝔼 _loops : Loops Addr Coord Slot budget (Tape Addr Coord Slot budget depth),
             (if (node structure_ prover budget depth (level + 1) table own).isSome ∧
               node structure_ prover budget depth (level + 1) table own = none
               then (1 : ℝ) else 0)) = 0 := by
@@ -289,11 +291,11 @@ loss of the limit, `(Q + 1)·L/budget`, where `L` is the number of retry loops o
 stage. By `extract_sound`, an output is a witness of the relation or a witness of `R_bind`. -/
 theorem checkpoint_extraction (lawful : structure_.Lawful) {queries : ℕ}
     (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape Point Coord Slot budget structure_.protocol.stages,
+    𝔼 table, 𝔼 tape : Tape Addr Coord Slot budget structure_.protocol.stages,
         (if structure_.protocol.accept (structure_.protocol.final prover table) ∧
           extract structure_ prover budget table tape = none then (1 : ℝ) else 0) ≤
-      (𝔼 table, ∑ point, if point ∈ structure_.protocol.asked prover table
-        then structure_.charge (structure_.protocol.stage point) else 0) +
+      (𝔼 table, ∑ key, if key ∈ structure_.protocol.asked prover table
+        then structure_.charge (structure_.protocol.rank key) else 0) +
         (queries + 1) * structure_.loopsFrom 0 / budget := by
   refine (miss_le structure_ prover lawful bounded positive structure_.protocol.stages 0
     (Nat.zero_add _)).trans (add_le_add (Finset.expect_le_expect fun table _ => ?_) le_rfl)
@@ -302,14 +304,15 @@ theorem checkpoint_extraction (lawful : structure_.Lawful) {queries : ℕ}
   unfold chargeFrom
   simp
 
+omit [Fintype Point] [DecidableEq Point] in
 /-- Akita Theorem 10.17, second inequality of (160): the addresses of the output transcript have
 total weight `ε_ck`, and the prover queries at most `Q` further addresses, each of weight at most
 `ϵ_max`. -/
 theorem address_sum_le (lawful : structure_.Lawful) {queries : ℕ}
     (bounded : prover.QueryBound queries) (top : ℝ)
     (below : ∀ level, structure_.charge level ≤ top) :
-    𝔼 table, (∑ point, if point ∈ structure_.protocol.asked prover table
-        then structure_.charge (structure_.protocol.stage point) else 0) ≤
+    𝔼 table, (∑ key, if key ∈ structure_.protocol.asked prover table
+        then structure_.charge (structure_.protocol.rank key) else 0) ≤
       structure_.checkError + queries * top :=
   (Finset.expect_le_expect fun table _ => structure_.protocol.sum_asked_le prover bounded table
     structure_.charge top (structure_.charge_nonnegative lawful) below).trans
@@ -319,7 +322,7 @@ theorem address_sum_le (lawful : structure_.Lawful) {queries : ℕ}
 `(Q + 1)·ε_ck + (Q + 1)·L/budget`. -/
 theorem checkpoint_extraction_le (lawful : structure_.Lawful) {queries : ℕ}
     (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape Point Coord Slot budget structure_.protocol.stages,
+    𝔼 table, 𝔼 tape : Tape Addr Coord Slot budget structure_.protocol.stages,
         (if structure_.protocol.accept (structure_.protocol.final prover table) ∧
           extract structure_ prover budget table tape = none then (1 : ℝ) else 0) ≤
       (queries + 1) * structure_.checkError + (queries + 1) * structure_.loopsFrom 0 / budget := by

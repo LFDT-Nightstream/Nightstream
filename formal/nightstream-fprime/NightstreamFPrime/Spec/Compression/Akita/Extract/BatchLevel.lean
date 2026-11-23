@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.Recursion
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Root
 
 /-! A fold with opening groups as a level of the opening suffix of Akita, and the batching root
-before it (ePrint 2026/1983, revision of 2026-10-15, Corollary 10.32, Proposition 10.44 and
+before it (ePrint 2026/1983, revision of 2026-11-23, Corollary 10.32, Proposition 10.44 and
 Theorem 10.46, "Batching root" and "Root claims").
 
 - `Batch.method` is the opening method `Method` of a fold with opening groups and coefficient
@@ -186,7 +186,7 @@ def RootLinked (start : ℕ) (commit : Wire → (g : Fin count) → (B.shape g).
 
 variable {T} {Inner BreakT CandT KeyT : Type} {accept : Prefix Wire (Option Coord → Slot) total →
   Prop}
-  {body : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
+  {body : Structure (Address Wire total) (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
     BreakT CandT
     KeyT (Option B.Weak)}
   {error : ℝ} {loops tree : ℕ}

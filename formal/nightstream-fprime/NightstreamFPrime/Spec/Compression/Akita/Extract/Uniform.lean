@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.FoldCheck
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Staged
 
 /-! The verifier of the checks of one fold does not read the witness (Akita, ePrint 2026/1983,
-revision of 2026-10-15, Figure 6: the verifier reads the messages of the proof and its
+revision of 2026-11-23, Figure 6: the verifier reads the messages of the proof and its
 challenges; the witness is in the bad sets of Lemma 10.42 only).
 
 - `bare` is a game with each bad set empty: the messages, the draws and the result of the

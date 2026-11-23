@@ -2,7 +2,7 @@ import Mathlib.Algebra.Polynomial.Expand
 import NightstreamFPrime.Spec.Compression.Akita.Ring
 
 /-! The embedding of the challenge subring in the A ring (Akita, ePrint 2026/1983, revision of
-2026-10-15, Section 4.4).
+2026-11-23, Section 4.4).
 
 - `embed stride tower` is `ι : S → R`, `Y ↦ X^stride`, of Akita (38), for `S = R_{q,d_car}`,
   `R = R_{q,d}` and `stride · d_car = d`. A packing fold has `stride = k·h_car`.

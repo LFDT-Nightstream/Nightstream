@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.FlatFold
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Staged
 
 /-! The bounds of the draws of the checks `foldCheck` of one packing fold of Akita
-(ePrint 2026/1983, revision of 2026-10-15, the terms of (189) after the fold challenge).
+(ePrint 2026/1983, revision of 2026-11-23, the terms of (189) after the fold challenge).
 
 - `treeCosts` and `rangeCosts` have the bounds of the draws of the range tree of Akita
   Section 6.1 in their order, with `rangeTree_stagedTo` and `rangeCheck_stagedTo`.

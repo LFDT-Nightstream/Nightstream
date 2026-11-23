@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Lib.Density
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Segment
 
 /-! The batching root of an opening of several claims, for independent weights (Akita,
-ePrint 2026/1983, revision of 2026-10-15, Section 5.4 with (72), Lemma 10.33, and Theorem 10.46,
+ePrint 2026/1983, revision of 2026-11-23, Section 5.4 with (72), Lemma 10.33, and Theorem 10.46,
 "Batching root").
 
 The weights are one independent uniform element of `E` for each claim, which is the rule of the
@@ -156,7 +156,7 @@ theorem game_eq (candidate : Cand) {point : Prefix Wire (Option Coord → Slot) 
 variable {Inner BreakT CandT KeyT Wit' : Type}
   {accept : Prefix Wire (Option Coord → Slot) total → Prop}
   {Opens' : Prefix Wire (Option Coord → Slot) total → Wit' → Prop}
-  {later : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
+  {later : Structure (Address Wire total) (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
     BreakT CandT
     KeyT Wit'}
   {error : ℝ} {loops tree : ℕ}

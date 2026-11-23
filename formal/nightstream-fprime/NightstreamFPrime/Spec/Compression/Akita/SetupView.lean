@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Setup
 import NightstreamFPrime.Spec.Compression.Akita.Batch
 
 /-! The matrices of a level of Akita as views of the shared setup vector (ePrint 2026/1983,
-revision of 2026-10-15, Section 4.3 with (35), and Section 9 with (133)).
+revision of 2026-11-23, Section 4.3 with (35), and Section 9 with (133)).
 
 - `Setup.shared S d n width code` is the prefix view (35) of the flat setup vector `S` with the
   degree `d`, `n` rows and `width` columns, with the column `c` of the matrix at the column

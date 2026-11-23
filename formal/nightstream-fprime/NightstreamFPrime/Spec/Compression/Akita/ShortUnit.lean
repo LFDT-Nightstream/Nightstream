@@ -6,7 +6,7 @@ import NightstreamFPrime.Spec.FieldPrime
 import NightstreamFPrime.Spec.Compression.Akita.Ring
 
 /-! Short elements of `R_{q,d}` are units, for `d` a power of two from 2 (Akita, ePrint 2026/1983,
-revision of 2026-10-15, Section 3.2 and (20) with `s_split = 2`; Lyubashevsky and Seiler, ePrint
+revision of 2026-11-23, Section 3.2 and (20) with `s_split = 2`; Lyubashevsky and Seiler, ePrint
 2017/523, Corollary 1.2 with `k = 2`).
 
 `q = 2^64 − 59` is `5 mod 8`, so `X^d + 1 = (X^{d/2} − r)·(X^{d/2} + r)` for `r² = −1`, and each

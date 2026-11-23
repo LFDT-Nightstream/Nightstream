@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Verifier.Model
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Staged
 
 /-! Fair decoders of the challenges of the compression argument from the slots of an answer of
-the oracle (Akita, ePrint 2026/1983, revision of 2026-10-15, Definition 10.16 (vii): the law of
+the oracle (Akita, ePrint 2026/1983, revision of 2026-11-23, Definition 10.16 (vii): the law of
 the challenge of a stage; SPEC.md section 6).
 
 - `Fair.map`: a fair decoder before a map whose fibres have one size is fair. `Fair.equiv` and

@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.Recursion
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceSource
 
 /-! A level of the opening suffix of Akita with the evaluation-trace opening method (ePrint
-2026/1983, revision of 2026-10-15, Sections 5.3, 7.1 and 7.2, Corollary 10.32 and
+2026/1983, revision of 2026-11-23, Sections 5.3, 7.1 and 7.2, Corollary 10.32 and
 Proposition 10.44 with its proof).
 
 - `TraceClaim` is the claim of a trace level: `TraceStatement` without the matrices.
@@ -250,7 +250,7 @@ a solution of Module-SIS for `B`, `D` or a compression map of the level
 (`traceExtract_opens_or_collision`), or a witness of `R_bind` of the later stages. -/
 theorem committedTrace_suffix {Wit' : Type}
     {Opens' : Prefix Wire (Option Coord → E) total → Wit' → Prop}
-    {tail : Structure (Prefix Wire (Option Coord → E) total) (Option Coord) E (ℕ → Wire) Inner
+    {tail : Structure (Address Wire total) (Prefix Wire (Option Coord → E) total) (Option Coord) E (ℕ → Wire) Inner
       BreakT CandT KeyT
       Wit'}
     {error : ℝ} {loops tree : ℕ} {rowsFit : O.traceRowCount + 1 ≤ 2 ^ batch} {peak : ℕ}

@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.BatchChain
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Compose
 
 /-! The compression argument over an Akita opening of three groups with a batching root, one fold
-with opening groups and a last packing fold (Akita, ePrint 2026/1983, revision of 2026-10-15,
+with opening groups and a last packing fold (Akita, ePrint 2026/1983, revision of 2026-11-23,
 Theorem 10.17, Proposition 10.44 and Theorem 10.46, "Batching root"; SPEC.md Algorithm 10).
 
 - `composeAccepts` is the verifier: the conditions `Compose.Ran` of the compression argument, and

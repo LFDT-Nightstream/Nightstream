@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.FoldComplete
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Chain
 
 /-! The honest prover of the checks of a packing fold on a Fiat–Shamir transcript (Akita,
-ePrint 2026/1983, revision of 2026-10-15, Theorem 10.9 and Lemma 10.7).
+ePrint 2026/1983, revision of 2026-11-23, Theorem 10.9 and Lemma 10.7).
 
 - `Witness.Alphabets.rangeHolds` and `Witness.Alphabets.binaryOn` give the digit range statement
   and the binary statement of the flat witness of digit vectors with the certified alphabets.
@@ -305,7 +305,7 @@ def OnPath (first : Wire) (moves : List (Reply × Wire)) : Prop :=
   ∀ proof : ℕ → Wire, proof 0 = first →
     (∀ index (inside : index < moves.length), proof (index + 1) = moves[index].2) →
     ∃ short : moves.length ≤ total,
-      (transcript total accept).path proof table moves.length = ⟨first, moves, short⟩
+      pointPath total accept proof table moves.length = ⟨first, moves, short⟩
 
 theorem onPath_nil (first : Wire) : OnPath accept table first [] := fun _ zero _ =>
   ⟨Nat.zero_le _, Prefix.ext zero rfl⟩
@@ -324,9 +324,9 @@ theorem OnPath.snoc {first : Wire} {moves : List (Reply × Wire)}
   have length : (moves ++ [(answer table first moves, wire)]).length = moves.length + 1 := by
     simp
   have grown : (moves ++ [(answer table first moves, wire)]).length ≤ total := by omega
-  refine ⟨grown, (congrArg ((transcript total accept).path proof table) length).trans ?_⟩
-  show (transcript total accept).step proof ((transcript total accept).path proof table
-    moves.length) (table ((transcript total accept).path proof table moves.length)) = _
+  refine ⟨grown, (congrArg (pointPath total accept proof table) length).trans ?_⟩
+  show (transcript total accept).step proof (pointPath total accept proof table
+    moves.length) (table (pointPath total accept proof table moves.length)) = _
   rw [here, transcript_step proof _ _ room]
   refine Prefix.ext rfl ?_
   show moves ++ [(table ⟨first, moves, short⟩, proof (moves.length + 1))] =
@@ -334,28 +334,28 @@ theorem OnPath.snoc {first : Wire} {moves : List (Reply × Wire)}
   rw [last, answer_eq table first short]
 
 /-- A stage input of the last stage on the path is the complete transcript of a proof: the
-transcript `final` of the prover that returns this proof with no query. -/
+stage input of the last stage of the path of this proof. -/
 theorem OnPath.final {first : Wire} {moves : List (Reply × Wire)}
     (on : OnPath accept table first moves) (full : moves.length = total) :
     ∃ (proof : ℕ → Wire) (short : moves.length ≤ total), proof 0 = first ∧
-      (transcript total accept).final (.done proof) table = ⟨first, moves, short⟩ := by
+      pointPath total accept proof table total = ⟨first, moves, short⟩ := by
   obtain ⟨short, here⟩ := on (⟨first, moves, full.le⟩ : Prefix Wire Reply total).wire rfl
     fun index inside => by simp [Prefix.wire, List.getElem?_eq_getElem inside]
   exact ⟨(⟨first, moves, full.le⟩ : Prefix Wire Reply total).wire, short, rfl,
-    (congrArg ((transcript total accept).path _ table) full).symm.trans here⟩
+    (congrArg (pointPath total accept _ table) full).symm.trans here⟩
 
 variable (accept table) in
 /-- Each answer of a transcript on the path of a table is an answer of the table. -/
 theorem path_answers (proof : ℕ → Wire) : ∀ (level : ℕ),
-    ∀ move ∈ ((transcript total accept).path proof table level).rest, ∃ input, move.1 = table input
-  | 0 => fun _ member => absurd member (by simp [Protocol.path, transcript])
+    ∀ move ∈ (pointPath total accept proof table level).rest, ∃ input, move.1 = table input
+  | 0 => fun _ member => absurd member (by simp [pointPath, transcript])
   | level + 1 => fun move member => by
       have earlier := path_answers proof level
-      by_cases room : ((transcript total accept).path proof table level).rest.length < total
-      · have grown : ((transcript total accept).path proof table (level + 1)).rest =
-            ((transcript total accept).path proof table level).rest ++
-              [(table ((transcript total accept).path proof table level), proof
-                (((transcript total accept).path proof table level).rest.length + 1))] := by
+      by_cases room : (pointPath total accept proof table level).rest.length < total
+      · have grown : (pointPath total accept proof table (level + 1)).rest =
+            (pointPath total accept proof table level).rest ++
+              [(table (pointPath total accept proof table level), proof
+                ((pointPath total accept proof table level).rest.length + 1))] := by
           show ((transcript total accept).step proof _ _).rest = _
           rw [transcript_step proof _ _ room]
           rfl
@@ -364,12 +364,12 @@ theorem path_answers (proof : ℕ → Wire) : ∀ (level : ℕ),
         · exact earlier move old
         · rw [List.mem_singleton.mp new]
           exact ⟨_, rfl⟩
-      · have same : ((transcript total accept).path proof table (level + 1)).rest =
-            ((transcript total accept).path proof table level).rest := by
+      · have same : (pointPath total accept proof table (level + 1)).rest =
+            (pointPath total accept proof table level).rest := by
           have stay : (transcript total accept).step proof
-              ((transcript total accept).path proof table level)
-              (table ((transcript total accept).path proof table level)) =
-                (transcript total accept).path proof table level := dite_eq_right room
+              (pointPath total accept proof table level)
+              (table (pointPath total accept proof table level)) =
+                pointPath total accept proof table level := dite_eq_right room
           show ((transcript total accept).step proof _ _).rest = _
           rw [stay]
         rw [same] at member

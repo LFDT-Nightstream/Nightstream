@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.ZeroFit
 
 /-! The honest prover of a fold with opening groups whose groups have their own commitment
 states, and the batching root for a claim of the weights (Akita, ePrint 2026/1983, revision of
-2026-10-15, Theorem 10.9 with Lemma 10.7, Section 5.4 with (69) to (72), Lemma 7.1, item 1,
+2026-11-23, Theorem 10.9 with Lemma 10.7, Section 5.4 with (69) to (72), Lemma 7.1, item 1,
 Section 4.5 and Section 9 with (136)).
 
 The groups of a fold need not have the same commitment algorithm: the group of the setup prefix

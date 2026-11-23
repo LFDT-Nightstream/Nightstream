@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.RowBatch
 import NightstreamFPrime.Spec.Compression.Akita.RangeTree
 
 /-! The checks of one fold of Akita after the commitment of the next witness, as a game
-(ePrint 2026/1983, revision of 2026-10-15, Figure 6, Sections 6.1 and 7.4, Theorem 10.36,
+(ePrint 2026/1983, revision of 2026-11-23, Figure 6, Sections 6.1 and 7.4, Theorem 10.36,
 Lemma 10.37 and the terms of (189) after the fold challenge).
 
 - `rangeBad` is the bad set of the range point `τ_0`, with `density_rangeBad_le`.

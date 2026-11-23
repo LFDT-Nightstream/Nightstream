@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.LiftReduction
 import NightstreamFPrime.Spec.Compression.Akita.Prover
 
 /-! The quotient digits of the ring rows of one fold of Akita as segments of the witness of the
-next level (ePrint 2026/1983, revision of 2026-10-15, Section 5.5 with (76), Section 7.3 with
+next level (ePrint 2026/1983, revision of 2026-11-23, Section 5.5 with (76), Section 7.3 with
 (111) and (112), Lemma 3.4, and Appendix L.2 with (348)).
 
 - `Gaps` has the places of the three quotient segments of Akita (76) in the flat witness: `Q̂_main`

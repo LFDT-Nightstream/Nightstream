@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.TowerComplete
 
 /-! The honest prover of the trace levels and of the terminal of the opening of Akita for the
 schedule file `crates/ns-compress/artifacts/key20.aks` (Akita, ePrint 2026/1983, revision of
-2026-10-15, Theorem 10.9 with Lemma 10.7, Figure 4 and Section 8.2).
+2026-11-23, Theorem 10.9 with Lemma 10.7, Figure 4 and Section 8.2).
 
 - `not_honest`: the shapes of the levels 1 to 5 and of the terminal have one source digit of the
   base 8, 32 or 64, so they do not satisfy `Shape.Honest`: the schedule has the bounded source
@@ -262,7 +262,7 @@ theorem traceTower_accepts {sendable : (M : Type) → M → Prop} {slots width c
     (reads : ∀ point, Terminal.read L point = statementOf (point.wire (Terminal.start L)))
     (clears : ∀ point, Terminal.partials L point = partialsOf (point.wire (Terminal.start L)))
     (counts : ∀ wire, Terminal.nonce L wire = read.nonce wire)
-    (table : Prefix Wire (Option Coord → E) total → Option Coord → E)
+    (table : Address Wire total → Option Coord → E)
     (decodes₂ : ∀ input i, (decode₂ (table input (some (block₂ i)))).isSome)
     (decodes₃ : ∀ input i, (decode₃ (table input (some (block₃ i)))).isSome)
     (decodes₄ : ∀ input i, (decode₄ (table input (some (block₄ i)))).isSome)
@@ -293,6 +293,20 @@ theorem traceTower_accepts {sendable : (M : Type) → M → Prop} {slots width c
       claim₂ (proof 0) =
         honestTraceClaim (And.left quarters) key₂ openKey₂ g block position pack θ ∧
       linked ((transcript total accept).final (.done proof) table) := by
+  simp only [final_done]
+  set table := fun input : Prefix Wire (Option Coord → E) total => table input.address
+  replace decodes₂ : ∀ input i, (decode₂ (table input (some (block₂ i)))).isSome :=
+    fun input => decodes₂ input.address
+  replace decodes₃ : ∀ input i, (decode₃ (table input (some (block₃ i)))).isSome :=
+    fun input => decodes₃ input.address
+  replace decodes₄ : ∀ input i, (decode₄ (table input (some (block₄ i)))).isSome :=
+    fun input => decodes₄ input.address
+  replace decodes₅ : ∀ input i, (decode₅ (table input (some (block₅ i)))).isSome :=
+    fun input => decodes₅ input.address
+  replace decodesL : ∀ input i, (Terminal.decode L (table input (some (Terminal.block L i)))).isSome :=
+    fun input => decodesL input.address
+  replace worked : ∀ input, table input none ∈ workZeros E 57 := fun input => worked input.address
+  clear_value table
   obtain ⟨wire, said, tried⟩ := full
   obtain ⟨later, on, whole, each⟩ := traceTower_complete sends wide capped room carries₂ carries₃
     carries₄ carries₅ carriesL next inside reads clears counts table decodes₂ decodes₃ decodes₄

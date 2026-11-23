@@ -4,7 +4,7 @@ import NightstreamFPrime.Spec.Compression.Game.Complete
 import NightstreamFPrime.Spec.Compression.Akita.Trace
 
 /-! The tensor reduction of Akita for one claim and the extension degree `k = 2`, as a game
-(ePrint 2026/1983, revision of 2026-10-15, Section 3.7, Section 5.2 with (54), Theorem 5.1 with
+(ePrint 2026/1983, revision of 2026-11-23, Section 3.7, Section 5.2 with (54), Theorem 5.1 with
 its proof in Appendix D.1, and Figure 4, step 0).
 
 The reduction has `κ = 1` head variable, which is the first variable of the point, and the basis

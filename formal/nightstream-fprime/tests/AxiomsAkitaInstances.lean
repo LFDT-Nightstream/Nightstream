@@ -1,5 +1,6 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Claims.Akita
+import NightstreamFPrime.Claims.AkitaKey20
 
 /-! Axiom audits for the instances of Module-SIS of the Akita opening: the monotone reductions and
 ring descent (`Spec/Compression/Akita/Instance`), the instances of the schedule `key20.aks` and
@@ -110,6 +111,6 @@ solutions (`SetupInstances`), and their claims. -/
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.Opening.reduced
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.Opening.reduced_shared
 #audit_axioms NightstreamFPrime.Claims.Akita.module_sis_descent
-#audit_axioms NightstreamFPrime.Claims.Akita.key20_instance_list
-#audit_axioms NightstreamFPrime.Claims.Akita.key20_instances
-#audit_axioms NightstreamFPrime.Claims.Akita.key20_instances_shared
+#audit_axioms NightstreamFPrime.Claims.AkitaKey20.key20_instance_list
+#audit_axioms NightstreamFPrime.Claims.AkitaKey20.key20_instances
+#audit_axioms NightstreamFPrime.Claims.AkitaKey20.key20_instances_shared

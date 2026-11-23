@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.OperatorFilter
 
 /-! The integer tables of the operator-norm filter of the pinned Akita code
 (`crates/akita-challenges/src/sampler/op_norm.rs`, `build_tables`; Akita, ePrint 2026/1983,
-revision of 2026-10-15, Appendix H.1).
+revision of 2026-11-23, Appendix H.1).
 
 - `TrigBuild.piEnclosure` is `pi_enclosure` (Machin's formula with `arctan_inv`).
 - `TrigBuild.taylorCos` and `TrigBuild.taylorSin` are `taylor_cos` and `taylor_sin`: interval

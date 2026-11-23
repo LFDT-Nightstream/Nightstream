@@ -5,7 +5,7 @@ import NightstreamFPrime.Spec.Compression.Akita.TrigBuild
 
 /-! The challenge families of the schedule file `crates/ns-compress/artifacts/key20.aks` and
 their decoders from one slot of the extension field `E` (Akita, ePrint 2026/1983, revision of
-2026-10-15, Section 3.2 and Definition 9.2, E1).
+2026-11-23, Section 3.2 and Definition 9.2, E1).
 
 The Akita code (revision `d50f700f`, `crates/akita-challenges/src/config.rs`) has the family
 `(31, 10)` for the degree 64 and `(31, 0)` for the degree 128. The levels with the Euclidean
@@ -17,7 +17,10 @@ route have a filter on the base family `(31, 11)` for the degree 64 and `(31, 0)
 - `families_large`: the three families have `2^128`, `2^129` and `2^130` members or more, which
   are the slot widths 128, 129 and 130 of the Akita code. `E` has `q² < 2^128` elements, so
   `draw` has an injection of `E` into each family (`slots_le`), and each slot of `E` gives a
-  challenge when no filter is present (`draw_isSome`).
+  challenge when no filter is present (`draw_all`).
+- `Kept` states that `2^128` members or more of each filtered family pass the filter of the
+  code, as Akita Table 12 certifies. Then each slot of `E` gives a challenge of the filtered
+  decoder too (`draw_kept`).
 - `slotChance_draw`: the slot probability of each decoder `draw` is at most `1/q²`.
   `pow_lt_slotChance`: no decoder from one slot of `E` that gives a challenge has the slot
   probability `2^-128`, because `1/q² > 2^-128`.
@@ -67,6 +70,26 @@ theorem slots_le {Ring : Type} {family : Set Ring} (large : 2 ^ 128 ≤ Nat.card
   rw [card_field]
   exact (by decide : fieldModulus ^ 2 ≤ 2 ^ 128).trans large
 
+/-- The filtered base families of the Akita code have `2^128` members or more that pass the
+filter of the code: `(31, 11)` of the degree 64 for `Γ` = 18, and `(31, 0)` of the degree 128 for
+`Γ` = 13. Akita Table 12 certifies these counts with the lower bound `|C_0|·p_0 ≥ 2^128`. -/
+def Kept : Prop :=
+  2 ^ 128 ≤ Nat.card {c ∈ SparseFamily 64 31 11 | TrigTable.codeAccepts 64 18 c} ∧
+    2 ^ 128 ≤ Nat.card {c ∈ SparseFamily 128 31 0 | TrigTable.codeAccepts 128 13 c}
+
+/-- `draw` gives a challenge for each slot of `E` when `2^128` members or more of the family pass
+the filter. -/
+theorem draw_kept {Ring : Type} {family : Set Ring} {keep : Ring → Prop}
+    (large : 2 ^ 128 ≤ Nat.card {c ∈ family | keep c}) (slot : E) :
+    (draw family keep slot).isSome :=
+  draw_isSome (slots_le large) slot
+
+/-- Without a filter, `draw` gives a challenge for each slot of `E` when the family has `2^128`
+members or more. -/
+theorem draw_all {Ring : Type} {family : Set Ring} (large : 2 ^ 128 ≤ Nat.card family)
+    (slot : E) : (draw family (fun _ => True) slot).isSome :=
+  draw_kept (by simpa using large) slot
+
 /-- The slot probability of `draw` from one slot of `E` is at most `1/q²`. -/
 theorem slotChance_draw {Ring : Type} (family : Set Ring) (keep : Ring → Prop) :
     slotChance (draw (Slot := E) family keep) ≤ 1 / (fieldModulus : ℝ) ^ 2 := by
@@ -110,7 +133,7 @@ theorem rootDecode_sparse (g : Fin 3) (challenge : Rq (root.carrierDegree g))
 
 /-- Each slot of `E` gives a fold challenge of each group of the root. -/
 theorem rootDecode_isSome (g : Fin 3) (slot : E) : (rootDecode E g slot).isSome := by
-  refine draw_isSome (slots_le ?_) slot
+  refine draw_all ?_ slot
   fin_cases g
   · exact (by decide : 2 ^ 128 ≤ 2 ^ 129).trans families_large.2.2
   · exact families_large.1

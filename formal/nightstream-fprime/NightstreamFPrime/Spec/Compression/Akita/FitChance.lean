@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Key20
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Nonce
 
 /-! The probability that the response of an honest fold of Akita does not fit, on the coefficient
-route (ePrint 2026/1983, revision of 2026-10-15, Definition 10.5, Definition 10.6 with (149),
+route (ePrint 2026/1983, revision of 2026-11-23, Definition 10.5, Definition 10.6 with (149),
 Lemma 10.7 and Corollary K.10 with (313)), with the numbers of the schedule file
 `crates/ns-compress/artifacts/key20.aks`.
 
@@ -117,9 +117,9 @@ theorem level₁_unfit (block : Fin level₁.shape.blocks → Coord)
     (k := 67) (ℓ := 48) (by decide) (by decide) (by decide) (by decide)).trans ?_
   norm_num [level₁]
 
-/-- Akita Lemma 10.7 at level 1 of `key20.aks` with the `2^12` nonces of the code: for the stage
-inputs `input` of the nonces after one transcript prefix, no nonce gives a response that
-satisfies `Enc` with probability at most `(2^−49)^4096`. -/
+/-- Akita Lemma 10.7 at level 1 of `key20.aks` with the `2^12` nonces of the code: for the keys
+`input` of the nonces after one transcript prefix, no nonce gives a response that satisfies `Enc`
+with probability at most `(2^−49)^4096`. -/
 theorem level₁_search {Point : Type} [Fintype Point] [DecidableEq Point]
     (input : Fin responseTries → Point) (distinct : Function.Injective input)
     (block : Fin level₁.shape.blocks → Coord) (injective : Function.Injective block)

@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.Extract.LiftComplete
 
 /-! The verifier of a packing level, of three trace levels and of the terminal of the opening of
-Akita accepts the honest prover (ePrint 2026/1983, revision of 2026-10-15, Theorem 10.9 with
+Akita accepts the honest prover (ePrint 2026/1983, revision of 2026-11-23, Theorem 10.9 with
 Lemma 10.7, Lemma 7.1, item 1, Section 4.5, Figure 4 and Section 8.2). The levels are those of
 the schedule `key30.aks` from the packing level 3: a level `committedTrace` on the coefficient
 route, two levels `committedTraceSq` on the Euclidean route, each with the tensor reduction, and

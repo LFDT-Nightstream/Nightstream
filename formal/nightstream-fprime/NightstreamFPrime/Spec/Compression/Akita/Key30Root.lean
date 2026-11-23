@@ -6,7 +6,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.OffComplete
 `crates/ns-compress/artifacts/key30.aks`: the batching root, the offloaded root fold of the key
 polynomial, `W` and `V`, the level 1 with the group of the setup prefix and the group of the
 witness, the packing levels 2 and 3, the trace levels 4 to 6 and the terminal (Akita, ePrint
-2026/1983, revision of 2026-10-15, Theorem 10.9 with Lemma 10.7, Section 9 with (136), Figure 4
+2026/1983, revision of 2026-11-23, Theorem 10.9 with Lemma 10.7, Section 9 with (136), Figure 4
 and Section 8.2).
 
 - `tower_complete` is `Extract.offTower_complete` for the numbers of a row of `Key30.lean`: the

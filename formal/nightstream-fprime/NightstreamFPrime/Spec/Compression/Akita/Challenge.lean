@@ -1,6 +1,6 @@
 import NightstreamFPrime.Spec.Compression.Akita.Embed
 
-/-! The sparse fold challenges of Akita (ePrint 2026/1983, revision of 2026-10-15, Section 3.2).
+/-! The sparse fold challenges of Akita (ePrint 2026/1983, revision of 2026-11-23, Section 3.2).
 
 - `Sparse ω c_max c` has the two norms of a member `c` of a sparse challenge family:
   `‖c‖_1 = ω` and `‖c‖_∞ = c_max`. The family and its sampler are not in this file.

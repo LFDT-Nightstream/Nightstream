@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.BatchSource
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Chain
 
 /-! A fold of Akita with opening groups as a level of the opening suffix with the checks
-`foldCheck`, and the batching root over it (ePrint 2026/1983, revision of 2026-10-15,
+`foldCheck`, and the batching root over it (ePrint 2026/1983, revision of 2026-11-23,
 Proposition 10.44, Theorem 10.46, "Batching root" and "Root claims", Theorem 10.17 and
 Corollary 10.49 with (206)).
 
@@ -224,7 +224,7 @@ theorem committedBatch_suffix {S' : Shape} {O' : OpeningShape S'} {fold' : Descr
     {N : Tier (Fin S'.blocks) (fun _ => Rq O'.carrierDegree) (Claim O' E)
       (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S')) (Witness O' fold')
       (Weak O') Wire Coord E Result' Source'}
-    {tail : Structure (Prefix Wire (Option Coord → E) total) (Option Coord) E (ℕ → Wire) Inner
+    {tail : Structure (Address Wire total) (Prefix Wire (Option Coord → E) total) (Option Coord) E (ℕ → Wire) Inner
       BreakT CandT KeyT
       (Option (Weak O'))}
     {error : ℝ} {loops tree : ℕ} {rowsFit : B.rowCount + 1 ≤ 2 ^ batch} {peak : Fin n → ℕ}
@@ -524,10 +524,10 @@ theorem batchRoot_extract_sound {peak : Fin count → ℕ} {peak' : ℕ}
       Sparse weight' peak' challenge)
     (base' : 2 ≤ fold'.responseBase) (small' : S'.certifiedBase < fieldModulus)
     (varsFit' : μ' ≤ Fintype.card Coord) (batchFit' : batch' ≤ Fintype.card Coord)
-    (prover : OracleComp (Prefix Wire (Option Coord → E) (Tier.finish second)) (Option Coord → E)
+    (prover : OracleComp (Address Wire (Tier.finish second)) (Option Coord → E)
       (ℕ → Wire))
-    (budget : ℕ) (table : Prefix Wire (Option Coord → E) (Tier.finish second) → Option Coord → E)
-    (tape : Tape (Prefix Wire (Option Coord → E) (Tier.finish second)) (Option Coord) E budget
+    (budget : ℕ) (table : Address Wire (Tier.finish second) → Option Coord → E)
+    (tape : Tape (Address Wire (Tier.finish second)) (Option Coord) E budget
       (Structure.protocol chain).stages)
     (out : Opened B.Weak
         (Opened (Weak O') (Prefix Wire (Option Coord → E) (Tier.finish second))) ⊕
@@ -583,10 +583,10 @@ theorem batchRoot_extraction_le {peak : Fin count → ℕ} {peak' : ℕ}
       Sparse weight' peak' challenge)
     (base' : 2 ≤ fold'.responseBase) (small' : S'.certifiedBase < fieldModulus)
     (varsFit' : μ' ≤ Fintype.card Coord) (batchFit' : batch' ≤ Fintype.card Coord)
-    (prover : OracleComp (Prefix Wire (Option Coord → E) (Tier.finish second)) (Option Coord → E)
+    (prover : OracleComp (Address Wire (Tier.finish second)) (Option Coord → E)
       (ℕ → Wire))
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → E) (Tier.finish second)) (Option Coord) E
+    𝔼 table, 𝔼 tape : Tape (Address Wire (Tier.finish second)) (Option Coord) E
       budget
           (Structure.protocol chain).stages,
         (if accepts ((Structure.protocol chain).final prover table) ∧
@@ -617,10 +617,10 @@ theorem batchRoot_runs_le {peak : Fin count → ℕ} {peak' : ℕ}
       Sparse weight' peak' challenge)
     (base' : 2 ≤ fold'.responseBase) (small' : S'.certifiedBase < fieldModulus)
     (varsFit' : μ' ≤ Fintype.card Coord) (batchFit' : batch' ≤ Fintype.card Coord)
-    (prover : OracleComp (Prefix Wire (Option Coord → E) (Tier.finish second)) (Option Coord → E)
+    (prover : OracleComp (Address Wire (Tier.finish second)) (Option Coord → E)
       (ℕ → Wire))
     {queries : ℕ} (bounded : prover.QueryBound queries) (budget : ℕ) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → E) (Tier.finish second)) (Option Coord) E
+    𝔼 table, 𝔼 tape : Tape (Address Wire (Tier.finish second)) (Option Coord) E
       budget
           (Structure.protocol chain).stages,
         (extractRuns chain prover budget table tape : ℝ) ≤

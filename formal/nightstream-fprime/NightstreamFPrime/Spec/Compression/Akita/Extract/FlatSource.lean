@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.FlatFold
 
 /-! The checks of one packing fold of Akita for a flat witness that the next level commits to
-(ePrint 2026/1983, revision of 2026-10-15, Section 10.3, "Successor source": the decoder of the
+(ePrint 2026/1983, revision of 2026-11-23, Section 10.3, "Successor source": the decoder of the
 schedule maps a source `σ` to a table `w_σ` in the witness order of (76), "on which the exact
 branch relation can be evaluated", and Lemma 10.42 (i)).
 

@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.Extract.RootComplete
 
 /-! The fit conditions of the honest prover of an opening of Akita hold for the zero tables
-(ePrint 2026/1983, revision of 2026-10-15, Definition 10.5 and Theorem 10.9). The theorems
+(ePrint 2026/1983, revision of 2026-11-23, Definition 10.5 and Theorem 10.9). The theorems
 `tower_complete` and `Key20.tower_complete` have the fit conditions `BatchFit`, `LiftFit` and
 `TraceFit` as hypotheses. This file shows that these hypotheses hold together for one input.
 

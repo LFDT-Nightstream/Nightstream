@@ -1,6 +1,6 @@
 import NightstreamFPrime.Spec.Compression.Akita.FoldSumCheck
 
-/-! The product tree of the digit range check of Akita (ePrint 2026/1983, revision of 2026-10-15,
+/-! The product tree of the digit range check of Akita (ePrint 2026/1983, revision of 2026-11-23,
 Section 6.1 and Lemma 10.37 with (187)), in the order of the pinned Akita code
 (`crates/akita-verifier/src/stages/stage1.rs`, `crates/akita-params/src/layout/digit_range.rs`).
 

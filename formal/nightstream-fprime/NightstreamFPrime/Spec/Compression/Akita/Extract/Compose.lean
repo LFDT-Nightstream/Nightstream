@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.BatchLevel
 import NightstreamFPrime.Spec.Compression.Akita.Extract.SplitGame
 
 /-! The compression argument over an Akita opening of three groups as two checkpoint segments
-(Akita, ePrint 2026/1983, revision of 2026-10-15, Definition 10.16 and Theorem 10.17; SPEC.md
+(Akita, ePrint 2026/1983, revision of 2026-11-23, Definition 10.16 and Theorem 10.17; SPEC.md
 section 6 and Algorithm 10).
 
 The groups of the opening are 0 for the key polynomial, 1 for `W` and 2 for `V`. The prover
@@ -312,7 +312,7 @@ theorem back_game (tables other : Fin 3 → Table) {point : Prefix Wire (Option 
   ended_of_bare C.read (C.backCheck_bare vf _ _ _ _) ended
 
 variable {Inner BreakT CandT KeyT : Type} {accept : Prefix Wire (Option Coord → E) total → Prop}
-  {body : Structure (Prefix Wire (Option Coord → E) total) (Option Coord) E (ℕ → Wire) Inner BreakT
+  {body : Structure (Address Wire total) (Prefix Wire (Option Coord → E) total) (Option Coord) E (ℕ → Wire) Inner BreakT
     CandT KeyT
     (Option B.Weak)}
   {key : (g : Fin 3) → Key (B.shape g)} {openKey : B.OpenKey} {mass : Fin 3 → ℕ}
@@ -354,7 +354,7 @@ def Extracted (key : (g : Fin 3) → Key (B.shape g)) (mass : Fin 3 → ℕ)
 /-- The checkpoint structure of the stages after `τ`: the checkpoint of `(W, V)` over the
 structure `body` of the Akita opening. -/
 noncomputable def backChain (accept : Prefix Wire (Option Coord → E) total → Prop)
-    (body : Structure (Prefix Wire (Option Coord → E) total) (Option Coord) E (ℕ → Wire) Inner
+    (body : Structure (Address Wire total) (Prefix Wire (Option Coord → E) total) (Option Coord) E (ℕ → Wire) Inner
       BreakT CandT KeyT
       (Option B.Weak))
     (key : (g : Fin 3) → Key (B.shape g)) (openKey : B.OpenKey) (mass : Fin 3 → ℕ)
@@ -370,7 +370,7 @@ checkpoint of `(W, V)` over the structure `body` of the Akita opening. A witness
 a witness of `R_bind` of `body`, and `embed` maps a solution of Module-SIS for a matrix of a
 group to it. -/
 noncomputable def chain (accept : Prefix Wire (Option Coord → E) total → Prop)
-    (body : Structure (Prefix Wire (Option Coord → E) total) (Option Coord) E (ℕ → Wire) Inner
+    (body : Structure (Address Wire total) (Prefix Wire (Option Coord → E) total) (Option Coord) E (ℕ → Wire) Inner
       BreakT CandT KeyT
       (Option B.Weak))
     (key : (g : Fin 3) → Key (B.shape g)) (openKey : B.OpenKey) (mass : Fin 3 → ℕ)
@@ -530,7 +530,7 @@ variable [Nonempty Coord] (sized : C.Sized vf)
   (later : Tier.Suffix accept (C.root vf) (OpensAt (C.root vf) commit value place key mass) body
     error loops tree)
   (first : C.start = 0)
-  (prover : OracleComp (Prefix Wire (Option Coord → E) total) (Option Coord → E) (ℕ → Wire))
+  (prover : OracleComp (Address Wire total) (Option Coord → E) (ℕ → Wire))
 
 local notation "whole" => chain C vf accept body key openKey mass embed
 
@@ -540,8 +540,8 @@ include sized ran embedded later first
 (Akita Theorem 10.17): the verifier accepts the transcript of the prover, and the output is a
 first certificate with `Extracted` for the first message of the prover, or a witness of `R_bind`
 of the Akita opening. -/
-theorem extract_sound (budget : ℕ) (table : Prefix Wire (Option Coord → E) total → Option Coord → E)
-    (tape : Tape (Prefix Wire (Option Coord → E) total) (Option Coord) E budget (Structure.protocol
+theorem extract_sound (budget : ℕ) (table : Address Wire total → Option Coord → E)
+    (tape : Tape (Address Wire total) (Option Coord) E budget (Structure.protocol
       whole).stages)
     (out : Inner ⊕ BreakT) (result : Checkpoint.extract whole prover budget table tape = some out) :
     accept ((Structure.protocol whole).final prover table) ∧
@@ -561,7 +561,7 @@ the bounds of the draws of `Verifier.front` and `Verifier.back`, and `error` and
 stage errors and the retry loops of the Akita opening. -/
 theorem extraction_le {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ}
     (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → E) total) (Option Coord) E budget
+    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) E budget
           (Structure.protocol whole).stages,
         (if accept ((Structure.protocol whole).final prover table) ∧
           Checkpoint.extract whole prover budget table tape = none then (1 : ℝ) else 0) ≤
@@ -573,7 +573,7 @@ theorem extraction_le {queries : ℕ} (bounded : prover.QueryBound queries) {bud
 `K̂ + (Q + 1)·(K̂ − 1)` with `K̂ = 4·tree` for the tree size `tree` of the Akita opening (Akita
 Theorem 10.17, the cost). -/
 theorem runs_le {queries : ℕ} (bounded : prover.QueryBound queries) (budget : ℕ) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → E) total) (Option Coord) E budget
+    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) E budget
           (Structure.protocol whole).stages,
         (extractRuns whole prover budget table tape : ℝ) ≤
       (4 * tree : ℕ) + (queries + 1) * ((4 * tree : ℕ) - 1) :=

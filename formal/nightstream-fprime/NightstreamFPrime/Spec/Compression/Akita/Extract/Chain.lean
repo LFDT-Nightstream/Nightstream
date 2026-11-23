@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.PackingFold
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Recursion
 
 /-! The recursive opening suffix of Akita for packing folds with the checks `foldCheck`
-(ePrint 2026/1983, revision of 2026-10-15, Proposition 10.44, Theorem 10.17 and Corollary 10.49
+(ePrint 2026/1983, revision of 2026-11-23, Proposition 10.44, Theorem 10.17 and Corollary 10.49
 with (206)).
 
 - `committedFold` is the `Tier` of a packing fold whose flat witness the next level commits to:
@@ -190,7 +190,7 @@ theorem committedFold_suffix {S' : Shape} {O' : OpeningShape S'} {fold' : Descri
       (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S')) (Witness O' fold')
         (Weak O') Wire Coord E Result'
       Source'}
-    {tail : Structure (Prefix Wire (Option Coord → E) total) (Option Coord) E (ℕ → Wire) Inner
+    {tail : Structure (Address Wire total) (Prefix Wire (Option Coord → E) total) (Option Coord) E (ℕ → Wire) Inner
       BreakT CandT KeyT
       (Option (Weak O'))}
     {error : ℝ} {loops tree : ℕ}
@@ -284,7 +284,7 @@ def pairAccepts (point : Prefix Wire (Option Coord → Slot) N.finish) : Prop :=
 
 /-- The checkpoint structure of the last level `N` of two levels. -/
 noncomputable def pairLast :
-    Structure (Prefix Wire (Option Coord → Slot) N.finish) (Option Coord) Slot (ℕ → Wire)
+    Structure (Address Wire N.finish) (Prefix Wire (Option Coord → Slot) N.finish) (Option Coord) Slot (ℕ → Wire)
       (Opened (Weak O') (Prefix Wire (Option Coord → Slot) N.finish))
       (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S') ⊕ Unit)
       (Source' ⊕ Unit) ((Σ _ : Fin S'.blocks, Rq O'.carrierDegree) ⊕ Unit) (Option (Weak O')) :=
@@ -296,7 +296,7 @@ noncomputable def pairLast :
 flat witness the last level `N` commits to). A witness of `R_bind` is a solution of Module-SIS
 for `B`, `D` or a compression map of `T`, or for `A`, `B`, `D` or a compression map of `N`. -/
 noncomputable def pair :
-    Structure (Prefix Wire (Option Coord → Slot) N.finish) (Option Coord) Slot (ℕ → Wire)
+    Structure (Address Wire N.finish) (Prefix Wire (Option Coord → Slot) N.finish) (Option Coord) Slot (ℕ → Wire)
       (Opened (Weak O) (Opened (Weak O') (Prefix Wire (Option Coord → Slot) N.finish)))
       (Brk ⊕ (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S') ⊕ Unit))
       (Table ⊕ (Source' ⊕ Unit))
@@ -395,10 +395,10 @@ theorem packingPair_extract_sound {peak peak' : ℕ} (injective : Function.Injec
       Sparse weight' peak' challenge)
     (base' : 2 ≤ fold'.responseBase) (small' : S'.certifiedBase < fieldModulus)
     (varsFit' : μ' ≤ Fintype.card Coord) (batchFit' : batch' ≤ Fintype.card Coord)
-    (prover : OracleComp (Prefix Wire (Option Coord → E) (Tier.finish second)) (Option Coord → E)
+    (prover : OracleComp (Address Wire (Tier.finish second)) (Option Coord → E)
       (ℕ → Wire))
-    (budget : ℕ) (table : Prefix Wire (Option Coord → E) (Tier.finish second) → Option Coord → E)
-    (tape : Tape (Prefix Wire (Option Coord → E) (Tier.finish second)) (Option Coord) E budget
+    (budget : ℕ) (table : Address Wire (Tier.finish second) → Option Coord → E)
+    (tape : Tape (Address Wire (Tier.finish second)) (Option Coord) E budget
       (Structure.protocol chain).stages)
     (out : Opened (Weak O) (Opened (Weak O') (Prefix Wire (Option Coord → E) (Tier.finish second)))
       ⊕
@@ -443,10 +443,10 @@ theorem packingPair_extraction_le {peak peak' : ℕ} (injective : Function.Injec
     (varsFit' : μ' ≤ Fintype.card Coord) (batchFit' : batch' ≤ Fintype.card Coord)
 
 
-    (prover : OracleComp (Prefix Wire (Option Coord → E) (Tier.finish second)) (Option Coord → E)
+    (prover : OracleComp (Address Wire (Tier.finish second)) (Option Coord → E)
       (ℕ → Wire))
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → E) (Tier.finish second)) (Option Coord) E
+    𝔼 table, 𝔼 tape : Tape (Address Wire (Tier.finish second)) (Option Coord) E
       budget
           (Structure.protocol chain).stages,
         (if pairAccepts first second commit witnessOf
@@ -472,10 +472,10 @@ theorem packingPair_runs_le {peak peak' : ℕ} (injective : Function.Injective b
       Sparse weight' peak' challenge)
     (base' : 2 ≤ fold'.responseBase) (small' : S'.certifiedBase < fieldModulus)
     (varsFit' : μ' ≤ Fintype.card Coord) (batchFit' : batch' ≤ Fintype.card Coord)
-    (prover : OracleComp (Prefix Wire (Option Coord → E) (Tier.finish second)) (Option Coord → E)
+    (prover : OracleComp (Address Wire (Tier.finish second)) (Option Coord → E)
       (ℕ → Wire))
     {queries : ℕ} (bounded : prover.QueryBound queries) (budget : ℕ) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → E) (Tier.finish second)) (Option Coord) E
+    𝔼 table, 𝔼 tape : Tape (Address Wire (Tier.finish second)) (Option Coord) E
       budget
           (Structure.protocol chain).stages,
         (extractRuns chain prover budget table tape : ℝ) ≤

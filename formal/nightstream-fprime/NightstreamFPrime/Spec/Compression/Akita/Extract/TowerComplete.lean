@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.Tower
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceComplete
 
 /-! The verifier of the trace levels and of the terminal of the opening of Akita accepts the
-honest prover (ePrint 2026/1983, revision of 2026-10-15, Theorem 10.9 with Lemma 10.7, Figure 4
+honest prover (ePrint 2026/1983, revision of 2026-11-23, Theorem 10.9 with Lemma 10.7, Figure 4
 and Section 8.2). The theorems `tower_suffix` and `mixedTower_suffix` bound an event of the
 verifier `towerLinks`. This file shows that the part of this verifier from the first trace level
 is not empty.

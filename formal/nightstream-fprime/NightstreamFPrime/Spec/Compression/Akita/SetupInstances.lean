@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Instance
 import NightstreamFPrime.Spec.Compression.Akita.SetupView
 
 /-! The matrices of a key as the views of one shared setup vector, and the solutions of Module-SIS
-for these views (Akita, ePrint 2026/1983, revision of 2026-10-15, Section 4.3 with (35),
+for these views (Akita, ePrint 2026/1983, revision of 2026-11-23, Section 4.3 with (35),
 Definition 3.2, Table 3 and Lemma 10.20).
 
 - `Setup.Solved list S` states that an instance `I` of `list` has a solution of Module-SIS for

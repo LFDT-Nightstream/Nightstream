@@ -2,7 +2,7 @@ import NightstreamFPrime.Export.BoundedDepth.FinalKey20All
 import NightstreamFPrime.Spec.Compression.Akita.Key20Instances
 
 /-! The instances of Module-SIS of the final verifier over the Akita opening of `key20.aks`
-(SPEC.md, Algorithm 10; Akita, ePrint 2026/1983, revision of 2026-10-15, Table 3, Lemma 10.20
+(SPEC.md, Algorithm 10; Akita, ePrint 2026/1983, revision of 2026-11-23, Table 3, Lemma 10.20
 and Appendix G).
 
 `Opening.reduced` states that the list `Key20.instances` is complete for the event `Solved` of
@@ -45,20 +45,19 @@ extractor with `Solved`, the event of `FinalAkita.breakChance`: a solution for t
 from `tableCollision`, or a witness of `R_bind` of the opening. Then a matrix of the opening has a
 solution that gives a solution of an instance of the list (`Key20.Reduced`). `mass`, `weight₁`
 and `weight₂`: the opening has the norms `‖c‖_1` of the fold challenges of the root and of the
-levels 1 and 2 that `Opening.Drawn` gives. `inner`: the bound `innerBound` of the reduction for
-the key commitment is at most `η_A` of the key group. -/
+levels 1 and 2 that `Opening.Drawn` gives. The radius of the reduction for the key commitment is
+`η_A` of the key group. -/
 theorem Opening.reduced (mass : o.mass = Key20.rootMass) (weight₁ : o.weight₁ = 51)
     (weight₂ : o.weight₂ = 31)
-    (inner : o.innerBound ≤ (root.fold 0).innerBound (root.shape 0))
     {out : _ ⊕ _}
     (solved : Solved (o.tower setup packageWidths step cap control read head) o.key o.honest
-      o.innerBound out) :
+      ((root.fold 0).innerBound (root.shape 0)) out) :
     Key20.Reduced Key20.instances o.key o.openKey o.key₁ o.openKey₁ o.key₂ o.openKey₂ o.key₃
       o.openKey₃ o.key₄ o.openKey₄ o.key₅ o.openKey₅ o.terminal.matrix := by
   rcases out with certificate | brk
   · obtain ⟨ω, -, found⟩ := solved
     obtain ⟨z, -⟩ := Option.isSome_iff_exists.mp found
-    exact Or.inl (Or.inl ⟨0, Key20.reduced_key inner z⟩)
+    exact Or.inl (Or.inl ⟨0, Key20.reduced_key le_rfl z⟩)
   · exact Key20.reduced mass weight₁ weight₂ brk solved
 
 /-- `Opening.reduced` for an opening whose matrices are the views of one flat setup vector `S`
@@ -69,15 +68,14 @@ theorem Opening.reduced_shared (mass : o.mass = Key20.rootMass) (weight₁ : o.w
     (weight₂ : o.weight₂ = 31) {N : ℕ} {S : Fin N → Zq}
     (keys : Key20.Shared S o.key o.openKey o.key₁ o.openKey₁ o.key₂ o.openKey₂ o.key₃ o.openKey₃
       o.key₄ o.openKey₄ o.key₅ o.openKey₅ o.terminal.matrix)
-    (inner : o.innerBound ≤ (root.fold 0).innerBound (root.shape 0))
     {out : _ ⊕ _}
     (solved : Solved (o.tower setup packageWidths step cap control read head) o.key o.honest
-      o.innerBound out) :
+      ((root.fold 0).innerBound (root.shape 0)) out) :
     Setup.Solved Key20.views S := by
   rcases out with certificate | brk
   · obtain ⟨ω, -, found⟩ := solved
     obtain ⟨z, -⟩ := Option.isSome_iff_exists.mp found
-    exact Key20.reduced_key_shared (keys.1.1 0) inner z
+    exact Key20.reduced_key_shared (keys.1.1 0) le_rfl z
   · exact Key20.reduced_shared mass weight₁ weight₂ keys brk solved
 
 end NightstreamFPrime.Export.BoundedDepth.FinalKey20

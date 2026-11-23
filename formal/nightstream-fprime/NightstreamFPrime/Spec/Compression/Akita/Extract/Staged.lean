@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Game.Game
 import NightstreamFPrime.Spec.RandomOracle
 
 /-! A public-coin game as the stages of a Fiat–Shamir transcript (Akita, ePrint 2026/1983,
-revision of 2026-10-15, Definition 10.16 (vii): the bad sets `Bad_j(ξ; w)` of the stages of a
+revision of 2026-11-23, Definition 10.16 (vii): the bad sets `Bad_j(ξ; w)` of the stages of a
 checkpoint segment).
 
 - `Fair decode` states that `decode` maps a uniform answer of the oracle to a challenge with the

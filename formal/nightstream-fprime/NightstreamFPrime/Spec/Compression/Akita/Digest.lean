@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.RandomOracle
 
 /-! The bad events of the hashed transcript entries of Akita (ePrint 2026/1983, revision of
-2026-10-15, Lemma 10.47 with (212) and (213), for one digest type): the counting part of the
+2026-11-23, Lemma 10.47 with (212) and (213), for one digest type): the counting part of the
 proof, and the statement of its paragraph "Acceptance" for the recorded queries.
 
 - `Run` is an algorithm with the two oracles `H_FS` and `H_o`. `Run.trace` has its queries in
@@ -290,7 +290,7 @@ end Run
 noncomputable def hashError (bits digests positionCount : ℕ) : ℝ :=
   ((digests.choose 2 + digests * positionCount : ℕ) : ℝ) / 2 ^ bits
 
-/-- `ε_hash` is at most the term `(Q_H² + Q_H·V_H)/2^ℓ` of `Schedule.knowledgeError`. -/
+/-- `ε_hash` is at most `(Q_H² + Q_H·V_H)/2^ℓ`. -/
 theorem hashError_le (bits digests positionCount : ℕ) :
     hashError bits digests positionCount ≤
       ((digests : ℝ) ^ 2 + digests * positionCount) / 2 ^ bits := by

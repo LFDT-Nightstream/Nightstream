@@ -4,7 +4,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.Transcript
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Work
 
 /-! A checkpoint segment of a Fiat–Shamir transcript as a part of a checkpoint structure (Akita,
-ePrint 2026/1983, revision of 2026-10-15, Definition 10.16 (v) to (vii), and Theorem 10.45 for
+ePrint 2026/1983, revision of 2026-11-23, Definition 10.16 (v) to (vii), and Theorem 10.45 for
 one segment).
 
 - `Tier.Suffix` is the invariant of the stages from one stage `start`: the conditions of
@@ -104,7 +104,7 @@ of `Opens` (Proposition 10.44 (i)). `rooted`: `Opens` reads the transcript befor
 (206), the number of the retry loops and the tree size of these stages. -/
 structure Suffix (accept : Prefix Wire (Option Coord → Slot) total → Prop) (start : ℕ)
     (Opens : Prefix Wire (Option Coord → Slot) total → Wit → Prop)
-    (body : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire)
+    (body : Structure (Address Wire total) (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire)
       Inner BreakT CandT
       KeyT Wit)
     (error : ℝ) (loops tree : ℕ) : Prop where
@@ -186,7 +186,7 @@ structure Valid : Prop where
 
 variable {Inner BreakT CandT KeyT WitT : Type}
   (accept : Prefix Wire (Option Coord → Slot) total → Prop)
-  (tail : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
+  (tail : Structure (Address Wire total) (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
     BreakT CandT
     KeyT WitT)
   (source : Inner → Cand) (clash : Inner → Inner → BreakT)
@@ -212,7 +212,7 @@ A stage input is also refuted after an answer whose work bits are not zero, beca
 rejects each extension (Akita Remark 10.18), so a bad answer has zero work bits. `relation` is the
 relation of the witnesses. -/
 noncomputable def over :
-    Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner BreakT
+    Structure (Address Wire total) (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner BreakT
       (Cand ⊕ CandT) KeyT WitT where
   protocol := transcript total accept
   kind level := if level < G.finish then G.kind level else tail.kind level
@@ -750,7 +750,7 @@ theorem over_treeFrom (draws : G.costs ≠ []) (fits : G.finish ≤ total)
 end Bound
 
 variable {Wit' : Type} {Opens' : Prefix Wire (Option Coord → Slot) total → Wit' → Prop}
-  {later : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
+  {later : Structure (Address Wire total) (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
     BreakT CandT
     KeyT Wit'}
   {error : ℝ} {loops tree : ℕ}

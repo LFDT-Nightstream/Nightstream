@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.Fold
 
 /-! The Euclidean norms of Akita and the Euclidean route of the weak binding of one fold
-(ePrint 2026/1983, revision of 2026-10-15, Section 3.1, Lemma 3.1, Definition 3.2, Lemma 10.23,
+(ePrint 2026/1983, revision of 2026-11-23, Section 3.1, Lemma 3.1, Definition 3.2, Lemma 10.23,
 and Corollaries 10.26 and 10.35).
 
 - `normSq` and `vecNormSq` are `‖·‖_2²` of a ring element and of a vector, as natural numbers.

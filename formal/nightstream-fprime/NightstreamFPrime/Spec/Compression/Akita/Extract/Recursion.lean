@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.TierBound
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Uniform
 
 /-! The recursive opening suffix of Akita: the composition of its levels (ePrint 2026/1983,
-revision of 2026-10-15, Proposition 10.44 with its proof, and Corollary 10.49 with (206)).
+revision of 2026-11-23, Proposition 10.44 with its proof, and Corollary 10.49 with (206)).
 
 - `tableCollision` is the reduction of Akita Lemma 10.23 and Corollary 10.25 for two certified
   decommitments of one payload to different tables: `Coll_ℓ` of the checkpoint of a level whose
@@ -100,7 +100,7 @@ variable {T} {accept : Prefix Wire (Option Coord → Slot) total → Prop}
 /-- The level over later stages that satisfy its interface `Fed` is a suffix. `blocks` is the
 number `r` of the fold coordinates. -/
 theorem suffix_over {WitT : Type}
-    {tail : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire)
+    {tail : Structure (Address Wire total) (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire)
       Inner BreakT CandT
       KeyT WitT}
     {source : Inner → Source} {clash : Inner → Inner → BreakT} {blocks : ℕ}
@@ -154,7 +154,7 @@ theorem suffix_last {blocks : ℕ} (count : Fintype.card Block = blocks) (valid 
   exact suffix
 
 variable {Wit' : Type} {Opens' : Prefix Wire (Option Coord → Slot) total → Wit' → Prop}
-  {tail : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
+  {tail : Structure (Address Wire total) (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
     BreakT CandT
     KeyT Wit'}
   {error : ℝ} {loops tree : ℕ}
@@ -226,7 +226,7 @@ variable {S' : Shape} {O' : OpeningShape S'} {Block Block' : Type} {Ring : Block
   {N : Tier Block' Ring' Stmt' Brk' Wit' (Weak O') Wire Coord Slot Result' Source'}
   {total : ℕ} [Fintype Slot] [Nonempty Slot] [Fintype Coord] [DecidableEq Coord]
   {Inner BreakT CandT KeyT : Type} {accept : Prefix Wire (Option Coord → Slot) total → Prop}
-  {tail : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
+  {tail : Structure (Address Wire total) (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
     BreakT CandT
     KeyT (Option (Weak O'))}
   {error : ℝ} {loops tree : ℕ}
@@ -341,7 +341,7 @@ def Linked (commit : Wire → S'.Payload) (point : Prefix Wire (Option Coord →
       (N.claim (point.wire N.start)).value = v
 
 variable {T N} {accept : Prefix Wire (Option Coord → Slot) total → Prop}
-  {tail : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
+  {tail : Structure (Address Wire total) (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
     BreakT CandT
     KeyT (Option (Weak O'))}
   {error : ℝ} {loops tree : ℕ}
@@ -403,7 +403,7 @@ variable {Wire Coord Slot : Type} {total : ℕ} [Fintype Slot] [Nonempty Slot] [
   [DecidableEq Coord] {Inner BreakT CandT KeyT Wit : Type}
   {accept : Prefix Wire (Option Coord → Slot) total → Prop} {start : ℕ}
   {Opens : Prefix Wire (Option Coord → Slot) total → Wit → Prop}
-  {body : Structure (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
+  {body : Structure (Address Wire total) (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
     BreakT CandT
     KeyT Wit}
   {error : ℝ} {loops tree : ℕ}
@@ -428,9 +428,9 @@ stage 0, which for a level is a root weak opening of its claim (Akita Definition
 witness of `R_bind`, which is a solution of Module-SIS for a matrix of one level. -/
 theorem Suffix.extract_sound (suffix : Suffix accept start Opens body error loops tree)
     (root : start = 0)
-    (prover : OracleComp (Prefix Wire (Option Coord → Slot) total) (Option Coord → Slot) (ℕ → Wire))
-    (budget : ℕ) (table : Prefix Wire (Option Coord → Slot) total → Option Coord → Slot)
-    (tape : Tape (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot budget
+    (prover : OracleComp (Address Wire total) (Option Coord → Slot) (ℕ → Wire))
+    (budget : ℕ) (table : Address Wire total → Option Coord → Slot)
+    (tape : Tape (Address Wire total) (Option Coord) Slot budget
       body.protocol.stages)
     (out : Inner ⊕ BreakT)
     (result : Checkpoint.extract body prover budget table tape = some out) :
@@ -455,9 +455,9 @@ verifier accepts and the extractor returns no output is at most
 loop. The probability is over the table of the oracle and the tape of the extractor. -/
 theorem Suffix.extraction_le (suffix : Suffix accept start Opens body error loops tree)
     (root : start = 0)
-    (prover : OracleComp (Prefix Wire (Option Coord → Slot) total) (Option Coord → Slot) (ℕ → Wire))
+    (prover : OracleComp (Address Wire total) (Option Coord → Slot) (ℕ → Wire))
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot budget
+    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) Slot budget
           body.protocol.stages,
         (if body.protocol.accept (body.protocol.final prover table) ∧
           Checkpoint.extract body prover budget table tape = none then (1 : ℝ) else 0) ≤
@@ -473,9 +473,9 @@ theorem Suffix.extraction_le (suffix : Suffix accept start Opens body error loop
 at most `K̂ + (Q + 1)·(K̂ − 1)` for the tree size `K̂ = tree` (Akita Theorem 10.17, the cost). -/
 theorem Suffix.runs_le (suffix : Suffix accept start Opens body error loops tree)
     (root : start = 0)
-    (prover : OracleComp (Prefix Wire (Option Coord → Slot) total) (Option Coord → Slot) (ℕ → Wire))
+    (prover : OracleComp (Address Wire total) (Option Coord → Slot) (ℕ → Wire))
     {queries : ℕ} (bounded : prover.QueryBound queries) (budget : ℕ) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot budget
+    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) Slot budget
           body.protocol.stages,
         (extractRuns body prover budget table tape : ℝ) ≤
       tree + (queries + 1) * (tree - 1) := by

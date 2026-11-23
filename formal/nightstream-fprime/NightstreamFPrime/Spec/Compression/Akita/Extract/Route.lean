@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Terminal
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Tier
 
 /-! The two norm routes of a trace level and of the terminal of Akita (ePrint 2026/1983, revision
-of 2026-10-15, Section 6, Lemma 10.23 with (176) and (177), Proposition 10.29 with (181) and
+of 2026-11-23, Section 6, Lemma 10.23 with (176) and (177), Proposition 10.29 with (181) and
 (182), and Corollary 10.35).
 
 - `Route` is the norm certificate of a level: the coefficient route with `‖·‖_∞`, or the

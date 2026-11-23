@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Lib.Density
 import NightstreamFPrime.Spec.Compression.Akita.RingCheck
 
-/-! Row batching of the relation of one fold of Akita (ePrint 2026/1983, revision of 2026-10-15,
+/-! Row batching of the relation of one fold of Akita (ePrint 2026/1983, revision of 2026-11-23,
 Sections 7.2 to 7.4, Theorem 7.4 and Theorem 10.36).
 
 - `FieldRows` is the field relation `M(α)·w = y(α)` of Akita Section 7.2 at one point `α`: for

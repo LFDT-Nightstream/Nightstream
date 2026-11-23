@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.OffloadComplete
 import NightstreamFPrime.Spec.Compression.Akita.Extract.GroupComplete
 
 /-! The honest prover of an offloaded root fold of Akita and its link to the two claims of the
-next level (ePrint 2026/1983, revision of 2026-10-15, Theorem 10.9 with Lemma 10.7, Section 9
+next level (ePrint 2026/1983, revision of 2026-11-23, Theorem 10.9 with Lemma 10.7, Section 9
 with (136), Lemma 7.1, item 1, and Figure 4).
 
 - `offLevel_wins` gives the honest prover of the checks of the level `offBatch` for the claim

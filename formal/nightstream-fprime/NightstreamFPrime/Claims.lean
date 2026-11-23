@@ -6,6 +6,7 @@ import NightstreamFPrime.Claims.Ivc
 import NightstreamFPrime.Claims.Nebula
 import NightstreamFPrime.Claims.Compression
 import NightstreamFPrime.Claims.Akita
+import NightstreamFPrime.Claims.AkitaKey20
 import NightstreamFPrime.Claims.AkitaKey30
 import NightstreamFPrime.Claims.Final
 import NightstreamFPrime.Claims.Shipped

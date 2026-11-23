@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Key20Accept
 
 /-! The final verifier over the Akita opening of the schedule file
 `crates/ns-compress/artifacts/key20.aks` accepts the honest prover, for one type of wire messages
-(SPEC.md Algorithm 9 and Algorithm 10; Akita, ePrint 2026/1983, revision of 2026-10-15,
+(SPEC.md Algorithm 9 and Algorithm 10; Akita, ePrint 2026/1983, revision of 2026-11-23,
 Theorem 10.9 and Figure 4).
 
 `FinalKey20.complete` has hypotheses on the wire messages. This file gives them for the messages
@@ -187,7 +187,7 @@ polynomial, `W` and the honest inverses of each lookup challenges that are no ta
 theorem accepts (use : Use setup shape) (wide : 8 ≤ width) (capped : 3029804899 ≤ limit)
     (room : 3 < slots) (inside : Tier.finish fifth < total)
     (accept : Prefix Leaf (Option Coord → K) total → Prop)
-    (table : Prefix Leaf (Option Coord → K) total → Option Coord → K)
+    (table : Address Leaf total → Option Coord → K)
     (calm : ∀ input, sample (Coord → K) (Fin (setup.params shape).lookups → Zq)
       (view (table input)) ∉ Compression.Verifier.tableHit (setup.params shape))
     (regular : ∀ input,

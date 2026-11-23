@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.Staged
 import Mathlib.Data.Fintype.Fin
 import Mathlib.Data.Nat.Cast.Order.Field
 
-/-! The proof of work of a challenge site of Akita (ePrint 2026/1983, revision of 2026-10-15,
+/-! The proof of work of a challenge site of Akita (ePrint 2026/1983, revision of 2026-11-23,
 (146), Proposition 10.3 and Remark 10.18) in the model of one squeeze run, and its rule in the
 pinned Akita code (`jolt_transcript::grind_bits_for_loss`, `check_grind`).
 

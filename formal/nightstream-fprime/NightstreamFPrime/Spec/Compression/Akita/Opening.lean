@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Commitment
 import NightstreamFPrime.Spec.Compression.Akita.Embed
 
 /-! The opening path of a fold with direct coefficient packing, for one claim (Akita,
-ePrint 2026/1983, revision of 2026-10-15, Sections 5.3 and 5.4, and Appendix L.2).
+ePrint 2026/1983, revision of 2026-11-23, Sections 5.3 and 5.4, and Appendix L.2).
 
 - `OpeningShape S` has the numbers of the opening of a commitment of shape `S`: `d_car`, `k` and
   `h_car` with `d_A = k·h_car·d_car` (Akita (55)), the degree `d_D` and the rank `n_D` of the

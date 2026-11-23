@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Batch
 import NightstreamFPrime.Spec.Compression.Akita.FlatWitness
 
 /-! The flat witness of one fold of Akita with opening groups and coefficient packing, for one
-claim in each group (ePrint 2026/1983, revision of 2026-10-15, Section 5.5 with (75) and (76)).
+claim in each group (ePrint 2026/1983, revision of 2026-11-23, Section 5.5 with (75) and (76)).
 
 - `offset` and `concat` put the tables of a family of groups in one table, in the order of the
   groups, with no padding.

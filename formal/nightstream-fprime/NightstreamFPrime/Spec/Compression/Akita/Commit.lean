@@ -1,6 +1,6 @@
 import NightstreamFPrime.Spec.Compression.Akita.Commitment
 
-/-! The honest commitment algorithm of Akita (ePrint 2026/1983, revision of 2026-10-15,
+/-! The honest commitment algorithm of Akita (ePrint 2026/1983, revision of 2026-11-23,
 Section 4.5), and the requirement of Akita Definition 3.5 that its output satisfies the
 decommitment relation.
 

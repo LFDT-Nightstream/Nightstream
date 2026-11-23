@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.FoldCheck
 import NightstreamFPrime.Spec.Compression.Akita.TraceFold
 
 /-! The link from the checks of one fold of Akita to its exact branch relation
-(ePrint 2026/1983, revision of 2026-10-15, Sections 5.5, 6 and 7, and the hypothesis of
+(ePrint 2026/1983, revision of 2026-11-23, Sections 5.5, 6 and 7, and the hypothesis of
 Corollary 10.32).
 
 - `Placed flat positions v` states that each coefficient of the digit vector `v` is a cell of the

@@ -178,27 +178,27 @@ production shapes (`Spec.Compression.Verifier.soundness`,
 `Spec.Compression.Verifier.production_error_lt`). This is not a security
 level of the final proof. It does not include:
 
-- the knowledge error of the Akita opening (`[AKITA]`). The documentation of
-  the Akita code states a target of a 128-bit Fiat–Shamir rate for each query
-  in the classical random-oracle model, and it states no complete bound. The
-  paper has a complete formula, that of Akita Theorem 10.46, and no evaluated
-  end-to-end number for a schedule. For the claims that end in `_with_akita`,
-  Akita Theorem 10.46 stays a premise;
+- the knowledge error of the Akita opening. The documentation of the Akita
+  code states a target of a 128-bit Fiat–Shamir rate for each query in the
+  classical random-oracle model, and it states no complete bound. The paper
+  has a complete formula, that of Akita Theorem 10.46, and no evaluated
+  end-to-end number for a schedule. No claim takes Akita Theorem 10.46 as a
+  premise;
 - the error of the Π_CCS run of the fresh instance; and
 - Module-SIS for the Akita commitments, which the pinned Akita code prices at
   169 bits of quantum Core-SVP cost in the ADPS16 model (policy
   `Quantum169BitADPS16`), and Module-SIS for the Ajtai commitments of the
   claims (`[MSIS]`). The 169 bits are not in the paper: its floor is 128 bits
   for each instance, more than 125 bits for the family, and at least 147 bits
-  for the compression maps (Akita Appendix G). The estimate of the Akita code
-  and the estimate of the main key are not in one model (Open points, the
-  model of the Module-SIS price). For `key20.aks`, the instances are the 13
-  instances of `Claims.Akita.key20_instance_list`.
+  for the compression maps (Akita Appendix G). The owner's target is 128 bits
+  against a classical attacker by the method of the main-key record, and two
+  matrices are below it (Open points, the model of the Module-SIS price). For `key20.aks`, the instances are the 13
+  instances of `Claims.AkitaKey20.key20_instance_list`.
 
-Lean has claims in which the Akita openings are not ideal (`Claims.Akita`).
-The main claim is `Claims.Akita.key20_verifier_sound`, from
+Lean has claims in which the Akita openings are not ideal (`Claims.AkitaKey20`).
+The main claim is `Claims.AkitaKey20.key20_verifier_sound`, from
 `Export.BoundedDepth.FinalKey20.sound`, for the schedule of `key20.aks`. A
-prover with at most `Q` queries to one uniform table of stage answers makes
+prover with at most `Q` queries to one uniform table on message keys makes
 the final verifier accept a statement that has no valid proof with probability
 at most
 `(Q + 1) · (runCost + 317479/(1024·|K|) + 135 · p) + (Q + 1) · 144/budget +
@@ -219,16 +219,16 @@ The bound is for one claim shape: one `pc` and one depth for each slot. The
 claim is for a finite family of shapes and for the proof of zero steps. Its
 bound `shapesBound` is the sum of the bound above over the shapes, so it has
 the number of the shapes as a factor. The proof of zero steps adds no error
-term. `Claims.Akita.key20_history_sound` and
-`Claims.Akita.key20_history_knowledge` bound a false history in this game by
+term. `Claims.AkitaKey20.key20_history_sound` and
+`Claims.AkitaKey20.key20_history_knowledge` bound a false history in this game by
 `shapesBound` plus the bound `walkBound` of the reverse extractor for the
-depth. `Claims.Akita.key20_memory_sound` bounds a false memory statement in
+depth. `Claims.AkitaKey20.key20_memory_sound` bounds a false memory statement in
 this game by `shapesBound` plus the terms of `Claims.Nebula.memory_sound`: the
 bound `walkBound` over the `S_max · N` stages, the two collision masses and
 the error of the memory round.
 
 The verifier of these results accepts an honest proof
-(`Export.BoundedDepth.FinalKey20.accepts`), for each table of stage answers
+(`Export.BoundedDepth.FinalKey20.accepts`), for each table on message keys
 that decode to fold challenges and to no challenge of the reject set of the
 argument. This acceptance has two hypotheses that no Lean result gives: the
 honest run of Π_CCS on the fresh instance (`leads`) and the fit of the
@@ -239,7 +239,7 @@ Akita (152) and (340), which it calls heuristic: its text "motivates this
 premise but does not prove it" (Akita Appendix K). Lean has the certified part
 (difference (i)). The opening verifier accepts the proof of the honest prover for each family
 of tables, and for `key30.aks` for each setup prefix, when the fit conditions
-hold (`Claims.Akita.key20_opening_accepts`,
+hold (`Claims.AkitaKey20.key20_opening_accepts`,
 `Claims.AkitaKey30.key30_opening_accepts`, the hypothesis `fit`). Lean proves
 the fit conditions in two cases: for zero tables and a zero setup prefix with
 each decoder of the fold challenges
@@ -258,11 +258,11 @@ nonce and its limit, and the honest prover of the acceptance results sends the
 nonce 0 (difference (i)).
 
 The owner decided that these results are claims (recorded on 2026-11-20). They
-are the claims of `Claims.Akita`, with the parts of the proof: Akita Theorem
+are the claims of `Claims.AkitaKey20`, with the parts of the proof in `Claims.Akita`: Akita Theorem
 10.17 (`Claims.Akita.checkpoint_extraction`), the fold results
 (`Claims.Akita.fold_weak_binding`, `Claims.Akita.fold_extracts`), the units
 (`Claims.Akita.short_units`) and the opening
-(`Claims.Akita.key20_opening_sound`, `Claims.Akita.key20_opening_bound`). The
+(`Claims.AkitaKey20.key20_opening_sound`, `Claims.AkitaKey20.key20_opening_bound`). The
 claims of `Claims.AkitaKey30` are the same results for `key30.aks` (section
 "The results for `key30.aks`"). Their verifier is a Lean model that differs
 from the pinned Akita code. The filters of the challenge families are the
@@ -272,10 +272,7 @@ predicate `accept_strict_parts` of the pinned code
 Appendix H.1 (`Spec.Compression.Akita.TrigTable.code_accurate`), so the operator bound of
 the filtered families is a Lean theorem (Akita Theorem H.1, right inclusion,
 with the spectral formula (287): `Spec.Compression.Akita.TrigTable.mulBound`,
-`Spec.Compression.Akita.TrigTable.filtered_code`). The claims that end in
-`_with_akita` do not use these results, so they keep the premises of this
-section ([security model](../formal/nightstream-fprime/SECURITY_MODEL.md),
-trust item 7).
+`Spec.Compression.Akita.TrigTable.filtered_code`).
 
 The argument has these premises about the verification key. The key is the
 key of Algorithm 11, which the pin of choice 13 gives. The commitment of the
@@ -285,11 +282,11 @@ Definition 10.21 with the weak certificate of Akita Definition 10.22. Akita
 Definition 10.21 has no norm bound on the source blocks, so it is not
 binding alone. The result is for a key commitment that is the output of
 `Spec.Compression.Akita.commit` on the key polynomial, and no Lean result
-shows that the pinned key holds this output. Two parts stay premises under
-`[AKITA]`: the opening is knowledge sound with an extractor that returns the
-root weak opening, and the offloading of the setup prefix of `key30.aks` is
-sound. With these parts, the value that Akita opens is the value of the key
-polynomial. The verifier never reads the polynomial
+shows that the pinned key holds this output. No claim takes the knowledge
+soundness of the opening as a premise: the claims of `Claims.AkitaKey20` and
+`Claims.AkitaKey30` prove the extraction under their hypotheses. For
+`key30.aks`, the offloading of the setup prefix rests on the open hypothesis
+`registered` (Akita Lemma 9.1). The verifier never reads the polynomial
 ([security model](../formal/nightstream-fprime/SECURITY_MODEL.md), adversary
 6 and trust item 7).
 
@@ -311,9 +308,10 @@ polynomial. The verifier never reads the polynomial
 ### Differences between the paper, the code and the Lean model
 
 These are the differences that the security model had in trust item 7, (a) to
-(j), the differences of the opening with an offloaded root, (k) to (o), and a
-difference of the relation rows, (p). The section Open points lists the points
-that need a decision.
+(j), the differences of the opening with an offloaded root, (k) to (o), a
+difference of the relation rows, (p), the count of the filtered families, (q),
+and the wire type of the acceptance results, (r). The section Open points
+lists the points that need a decision.
 
 - (a) The extraction of the paper uses one oracle output for each fold
   coordinate: its sampler has "separately indexed oracle queries from a fixed
@@ -322,9 +320,20 @@ that need a decision.
   coordinates (`specs/sparse-challenge-stream.md` of the Akita code). So the
   paper has no proof for the stream of the pinned code. This is the reason for
   the slot reading of `[KECCAK]` (security model, section Assumptions): the
-  model of `Spec.Checkpoint` is one uniform table, the answer at a stage input
-  is one output of independent slots, and the extractor draws one slot again
-  and keeps the others (`Spec.Checkpoint.Protocol`). For the filtered challenge
+  model of `Spec.Checkpoint` is one uniform table on message keys, the answer
+  at the key of a stage input is one output of independent slots, and the
+  extractor draws one slot again and keeps the others
+  (`Spec.Checkpoint.Protocol`). This is the model of the revision of
+  2026-11-23 of the paper (Akita Section 10.3): a key has the stage and the
+  prover messages, the earlier challenges are entries of the table, the stage
+  input is `Protocol.rebuild` of the key and the table, and a checkpoint retry
+  replaces each entry of the message subtree (`Protocol.regrow`). It follows
+  the sponge of the code, which does not absorb a challenge that it squeezes
+  (`spongefish` `duplex_sponge.rs`, `squeeze`). What stays open: the code
+  absorbs public values that it computes from earlier challenges, for example
+  the input claim of a sum-check (`akita-sumcheck/src/proof_stream.rs`), and
+  the Lean model has no encoding of the messages of the code, so no Lean
+  statement shows that the absorbed bytes of the code are an injective key. For the filtered challenge
   families of the ℓ2 levels, a slot is the j-th accepted candidate. In
   `Export.BoundedDepth.FinalKey20.sound`, the Poseidon2 transcript of the
   argument and the Keccak transcript of Akita are one table. No Lean statement
@@ -374,15 +383,14 @@ that need a decision.
   absorbs the root commitments and the last terminal block as SHA3-256 digests,
   and Lean has only the counting bound of Akita Lemma 10.47
   (`Spec.Compression.Akita.Digest.Run.bad_le`).
-- (c) `Spec.Compression.Akita.Schedule.setupGap`, which is `N_setup · q / 2^w`,
-  is above 1 at the draw width `w = 64` of the code, so it bounds nothing. The
+- (c) The bound `N_setup · q / 2^w` of `Δ_setup` in Akita Theorem 10.46 is
+  above 1 at the draw width `w = 64` of the code, so it bounds nothing. The
   code uses exact rejection sampling, and
   `Spec.Compression.Akita.Setup.expand_le` gives the bound for a finite stream.
-  This term of `Spec.Compression.Akita.Theorem1046` is to be replaced. Lean
-  joins the lists of instances with the views of one setup vector: for keys
+  Lean joins the lists of instances with the views of one setup vector: for keys
   whose matrices are these views, a solution gives a solution for the view of
   an instance of the list itself, and Akita Lemma 10.20 (i) then applies to
-  the list (`Claims.Akita.key20_instances_shared`,
+  the list (`Claims.AkitaKey20.key20_instances_shared`,
   `Claims.AkitaKey30.key30_instances_shared`).
 - (d) The code declares no `(λ_FS, Q_max)`. It has a target of 128 bits for
   each query. The paper has a proof of work before selected algebraic challenge
@@ -392,7 +400,7 @@ that need a decision.
   (`jolt_transcript::grind_bits_for_loss`), and one for each fold group, with
   the fold coordinates `W_l` against the smallest challenge set `2^{K_l}`
   (`FoldChallengeWork`), which the paper does not have. The Lean model has
-  this proof of work. The answer at a stage input has one more independent
+  this proof of work. The answer at a key has one more independent
   slot, the work slot, and the draws of a challenge read only the other slots
   (`Spec.Compression.Akita.Extract.view`). The verifier of each segment and of
   each fold requires the work slot in
@@ -457,18 +465,18 @@ that need a decision.
   below `Spec.Compression.Akita.Extract.responseTries = 2^12`
   (`Spec.Compression.Akita.Extract.Tier.Decodes`,
   `Spec.Compression.Akita.Extract.Terminal.Passed`). No error number changes:
-  the nonce is a part of the stage input, and the paper counts each nonce
+  the nonce is a part of the key, and the paper counts each nonce
   probe as one oracle query of the prover (Akita Section 10.1, "Response
   grinding is not a filter"), which the factor `Q + 1` has. One point stays.
   The proof of work of each site of the code has a nonce of `g + 7` bits, and
   the Lean model has no such nonce and no range check for it: the work slot is
   a part of the answer of the stage. So the acceptance results are for each
   table whose work slots have 57 zero work bits
-  (`Claims.Akita.key20_opening_accepts` and
+  (`Claims.AkitaKey20.key20_opening_accepts` and
   `Claims.AkitaKey30.key30_opening_accepts`, the hypothesis `worked`), and no
   Lean result bounds the probability that a complete honest proof is
   accepted. Lean has these parts of Akita Theorem 10.9. Akita Lemma 10.7 in
-  the table model: the answers at the stage inputs of different nonces are
+  the table model: the answers at the keys of different nonces are
   independent, so `N` nonces fail with probability `δ^N` when one fails with
   probability at most `δ` (`Spec.Compression.Akita.Extract.mass_misses_le`),
   and the same bound holds for a prefix that the table gives, which is the
@@ -488,7 +496,7 @@ that need a decision.
   nonce fails with probability at most `2^−12` at the root (the three groups
   together) and `2^−49` at level 1, so no nonce below `2^12` fits with
   probability at most `(2^−12)^4096` and `(2^−49)^4096`
-  (`Claims.Akita.key20_root_search`, `Claims.Akita.key20_level1_search`).
+  (`Claims.AkitaKey20.key20_root_search`, `Claims.AkitaKey20.key20_level1_search`).
   This proof gives no bound at the other levels. The limit of `Enc` is below
   the limit of Akita (313) at level 2 of `key20.aks` and at the group of the
   setup prefix of level 1 and at levels 2 and 4 of `key30.aks`: the planner
@@ -619,12 +627,35 @@ that need a decision.
   the weights of the relation, of the opening row, of the norm and of the
   binary support (`crates/akita-verifier/src/stages/stage2.rs` of the Akita
   code; `Spec.Compression.Akita.fusedCheck`).
+- (q) The decoder `Spec.Compression.Akita.Extract.draw` of a filtered family
+  is an injection of the slots into the members that pass the filter of the
+  code. Lean does not prove that `q²` members or more pass. Akita Table 12
+  certifies `2^128` members or more for the family `(31, 11)` of the degree 64
+  at `Γ = 18` and for the family `(31, 0)` of the degree 128 at `Γ = 13`, from
+  exact moments and a rational tail polynomial, with a margin of 0.06 bits at
+  the degree 64. This count is the hypothesis
+  `Spec.Compression.Akita.Key20.Kept`, the field `kept` of each structure
+  `Drawn` (security model, premise row `AkitaKey20/drawn.kept`). With it, each
+  slot gives a fold challenge at each level
+  (`Spec.Compression.Akita.Key20.Tower.Drawn.decodes`,
+  `Spec.Compression.Akita.Key30.Tower.Drawn.decodes`). If fewer than `q²`
+  members pass, `draw` gives no challenge, and the verifier of each soundness
+  claim accepts no transcript.
+- (r) The acceptance results `Claims.AkitaKey20.key20_opening_accepts` and
+  `Claims.AkitaKey30.key30_opening_accepts` give a proof of messages of the
+  types `Key20.Wire E` and `Key30.Wire E`. These types are infinite, because
+  their points are lists (`Note.place`), and the bound claims are for a finite
+  type of wire messages. So no Lean result gives an accepted transcript in the
+  game of a bound claim. A finite wire type, with points of the fixed lengths
+  20, 16 and 16, for the verifier and for the honest prover closes this point.
+  It changes the readers of the generic verifier, the type `Note` and the
+  acceptance proofs of the two files.
 
 ### The results for `key30.aks`
 
 The claims of `Claims.AkitaKey30` are for the two rows of `key30.aks`, the file
 of the key of `2^19` blocks. Their model and their form are those of the claims
-for `key20.aks`: one uniform table of stage answers with independent slots, a
+for `key20.aks`: one uniform table on message keys with independent slots, a
 Lean verifier that is not the verifier of the pinned code, and a bound with the
 term `breakChance` under `[MSIS]`.
 
@@ -709,74 +740,19 @@ game (`Claims.AkitaKey30.key30_memory_sound`). The Lean
 verifier and the Lean decoders have no comparison with the code. The
 differences (k) to (p) of the section above apply.
 
-The claims that end in `_with_akita` have seven premises about Akita. For the
-shipped key, the claims of `Claims.AkitaKey30` have each of them as a theorem
-or as a part of the game, under the hypotheses that follow.
-
-- `akita.theorem1046` (`[AKITA]`). The extraction is a theorem:
-  `Claims.AkitaKey30.key30_opening_sound` and
-  `Claims.AkitaKey30.key30_opening_bound`, with `[MSIS]` for `breakChance` and
-  the slot reading of `[KECCAK]`. Hypotheses: `shared`, `registered` and the
-  stage layout of the Lean verifier.
-
-- `akita.admissible`. Not used. The claims do not use Akita Definition 9.2. The
-  conditions on the numbers of the file are theorems
-  (`Spec.Compression.Akita.Key30.root_sized` and the theorems after it), and
-  the condition E1 is a theorem for the decoders `draw`.
-
-- `akita.admitted` and `akita.budget`. Not used. The prover has at most `Q`
-  queries to the table (`bounded`), and the extractor has a positive limit
-  `budget`. The claims have no pair `(λ_FS, Q_max)`.
-
-- `binding`. Inside the result. A different table for the key commitment gives
-  a solution of Module-SIS, which is a part of `breakChance`. Hypotheses: the
-  key commitment of the verifier has a certified decommitment to the key
-  polynomial (`registered` of `Export.BoundedDepth.FinalKey30.Opening.Drawn`)
-  and `covers`.
-
-- `accepts`. A part of the game: the verifier is
-  `Export.BoundedDepth.FinalKey30.finalAccepts`. It is not the verifier of the
-  pinned code.
-
-- `composition`. Inside the result, with two checkpoints in sequence
-  (`Spec.Compression.Akita.Extract.Compose.suffix`).
-
-The removal of the claims that end in `_with_akita` is a decision of the owner.
-It needs these changes.
-
-- Claims. `Claims.Final.verifier_sound_with_akita`,
-  `Claims.Final.history_sound_with_akita`,
-  `Claims.Final.history_knowledge_with_akita` and
-  `Claims.Final.memory_sound_with_akita` go.
-  `Claims.Shipped.verify_final_sound` takes the same seven premises, so it
-  needs a new statement over `Claims.AkitaKey30.key30_history_sound`. The
-  memory claim has its result in the game with Akita openings:
-  `Claims.AkitaKey30.key30_memory_sound` for `key30.aks` and
-  `Claims.Akita.key20_memory_sound` for `key20.aks`
-  (`Export.BoundedDepth.FinalMemory.memory_sound`). Its prover names a memory
-  statement for each table of stage answers, its event is the event of
-  `Claims.Nebula.memory_sound` with the final verifier of the new game, and it
-  has no hypothesis on the depth, because the checks of Algorithm 8 accept at
-  most `S_max · N` steps.
-
-- `SPEC.md`. The two rows of the table of verifier entry points for
-  `verify_final` cite `Claims.Final.history_sound_with_akita` and
-  `Claims.Final.memory_sound_with_akita`. Algorithm 10 has the pins of the four
-  claims, and section 9 has the row of the family F1 with
-  `Spec.Compression.Akita.Schedule.not_admissible_key30`.
-
-- Premise rows. `akita.theorem1046`, `akita.admissible`, `akita.admitted` with
-  `akita.budget`, `accepts` and `composition` go when no claim takes them.
-  `binding`, `msis`, and `honest.*` with `S.*` and `covers` stay while
-  `Claims.Compression.key_binding` and `Claims.Shipped.verify_final_sound` take
-  them. The entry `[AKITA]` of the list of assumptions goes with the row
-  `akita.theorem1046`.
-
-- The cost. Two open rows go (`akita.admissible`, `composition`) and one
-  assumption (`[AKITA]`). Two open rows come: `AkitaKey30/drawn.registered`
-  and `AkitaKey30/drawn`. The row `AkitaKey30/shared`
-  is of the class `game`. The verifier of the claims becomes the Lean verifier, which the
-  differences (a) to (p) separate from the pinned code.
+The owner decided to remove the claims that end in `_with_akita`
+(2026-11-22), and the removal is done. The four claims of `Claims.Final` that
+end in `_with_akita` and the claim `verify_final_sound` of `Claims.Shipped`
+took Akita Theorem 10.46 as a premise, and they are deleted. The premise rows
+`akita.theorem1046`, `akita.admissible`, `akita.admitted`, `akita.budget`,
+`binding`, `accepts` and `composition` and the entry `AKITA` of the list of
+assumptions are deleted with them. The claims of `Claims.AkitaKey20` and
+`Claims.AkitaKey30` have the extraction and the composition with the game as
+theorems under their hypotheses. The entry points `verify_final` of `SPEC.md`
+cite `Claims.AkitaKey30.key30_history_sound` and
+`Claims.AkitaKey30.key30_memory_sound`, whose verifier is the Lean verifier
+that the differences (a) to (p) separate from the pinned code. No claim states
+the final verifier at the shipped packages of the reference application.
 
 ### Open points
 
@@ -789,23 +765,20 @@ It needs these changes.
 - Security against a quantum adversary of the transcript hashes.
 - A WASM build of the verifier.
 
-These points are about the claims of `Claims.Akita` for `key20.aks` and of
+These points are about the claims of `Claims.AkitaKey20` for `key20.aks` and of
 `Claims.AkitaKey30` for `key30.aks`. Each needs a decision of the owner ([security
 model](../formal/nightstream-fprime/SECURITY_MODEL.md), trust item 7, gives
 the facts).
 
 - The claim. Decided: the results are claims, and each hypothesis has a class
-  in the premise table. For `key20.aks`, the claims have the premises
-  `akita.theorem1046` and `composition` as theorems under their hypotheses.
-  What stays open is to replace the claims that end in `_with_akita`: the
-  claims of `Claims.AkitaKey30` cover `key30.aks`, and the section "The
-  results for `key30.aks`" gives what the removal needs. For `key30.aks`, the
+  in the premise table. For `key20.aks` and `key30.aks`, the claims have the
+  extraction and the composition as theorems under their hypotheses. For `key30.aks`, the
   rows `AkitaKey30/drawn.registered` and `AkitaKey30/drawn` are open. For `key20.aks`, one premise row is open: the
   conditions `Export.BoundedDepth.FinalKey20.Opening.Drawn` of the final
   verifier, which hold the Lean decoders and the certified decommitment `registered` of
   the key commitment. The 512 blocks of the key polynomial are of the class
-  link. The term `breakChance` is `[MSIS]`. The uniform table of stage answers
-  is `[KECCAK]`. The memory claims are `Claims.Akita.key20_memory_sound` and
+  link. The term `breakChance` is `[MSIS]`. The uniform table on message keys
+  is `[KECCAK]`. The memory claims are `Claims.AkitaKey20.key20_memory_sound` and
   `Claims.AkitaKey30.key30_memory_sound`.
 - The zero count. The hypothesis `Export.BoundedDepth.FinalKey20.Use` gives
   the opening point of `V` the zero count
@@ -873,20 +846,20 @@ trust item 7, gives the facts).
   and `H_2`. Ring descent moves a price only from a smaller degree to a larger
   degree, and the reductions do not give the 169 bits to an instance. What
   stays open is a check that compares the shapes of Lean with the code.
-- The model of the Module-SIS price. `Claims.Akita.key20_instance_list` has
+- The model of the Module-SIS price. `Claims.AkitaKey20.key20_instance_list` has
   the 13 instances `(d, n, m, p, η)` of `key20.aks`: `(32, 1, 128, ∞, 1)`,
   `(64, 1, 1024, ∞, 1)`, `(64, 2, 77, ∞, 63)`, `(64, 3, 616, ∞, 63)`,
   `(64, 8, 256, 2, 2^46)`, `(64, 8, 512, 2, 2^45)`, `(128, 1, 1936, ∞, 7)`,
   `(128, 1, 1092, ∞, 31)`, `(128, 4, 512, ∞, 126852)`,
   `(128, 4, 256, 2, 2^44)`, `(512, 2, 56, ∞, 53477172)`,
   `(1024, 1, 224, ∞, 32505732)` and `(1024, 1, 56, ∞, 53477172)`. For `p = 2`
-  the bound is on the square of the norm. `Claims.Akita.key20_instances`
+  the bound is on the square of the norm. `Claims.AkitaKey20.key20_instances`
   states that the list is complete for `breakChance`, and
   `formal/nightstream-fprime/tests/AkitaSchedules.lean` compares the list with
   the file. For keys whose matrices are the views of one setup vector `S`,
   each solution gives a solution for the view of `S` of one of the 43 views,
   and each view reads at most `2^18` cells of `S`
-  (`Claims.Akita.key20_instances_shared`,
+  (`Claims.AkitaKey20.key20_instances_shared`,
   `Spec.Compression.Akita.Key20.shared_setup`). Lean does not prove the
   hardness of an instance. `key30.aks` has
   18 such instances, at the degrees 32 to 2048
@@ -899,21 +872,24 @@ trust item 7, gives the facts).
   of both files. No estimate is independent of the Akita authors. The price
   does not include attacks on the ring or module structure, the loss of the
   reduction, or the sum over the instances that share one setup stream, which
-  is about 170.9 bits for each file in that model. The record of the main key
+  is about 170.9 bits for each file in that model. The owner's target is 128
+  bits against a classical attacker (2026-11-22). The method is that of the
+  record of the main key
   ([`field-2p64-59-ring-x64.md`](./field-2p64-59-ring-x64.md), Security
-  calculation) has 127.20 bits in the ADPS16 quantum model for the instance of
-  rank 18. The Akita estimator gives this number, with the block size 480, on
-  the Euclidean route at the length `β · √(m·d)`. That the record uses this
-  route is an inference from the exact match, because the files of the sister
-  project were not seen. The direct ℓ∞ model of the Akita table gives 154.23
-  bits for the same instance. By the method of the main-key record, the lowest
-  Akita instance of `key20.aks` is `B` of level 2, `(128, 1, 1092, ∞, 31)`, at
-  110.77 bits, and 6 of the 46 ℓ∞ instances of the two files are below 128
-  bits. So the two numbers of `[MSIS]` are not numbers of one model. The
-  alternatives are the direct ℓ∞ model for the main key and for Akita, the
-  Euclidean route with the factor `√(m·d)` for both, or two models with a
-  stated reason for each. This record does not select one. An estimate of the
-  instances of the list with `lattice-estimator` is also open.
+  calculation): the Sage `lattice-estimator` at `norm = 2` and the length
+  `bound · √(m·d)` (`scripts/estimate_nebula_sis.sage`), which the owner
+  selected for each instance on 2026-11-20. In the ADPS16 classical model the
+  main key has 140.16 bits. Two matrices `B` of rank 1 over the ring of degree
+  128 are below the target: level 2 of `key20.aks`, `(128, 1, 1092, ∞, 31)`,
+  at 122.06 bits, and level 2 of `key30.aks`, `(128, 1, 4224, ∞, 15)`, at
+  123.81 bits, with 124.39 bits for the second row of the file. Each other
+  instance has 134.90 bits or more. The ADPS16 quantum numbers of the same
+  method are 127.20 bits for the main key and 110.77, 112.36 and 112.89 bits
+  for these matrices. The 169 bits of the code are a number of the direct ℓ∞
+  model, which gives 154.23 bits for the main key, so they are not a number
+  of this method. The schedule files are not changed. Rank 2 for such a
+  matrix gives 285 bits or more, and the next smaller digit base gives 134.6
+  bits or more; this change is open.
 - The pair `(λ_FS, Q_max)`. The Akita code declares neither number. It has a
   target rate of 128 bits for each query. The paper has a proof of work before
   selected algebraic challenge queries (Akita Section 10.1 and Appendix I),

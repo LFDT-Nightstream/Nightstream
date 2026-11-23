@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Lib.Combination
 import NightstreamFPrime.Spec.Compression.Game.SumCheck
 import NightstreamFPrime.Spec.Compression.Akita.Range
 
-/-! The sum-checks of one fold of Akita (ePrint 2026/1983, revision of 2026-10-15, Section 3.4,
+/-! The sum-checks of one fold of Akita (ePrint 2026/1983, revision of 2026-11-23, Section 3.4,
 Theorem 3.3 and Figure 2, Section 6.1, Remark 6.2 and Section 7.4), as instances of the sum-check
 of `Lib/SumCheck.lean`, `Lib/Combination.lean` and `Game/SumCheck.lean`.
 

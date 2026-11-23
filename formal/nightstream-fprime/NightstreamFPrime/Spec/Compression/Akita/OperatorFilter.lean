@@ -3,7 +3,7 @@ import Mathlib.RingTheory.RootsOfUnity.Complex
 import NightstreamFPrime.Spec.Compression.Akita.Euclid
 
 /-! The operator-norm filter of the fold challenges of Akita (ePrint 2026/1983, revision of
-2026-10-15, Appendix H.1).
+2026-11-23, Appendix H.1).
 
 - `TrigTable` holds the integer tables `C[t]` and `S[t]` at the scale `Δ` with the error bound
   `ε`. `TrigTable.Accurate` is the enclosure of Appendix H.1, and `TrigTable.nearest` is an

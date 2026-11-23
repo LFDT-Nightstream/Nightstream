@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.Play
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Segment
 
 /-! The honest prover of a public-coin game with reject sets on a Fiat–Shamir transcript
-(SPEC.md Algorithm 9, Rejects; Akita, ePrint 2026/1983, revision of 2026-10-15, Theorem 10.9 and
+(SPEC.md Algorithm 9, Rejects; Akita, ePrint 2026/1983, revision of 2026-11-23, Theorem 10.9 and
 Definition 10.16 (v)).
 
 The honest prover of the compression argument fails when a lookup challenge is a table value and

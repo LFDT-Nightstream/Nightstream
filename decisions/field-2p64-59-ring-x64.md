@@ -133,7 +133,8 @@ Assumptions):
   Security calculation (`[MSIS]`);
 - Poseidon2 over `F_q`, with the derived instance (`[P2-PERM]`,
   `[SPONGE]`); and
-- the security of Akita for the compression (`[AKITA]`).
+- the security of Akita for the compression: Module-SIS for its commitments
+  (`[MSIS]`) and its Keccak-family hashes (`[KECCAK]`).
 
 The low-norm invertibility bound of Theorem 4 for `X^64 + 1` is not an
 assumption, because Lean proves it (`Spec.RingStrongSet.lowNormInvertibility`).

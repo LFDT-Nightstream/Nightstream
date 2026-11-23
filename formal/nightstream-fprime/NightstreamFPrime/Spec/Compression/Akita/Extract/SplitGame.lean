@@ -4,7 +4,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.PackingFold
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Uniform
 
 /-! The two parts `front` and `back` of the verifier game as the stages of a Fiat–Shamir
-transcript (Akita, ePrint 2026/1983, revision of 2026-10-15, Definition 10.16 (vii): the bad sets
+transcript (Akita, ePrint 2026/1983, revision of 2026-11-23, Definition 10.16 (vii): the bad sets
 of the stages of a checkpoint segment).
 
 - `front_staged` and `back_staged`: each draw has its bound of `[tauError P]` and of `backCosts`.

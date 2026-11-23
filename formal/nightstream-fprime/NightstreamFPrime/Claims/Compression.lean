@@ -12,7 +12,7 @@ Soundness and completeness of the argument of the compressed proof (`SPEC.md` Al
 - Model: a public-coin game in the state-restoration experiment, with ideal Akita openings.
   `key_binding` is not in this model: it is for the Akita commitment of the compression key
   (`SECURITY_MODEL.md`, trust item 7).
-- Assumptions: `[MSIS]` for `key_binding`, and no other in this file. `Claims.Final` adds `[AKITA]`.
+- Assumptions: `[MSIS]` for `key_binding`, and no other in this file.
 - Open: Lean has no definition of the compression key. -/
 
 namespace NightstreamFPrime.Claims.Compression

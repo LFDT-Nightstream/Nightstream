@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Trace
 import NightstreamFPrime.Spec.Compression.Akita.TraceFold
 
 /-! The layout of the scalar row of a level of Akita with the evaluation-trace opening method, for
-`k = 2` (ePrint 2026/1983, revision of 2026-10-15, Section 3.1 with (21), Section 5.3
+`k = 2` (ePrint 2026/1983, revision of 2026-11-23, Section 3.1 with (21), Section 5.3
 with (65) and (66), and Section 7.1 with (95) to (98)).
 
 A trace level commits to ring elements `F_{i,x} = ψ(f̄_{i,x})`: each has `d_A/k = 2·m` values of

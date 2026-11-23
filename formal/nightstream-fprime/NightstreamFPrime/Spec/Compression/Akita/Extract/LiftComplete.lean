@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TowerComplete
 
 /-! The honest prover of a packing level of Akita on the quotient-lift route, and the verifier of
-the levels from the packing level to the terminal (ePrint 2026/1983, revision of 2026-10-15,
+the levels from the packing level to the terminal (ePrint 2026/1983, revision of 2026-11-23,
 Theorem 10.9 with Lemma 10.7, Lemma 7.1, item 1, Section 4.5, Figure 4 and Section 8.2).
 
 - `sourceClaim` is the claim of the honest prover of a packing fold for given source blocks, and

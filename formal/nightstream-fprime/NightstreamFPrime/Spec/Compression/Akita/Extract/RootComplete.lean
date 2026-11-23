@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.Extract.LiftComplete
 
 /-! The honest prover of the root fold of Akita with opening groups, and the verifier `towerLinks`
-of the opening (ePrint 2026/1983, revision of 2026-10-15, Theorem 10.9 with Lemma 10.7,
+of the opening (ePrint 2026/1983, revision of 2026-11-23, Theorem 10.9 with Lemma 10.7,
 Section 5.4 with (69) to (72), Lemma 7.1, item 1, Figure 4 and Section 8.2). The theorems
 `tower_suffix` and `mixedTower_suffix` bound an event of the verifier `towerLinks`. This file
 shows that this verifier accepts the honest prover.

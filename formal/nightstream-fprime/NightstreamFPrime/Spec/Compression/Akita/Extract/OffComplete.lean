@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.OffTower
 import NightstreamFPrime.Spec.Compression.Akita.Extract.ShortComplete
 
 /-! The verifier `offLinks` of the opening of Akita with an offloaded root accepts the honest
-prover (ePrint 2026/1983, revision of 2026-10-15, Theorem 10.9 with Lemma 10.7, Section 9 with
+prover (ePrint 2026/1983, revision of 2026-11-23, Theorem 10.9 with Lemma 10.7, Section 9 with
 (136), Section 5.4 with (69) to (72), Lemma 7.1, item 1, Section 4.5, Figure 4 and Section 8.2).
 The theorem `offTower_suffix` bounds an event of this verifier.
 

@@ -63,7 +63,6 @@ import NightstreamFPrime.Export.BoundedDepth.Shipped
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.event_ne_top
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.prob_eq_law
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.map_fst_bind
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Use.wins_le
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.key20_conditions
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.key30W27_conditions
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.key30W26_conditions
@@ -661,15 +660,10 @@ import NightstreamFPrime.Export.BoundedDepth.Shipped
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.game_avoids
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.game_densityLe
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.soundness
-#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.real_soundness
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalHistory.soundness
-#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalHistory.real_soundness
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalHistory.knowledge
-#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalHistory.real_knowledge
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.Shipped.verify_sound
-#audit_axioms NightstreamFPrime.Export.BoundedDepth.Shipped.verify_final_sound
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.NebulaFinal.soundness
-#audit_axioms NightstreamFPrime.Export.BoundedDepth.NebulaFinal.real_soundness
 #audit_axioms NightstreamFPrime.Export.Generic.PlanPush.push_coefficient
 #audit_axioms NightstreamFPrime.Export.Generic.PlanPush.plan_rowCount
 #audit_axioms NightstreamFPrime.Export.Generic.PlanPush.plan_coefficient
@@ -680,7 +674,6 @@ import NightstreamFPrime.Export.BoundedDepth.Shipped
 #audit_axioms NightstreamFPrime.Export.Generic.PackageRows.rows_represents
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalRows.premises_of_rows
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalRows.soundness
-#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalRows.real_soundness
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.RowsParity.eval_entries
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.RowsParity.denseSum_rows
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.RowsParity.planSum_append

@@ -964,6 +964,22 @@ The width budget of step 2 is the Rust truncation of `PackedBooleans::lower` in 
 
 **Source.** The field equality is exact for any common guard and at most 63 Boolean pairs (`Export.Generic.BoundedWord.common_guard_iff` (`03e47018154e4753`)). A matched source encoding includes the word bound, nonzero guard scaling, and port order (`Export.Generic.WordPacking.matched_source_iff` (`df7e82e2b5d97622`)). Group coverage permits pair orientation, duplicate removal, and chunk splitting (`Export.Generic.WordPacking.group_iff` (`b28a0ecb9e5dbe52`)). Retained forcing or packed certificates supply the Boolean facts (`Export.Generic.WordPacking.Certificate.valid` (`9bad50671123ad00`)). The packed certificate norm follows from actual fresh bit slots (`Export.Generic.WordPacking.Certificate.logical_norm` (`5483961a6cf7cdb0`)). Coverage of retained and replaced rows gives both directions on the same assignment in source order (`Export.Generic.WordPacking.ordered_iff` (`8b43d19a46fb09a3`)). The Rust numeric matcher, normalization, concrete source encoding, group coverage, and physical slot correspondence remain constructor checks under security trust item 5. Tests check those implementation links. These results add no probabilistic or cryptographic premise.
 
+### 7.14 WASM top-level entry after a trap
+
+**Input.** A WASM execution with a guest trap and a subsequent top-level export entry on the same instance. The program fixes the export entry PC and the host-event bindings.
+
+**Output.** One execution that includes the trapping instruction and the next export. Stores that completed before the trap remain in linear memory.
+
+**Steps.**
+
+1. Check the guest instruction's trap condition. For a nested host callback, the Wasmtime adapter also requires a notification that the error escaped the top-level invocation before it accepts the next top-level entry.
+2. On a turn boundary with the incoming trap flag set, require a finished activation and no pending host event. Discard the guest and host frames and clear the trap flag. The failed calls produce no return events.
+3. Apply the ordinary top-level export entry rules. Carry the memory history and the event commitment across the boundary. A load in the new export reads the bytes from the most recent writes to those addresses under the memory rules in sections 7.3 through 7.6.
+
+**Rejects.** A guest instruction that continues a trapped activation. The adapter also rejects a caught callback trap followed by a retry inside a suspended invocation.
+
+**Source.** `crates/neo-wasm/src/ccs/trap.rs`, `crates/neo-wasm/src/ccs/reentry.rs`, and `crates/neo-wasm/src/adapters/wasmtime/normalize/trace_build.rs`. Section 7.6 gives the memory consistency rule for catalog applications. Section 9 states the formal coverage of the WASM application.
+
 ### Algorithm 7. Memory step
 
 **Input.** The input state, the carry `c` and the application words that open it, the output application words, the private words, the step's lanes, and the proposals.

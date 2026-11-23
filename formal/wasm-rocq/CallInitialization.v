@@ -61,8 +61,6 @@ Proof.
     pose proof (value_bound w COL_HOST_NESTED_ENTRY). field_linear Hrow.
 Qed.
 
-(* Guest and auxiliary rows preserve the activation's host depth. Only host
-   suspend/resume can change it; cross-row continuity carries it to the next row. *)
 Lemma full_host_depth_preserved : forall (w : Witness) kind,
   fieldPrime -> FullRelation.satFull w -> In kind rowKindFlags ->
   kind <> COL_HOST_SUSPEND -> kind <> COL_HOST_RESUME -> kind <> COL_TURN_BOUNDARY -> w kind = 1 ->
@@ -71,11 +69,52 @@ Proof.
   intros w kind Hprime Hfull Hin Hs Hr Ht Hkind.
   destruct (full_host_switch_absent w kind Hprime Hfull Hin Hs Hr Ht Hkind) as [Hsuspend [Hresume _]].
   pose proof (proj1 Hfull) as Hone.
-  circuit_row ([(COL_ONE, 1); (COL_HOST_SUSPEND, -1); (COL_HOST_RESUME, -1)],
+  pose proof (full_row_kind_exclusive w kind COL_TURN_BOUNDARY Hprime Hfull Hin ltac:(cbn; auto 20) Ht Hkind) as Hturn.
+  circuit_row ([(COL_ONE, 1); (COL_HOST_SUSPEND, -1); (COL_HOST_RESUME, -1); (COL_TRAP_UNWIND, -1)],
     [(COL_HOST_FRAME_DEPTH_AFTER, 1); (COL_HOST_FRAME_DEPTH_BEFORE, -1)], ([] : SparseRow)) Hrow.
-  expand_row Hrow. normalize_columns. rewrite Hone, Hsuspend, Hresume in Hrow.
+  expand_row Hrow. normalize_columns. zero_trap_unwind Hrow. rewrite Hone, Hsuspend, Hresume in Hrow.
   pose proof (value_bound w COL_HOST_FRAME_DEPTH_AFTER).
   pose proof (value_bound w COL_HOST_FRAME_DEPTH_BEFORE). field_linear Hrow.
+Qed.
+
+Lemma full_trap_unwind_entry : forall (w : Witness),
+  FullRelation.satFull w -> w COL_TURN_BOUNDARY = 1 -> w COL_TRAPPED_BEFORE = 1 ->
+  w COL_TRAP_UNWIND = 1 /\ w COL_ACTIVATION_FINISHED_BEFORE = 1 /\
+  w COL_ACTIVATION_FINISHED_AFTER = 0 /\ w COL_HOST_FRAME_DEPTH_AFTER = 0 /\
+  w COL_LOCALS_FBP_AFTER = 0 /\ w COL_SP_AFTER = w COL_CALL_PARAM_COUNT.
+Proof.
+  intros w Hfull Hturn Htrapped. pose proof (proj1 Hfull) as Hone.
+  circuit_row ([(COL_TURN_BOUNDARY, 1)], [(COL_TRAPPED_BEFORE, 1)], [(COL_TRAP_UNWIND, 1)]) Hgate.
+  expand_row Hgate. normalize_columns. rewrite Hturn, Htrapped in Hgate.
+  assert (Hunwind : w COL_TRAP_UNWIND = 1) by
+    (pose proof (value_bound w COL_TRAP_UNWIND); field_linear Hgate).
+  circuit_row ([(COL_TRAP_UNWIND, 1)], [(COL_HOST_AWAITING_BEFORE, 1)], ([] : SparseRow)) Hquiet.
+  expand_row Hquiet. normalize_columns. rewrite Hunwind in Hquiet.
+  assert (Hawaiting : w COL_HOST_AWAITING_BEFORE = 0) by
+    (pose proof (value_bound w COL_HOST_AWAITING_BEFORE); field_linear Hquiet).
+  circuit_row ([(COL_TURN_BOUNDARY, 1)], [(COL_HOST_AWAITING_BEFORE, 1)], [(COL_HOST_NESTED_ENTRY, 1)]) Hentry.
+  expand_row Hentry. normalize_columns. rewrite Hturn, Hawaiting in Hentry.
+  assert (Hnested : w COL_HOST_NESTED_ENTRY = 0) by
+    (pose proof (value_bound w COL_HOST_NESTED_ENTRY); field_linear Hentry).
+  circuit_row ([(COL_TURN_BOUNDARY, 1); (COL_HOST_NESTED_ENTRY, -1)],
+    [(COL_ONE, 1); (COL_ACTIVATION_FINISHED_BEFORE, -1)], ([] : SparseRow)) Hfinished.
+  circuit_row ([(COL_TURN_BOUNDARY, 1)], [(COL_ACTIVATION_FINISHED_AFTER, 1)], ([] : SparseRow)) Hactive.
+  circuit_row ([(COL_TRAP_UNWIND, 1)], [(COL_HOST_FRAME_DEPTH_AFTER, 1)], ([] : SparseRow)) Hfloor.
+  circuit_row ([(COL_TURN_BOUNDARY, 1); (COL_HOST_NESTED_ENTRY, -1)],
+    [(COL_LOCALS_FBP_AFTER, 1)], ([] : SparseRow)) Hlocals.
+  circuit_row ([(COL_TURN_BOUNDARY, 1)],
+    [(COL_SP_AFTER, 1); (COL_LOCALS_FBP_AFTER, -1); (COL_CALL_PARAM_COUNT, -1)], ([] : SparseRow)) Hsp.
+  expand_row Hfinished. expand_row Hactive. expand_row Hfloor. expand_row Hlocals. expand_row Hsp.
+  normalize_columns. rewrite Hone, Hturn, Hnested in Hfinished. rewrite Hturn in Hactive, Hsp.
+  rewrite Hunwind in Hfloor. rewrite Hturn, Hnested in Hlocals.
+  assert (Hbase : w COL_LOCALS_FBP_AFTER = 0) by
+    (pose proof (value_bound w COL_LOCALS_FBP_AFTER); field_linear Hlocals).
+  normalize_columns. rewrite Hbase in Hsp. repeat split; try assumption.
+  - pose proof (value_bound w COL_ACTIVATION_FINISHED_BEFORE). field_linear Hfinished.
+  - pose proof (value_bound w COL_ACTIVATION_FINISHED_AFTER). field_linear Hactive.
+  - pose proof (value_bound w COL_HOST_FRAME_DEPTH_AFTER). field_linear Hfloor.
+  - pose proof (value_bound w COL_SP_AFTER). pose proof (value_bound w COL_CALL_PARAM_COUNT).
+    field_linear Hsp.
 Qed.
 
 (* A pending move runs first: zeroing waits until it is done. *)
@@ -262,12 +301,13 @@ Proof.
     ltac:(destruct Hkind as [-> | ->]; discriminate) Hchosen) as [Hsuspend [Hresume Hnested]].
   full_row localsBasePreservedRow Hfbp.
   full_row stackFrameBasePreservedRow Hbase.
-  circuit_row ([(COL_CALL_STACK_DEPTH_AFTER, 1); (COL_CALL_STACK_DEPTH_BEFORE, -1);
-    (COL_CALL_STACK_PUSH_PRESENT, -1); (COL_CALL_STACK_POP_PRESENT, 1);
-    (COL_HOST_SUSPEND, -1); (COL_HOST_RESUME, 1)], [(COL_ONE, 1)], ([] : SparseRow)) Hdepth.
+  circuit_row ([(COL_TRAP_UNWIND, 1)], [(COL_CALL_STACK_DEPTH_BEFORE, 1)],
+    [(COL_CALL_STACK_DEPTH_BEFORE, 1); (COL_CALL_STACK_DEPTH_AFTER, -1);
+     (COL_CALL_STACK_PUSH_PRESENT, 1); (COL_CALL_STACK_POP_PRESENT, -1);
+     (COL_HOST_SUSPEND, 1); (COL_HOST_RESUME, -1)]) Hdepth.
   expand_row Hdepth. normalize_columns.
   rewrite Hone, Hpush, Hpop, Hresume, Hturn in Hfbp. rewrite Hone, Hguest, Hturn, Hpop, Hresume in Hbase.
-  rewrite Hone, Hpush, Hpop, Hsuspend, Hresume in Hdepth.
+  zero_trap_unwind Hdepth. rewrite Hpush, Hpop, Hsuspend, Hresume in Hdepth.
   pose proof (value_bound w COL_LOCALS_FBP_BEFORE). pose proof (value_bound w COL_LOCALS_FBP_AFTER).
   pose proof (value_bound w COL_STACK_FRAME_BASE_BEFORE). pose proof (value_bound w COL_STACK_FRAME_BASE_AFTER).
   pose proof (value_bound w COL_CALL_STACK_DEPTH_BEFORE). pose proof (value_bound w COL_CALL_STACK_DEPTH_AFTER).

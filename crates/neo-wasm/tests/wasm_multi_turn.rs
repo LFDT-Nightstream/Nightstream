@@ -1,4 +1,6 @@
 mod common;
+#[path = "multi_turn/stitching.rs"]
+mod stitching;
 
 use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;
 use neo_wasm::host_event_bindings::{
@@ -78,13 +80,15 @@ impl TracedTestComponent {
     }
 }
 
-fn run_counter_turns(component_bytes: &[u8], bindings: &HostEventBindings) -> CollectedTestTrace {
+fn run_counter_turns(component_bytes: &[u8], bindings: &HostEventBindings, inputs: [i32; 2]) -> CollectedTestTrace {
     let mut runtime = TracedTestComponent::new(component_bytes, bindings);
-    let mut first = [ComponentVal::S32(0)];
-    runtime.call("add", &[ComponentVal::S32(7)], &mut first);
-    let mut second = [ComponentVal::S32(0)];
-    runtime.call("add", &[ComponentVal::S32(35)], &mut second);
-    assert_eq!((first, second), ([ComponentVal::S32(7)], [ComponentVal::S32(42)]));
+    let mut total = 0_i32;
+    for input in inputs {
+        let mut result = [ComponentVal::S32(0)];
+        runtime.call("add", &[ComponentVal::S32(input)], &mut result);
+        total = total.wrapping_add(input);
+        assert_eq!(result, [ComponentVal::S32(total)]);
+    }
     runtime.finish()
 }
 
@@ -163,7 +167,7 @@ fn multi_turn_setup() -> MultiTurnSetup {
     let add_fref = 1;
     let mut bindings = HostEventBindings::default();
     bindings.exports.insert(add_fref, add_template());
-    let run = run_counter_turns(&component_bytes, &bindings);
+    let run = run_counter_turns(&component_bytes, &bindings, [7, 35]);
 
     let without_bindings = neo_wasm::traces_from_wasmtime_steps(&run.steps);
     assert!(

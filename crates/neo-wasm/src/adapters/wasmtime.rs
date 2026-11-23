@@ -36,6 +36,8 @@ pub use parse::{WasmProgramArtifacts, WasmProgramDecodeEntry, WasmProgramTables}
 pub struct WasmtimeTraceStep {
     /// Host-to-guest activation depth, distinct from guest call-stack depth.
     pub activation_depth: usize,
+    /// Wasmtime reported that the outermost suspended host call unwound after this callback step.
+    pub top_level_unwound: bool,
     /// The cycle of this step
     pub step: u64,
     pub function: String,
@@ -454,7 +456,7 @@ impl<T: WasmTraceSink + Send + 'static> DebugHandler for WasmtimeTraceHandler<T>
                 store
                     .data_mut()
                     .wasm_trace_registry_mut()
-                    .discard_unwound_imports(frames.len());
+                    .record_unwind(frames.len());
                 return;
             }
             if let Err(error) = registry::capture_step(innermost_frame, frames.len(), &mut store) {

@@ -129,6 +129,7 @@ pub(super) fn push_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
                 (COL_ONE, F::ONE),
                 (COL_HOST_SUSPEND, -F::ONE),
                 (COL_HOST_RESUME, -F::ONE),
+                (COL_TRAP_UNWIND, -F::ONE),
             ],
             [
                 (COL_HOST_FRAME_DEPTH_AFTER, F::ONE),
@@ -137,10 +138,24 @@ pub(super) fn push_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             [],
         );
         b.push_row(
-            [(COL_TURN_BOUNDARY, F::ONE), (COL_HOST_NESTED_ENTRY, -F::ONE)],
+            [
+                (COL_TURN_BOUNDARY, F::ONE),
+                (COL_HOST_NESTED_ENTRY, -F::ONE),
+                (COL_TRAP_UNWIND, -F::ONE),
+            ],
             [(COL_HOST_FRAME_DEPTH_BEFORE, F::ONE)],
             [],
         );
+
+        for column in [
+            COL_HOST_AWAITING_BEFORE,
+            COL_HOST_EVENT_SLOT_CURSOR_BEFORE,
+            COL_OBJECT_ACTIVE_BEFORE,
+            COL_HOST_FRAME_DEPTH_AFTER,
+            COL_HOST_EVENT_ARGS_BASE_AFTER,
+        ] {
+            push_gated_linear_zero(b, COL_TRAP_UNWIND, [(column, F::ONE)]);
+        }
 
         push_gated_linear_zero(
             b,
@@ -274,6 +289,7 @@ pub(crate) fn fill_witness(wit: &mut [F], trace: &WasmVmStep) {
     HOST_DEPTH_ZERO.assign(wit);
     RETURN_COUNT_ZERO.assign(wit);
     wit[COL_HOST_SPLIT_CALL] = wit[COL_HOST_CALL_ACTIVE] * (F::ONE - wit[COL_HOST_RETURN_COUNT_IS_ZERO]);
+    wit[COL_TRAP_UNWIND] = wit[COL_TURN_BOUNDARY] * flag(before.trapped);
     wit[COL_HOST_RESUME] = flag(trace.row_kind.is_host_resume());
     wit[COL_HOST_NESTED_ENTRY] = flag(trace.row_kind.is_turn_boundary() && before.host_events.awaiting_host);
     wit[COL_HOST_NESTED_EXIT] = wit[COL_HOST_EVENT_EXIT_LATCH] * (F::ONE - wit[COL_HOST_FRAME_DEPTH_IS_ZERO]);

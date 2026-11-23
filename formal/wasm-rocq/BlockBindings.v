@@ -60,14 +60,14 @@ Proof.
       assert (Hlatch : w COL_HOST_EVENT_EXIT_LATCH = 0) by
         (circuit_row ([(COL_ACTIVATION_FINISHED_AFTER, 1); (COL_ACTIVATION_FINISHED_BEFORE, -1);
            (COL_TRAPPED_AFTER, -1); (COL_TRAPPED_BEFORE, 1); (COL_HOST_CLEAR_ACTIVATION_FINISHED, 1);
-           (COL_HOST_EVENT_EXIT_LATCH, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Hrow;
+           (COL_HOST_EVENT_EXIT_LATCH, -1); (COL_TRAP_UNWIND, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Hrow;
          destruct (full_selected_no_host_switch w chosen Hprime Hfull Hin Hchosen) as [_ [Hresume _]];
          pose proof (full_no_activation_clear w Hfull Hturn Hresume) as Hclear;
          pose proof (full_selected_is_program_row w chosen Hprime Hfull Hin Hchosen) as Hprogram;
          circuit_row ([(COL_IS_PROGRAM_ROW, 1)], [(COL_ACTIVATION_FINISHED_BEFORE, 1)], ([] : SparseRow)) Hfb;
          circuit_row ([(COL_IS_PROGRAM_ROW, 1)], [(COL_TRAPPED_BEFORE, 1)], ([] : SparseRow)) Htb;
          circuit_boolean COL_TRAPPED_AFTER Hta; circuit_boolean COL_HOST_EVENT_EXIT_LATCH Hlb;
-         expand_row Hrow; expand_row Hfb; expand_row Htb; normalize_columns;
+         expand_row Hrow; expand_row Hfb; expand_row Htb; zero_trap_unwind Hrow; normalize_columns;
          rewrite Hone, Hhalt, Hclear in Hrow; rewrite Hprogram in Hfb, Htb;
          pose proof (value_bound w COL_ACTIVATION_FINISHED_BEFORE);
          pose proof (value_bound w COL_TRAPPED_BEFORE);

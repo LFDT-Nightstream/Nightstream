@@ -115,7 +115,7 @@ make
 ```
 
 For an existing switch, install those packages there and run `make` with that
-switch active. `make` and `make audit` first check all four Rust-generated exports
+switch active. `make` and `make audit` first check the Rust-generated exports
 without rewriting them; `make check-exports` runs that check alone. Regenerate stale
 files with the command below, then rebuild. `make` also generates the witness traces
 and rewrites only those that changed; `make traces` runs that step alone. SpecTec is not needed to build the

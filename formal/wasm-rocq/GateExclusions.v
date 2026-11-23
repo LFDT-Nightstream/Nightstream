@@ -44,20 +44,21 @@ Proof.
   gate_bound COL_ACTIVATION_FINISHED_BEFORE B353.
   gate_bound COL_HOST_CLEAR_ACTIVATION_FINISHED B386.
   gate_bound COL_HOST_EVENT_EXIT_LATCH B485.
-  circuit_row ([(COL_ACTIVATION_FINISHED_AFTER, 1); (COL_ACTIVATION_FINISHED_BEFORE, -1); (COL_TRAPPED_AFTER, -1); (COL_TRAPPED_BEFORE, 1); (COL_HOST_CLEAR_ACTIVATION_FINISHED, 1); (COL_HOST_EVENT_EXIT_LATCH, -1)], [(COL_ONE, 1)], ([] : SparseRow)) modular_13.
+  gate_bound COL_TRAP_UNWIND Bunwind.
+  circuit_row ([(COL_ACTIVATION_FINISHED_AFTER, 1); (COL_ACTIVATION_FINISHED_BEFORE, -1); (COL_TRAPPED_AFTER, -1); (COL_TRAPPED_BEFORE, 1); (COL_HOST_CLEAR_ACTIVATION_FINISHED, 1); (COL_HOST_EVENT_EXIT_LATCH, -1); (COL_TRAP_UNWIND, -1)], [(COL_ONE, 1)], ([] : SparseRow)) modular_13.
   expand_row modular_13.
-  assert (equation_13 : ((1 * w COL_ACTIVATION_FINISHED_AFTER) + (-1 * w COL_ACTIVATION_FINISHED_BEFORE) + (-1 * w COL_TRAPPED_AFTER) + (1 * w COL_TRAPPED_BEFORE) + (1 * w COL_HOST_CLEAR_ACTIVATION_FINISHED) + (-1 * w COL_HOST_EVENT_EXIT_LATCH)) * ((1 * w COL_ONE)) - (0) = 0).
-  { normalize_columns. clear - modular_13 Hone B18 B325 B326 B353 B386 B485. apply Z.mod_divide in modular_13; [destruct modular_13 as [k Hk]; unfold modulus in *; nia | unfold modulus; lia]. }
+  assert (equation_13 : ((1 * w COL_ACTIVATION_FINISHED_AFTER) + (-1 * w COL_ACTIVATION_FINISHED_BEFORE) + (-1 * w COL_TRAPPED_AFTER) + (1 * w COL_TRAPPED_BEFORE) + (1 * w COL_HOST_CLEAR_ACTIVATION_FINISHED) + (-1 * w COL_HOST_EVENT_EXIT_LATCH) - w COL_TRAP_UNWIND) * ((1 * w COL_ONE)) - (0) = 0).
+  { normalize_columns. clear - modular_13 Hone B18 B325 B326 B353 B386 B485 Bunwind. apply Z.mod_divide in modular_13; [destruct modular_13 as [k Hk]; unfold modulus in *; nia | unfold modulus; lia]. }
   clear modular_13.
   circuit_row ([(COL_ACTIVATION_FINISHED_AFTER, 1); (COL_ACTIVATION_FINISHED_BEFORE, -1); (COL_HOST_CLEAR_ACTIVATION_FINISHED, 1); (COL_CALL_STACK_POP_PRESENT, 1); (COL_PC_EDGE_KIND, -1); (COL_SEL_CALL_INDIRECT, 2); (COL_SEL_RETURN_CALL_INDIRECT, 2); (COL_SEL_UNREACHABLE, 2); (COL_DIV_TRAP, -1); (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1); (COL_TABLE_OOB, -1)], [(COL_ONE, 1)], ([] : SparseRow)) modular_19.
   expand_row modular_19.
   assert (equation_19 : ((1 * w COL_ACTIVATION_FINISHED_AFTER) + (-1 * w COL_ACTIVATION_FINISHED_BEFORE) + (1 * w COL_HOST_CLEAR_ACTIVATION_FINISHED) + (1 * w COL_CALL_STACK_POP_PRESENT) + (-1 * w COL_PC_EDGE_KIND) + (2 * w COL_SEL_CALL_INDIRECT) + (2 * w COL_SEL_RETURN_CALL_INDIRECT) + (2 * w COL_SEL_UNREACHABLE) + (-1 * w COL_DIV_TRAP) + (-1 * w COL_CALL_INDIRECT_IS_TRAP) + (-1 * w COL_MEM_OOB) + (-1 * w COL_TABLE_OOB)) * ((1 * w COL_ONE)) - (0) = 0).
   { normalize_columns. clear - modular_19 Hone B11 B18 B43 B91 B128 B323 B329 B340 B346 B349 B353 B386. apply Z.mod_divide in modular_19; [destruct modular_19 as [k Hk]; unfold modulus in *; nia | unfold modulus; lia]. }
   clear modular_19.
-  circuit_row ([(COL_TRAPPED_AFTER, 1); (COL_TRAPPED_BEFORE, -1); (COL_SEL_UNREACHABLE, -1); (COL_DIV_TRAP, -1); (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1); (COL_TABLE_OOB, -1)], [(COL_ONE, 1)], ([] : SparseRow)) modular_20.
+  circuit_row ([(COL_TRAPPED_AFTER, 1); (COL_TRAPPED_BEFORE, -1); (COL_SEL_UNREACHABLE, -1); (COL_DIV_TRAP, -1); (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1); (COL_TABLE_OOB, -1); (COL_TRAP_UNWIND, 1)], [(COL_ONE, 1)], ([] : SparseRow)) modular_20.
   expand_row modular_20.
-  assert (equation_20 : ((1 * w COL_TRAPPED_AFTER) + (-1 * w COL_TRAPPED_BEFORE) + (-1 * w COL_SEL_UNREACHABLE) + (-1 * w COL_DIV_TRAP) + (-1 * w COL_CALL_INDIRECT_IS_TRAP) + (-1 * w COL_MEM_OOB) + (-1 * w COL_TABLE_OOB)) * ((1 * w COL_ONE)) - (0) = 0).
-  { normalize_columns. clear - modular_20 Hone B91 B325 B326 B329 B340 B346 B349. apply Z.mod_divide in modular_20; [destruct modular_20 as [k Hk]; unfold modulus in *; nia | unfold modulus; lia]. }
+  assert (equation_20 : ((1 * w COL_TRAPPED_AFTER) + (-1 * w COL_TRAPPED_BEFORE) + (-1 * w COL_SEL_UNREACHABLE) + (-1 * w COL_DIV_TRAP) + (-1 * w COL_CALL_INDIRECT_IS_TRAP) + (-1 * w COL_MEM_OOB) + (-1 * w COL_TABLE_OOB) + w COL_TRAP_UNWIND) * ((1 * w COL_ONE)) - (0) = 0).
+  { normalize_columns. clear - modular_20 Hone B91 B325 B326 B329 B340 B346 B349 Bunwind. apply Z.mod_divide in modular_20; [destruct modular_20 as [k Hk]; unfold modulus in *; nia | unfold modulus; lia]. }
   clear modular_20.
   circuit_row ([(COL_PC_EDGE_KIND, 1)], [(COL_PC_EDGE_KIND_IS_STATIC, 1)], ([] : SparseRow)) modular_21.
   expand_row modular_21.
@@ -109,8 +110,8 @@ Proof.
   circuit_boolean COL_TRAPPED_AFTER Htrap.
   circuit_row ([(COL_ACTIVATION_FINISHED_AFTER, 1); (COL_ACTIVATION_FINISHED_BEFORE, -1);
     (COL_TRAPPED_AFTER, -1); (COL_TRAPPED_BEFORE, 1); (COL_HOST_CLEAR_ACTIVATION_FINISHED, 1);
-    (COL_HOST_EVENT_EXIT_LATCH, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Hexitrow.
-  expand_row Hexitrow. normalize_columns. rewrite Hone, Hfb, Htb, Hclear, Hexit in Hexitrow.
+    (COL_HOST_EVENT_EXIT_LATCH, -1); (COL_TRAP_UNWIND, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Hexitrow.
+  expand_row Hexitrow. zero_trap_unwind Hexitrow. rewrite Hone, Hfb, Htb, Hclear, Hexit in Hexitrow.
   assert (Hclean : w COL_ACTIVATION_FINISHED_AFTER = 1 /\ w COL_TRAPPED_AFTER = 0)
     by (field_linear Hexitrow).
   destruct Hclean as [Hfinished Htrapped].
@@ -118,15 +119,16 @@ Proof.
   circuit_range COL_CALL_STACK_DEPTH_BEFORE Bdb. circuit_range COL_CALL_STACK_DEPTH_AFTER Bda.
   circuit_range COL_HOST_FRAME_DEPTH_BEFORE Bfb. circuit_range COL_HOST_FRAME_DEPTH_AFTER Bfa.
   circuit_range COL_GUEST_DEPTH_AFTER Bguest.
-  circuit_row ([(COL_CALL_STACK_DEPTH_AFTER, 1); (COL_CALL_STACK_DEPTH_BEFORE, -1);
-    (COL_CALL_STACK_PUSH_PRESENT, -1); (COL_CALL_STACK_POP_PRESENT, 1);
-    (COL_HOST_SUSPEND, -1); (COL_HOST_RESUME, 1)], [(COL_ONE, 1)], ([] : SparseRow)) Hdepthrow.
-  expand_row Hdepthrow. normalize_columns. rewrite Hone, Hpush, Hpop, Hsuspend, Hresume in Hdepthrow.
+  circuit_row ([(COL_TRAP_UNWIND, 1)], [(COL_CALL_STACK_DEPTH_BEFORE, 1)],
+    [(COL_CALL_STACK_DEPTH_BEFORE, 1); (COL_CALL_STACK_DEPTH_AFTER, -1);
+     (COL_CALL_STACK_PUSH_PRESENT, 1); (COL_CALL_STACK_POP_PRESENT, -1);
+     (COL_HOST_SUSPEND, 1); (COL_HOST_RESUME, -1)]) Hdepthrow.
+  expand_row Hdepthrow. zero_trap_unwind Hdepthrow. rewrite Hpush, Hpop, Hsuspend, Hresume in Hdepthrow.
   assert (Hdepth : w COL_CALL_STACK_DEPTH_AFTER = w COL_CALL_STACK_DEPTH_BEFORE - 1)
     by (field_linear Hdepthrow).
-  circuit_row ([(COL_ONE, 1); (COL_HOST_SUSPEND, -1); (COL_HOST_RESUME, -1)],
+  circuit_row ([(COL_ONE, 1); (COL_HOST_SUSPEND, -1); (COL_HOST_RESUME, -1); (COL_TRAP_UNWIND, -1)],
     [(COL_HOST_FRAME_DEPTH_AFTER, 1); (COL_HOST_FRAME_DEPTH_BEFORE, -1)], ([] : SparseRow)) Hfloorrow.
-  expand_row Hfloorrow. normalize_columns. rewrite Hone, Hsuspend, Hresume in Hfloorrow.
+  expand_row Hfloorrow. zero_trap_unwind Hfloorrow. rewrite Hone, Hsuspend, Hresume in Hfloorrow.
   assert (Hfloor : w COL_HOST_FRAME_DEPTH_AFTER = w COL_HOST_FRAME_DEPTH_BEFORE)
     by (field_linear Hfloorrow).
   circuit_row ([(COL_CALL_STACK_DEPTH_AFTER, 1); (COL_HOST_FRAME_DEPTH_AFTER, -1);

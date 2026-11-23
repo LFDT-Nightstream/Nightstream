@@ -238,6 +238,34 @@ Ltac selected_circuit_row chosen shape name :=
   | None => fail "Missing circuit row" shape
   end.
 
+Lemma full_no_trap_unwind : forall (w : Witness),
+  FullRelation.satFull w -> w COL_TURN_BOUNDARY = 0 \/ w COL_TRAPPED_BEFORE = 0 ->
+  w COL_TRAP_UNWIND = 0.
+Proof.
+  intros w Hfull Hquiet.
+  circuit_row ([(COL_TURN_BOUNDARY, 1)], [(COL_TRAPPED_BEFORE, 1)], [(COL_TRAP_UNWIND, 1)]) Hrow.
+  expand_row Hrow. pose proof (value_bound w COL_TRAP_UNWIND).
+  destruct Hquiet as [Hquiet | Hquiet]; normalize_columns; rewrite Hquiet in Hrow; field_linear Hrow.
+Qed.
+
+Lemma full_program_no_trap_unwind : forall (w : Witness),
+  FullRelation.satFull w -> w COL_IS_PROGRAM_ROW = 1 -> w COL_TRAP_UNWIND = 0.
+Proof.
+  intros w Hfull Hprogram. apply (full_no_trap_unwind w Hfull). right.
+  circuit_row ([(COL_IS_PROGRAM_ROW, 1)], [(COL_TRAPPED_BEFORE, 1)], ([] : SparseRow)) Hrow.
+  expand_row Hrow. normalize_columns. rewrite Hprogram in Hrow.
+  pose proof (value_bound w COL_TRAPPED_BEFORE). field_linear Hrow.
+Qed.
+
+Ltac zero_trap_unwind H :=
+  match goal with Hfull : FullRelation.satFull ?w |- _ =>
+    let Hzero := fresh "Hunwind" in
+    assert (Hzero : w COL_TRAP_UNWIND = 0) by
+      first [apply (full_no_trap_unwind w Hfull); first [left; assumption | right; assumption]
+            | apply (full_program_no_trap_unwind w Hfull); assumption];
+    normalize_columns; rewrite Hzero in H; clear Hzero
+  end.
+
 (* A split host call is a host call. *)
 Lemma full_no_host_split : forall (w : Witness),
   FullRelation.satFull w -> w COL_HOST_CALL_ACTIVE = 0 -> w COL_HOST_SPLIT_CALL = 0.
@@ -405,13 +433,13 @@ Proof.
   intros w Hprime Hfull Hpop Hentry Hturn Hlatch.
   assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
   circuit_row ([(COL_ACTIVATION_FINISHED_AFTER, 1); (COL_ACTIVATION_FINISHED_BEFORE, -1); (COL_TRAPPED_AFTER, -1);
-    (COL_TRAPPED_BEFORE, 1); (COL_HOST_CLEAR_ACTIVATION_FINISHED, 1); (COL_HOST_EVENT_EXIT_LATCH, -1)],
+    (COL_TRAPPED_BEFORE, 1); (COL_HOST_CLEAR_ACTIVATION_FINISHED, 1); (COL_HOST_EVENT_EXIT_LATCH, -1); (COL_TRAP_UNWIND, -1)],
     [(COL_ONE, 1)], ([] : SparseRow)) Hstate.
   circuit_row ([(COL_ONE, 1); (COL_FRAME_SLIDE_ACTIVE, -1); (COL_GUEST_ENTRY_ACTIVE, -1);
     (COL_CALL_STACK_PUSH_PRESENT, 1); (COL_TURN_BOUNDARY, -1); (COL_ACTIVATION_FINISHED_AFTER, -1);
     (COL_ACTIVATION_FINISHED_BEFORE, 1); (COL_TRAPPED_AFTER, 1); (COL_TRAPPED_BEFORE, -1);
-    (COL_HOST_CLEAR_ACTIVATION_FINISHED, -1)], [(COL_FRAME_SP_DROP, 1)], ([] : SparseRow)) Hrow.
-  unfold sat in Hstate, Hrow. cbn [eval fold_right] in Hstate, Hrow.
+    (COL_HOST_CLEAR_ACTIVATION_FINISHED, -1); (COL_TRAP_UNWIND, 1)], [(COL_FRAME_SP_DROP, 1)], ([] : SparseRow)) Hrow.
+  unfold sat in Hstate, Hrow. cbn [eval fold_right] in Hstate, Hrow. zero_trap_unwind Hstate. zero_trap_unwind Hrow.
   assert (Hclean : w COL_ACTIVATION_FINISHED_AFTER - w COL_ACTIVATION_FINISHED_BEFORE - w COL_TRAPPED_AFTER +
     w COL_TRAPPED_BEFORE + w COL_HOST_CLEAR_ACTIVATION_FINISHED = 0).
   { circuit_boolean COL_ACTIVATION_FINISHED_AFTER Hfa. circuit_boolean COL_ACTIVATION_FINISHED_BEFORE Hfb.
@@ -419,8 +447,8 @@ Proof.
     circuit_boolean COL_HOST_CLEAR_ACTIVATION_FINISHED Hclear.
     rewrite Hone, Hlatch in Hstate.
     apply Z.mod_divide in Hstate; [ | unfold modulus; lia]. destruct Hstate as [k Hstate].
-    unfold modulus in Hstate. lia. }
-  apply (gated_value_zero _ _ Hrow); [ | exact (value_bound w COL_FRAME_SP_DROP)].
+    normalize_columns; unfold modulus in Hstate; lia. }
+  normalize_columns. apply (gated_value_zero _ _ Hrow); [ | exact (value_bound w COL_FRAME_SP_DROP)].
   rewrite Hone, Hpop, Hentry, Hturn. lia.
 Qed.
 

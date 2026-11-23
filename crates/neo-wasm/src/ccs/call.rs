@@ -19,7 +19,7 @@ use super::super::layout::{
     COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_FRAME_BASE_AFTER, COL_STACK_FRAME_BASE_BEFORE, COL_STACK_READS,
     COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ADDR_LO,
     COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TARGET_FUNCTION_IS_GUEST,
-    COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_TURN_BOUNDARY,
+    COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_TRAP_UNWIND, COL_TURN_BOUNDARY,
 };
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::always;
@@ -169,12 +169,20 @@ pub(super) fn push_call_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
 
     b.with_tag(always("turn boundary row"), |b| {
         b.push_row(
-            [(COL_TURN_BOUNDARY, F::ONE), (COL_HOST_NESTED_ENTRY, -F::ONE)],
+            [
+                (COL_TURN_BOUNDARY, F::ONE),
+                (COL_HOST_NESTED_ENTRY, -F::ONE),
+                (COL_TRAP_UNWIND, -F::ONE),
+            ],
             [(COL_SP_BEFORE, F::ONE)],
             [],
         );
         b.push_row(
-            [(COL_TURN_BOUNDARY, F::ONE), (COL_HOST_NESTED_ENTRY, -F::ONE)],
+            [
+                (COL_TURN_BOUNDARY, F::ONE),
+                (COL_HOST_NESTED_ENTRY, -F::ONE),
+                (COL_TRAP_UNWIND, -F::ONE),
+            ],
             [(COL_CALL_STACK_DEPTH_BEFORE, F::ONE)],
             [],
         );
@@ -319,13 +327,14 @@ fn push_simple_output_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     });
 }
 
-fn clean_activation_return_terms() -> [(usize, F); 5] {
+fn clean_activation_return_terms() -> [(usize, F); 6] {
     [
         (COL_ACTIVATION_FINISHED_AFTER, F::ONE),
         (COL_ACTIVATION_FINISHED_BEFORE, -F::ONE),
         (COL_TRAPPED_AFTER, -F::ONE),
         (COL_TRAPPED_BEFORE, F::ONE),
         (COL_HOST_CLEAR_ACTIVATION_FINISHED, F::ONE),
+        (COL_TRAP_UNWIND, -F::ONE),
     ]
 }
 
@@ -649,14 +658,18 @@ fn push_call_stack_transition_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let push = COL_CALL_STACK_PUSH_PRESENT;
     let pop = COL_CALL_STACK_POP_PRESENT;
 
-    b.push_linear_zero([
-        (COL_CALL_STACK_DEPTH_AFTER, F::ONE),
-        (COL_CALL_STACK_DEPTH_BEFORE, -F::ONE),
-        (push, -F::ONE),
-        (pop, F::ONE),
-        (COL_HOST_SUSPEND, -F::ONE),
-        (COL_HOST_RESUME, F::ONE),
-    ]);
+    b.push_row(
+        [(COL_TRAP_UNWIND, F::ONE)],
+        [(COL_CALL_STACK_DEPTH_BEFORE, F::ONE)],
+        [
+            (COL_CALL_STACK_DEPTH_BEFORE, F::ONE),
+            (COL_CALL_STACK_DEPTH_AFTER, -F::ONE),
+            (push, F::ONE),
+            (pop, -F::ONE),
+            (COL_HOST_SUSPEND, F::ONE),
+            (COL_HOST_RESUME, -F::ONE),
+        ],
+    );
 
     push_gated_linear_zero(
         b,

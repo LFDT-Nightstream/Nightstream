@@ -2,7 +2,7 @@ use std::num::NonZeroUsize;
 
 use neo_wasm::memory_semantics::preload_host_event_tables;
 use neo_wasm::nebula::{plan_ordered_slots, step_inputs, WasmApplication, WasmLimits};
-use neo_wasm::{WasmProgramArtifacts, WasmVmStep};
+use neo_wasm::{WasmMemoryPreload, WasmProgramArtifacts, WasmVmStep};
 use nightstream::nebula::{Circuit, Geometry};
 
 pub fn check(trace: &[WasmVmStep]) {
@@ -26,28 +26,36 @@ pub fn check(trace: &[WasmVmStep]) {
     }
 }
 
+const PROOF_ROWS: NonZeroUsize = NonZeroUsize::new(9).unwrap();
+
+pub fn program_preload(artifacts: &WasmProgramArtifacts) -> WasmMemoryPreload {
+    let mut preload = neo_wasm::preload_from_program_artifacts(artifacts);
+    preload_host_event_tables(&mut preload, &artifacts.host_event_bindings, artifacts);
+    preload
+}
+
 pub fn prove(trace: &[WasmVmStep], artifacts: &WasmProgramArtifacts) {
-    let rows = NonZeroUsize::new(9).unwrap();
-    let n = trace.len().div_ceil(rows.get()).next_power_of_two();
-    let inputs = step_inputs(trace, n, rows).unwrap();
-    let witnesses = step_inputs(trace, n * rows.get(), NonZeroUsize::MIN)
+    let preload = program_preload(artifacts);
+    let n = trace.len().div_ceil(PROOF_ROWS.get()).next_power_of_two();
+    let witnesses = step_inputs(trace, n * PROOF_ROWS.get(), NonZeroUsize::MIN)
         .unwrap()
         .into_iter()
         .map(|step| step.z)
         .collect::<Vec<_>>();
-    let mut preload = neo_wasm::preload_from_program_artifacts(artifacts);
-    preload_host_event_tables(&mut preload, &artifacts.host_event_bindings, artifacts);
-    let (regions, used) = WasmLimits::of(&[&preload], &witnesses)
-        .unwrap()
-        .regions()
-        .unwrap();
-    let slots = plan_ordered_slots(rows).unwrap();
+    let limits = WasmLimits::of(&[&preload], &witnesses).unwrap();
+    prove_with_limits(trace, &preload, limits, n);
+}
+
+pub fn prove_with_limits(trace: &[WasmVmStep], preload: &WasmMemoryPreload, limits: WasmLimits, n: usize) {
+    let inputs = step_inputs(trace, n, PROOF_ROWS).unwrap();
+    let (regions, used) = limits.regions().unwrap();
+    let slots = plan_ordered_slots(PROOF_ROWS).unwrap();
     let bits = |value: u64| (u64::BITS - value.leading_zeros()) as usize;
     let r = bits(used[0] - 1).max(n.trailing_zeros() as usize);
     let mu = bits(used[1] - 1).max(r);
     let geometry = Geometry::new(r, mu, slots.len(), n, 1).unwrap();
-    let app = WasmApplication::with_slots(&geometry, regions, rows, &slots).unwrap();
-    let program = app.program(&preload).unwrap();
+    let app = WasmApplication::with_slots(&geometry, regions, PROOF_ROWS, &slots).unwrap();
+    let program = app.program(preload).unwrap();
     let circuit = Circuit::compile(geometry, app).unwrap();
     let prover = circuit.prover(nightstream::Engine::Optimized, 109).unwrap();
     let verifier = circuit

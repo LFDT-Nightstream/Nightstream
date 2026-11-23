@@ -414,10 +414,10 @@ Proof.
     expand_row Hrow. rewrite Hprogram in Hrow.
     pose proof (value_bound w COL_ACTIVATION_FINISHED_BEFORE). field_linear Hrow. }
   circuit_row ([(COL_TRAPPED_AFTER, 1); (COL_TRAPPED_BEFORE, -1); (COL_SEL_UNREACHABLE, -1); (COL_DIV_TRAP, -1);
-    (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1); (COL_TABLE_OOB, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Htrapped.
+    (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1); (COL_TABLE_OOB, -1); (COL_TRAP_UNWIND, 1)], [(COL_ONE, 1)], ([] : SparseRow)) Htrapped.
   circuit_boolean COL_TRAPPED_AFTER Hta. circuit_boolean COL_DIV_TRAP Hdiv. circuit_boolean COL_MEM_OOB Hmem.
   circuit_boolean COL_TABLE_OOB Htable.
-  expand_row Htrapped. normalize_columns. rewrite Hone, Htb, Hothers, Htrap in Htrapped.
+  expand_row Htrapped. zero_trap_unwind Htrapped. normalize_columns. rewrite Hone, Htb, Hothers, Htrap in Htrapped.
   assert (Htrapped' : w COL_TRAPPED_AFTER = 1).
   { normalize_columns. apply Z.mod_divide in Htrapped; [ | unfold modulus; lia].
     destruct Htrapped as [k Htrapped]. unfold modulus in *; lia. }
@@ -429,9 +429,9 @@ Proof.
     ltac:(cbn; discriminate) ltac:(cbn; discriminate) ltac:(cbn; discriminate) Hprogram) as [_ [Hresume _]].
   pose proof (full_no_activation_clear w Hfull Hturn Hresume) as Hclear.
   circuit_row ([(COL_ACTIVATION_FINISHED_AFTER, 1); (COL_ACTIVATION_FINISHED_BEFORE, -1); (COL_TRAPPED_AFTER, -1);
-    (COL_TRAPPED_BEFORE, 1); (COL_HOST_CLEAR_ACTIVATION_FINISHED, 1); (COL_HOST_EVENT_EXIT_LATCH, -1)],
+    (COL_TRAPPED_BEFORE, 1); (COL_HOST_CLEAR_ACTIVATION_FINISHED, 1); (COL_HOST_EVENT_EXIT_LATCH, -1); (COL_TRAP_UNWIND, -1)],
     [(COL_ONE, 1)], ([] : SparseRow)) Hstate.
-  expand_row Hstate. normalize_columns. rewrite Hone, Hfb, Htrapped', Htb, Hclear in Hstate.
+  expand_row Hstate. zero_trap_unwind Hstate. normalize_columns. rewrite Hone, Hfb, Htrapped', Htb, Hclear in Hstate.
   circuit_boolean COL_HOST_EVENT_EXIT_LATCH Hlatch. circuit_boolean COL_ACTIVATION_FINISHED_AFTER Hfa.
   normalize_columns. apply Z.mod_divide in Hstate; [ | unfold modulus; lia].
   destruct Hstate as [k Hstate]. unfold modulus in *; lia.

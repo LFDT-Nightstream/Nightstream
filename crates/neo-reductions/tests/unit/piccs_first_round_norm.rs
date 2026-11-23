@@ -309,6 +309,11 @@ fn source_capture_rejects_malformed_records_even_outside_the_range() {
 
 #[test]
 fn packed_refresh_norm_matches_mixed_storage_through_all_binds() {
+    compare_packed_oracle::<{ 1 << 16 }>(1, 3);
+    compare_packed_oracle::<{ 1 << 19 }>(5, 6);
+}
+
+fn compare_packed_oracle<const WIDTH: usize>(fresh_count: usize, packed_rounds: usize) {
     use super::{Challenges, JointDims, OptimizedPaperJointOracle, PaperJointRoundOracle};
     use crate::superneo_eval::{CachedMatrixRows, SuperneoEvalCacheBuilder};
     use neo_ccs::{
@@ -316,8 +321,7 @@ fn packed_refresh_norm_matches_mixed_storage_through_all_binds() {
         CcsStructure, CcsWitness,
     };
 
-    const WIDTH: usize = 1 << 16;
-    const COLUMNS: usize = WIDTH / D;
+    let columns = WIDTH / D;
     let mut builder = SuperneoEvalCacheBuilder::new(1, WIDTH, 1).unwrap();
     builder.push_row(0, 0, [(0, F::ONE)]).unwrap();
     let cache = builder.finish().unwrap();
@@ -333,7 +337,7 @@ fn packed_refresh_norm_matches_mixed_storage_through_all_binds() {
     let dims = JointDims {
         assignment_width: WIDTH,
         row_count: WIDTH,
-        variables: 16,
+        variables: WIDTH.ilog2() as usize,
         matrix_count: 1,
         degree: 4,
     };
@@ -344,17 +348,17 @@ fn packed_refresh_norm_matches_mixed_storage_through_all_binds() {
     let challenges = Challenges::new(alpha, gamma);
     let params = neo_params::NeoParams::nightstream_p64_k14();
 
-    let large = Mat::compact_signed_unit_from_column_masks(D, COLUMNS, &vec![1 << (D - 1); COLUMNS], &vec![1; COLUMNS])
+    let large = Mat::compact_signed_unit_from_column_masks(D, columns, &vec![1 << (D - 1); columns], &vec![1; columns])
         .unwrap();
-    let mut positive = vec![0; COLUMNS];
+    let mut positive = vec![0; columns];
     positive[0] = 0b1011;
-    let short = Mat::compact_signed_unit_from_column_masks(D, COLUMNS, &positive, &vec![0; COLUMNS]).unwrap();
-    let mut dense = Mat::zero(D, COLUMNS, F::ZERO);
+    let short = Mat::compact_signed_unit_from_column_masks(D, columns, &positive, &vec![0; columns]).unwrap();
+    let mut dense = Mat::zero(D, columns, F::ZERO);
     for row in [0, 1, 3] {
         dense[(row, 0)] = F::ONE;
     }
-    let fresh = [CcsWitness { Z: large }];
-    let empty = Mat::virtual_constant(D, COLUMNS, F::ZERO);
+    let fresh = vec![CcsWitness { Z: large }; fresh_count];
+    let empty = Mat::virtual_constant(D, columns, F::ZERO);
     let packed = [empty.clone(), short];
     let mixed = [empty, dense];
     let prior = vec![gamma; dims.variables];
@@ -369,16 +373,16 @@ fn packed_refresh_norm_matches_mixed_storage_through_all_binds() {
             dims,
             &relation,
             16 << 20,
-            3,
+            fresh_count + packed.len(),
         )
         .unwrap()
     };
     let mut fast = make_oracle(&packed);
     let mut reference = make_oracle(&mixed);
-    assert!(fast.packed_norm.is_some());
     assert!(reference.packed_norm.is_none());
     let points = [K::ZERO, K::ONE, gamma, gamma + K::ONE, -gamma];
     for round in 0..dims.variables {
+        assert_eq!(fast.packed_norm.is_some(), round < packed_rounds, "round {round}");
         assert_eq!(
             fast.evals_at(&points).unwrap(),
             reference.evals_at(&points).unwrap(),

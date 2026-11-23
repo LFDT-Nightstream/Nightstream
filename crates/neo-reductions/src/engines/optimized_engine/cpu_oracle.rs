@@ -314,15 +314,49 @@ impl<'a> OptimizedPaperJointOracle<'a> {
 
     fn bind_norm(&mut self, round: usize, challenge: K) {
         let ordinary = self.norm_polynomial.take();
-        if self.packed_norm.is_some() {
-            if round + 1 == PACKED_NORM_ROUNDS {
+        if let Some(packed) = &mut self.packed_norm {
+            let bound_rounds = round + 1;
+            if bound_rounds == PACKED_NORM_ROUNDS {
                 let point = std::array::from_fn(|i| if i == round { challenge } else { self.point[i] });
-                self.packed_norm_value =
-                    ordinary.map(|polynomial| crate::sumcheck::poly_eval_k(&polynomial, challenge));
-                self.packed_norm
-                    .take()
-                    .expect("packing before the third bind")
-                    .bind(&mut self.assignments, &point);
+                let bound_value = ordinary.map(|poly| crate::sumcheck::poly_eval_k(&poly, challenge));
+                if let Some(previous) = bound_value.filter(|_| self.dims.variables > LANE_BITS && packed.defer()) {
+                    packed.discard_histogram();
+                    let weights = EqualityWeights::new(&self.challenges.alpha[bound_rounds + 1..]);
+                    let higher = packed.moments(&point, &weights, self.challenges.gamma);
+                    self.norm_polynomial = Some(prefix::recover_weighted_constant(
+                        previous,
+                        self.challenges.alpha[bound_rounds],
+                        higher,
+                    ));
+                } else {
+                    self.packed_norm_value = bound_value;
+                    self.packed_norm
+                        .take()
+                        .unwrap()
+                        .bind(&mut self.assignments, &point);
+                }
+            } else if bound_rounds > PACKED_NORM_ROUNDS {
+                let previous = ordinary.expect("deferred rounds carry their norm polynomial");
+                let weights = EqualityWeights::new(&self.challenges.alpha[bound_rounds + 1..]);
+                let gamma = self.challenges.gamma;
+                let mut point = [K::ZERO; LANE_BITS];
+                point[..round].copy_from_slice(&self.point);
+                point[round] = challenge;
+                let point = &point[..bound_rounds];
+                let higher = match bound_rounds {
+                    4 => packed.face::<2>(point, &weights, gamma, &mut self.assignments),
+                    5 => packed.face::<4>(point, &weights, gamma, &mut self.assignments),
+                    6 => packed.face::<8>(point, &weights, gamma, &mut self.assignments),
+                    _ => unreachable!("a packed face spans at most one 64-lane column"),
+                };
+                if bound_rounds == LANE_BITS {
+                    self.packed_norm = None;
+                }
+                self.norm_polynomial = Some(prefix::recover_weighted_constant(
+                    crate::sumcheck::poly_eval_k(&previous, challenge),
+                    self.challenges.alpha[bound_rounds],
+                    higher,
+                ));
             }
             return;
         }
@@ -336,23 +370,40 @@ impl<'a> OptimizedPaperJointOracle<'a> {
                         .all(|table| matches!(table, Assignment::Folded(_))))
         }) {
             let weights = EqualityWeights::new(&self.challenges.alpha[round + 2..]);
-            let mut higher = [K::ZERO; 3];
-            let mut weight = K::ONE;
-            for table in &mut self.assignments {
-                let contribution = match table {
-                    Assignment::Folded(values) => {
-                        prefix::bind_sum_products(values, challenge, &weights, prefix::norm_higher_coefficients)
-                    }
-                    Assignment::Encoded { codes, values, zero } => {
-                        let (dense, higher) = prefix::bind_encoded(codes, values, *zero, challenge, &weights);
-                        *table = Assignment::Folded(dense);
-                        higher
-                    }
-                    Assignment::Input { .. } => unreachable!(),
-                };
-                higher = prefix::add_coefficients(higher, contribution.map(|value| value * weight));
-                weight *= self.challenges.gamma;
-            }
+            let bind = |table: &mut Assignment<'_>| match table {
+                Assignment::Folded(values) => prefix::bind_norm_products(values, challenge, &weights),
+                Assignment::Encoded { codes, values, zero } => {
+                    let (dense, higher) = prefix::bind_encoded(codes, values, *zero, challenge, &weights);
+                    *table = Assignment::Folded(dense);
+                    higher
+                }
+                Assignment::Input { .. } => unreachable!(),
+            };
+            let gamma = self.challenges.gamma;
+            let serial = |tables: &mut [Assignment<'_>]| {
+                let mut higher = [K::ZERO; 3];
+                let mut weight = K::ONE;
+                for table in tables {
+                    higher = prefix::add_coefficients(higher, bind(table).map(|value| value * weight));
+                    weight *= gamma;
+                }
+                higher
+            };
+            #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+            let higher = if !encoded && round > PACKED_NORM_ROUNDS && self.assignments.len() > 2 {
+                self.assignments
+                    .par_iter_mut()
+                    .enumerate()
+                    .map(|(index, table)| {
+                        let weight = gamma_power(gamma, index);
+                        bind(table).map(|v| v * weight)
+                    })
+                    .reduce(|| [K::ZERO; 3], prefix::add_coefficients)
+            } else {
+                serial(&mut self.assignments)
+            };
+            #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+            let higher = serial(&mut self.assignments);
             self.norm_polynomial = Some(prefix::recover_weighted_constant(
                 crate::sumcheck::poly_eval_k(&previous, challenge),
                 self.challenges.alpha[round + 1],

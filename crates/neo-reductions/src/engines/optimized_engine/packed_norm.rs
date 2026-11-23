@@ -1,3 +1,6 @@
+#[path = "packed_norm/deferred.rs"]
+mod deferred;
+
 use neo_math::{D, K};
 use p3_field::PrimeCharacteristicRing;
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]

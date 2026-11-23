@@ -12,6 +12,38 @@ pub const ROW_WORKSPACE_WORDS: usize = TILE_COLUMNS * LIMBS + TILE_COLUMNS * D +
 #[cfg(nightstream_sme2)]
 mod sme2;
 
+pub const MAX_BATCH_PLANES: usize = 6;
+const CHILD_TILE_BYTES: usize = 165_888;
+const CHILD_PLANE_BYTES: usize = 73_728;
+const CHILD_STACK_AND_PAGE_SLACK: usize = 64 << 10;
+
+pub fn child_batch_workspace_bytes(planes: usize) -> usize {
+    assert!((1..=MAX_BATCH_PLANES).contains(&planes));
+    CHILD_TILE_BYTES + planes * CHILD_PLANE_BYTES + CHILD_STACK_AND_PAGE_SLACK
+}
+
+pub fn child_batch_available() -> bool {
+    #[cfg(nightstream_sme2)]
+    return sme2::available_on_this_thread();
+    #[cfg(not(nightstream_sme2))]
+    false
+}
+
+pub fn try_child_batch_dot(
+    key_words: &[u64],
+    columns: &[u32],
+    planes: &[(&[u64], &[u64])],
+    out: &mut [[F; D]],
+) -> bool {
+    #[cfg(nightstream_sme2)]
+    return sme2::child_batch_dot(key_words, columns, planes, out);
+    #[cfg(not(nightstream_sme2))]
+    {
+        let _ = (key_words, columns, planes, out);
+        false
+    }
+}
+
 pub fn packed_signed_ring_dot(key_words: &[u64], positive: &[u64], negative: &[u64]) -> [F; D] {
     #[cfg(nightstream_sme2)]
     if let Some(row) = sme2::try_signed_ring_dot(key_words, positive, negative) {

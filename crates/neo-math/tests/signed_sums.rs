@@ -243,3 +243,84 @@ fn accelerated_signed_ring_dot_matches_integer_sums_across_groups() {
     negative.fill(0);
     check(&keys, &positive, &negative, [Fq::ZERO; D]);
 }
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn sme2_child_batches_match_indexed_ring_products() {
+    use neo_math::signed_sums::accelerate::{child_batch_available, try_child_batch_dot, MAX_BATCH_PLANES};
+
+    if !child_batch_available() {
+        return;
+    }
+    let columns = 263;
+    let keys: Vec<u64> = (0..columns * D)
+        .map(|i| match (i / D) % 4 {
+            0 => u64::MAX,
+            1 => Q,
+            2 => Q - 1,
+            _ => ((i as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15)).rotate_left(i as u32),
+        })
+        .collect();
+    let planes: Vec<_> = (0..MAX_BATCH_PLANES)
+        .map(|plane| {
+            (0..columns)
+                .map(|i| match plane {
+                    0 if i < 128 => (0, 0),
+                    1 => (u64::MAX, 0),
+                    2 => (0, u64::MAX),
+                    3 => (u64::MAX, u64::MAX),
+                    4 if i % 128 != 0 => (0, 0),
+                    _ => {
+                        let bit = 1u64.rotate_left((i + plane) as u32);
+                        (bit | (1 << 63), (bit << 1) | (1 << 63))
+                    }
+                })
+                .unzip::<_, _, Vec<_>, Vec<_>>()
+        })
+        .collect();
+    let planes: Vec<_> = planes
+        .iter()
+        .map(|(pos, neg)| (pos.as_slice(), neg.as_slice()))
+        .collect();
+    for count in [0, 1, 3, 4, 127, 128, 129, 257] {
+        let indices: Vec<_> = (0..count).map(|i| ((7 * i) % columns) as u32).collect();
+        let mut expected = vec![[Fq::ZERO; D]; planes.len()];
+        for (&(pos, neg), row) in planes.iter().zip(&mut expected) {
+            let mut sum = SignedShiftSums::zero();
+            for &index in &indices {
+                let i = index as usize;
+                let ring = SplitRing::from_u64(keys[i * D..(i + 1) * D].try_into().unwrap());
+                sum.add_signed_units(&ring, pos[i], neg[i]);
+            }
+            *row = sum.reduce();
+        }
+        for n in 1..=planes.len() {
+            let mut actual = vec![[Fq::ONE; D]; n];
+            assert!(try_child_batch_dot(&keys, &indices, &planes[..n], &mut actual));
+            assert_eq!(actual, expected[..n]);
+        }
+    }
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn sme2_child_dot_reduces_across_accumulator_chunks() {
+    use neo_math::signed_sums::accelerate::{child_batch_available, try_child_batch_dot};
+
+    if !child_batch_available() {
+        return;
+    }
+    let keys = [u64::MAX; D];
+    let count = (1 << 20) + 1;
+    let indices = vec![0; count];
+    let mut actual = [[Fq::ZERO; D]];
+    assert!(try_child_batch_dot(
+        &keys,
+        &indices,
+        &[(&[0], &[u64::MAX])],
+        &mut actual
+    ));
+    let mut term = SignedShiftSums::zero();
+    term.add_signed_units(&SplitRing::from_u64(&keys), 0, u64::MAX);
+    assert_eq!(actual[0], term.reduce().map(|v| v * Fq::from_u64(count as u64)));
+}

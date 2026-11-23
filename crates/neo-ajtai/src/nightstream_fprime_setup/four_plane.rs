@@ -9,7 +9,7 @@ use super::{
 
 const GROUP: usize = 4;
 const PATTERNS: usize = 1 << GROUP;
-const MAX_PLANES: usize = 14;
+pub(super) const MAX_PLANES: usize = 14;
 const SEGMENT_COLUMNS: usize = 256;
 const SEGMENTS_PER_TASK: usize = 4;
 const MASK_TABLE_BYTES: usize = 8 << 20;
@@ -96,6 +96,31 @@ impl<'a> MaskTable<'a> {
     }
 }
 
+pub(super) struct TableLayout {
+    masks_per_column: usize,
+    columns_per_batch: usize,
+}
+
+impl TableLayout {
+    pub(super) fn new(planes: usize, columns: usize) -> Option<Self> {
+        if !(3..=MAX_PLANES).contains(&planes) || columns as u64 > MAX_EXACT_TERMS / (PATTERNS as u64 / 2) {
+            return None;
+        }
+        let masks_per_column = (planes / GROUP) * (PATTERNS - 1) + (1 << (planes % GROUP)) - 1;
+        let segment_bytes =
+            size_of::<MaskTable>() + SEGMENT_COLUMNS * (size_of::<u16>() + masks_per_column * size_of::<Mask>());
+        Some(Self {
+            masks_per_column,
+            columns_per_batch: (MASK_TABLE_BYTES / segment_bytes) * SEGMENT_COLUMNS,
+        })
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    pub(super) fn reserved_mask_bytes(&self, columns: usize) -> usize {
+        columns.min(self.columns_per_batch) * (size_of::<u16>() + self.masks_per_column * size_of::<Mask>())
+    }
+}
+
 pub(super) fn commit_if_supported(
     blocks: &[Vec<SignedBlock>],
     columns: &[u64],
@@ -109,25 +134,18 @@ pub(super) fn commit_if_supported(
         .filter(|(_, plane)| !plane.is_empty())
         .take(MAX_PLANES + 1)
         .collect();
-    if !(3..=MAX_PLANES).contains(&planes.len()) || columns.len() as u64 > MAX_EXACT_TERMS / (PATTERNS as u64 / 2) {
+    let Some(layout) = TableLayout::new(planes.len(), columns.len()) else {
         return false;
-    }
-    let masks_per_column: usize = planes
-        .chunks(GROUP)
-        .map(|group| (1 << group.len()) - 1)
-        .sum();
-    let segment_bytes =
-        size_of::<MaskTable>() + SEGMENT_COLUMNS * (size_of::<u16>() + masks_per_column * size_of::<Mask>());
-    let segments_per_batch = MASK_TABLE_BYTES / segment_bytes;
+    };
     let rows = PRODUCTION_VERIFIER_ROWS as usize;
     let mut totals = vec![SignedShiftSums::zero(); rows * planes.len()];
-    for batch in columns.chunks(segments_per_batch * SEGMENT_COLUMNS) {
+    for batch in columns.chunks(layout.columns_per_batch) {
         #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
         let segments = batch.par_chunks(SEGMENT_COLUMNS);
         #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
         let segments = batch.chunks(SEGMENT_COLUMNS);
         let tables: Vec<_> = segments
-            .map(|segment| MaskTable::new(segment, &planes, masks_per_column))
+            .map(|segment| MaskTable::new(segment, &planes, layout.masks_per_column))
             .collect();
         let parts = tables.len().div_ceil(SEGMENTS_PER_TASK);
         let tasks = 0..rows * parts;

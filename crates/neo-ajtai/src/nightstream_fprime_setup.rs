@@ -1,5 +1,7 @@
 use std::{borrow::Borrow, ops::Range};
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+mod child_batch;
 mod expanded;
 mod four_plane;
 mod key;
@@ -309,6 +311,10 @@ impl SignedUnitBatchError {
 pub fn commit_production_signed_unit_prefix_matrices<W: Borrow<Mat<Fq>>>(
     witnesses: &[W],
 ) -> Result<Vec<Commitment>, SignedUnitBatchError> {
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    if let Some(commitments) = child_batch::commit(witnesses) {
+        return Ok(commitments);
+    }
     let blocks = witnesses
         .iter()
         .enumerate()

@@ -113,9 +113,11 @@ theorem tensorCheck_staged {Coord : Type} [Fintype Coord] [DecidableEq Coord] [N
     (combRound_truth ν 2 (tensorTables w tail η) productComb productComb_degree).degree []
     (fun result rest => StagedTo (Coord → E) (match result with
       | none => Game.pure none
-      | some (ρ, final) => Game.pure (some (ρ, mle ρ (tensorWeight tail η), final))) rest
+      | some (ρ, final) => Game.recv E fun product =>
+          if final = product then Game.pure (some (ρ, mle ρ (tensorWeight tail η), product))
+          else Game.pure none) rest
         fun _ _ => True)
-    (fun _ => trivial) (fun _ => trivial) ν []
+    (fun _ => trivial) (fun _ _ => by dsimp only; split <;> trivial) ν []
     ((1 - η) * tensorRow columns false + η * tensorRow columns true) (by simp)
   rw [List.append_nil] at rounds
   exact (stagedTo_bind _ _ _ _).mpr rounds

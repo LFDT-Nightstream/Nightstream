@@ -16,9 +16,11 @@ The reduction has `κ = 1` head variable, which is the first variable of the poi
   coordinates `ẽq(r_tail, x) = A_0(x)·β_0 + A_1(x)·β_1`.
 - `tensorCheck ν w` is the verifier for a claim `w̃(r_head, r_tail) = v` with `ν` tail variables.
   It receives the column partials `S_y`, checks `v = (1 − r_head)·S_0 + r_head·S_1`, draws `η`,
-  and runs the sum-check of degree 2 for `c_η = Σ_x f̄(x)·A_η(x)`. It ends in the point `ρ`, the
-  factor `θ = A_η(ρ)` and the final product `ṽ` of the sum-check. The bad sets are the root of the
-  row discrepancy in `η` and the roots of each round.
+  and runs the sum-check of degree 2 for `c_η = Σ_x f̄(x)·A_η(x)`. It receives then the final
+  product `ṽ` and checks that it is the end of the sum-check (Akita Section 5.2: "The prover
+  supplies one final product"; one claim, so its batching coefficient is 1). It ends in the point
+  `ρ`, the factor `θ = A_η(ρ)` and `ṽ`. The bad sets are the root of the row discrepancy in `η`
+  and the roots of each round.
 - `tensorCheck_avoids` is the soundness part of Akita Theorem 5.1 for one claim: on a path that
   avoids the bad sets, a true forwarded claim `ṽ = θ·f̄(ρ)` gives the input claim.
 - `tensorCheck_winsTo` and `tensorCheck_complete` are the completeness part: for a true input
@@ -81,9 +83,10 @@ noncomputable def tensorSum (ν : ℕ) (w : Table) (tail : List E) (u : Bool) : 
     algebraMap Zq E (if u then Degree2.im (eqAt tail x) else Degree2.re (eqAt tail x))
 
 /-- The verifier of the tensor reduction for the table `w` and a claim `w̃(r_head, r_tail) = v`
-with `ν` tail variables (Akita Sections 3.7 and 5.2, one claim, `κ = 1`). It ends in `none` when
-a check fails, and otherwise in the point `ρ`, the factor `θ = A_η(ρ)` and the final product
-`ṽ`, which is the claim `ṽ = θ·f̄(ρ)`. -/
+with `ν` tail variables (Akita Sections 3.7 and 5.2, one claim, `κ = 1`). After the sum-check it
+receives the final product `ṽ` and checks that the end of the sum-check is `ṽ`. It ends in `none`
+when a check fails, and otherwise in the point `ρ`, the factor `θ = A_η(ρ)` and `ṽ`, which is the
+claim `ṽ = θ·f̄(ρ)`. -/
 noncomputable def tensorCheck (ν : ℕ) (w : Table) :
     List E → E → Game (Option (List E × E × E))
   | [], _ => .pure none
@@ -98,7 +101,9 @@ noncomputable def tensorCheck (ν : ℕ) (w : Table) :
               (sumcheck 2 (combRound ν (tensorTables w tail η) productComb) ν []
                 ((1 - η) * tensorRow columns false + η * tensorRow columns true)).bind fun
                 | none => .pure none
-                | some (ρ, final) => .pure (some (ρ, mle ρ (tensorWeight tail η), final))
+                | some (ρ, final) => .recv E fun product =>
+                    if final = product then .pure (some (ρ, mle ρ (tensorWeight tail η), product))
+                    else .pure none
           else .pure none
       else .pure none
 
@@ -208,6 +213,14 @@ theorem tensorCheck_avoids (ν : ℕ) (w : Table) (r : List E) (v : E) :
   rintro (_ | ⟨ρ, final⟩) ⟨sound, ends⟩
   · intro ρ θ value equal
     simp at equal
+  intro product
+  dsimp only
+  split
+  swap
+  · intro ρ θ value equal
+    simp at equal
+  rename_i same
+  subst same
   intro ρ' θ' value' equal opening
   simp only [Option.some.injEq, Prod.mk.injEq] at equal
   obtain ⟨rfl, rfl, rfl⟩ := equal
@@ -277,7 +290,7 @@ theorem rows_of_columns {ν : ℕ} (w : Table) {tail : List E} (length : tail.le
 `v = w̃(r_head, r_tail)`, the prover sends the column partials `S_y = w̃(y, r_tail)` and the true
 round polynomials, and the tensor reduction ends in a point `ρ` of `ν` coordinates, a factor `θ`
 and the forwarded claim `θ·f̄(ρ)`, after `ν + 1` draws. -/
-theorem tensorCheck_winsTo (fits : Type → Prop) (columns : fits (E × E))
+theorem tensorCheck_winsTo (fits : Type → Prop) (columns : fits (E × E)) (scalar : fits E)
     (quadratic : fits (Fin (2 + 1) → E)) {ν : ℕ} (w : Table) (head : E)
     {tail : List E} (length : tail.length = ν) :
     WinsTo fits (tensorCheck ν w (head :: tail) (mle (head :: tail) (lifted E w)))
@@ -303,6 +316,9 @@ theorem tensorCheck_winsTo (fits : Type → Prop) (columns : fits (E × E))
   · simp only [List.length_nil, zero_add] at count
     have last := product_truth_final final (tensorTables w tail η)
     rw [count] at last
+    refine ⟨rfl, scalar, combTruth ν (tensorTables w tail η) productComb final, ?_⟩
+    dsimp only
+    rw [ite_eq_left rfl]
     refine ⟨final, mle final (tensorWeight tail η), count, ?_⟩
     rw [last, mul_comm]
     rfl
@@ -317,6 +333,7 @@ theorem tensorCheck_complete {ν : ℕ} (w : Table) (head : E) {tail : List E}
         (fun result => ∃ (ρ : List E) (θ : E),
           ρ.length = ν ∧ result = some (ρ, θ, θ * mle ρ (packed w))) = 1 :=
   ⟨_, prob_honest (fun _ => True)
-    (tensorCheck_winsTo (fun _ => True) trivial trivial w head length) fun _ _ _ ended => ended⟩
+    (tensorCheck_winsTo (fun _ => True) trivial trivial trivial w head length)
+      fun _ _ _ ended => ended⟩
 
 end NightstreamFPrime.Spec.Compression.Akita

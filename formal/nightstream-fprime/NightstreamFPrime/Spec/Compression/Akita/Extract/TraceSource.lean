@@ -70,10 +70,11 @@ noncomputable def traceImageForm (challenge : Fin S.blocks → Rq S.innerDegree)
   multiplier entry := challenge entry.1 * (S.openingBase : Rq S.innerDegree) ^ (entry.2 : ℕ)
   address entry := O.innerCell fold entry.1 a entry.2
 
-/-- Row `a` of the inner row (104) of Akita Figure 5 with `c^A_i = c_i`, in `R_{q,d_A}`. -/
+/-- Row `a` of the inner row (104) of Akita Figure 5 with `c^A_i = c_i`, in `R_{q,d_A}`, as its
+left side minus its right side (110), the sign of the pinned code. -/
 noncomputable def traceInnerRow (key : Key S) (challenge : Fin S.blocks → Rq S.innerDegree)
     (a : Fin S.innerRank) : RingRow :=
-  ((responseForm fold key a).sub (traceImageForm O fold challenge a)).row 0
+  ((traceImageForm O fold challenge a).sub (responseForm fold key a)).row 0
 
 /-- The weight of the cell `x` in the scalar row (101) of Akita Figure 5: the sum of
 `θ·χ_blk(i)·b_1^u·T_{ρ_pack}(X^j)` over the digits `u` of the coordinates `j` of the partials `i`
@@ -168,9 +169,9 @@ theorem traceRows_below (st : TraceStatement O E) (challenge : Fin S.blocks → 
       (g := traceContractForm fold st.subfield st.position)
       (fun _ _ _ => O.partialPosition_lt fold _ _ _) (fun _ _ _ => O.responseCell_lt fold _ _)).row
         0
-  · exact (Form.Below.sub (f := responseForm fold st.key a)
-      (g := traceImageForm O fold challenge a)
-      (fun _ _ _ => O.responseCell_lt fold _ _) (fun _ _ _ => O.innerCell_lt fold _ _ _ _)).row 0
+  · exact (Form.Below.sub (f := traceImageForm O fold challenge a)
+      (g := responseForm fold st.key a)
+      (fun _ _ _ => O.innerCell_lt fold _ _ _ _) (fun _ _ _ => O.responseCell_lt fold _ _)).row 0
 
 theorem traceRows_degree_le (st : TraceStatement O E)
     (challenge : Fin S.blocks → Rq S.innerDegree) (r : Fin O.traceRowCount) :
@@ -259,6 +260,7 @@ theorem traceInnerRow_holds (key : Key S) (challenge : Fin S.blocks → Rq S.inn
         (∑ i, challenge i • gadget S.openingBase (w.inner i)) a := by
   rw [traceInnerRow, Form.row_holds, Form.value_sub, sub_eq_zero, responseForm_value,
     traceImageForm_value]
+  exact eq_comm
 
 /-- The rows without a fold challenge hold for the flat witness when the digit vectors satisfy
 the rows (105) and (106) with their rows (47) or (48), and only then. -/

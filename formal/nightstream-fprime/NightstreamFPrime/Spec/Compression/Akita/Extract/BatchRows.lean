@@ -223,10 +223,10 @@ theorem flatRows_below (r : Fin B.planeRows) : (B.flatRows β st challenge r).Be
       (fun _ _ _ => (B.opening g).partialPosition_lt (B.fold g) _ _ _)
       (fun _ _ _ => (B.opening g).responseCell_lt (B.fold g) _ _)).row 0) (moves g)
   · exact RingRow.Below.relocate ((Form.Below.sub
-      (f := responseForm (B.fold g) (st.key g) a)
-      (g := imageForm (B.opening g) (B.fold g) (challenge g) a)
-      (fun _ _ _ => (B.opening g).responseCell_lt (B.fold g) _ _)
-      (fun _ _ _ => (B.opening g).innerCell_lt (B.fold g) _ _ _ _)).row 0) (moves g)
+      (f := imageForm (B.opening g) (B.fold g) (challenge g) a)
+      (g := responseForm (B.fold g) (st.key g) a)
+      (fun _ _ _ => (B.opening g).innerCell_lt (B.fold g) _ _ _ _)
+      (fun _ _ _ => (B.opening g).responseCell_lt (B.fold g) _ _)).row 0) (moves g)
   · exact RingRow.Below.relocate (imageRow_below (B.shape g).chain _ _ _
       (fun _ => Form.ofMatrix_below _
         (fun _ _ _ => (B.opening g).sliceCell_lt (B.fold g) _ _ _) _)

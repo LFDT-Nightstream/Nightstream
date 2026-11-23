@@ -310,8 +310,9 @@ soundness of the opening as a premise: the claims of `Claims.AkitaKey20` and
 These are the differences that the security model had in trust item 7, (a) to
 (j), the differences of the opening with an offloaded root, (k) to (o), a
 difference of the relation rows, (p), the count of the filtered families, (q),
-and the wire type of the acceptance results, (r). The section Open points
-lists the points that need a decision.
+the wire type of the acceptance results, (r), and the Lean replay of real
+proof bytes, (s) to (v). The section Open points lists the points that need a
+decision.
 
 - (a) The extraction of the paper uses one oracle output for each fold
   coordinate: its sampler has "separately indexed oracle queries from a fixed
@@ -344,7 +345,41 @@ lists the points that need a decision.
   the input claim of a sum-check (`akita-sumcheck/src/proof_stream.rs`), and
   the Lean model has no encoding of the messages of the code, so no Lean
   statement shows that the absorbed bytes of the code are an injective key. For the filtered challenge
-  families of the ℓ2 levels, a slot is the j-th accepted candidate. In
+  families of the ℓ2 levels, a slot is the j-th accepted candidate.
+  Lean has the sampler of the code as a function of the squeezed message of
+  a group (`Spec.Compression.Akita.Replay.sample`, from
+  `crates/akita-challenges/src/sampler/stream.rs` of the Akita code), and it
+  gives the fold challenges of the code on the four vectors of real proofs.
+  Its candidate `j` is the word `j` of `K` bits of the message, with
+  `K = FoldGroup.candidateBits` of the group. The decoder of one word
+  (`Spec.Compression.Akita.Replay.slotDecode`) is injective
+  (`Spec.Compression.Akita.Replay.slotDecode_injective`), so its slot
+  probability is at most `2^−K`, which is at most `1/q²` for `K ≥ 128`
+  (`Spec.Compression.Akita.Replay.slotChance_slotDecode`,
+  `Spec.Compression.Akita.Replay.slotChance_le_field`). Without a filter it
+  decodes each word (`Spec.Compression.Akita.Replay.slotDecode_isSome`),
+  which is the hypothesis `total` of
+  `Claims.AkitaKey20.key20_root_search_total` and
+  `Claims.AkitaKey20.key20_level1_search_total`, the challenge `j` is the
+  decoded word `j` (`Spec.Compression.Akita.Replay.sample_unfiltered`), and
+  the draw never fails (`Spec.Compression.Akita.Replay.sample_isSome`). With
+  a filter the challenges are the first accepted words of the pool in order
+  (`Spec.Compression.Akita.Replay.sample_filtered`). Without a filter the
+  decoder has `SignFair`
+  (`Spec.Compression.Akita.Replay.signFair_slotDecode`), so the search bound
+  of level 1 of `key20.aks` holds for the decoder of the code
+  (`Spec.Compression.Akita.Replay.level₁_search_code`, the statement of
+  `Spec.Compression.Akita.Key20.level₁_search_total`). What stays open: the
+  decoders of the claims are `Spec.Compression.Akita.Extract.draw` from one
+  slot of `E`, not `slotDecode`, and no claim is restated with the decoder of
+  the code; the three groups of the root have words of two lengths, and
+  `Spec.Compression.Akita.Key20.root_search_total` has one slot type for
+  them; that the words of one squeezed message are independent uniform slots
+  is the slot reading of `[KECCAK]`; and the event that the pool of a
+  filtered group runs out (the code rejects, and the prover tries the next
+  response nonce) has no Lean bound: the code sizes the pool from an
+  estimated acceptance rate (`operator_norm_rates`) and bounds the event only
+  at that rate. In
   `Export.BoundedDepth.FinalKey20.sound`, the Poseidon2 transcript of the
   argument and the Keccak transcript of Akita are one table. No Lean statement
   joins the two hash functions of the code to it. Such a statement would have
@@ -403,7 +438,7 @@ lists the points that need a decision.
   stays: in the quotient segment of the carrier row the code has the order
   digit, plane, coefficient of Akita (348), and the model has the order plane,
   digit, coefficient in the same cells, because the model has the quotient of
-  each plane as one polynomial over `Z_q` (difference (p)). The batching weights of the root are
+  each plane as one polynomial over `Z_q` (differences (p) and (v)). The batching weights of the root are
   independent draws, as in the code, and not the powers of one challenge, as in
   the paper (`Spec.Compression.Akita.Extract.density_batched_le`). The model
   has one claim for each group and the extension degree 2 in its trace and
@@ -428,6 +463,18 @@ lists the points that need a decision.
   above 1 at the draw width `w = 64` of the code, so it bounds nothing. The
   code uses exact rejection sampling, and
   `Spec.Compression.Akita.Setup.expand_le` gives the bound for a finite stream.
+  The code expands the flat vector in pages of 4096 elements
+  (`shake256-paged-v1`, `crates/akita-types/src/proof/setup.rs` of the Akita
+  code): page `j` is its own SHAKE256 stream after a header with `j`, with
+  exact rejection of the words `q` or more. Each page is
+  `Spec.Compression.Akita.Setup.expand` of the words of its stream
+  (`Spec.Compression.Akita.Replay.page_expand`), and for independent uniform
+  page streams the flat vector has the bound of `expand_le` with one term for
+  each page (`Spec.Compression.Akita.Replay.paged_le`). That the streams of
+  the pages are independent is a part of `[KECCAK]`. The code reads each page
+  until it keeps 4096 words, so it has no short stream. The replay reads 64
+  words more than 4096 for each page, and it stops with a mismatch when a
+  page rejects more of them (`Spec.Compression.Akita.Replay.Setup.page`).
   Lean joins the lists of instances with the views of one setup vector: for keys
   whose matrices are these views, a solution gives a solution for the view of
   an instance of the list itself, and Akita Lemma 10.20 (i) then applies to
@@ -614,10 +661,23 @@ lists the points that need a decision.
   of Stage 3, and `s_{ρ_S}`. Stage 3 has the degree 2 and one round for each
   variable of the setup prefix in the three. These points stay. The code
   checks the final equation of Stage 2 after Stage 3, and Lean checks it
-  before Stage 3, so the two reject the same transcripts for this equation.
+  before Stage 3, so the two reject the same transcripts for this equation;
+  only the name of the first failed check can differ. The replay checks in
+  the order of the code.
   The code absorbs the identifier of the registry slot of the setup prefix
   before `σ_S`, and the Lean model has the commitment `registry` as a fixed
-  value. The form of the code is the form of the paper with the weight
+  value. The slot and the commitment rows of the setup prefix
+  (`stage3.slot`, `setup_prefix.commitment_rows`) are inputs of the
+  verifier setup that the code does not recompute:
+  `AkitaVerifierSetup::from_parts` "does not prove that each stored prefix
+  commitment was derived from that matrix", and the callers must establish
+  that provenance (`crates/akita-types/src/proof/setup.rs` of the Akita
+  code). Nightstream reads them from its verification key
+  (`crates/ns-compress/src/key.rs`, `crates/ns-compress/artifacts/key30.vk`),
+  so by the rule of the code they are trusted inputs of the verification
+  key. The end check of Stage 3 reads no setup element: the setup prefix
+  enters through the value `s_{ρ_S}` and its opening at level 1 against these
+  rows. The form of the code is the form of the paper with the weight
   `ω_setup` written as a product, so it is an identity and not another
   check. Each element of `ẑ`, `ê` and `t̂` that a view of the setup multiplies
   starts at a multiple of 128 cells in the witness, and each ring degree of
@@ -632,10 +692,17 @@ lists the points that need a decision.
   factor is `Spec.Compression.Akita.powerScale` of `α` at the first 7
   coordinates of `r_2`, which is `evaluate_power_sequence_mle` of the code,
   and the weight of Stage 3 reads only the other coordinates of `r_2`. The
-  verifier of the claims of `Claims.AkitaKey30` has this split. One point
-  stays: Lean defines the weight of Stage 3 as the extension of the first
-  cells of the blocks, and it has no formula for it of the kind of
-  `SetupIndexWeightMle` of the code.
+  verifier of the claims of `Claims.AkitaKey30` has this split. The replay
+  has the weight of Stage 3 of the code
+  (`Spec.Compression.Akita.Replay.stage3Weight`, from `SetupIndexWeightMle`
+  and `setup_index_weight_at`), and the end check of Stage 3 holds with it on
+  the two vectors of `key30.aks`; the run of Stage 3 of the code is
+  `setupCheck` of the specification
+  (`Spec.Compression.Akita.Replay.stage3Run_runs`). No theorem relates this
+  weight to the weight of `Spec.Compression.Akita.Batch.codeScan`: the model
+  has the main segments of the witness and the columns of `D` in the order
+  `Fin n` of the groups, and the code has them in `root_group_order`
+  (difference (v)).
 - (l) The batching stage of the two claims of level 1 has the weights `(1,
   ϑ_grp)` in the paper, Akita (137). The Lean stage has an independent weight
   for each claim, as at the root
@@ -712,7 +779,15 @@ lists the points that need a decision.
   code; `Spec.Compression.Akita.fusedCheck`).
 - (q) The decoder `Spec.Compression.Akita.Extract.draw` of a filtered family
   is an injection of the slots into the members that pass the filter of the
-  code. Lean does not prove that `q²` members or more pass. Akita Table 12
+  code. The decoder of the code from one word of the message gives exactly
+  these members: each accepted word gives a member of `SparseFamily d n₁ n₂`
+  that passes `TrigTable.codeAccepts d Γ`, and each such member comes from
+  exactly one word (`Spec.Compression.Akita.Replay.slotDecode_mem`,
+  `slotDecode_injective`, `slotDecode_surjective`, `card_accepted`). So
+  `Kept` is the statement that `2^128` or more of the `2^K` words of a
+  candidate are accepted by the code
+  (`Spec.Compression.Akita.Replay.kept_slots`). Lean does not prove that
+  `q²` members or more pass. Akita Table 12
   certifies `2^128` members or more for the family `(31, 11)` of the degree 64
   at `Γ = 18` and for the family `(31, 0)` of the degree 128 at `Γ = 13`, from
   exact moments and a rational tail polynomial, with a margin of 0.06 bits at
@@ -753,65 +828,242 @@ lists the points that need a decision.
   its points as lists and is not finite.
 - (s) The Lean replay of real proof bytes. Lean has computable functions that
   read the bytes of an opening proof of the pinned code
-  (`Spec/Compression/Akita/Replay/`), and
-  `formal/nightstream-fprime/tests/AkitaVectors.lean` and
-  `tests/AkitaSumcheckVectors.lean` run them on four accepted proofs and two
+  (`Spec/Compression/Akita/Replay/`). The tests `AkitaVectors.lean`,
+  `AkitaSumcheckVectors.lean`, `AkitaSamplerVectors.lean`,
+  `AkitaTerminalVectors.lean`, `AkitaFusedVectors.lean`,
+  `AkitaStage3Vectors.lean` and `AkitaPackingVectors.lean` of
+  `formal/nightstream-fprime/tests/` run them on four accepted proofs and two
   files of changed proofs (`formal/nightstream-fprime/tests/vectors/akita/`).
-  From the proof bytes and the public inputs only, Lean derives each message,
-  each field challenge, each proof-of-work check, each absorbed value and the
-  claim chain of each sum-check, and each one equals the value of the Rust
-  verifier. Lean evaluates the end checks of the tensor reduction, of each
-  stage of the range proof and of the norm check, and the integer check of
-  the norm, in the order of the code. For these stages Lean proves that the
-  verifier of the specification, on the path of the messages and the
-  challenges of the code, ends in the result of the replay function, for
-  acceptance and for rejection
-  (`Spec.Compression.Akita.Replay.rangeRun_runs`, `treeRun_runs`,
-  `leafRun_runs`, `normRun_runs`, `tensorRun_runs`, with
-  `sumcheckRun_eqSumcheck` and `sumcheckRun_plain`). The code checks also
-  `E_resp < q` and receives the final claim of the tensor reduction as a
-  message that it compares with the end of the sum-check; the specification
-  has `E_resp ≤ S_max` with `S_max < q` and no such message. The parts that
-  Lean does not replay are the fold challenge sampler (Lean squeezes its bytes
-  and does not decode them), the end check of the fused sum-check and of
-  Stage 3 (they need the relation weight at the sum-check point), and the
-  terminal checks. So Lean gives no accept result for a proof. For a changed
-  proof Lean gives the result class of the Rust verifier, at the same site,
-  when the parse, the trailing bytes, a proof of work, the response nonce or
-  one of the equations above fails first: 214 of the 216 changes of
-  `key20.aks` and the 10 changes of `key30.aks`. The two other changes fail
-  at the digest of the last block of `e` of the terminal. The functions
-  for Keccak, the duplex sponge, the challenge decoder, the site order and
-  the relation rows have no theorem that relates them to the Lean verifier
-  `towerAccepts`, and no theorem joins the stage theorems above to the replay
-  of the transcript: their evidence is the equality with the Rust values on
-  these proofs. The replay found two places where the Lean verifier did not
-  have the form of the code, and the Lean verifier now has the form of the
-  code in both. First, the code puts the rows of the last group of a level
-  before the rows of the other groups, in each row family
-  (`root_group_order` and `build_relation_rhs_layout` of `crates/akita-params`
-  of the Akita code). Akita Figure 5 has "increasing group" in a family.
-  This is a choice of the code. Akita Theorem 7.4 fixes "the canonical row
-  order" before `α` and holds for each fixed order, so the argument of the
-  paper covers the code. The Lean rows have the order of the code
+  The inputs are the proof bytes, the public inputs and the seed of the setup
+  (`Spec.Compression.Akita.Replay.Public.seed`). From these inputs only,
+  Lean derives each message, each field challenge, each proof-of-work check,
+  each absorbed value, the claim chain of each sum-check and the fold
+  challenges of each group, and each one equals the value of the Rust
+  verifier.
+
+  The replay evaluates these checks in the order of the code: the end checks
+  of the tensor reduction, of each stage of the range proof and of the norm
+  check, the integer check of the norm, the end check `fused.end` of the
+  fused sum-check at each level with evaluation trace, the end check
+  `stage3.end` of Stage 3 at the root of `key30.aks`, and the terminal
+  checks. The terminal checks are the decoder of `z`, its norm, the last
+  blocks of `e` and `t` from the inverse of the last fold challenge with
+  their digests, the rows of `A·z` with `A` from the setup of the seed, and
+  the trace row. At the levels with coefficient packing, the replay
+  evaluates `fused.end` with `Spec.Compression.Akita.Replay.foldFused`
+  (`Spec.Compression.Akita.Replay.Replayer.step_packing_runs`). So the replay
+  accepts only when each check of the code passes. The Rust test of the
+  vectors cannot evaluate `fused.end`, `stage3.end`, the rows of `A` and the
+  digest of the last block of `t`, so the Lean checks are the first
+  independent checks of them. Each check holds on each of the four proofs,
+  and a change of one value makes it fail: `v_W + 1` at each level, one
+  setup element or one fold challenge at one level of each kind, and each of
+  the four cell orders of the model at the levels with coefficient packing
+  (difference (v)).
+
+  For a changed proof, Lean gives the result class of the Rust verifier from
+  the bytes only. At 17 changes of `key20.aks` the replay rejects at
+  `fused.end` of the level of the change (3 at the root, 3 at level 1, 11 at
+  the levels 2 to 5), and at 2 changes of `key30.aks` it rejects at
+  `stage3.end`. The file names a later site for these 19 changes, and the
+  test has their exact list. The
+  code checks these equations before its next transcript operation
+  (`crates/akita-verifier/src/fold/mod.rs` of the Akita code), but the Rust
+  test cannot evaluate them, so it names its next failure, a proof of work.
+  At each other change, the replay gives the class and the site of the file.
+- (t) The theorems that join the replay to the specification. For each
+  stage, Lean proves that the verifier of the specification, on the path of
+  the messages and the challenges of the code, ends in the result of the
+  stage function of the replay, for acceptance and for rejection. Lean also
+  proves that the step of the replay records this result and rejects exactly
+  when it fails.
+
+  The sum-checks: `Spec.Compression.Akita.Replay.sumcheckRun_eqSumcheck` and
+  `sumcheckRun_plain`. The range proof, the norm check and the tensor
+  reduction: `Spec.Compression.Akita.Replay.rangeRun_runs`, `treeRun_runs`,
+  `leafRun_runs`, `normRun_runs` and `tensorRun_runs`, with the steps
+  `Spec.Compression.Akita.Replay.Replayer.step_stage`, `step_range_runs`,
+  `step_norm_runs` and `step_tensor_runs`. The integer check of the code is
+  `E_resp ≤ S_max` and `E_resp < q` (`validate_integer_claim`). For
+  `S_max < q`, which holds at each level of the two files, it gives the
+  result of the check `E_resp ≤ S_max` of the specification on each `E_resp`
+  (`Spec.Compression.Akita.Replay.energyFits_iff`). The replay computes the
+  factor `θ` as the code does, and it is the factor of `tensorCheck`
+  (`Spec.Compression.Akita.Replay.tensorFactor_into`).
+
+  The fused claim: for the reductions of the claims at each level
+  (`Batch.liftedReduction`, `liftedReduction`, `traceReduction`), the fused
+  claim of the replay is `V_{α,τ_1}` of the rows of the specification plus
+  `β·image + η·virtual`, for a statement whose payloads are those of the
+  proof (`Spec.Compression.Akita.Replay.batch_fused`, `packing_fused`,
+  `trace_fused`, `layout20_relations`, `layout30_relations`).
+
+  The fold challenges: the step of a squeeze runs the sampler of difference
+  (a) on the squeezed message. It records the challenges, or it stops with
+  `noWork` at the site of the group when the draw fails
+  (`Spec.Compression.Akita.Replay.Replayer.step_squeeze`, `draw_run`,
+  `drawn_mem`, `draw_filtered`).
+
+  The terminal: for a payload that decodes, the checks accept exactly when
+  the last fold challenge is a unit and some last blocks with the digests of
+  the proof make the checks (128) to (130) of the specification hold
+  (`Spec.Compression.Akita.Replay.terminalChecks_ok_iff`,
+  `terminalRun_ok_iff`). This is the last-block variant of Akita Section 8.2
+  and Lemma 10.47. The step of the terminal runs these checks
+  (`Spec.Compression.Akita.Replay.Replayer.step_terminal_run`,
+  `step_terminal_accepts`).
+
+  `fused.end` at the levels with evaluation trace: the weight that the replay
+  computes is `mle r_2` of the weight `(R.rows α).batchWeight τ_1` of
+  `traceReduction` (`Spec.Compression.Akita.Replay.traceWeight_into`). So
+  `fused.end` holds exactly when the final check of `fusedCheck` holds, with
+  the weight of `foldCheckSq` at a Euclidean level and of `foldCheck` at the
+  other levels (`Spec.Compression.Akita.Replay.traceFused_holds_iff`,
+  `traceFused_holds_iff_of`, and the step
+  `Spec.Compression.Akita.Replay.Replayer.step_fused_runs`). These theorems
+  have no hypothesis on the weight. They are about the views of the setup
+  prefix that the replay expands (`Spec.Compression.Akita.Replay.flatOf`),
+  and no theorem relates them to the statement of the claims over the full
+  setup vector.
+
+  `stage3.end`: the run of Stage 3 of the code is `setupCheck` of the
+  specification (`Spec.Compression.Akita.Replay.stage3Run_runs`, and the step
+  `Spec.Compression.Akita.Replay.Replayer.step_stage3_runs`), under the
+  hypothesis `weighs` that the weight of the code at `ρ` is the weight of the
+  model. No theorem gives `weighs` (difference (v)).
+
+  The setup: `Spec.Compression.Akita.Replay.page_expand` and `paged_le`
+  (difference (c)). The order of the operations: an operation changes only
+  the keys that it writes, so each value that a check reads is the value of
+  its writer (`Spec.Compression.Akita.Replay.Replayer.step_keeps`,
+  `Spec.Compression.Akita.Replay.Replayer.runOps_grows`,
+  `Spec.Compression.Akita.Replay.Replayer.lookup_later`; the test checks that
+  each key has one writer). No theorem states that the end claim that an
+  early check reads, which the end of its sum-check recorded, is the end
+  claim that the stage function computes again from the rounds. The byte
+  layer: `Spec.Compression.Akita.Replay.verifyBytes_malformed`,
+  `verifyBytes_trailing`, `verifyBytes_noWork` and `verifyBytes_rejects`.
+
+  These parts have only the equality with the Rust values on the vectors as
+  evidence. They are definitions of the concrete instance: Keccak-f, the
+  duplex sponge, SHAKE128, SHA3-256, and SHAKE256 with the header of a page
+  (`Spec.Compression.Akita.Replay.pageStream`); the decoder of the field
+  challenges; the bit reader and the sign order of the sampler
+  (`Spec.Compression.Akita.Replay.readBits`) and the tables and the
+  thresholds of its filter (`Spec.Compression.Akita.Replay.Filter.of`); the
+  Golomb decoder of `z` (`Spec.Compression.Akita.Replay.Golomb.decode`); and
+  the site order of the script. Two weights also have only this evidence:
+  the weight of Stage 3 (`Spec.Compression.Akita.Replay.stage3Weight`) and
+  the relation weight of the levels with coefficient packing
+  (`Spec.Compression.Akita.Replay.foldFused`; Lean proves its parts
+  `Spec.Compression.Akita.Replay.Tables.run_into`, `dotFq_into` and
+  `lowLevel_into`). No theorem relates the replay to the Lean verifier
+  `towerAccepts`. Lean has no total function `verifyBytes` from the public
+  inputs and the proof bytes to an outcome: the script of a public input is
+  an error when the layout does not take its plan, and the outcome type of
+  the design has no case for this. So Lean has no accept theorem for a proof.
+- (u) The places where the Lean specification now has the form of the code.
+  The replay found five places where the Lean verifier did not have the form
+  of the code. A real proof or a changed proof hits each, and the Lean
+  verifier now has the form of the code at each. No number of a claim
+  changed.
+
+  First, the code puts the rows of the last group of a level before the rows
+  of the other groups, in each row family (`root_group_order` and
+  `build_relation_rhs_layout` of `crates/akita-params` of the Akita code).
+  Akita Figure 5 has "increasing group" in a family. This is a choice of the
+  code. Akita Theorem 7.4 fixes "the canonical row order" before `α` and
+  holds for each fixed order, so the argument of the paper covers the code.
+  The Lean rows have the order of the code
   (`Spec.Compression.Akita.groupOrder`, `Spec.Compression.Akita.place`,
   `Spec.Compression.Akita.gather`, `Spec.Compression.Akita.Join.gather`), and
-  the replay takes its order from `groupOrder`. Second, the code draws `τ_0`
-  and uses it with its last `ℓ` coordinates first as the point of the range
-  identity (80) (`DigitRangeEqualityPoint::from_column_then_ring_challenges`
-  of `crates/akita-types` of the Akita code). `ℓ` is `log_2` of the least of
-  the degrees of `A`, `B` and `D` and of the challenge subring over the groups
-  of the level (`relation_coefficient_block_len` of
+  the replay takes its order from `groupOrder`. The vector tests fail for the
+  groups in their own order.
+
+  Second, the code draws `τ_0` and uses it with its last `ℓ` coordinates
+  first as the point of the range identity (80)
+  (`DigitRangeEqualityPoint::from_column_then_ring_challenges` of
+  `crates/akita-types` of the Akita code). `ℓ` is `log_2` of the least of the
+  degrees of `A`, `B` and `D` and of the challenge subring over the groups of
+  the level (`relation_coefficient_block_len` of
   `crates/akita-params/src/schedule.rs`). The paper has a uniform point `τ_0`
-  with no order of the coordinates in the transcript. The point of the code is
-  uniform when `τ_0` is, so the argument of Akita Lemma 10.37 (i) covers it.
-  The Lean verifier uses `Spec.Compression.Akita.rangePoint R.low τ_0`, the bad
-  set `Spec.Compression.Akita.rangeBad` is the set of the draws whose range
-  point is bad, and its bound `μ'/|E|` is the same
+  with no order of the coordinates in the transcript. The point of the code
+  is uniform when `τ_0` is, so the argument of Akita Lemma 10.37 (i) covers
+  it. The Lean verifier uses `Spec.Compression.Akita.rangePoint R.low τ_0`,
+  the bad set `Spec.Compression.Akita.rangeBad` is the set of the draws whose
+  range point is bad, and its bound `μ'/|E|` is the same
   (`Spec.Compression.Akita.density_rangeBad_le`). `ℓ` is
   `Spec.Compression.Akita.Batch.low` and
-  `Spec.Compression.Akita.OpeningShape.low`. No number of a claim changed. The
-  vector tests fail for the groups in their own order and for `ℓ + 1`.
+  `Spec.Compression.Akita.OpeningShape.low`. The vector tests fail for
+  `ℓ + 1`.
+
+  Third, the code receives the final product `ṽ = θ·f̄(ρ)` of the tensor
+  reduction as a message and checks that it is the end of the sum-check, as
+  Akita Section 5.2 does ("The prover supplies one final product"). The
+  Lean verifier `Spec.Compression.Akita.tensorCheck` now has this message and
+  this check, and its bounds did not change. The vector tests fail for the
+  final product plus 1 at each level.
+
+  Fourth, the code writes each row (104) as its left side minus its right
+  side, `Σ_i c_i·G·t̂_{i,a} − A_a·ẑ`: the weight of `A` in the setup scan is
+  the negated fold gadget (`fold_weights` in
+  `crates/akita-types/src/setup_contribution/plan/setup_index_weight.rs` of
+  the Akita code). This is the form (110) of the row in Akita Figure 5, where
+  the row signs are in the public multipliers. The Lean rows had the other
+  sign. A row and its negation hold for the same witnesses and have the same
+  degree, so Akita Theorem 7.4 and Lemma 7.1, which fix the public
+  multipliers before `α`, cover both signs. The Lean rows (104) now have the
+  sign of the code (`Spec.Compression.Akita.innerRow`,
+  `Spec.Compression.Akita.traceInnerRow`), and with it the weight `m_{τ_1}`
+  of the Lean verifier is the weight of the code at each level with
+  evaluation trace (`Spec.Compression.Akita.Replay.traceWeight_into`). With
+  the other sign, `fused.end` fails on the real proof of `key20.aks`.
+
+  Fifth, the code checks that no byte follows the last message after its
+  last check (`PendingEof::check_eof` after the terminal checks, and the
+  decoder of `z` before it). The byte layer of the replay gave `trailing`
+  before the verdict. Now `Spec.Compression.Akita.Replay.verifyBytes` gives
+  `trailing` only when the verdict accepts (`verifyBytes_trailing`,
+  `verifyBytes_rejects`), and the change of the stage `decode` rejects at
+  `terminal.z.decode`, as in the code. This is the byte layer of the replay;
+  the specification has no byte layer.
+- (v) The places where the layout of the model is not the layout of the
+  code. At the levels with evaluation trace, the code table is the model
+  table, with no alignment cell. At the levels with coefficient packing and
+  at Stage 3, four places of the layout of the model are not those of the
+  code. A real proof hits each: `fused.end` fails with the form of the model
+  and holds with the form of the code (`tests/AkitaPackingVectors.lean`,
+  which has the form of the code in
+  `Spec.Compression.Akita.Replay.Placement.move`). First, in the quotient
+  segment of the carrier row the model has the order plane, digit,
+  coefficient (`Spec.Compression.Akita.FlatRelation.quotientCell`), and the
+  code has digit, plane, coefficient (`WitnessQuotientRowLayout` in
+  `crates/akita-params/src/witness.rs` of the Akita code; difference (b)).
+  Second, the model has the main segments of a fold with groups in the order
+  `Fin n` (`Spec.Compression.Akita.Batch.mainStart`), and the code has them
+  in `root_group_order`. Third, the model has the columns of `D` of the
+  groups in the order `Fin n` (`Spec.Compression.Akita.Batch.openSetupCode`),
+  and the code has them in the order of the groups of its plan, which is
+  `root_group_order` (`setup_contribution/plan/prepare.rs` of
+  `crates/akita-types`). Fourth, the model has the spans of `F` of the groups
+  in the order `Fin n` (`Spec.Compression.Akita.Batch.firstStart`,
+  `Spec.Compression.Akita.Batch.secondStartOf`), and the code has them in the
+  relation order, which is `root_group_order` (`witness/tail.rs` of
+  `crates/akita-params`). Stage 3 needs the second and the third place.
+
+  Each place is a fixed bijection of the cells of the witness or of the
+  columns of `D`. The argument of the paper covers a fixed reordering: the
+  relation (110) and (111), Akita Lemma 7.1 and Theorem 7.4 do not depend on
+  the order of the cells, the weight `m_{τ_1}` and the opening point of the
+  next level change by the same bijection, and the next level commits to the
+  table of the code. This is a reading of the proofs, not a Lean theorem.
+  The proposed change is that the offsets of the segments and the columns of
+  `D` follow `Spec.Compression.Akita.groupOrder`, as the rows do, and that
+  the quotient cells of the carrier row have the order of the code. The
+  weight theorem of the levels with coefficient packing (`foldFused` against
+  `mle r_2` of the batch weight) and the weight theorem of Stage 3
+  (`stage3Weight` against `Batch.codeScan`, the hypothesis `weighs`) wait for
+  these changes.
 
 ### The results for `key30.aks`
 

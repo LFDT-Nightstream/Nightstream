@@ -20,10 +20,12 @@ section 7, item 7).
   is this statement for `rangeCheck`. A result `none` is a rejection of the specification on the
   same path, and a result `some` is its end.
 - `normRun` is the last stage on the Euclidean route (`stages/physical_l2_norm.rs`, direct shape):
-  the integer check `E_resp ≤ S_max`, the plain sum-check for `C_rng + ζ·E_resp`, and the end
-  check `end = ẽq(point, r)·leaf(s) + ζ·z²` (`expected_output_claim`). `normRun_runs` is the
-  statement for `normLeafStage`. The code also checks `E_resp < q` and the shape
-  (`validate_integer_claim`); both follow from the schedule when `S_max < q`. -/
+  the integer checks `E_resp ≤ S_max` and `E_resp < q` of `validate_integer_claim`
+  (`energyFits`), the plain sum-check for `C_rng + ζ·E_resp`, and the end check
+  `end = ẽq(point, r)·leaf(s) + ζ·z²` (`expected_output_claim`). `normRun_runs` is the statement
+  for `normLeafStage`, which checks only `E_resp ≤ S_max`: for `S_max < q` the two checks give the
+  same result on each `E_resp` (`energyFits_iff`). The shape check of `validate_integer_claim`
+  reads only the schedule. -/
 
 set_option autoImplicit false
 
@@ -308,10 +310,20 @@ def eqList : List Ext → List Ext → Ext
   | τ :: before, r :: point => eqVal τ r * eqList before point
   | _, _ => Ext.one
 
+/-- The integer checks of `validate_integer_claim` for the direct shape: `E_resp ≤ S_max` and
+`E_resp < q`. -/
+def energyFits (energy limit : ℕ) : Bool := decide (energy ≤ limit) && decide (energy < fieldModulus)
+
+/-- For `S_max < q` the checks of the code are the check `E_resp ≤ S_max` of `normLeafStage`. -/
+theorem energyFits_iff {energy limit : ℕ} (small : limit < fieldModulus) :
+    energyFits energy limit = true ↔ energy ≤ limit := by
+  rw [energyFits, Bool.and_eq_true, decide_eq_true_iff, decide_eq_true_iff]
+  exact ⟨And.left, fun fits => ⟨fits, fits.trans_lt small⟩⟩
+
 def normRun (leaf limit energy : ℕ) (merge : Ext) (rounds : List (List Ext × Ext))
     (virtual image : Ext) (nodes : ℕ) (weights : ℕ → Ext) (point : List Ext) (claim : Ext) :
     Option (List Ext × Ext × Ext) :=
-  if energy ≤ limit then
+  if energyFits energy limit then
     let ended := plainRun (claim + merge * Ext.ofBase (Fq.ofNat energy)) rounds
     if ended.claim.same (eqList point ended.point * leafEnd leaf nodes weights image +
         merge * (virtual * virtual)) then
@@ -360,7 +372,8 @@ theorem normRun_runs (leaf μ limit : ℕ) (kernel : ℕ → ℕ → Zq) (suppor
     [DecidablePred support] (w : Table) (energy : ℕ) (merge : Ext)
     (rounds : List (List Ext × Ext)) (virtual image : Ext) (nodes : ℕ) (weights : ℕ → Ext)
     (point : List Ext) (claim : Ext) (positive : 1 ≤ leaf) (count : rounds.length = μ)
-    (long : point.length = μ) (lengths : ∀ x ∈ rounds, x.1.length = leaf + 1) :
+    (long : point.length = μ) (lengths : ∀ x ∈ rounds, x.1.length = leaf + 1)
+    (small : limit < fieldModulus) :
     (normLeafStage leaf μ limit kernel support w nodes (fun m => φ (weights m)) (point.map φ)
       (φ claim)).Runs (normPath φ leaf limit energy merge rounds virtual image claim)
       ((normRun leaf limit energy merge rounds virtual image nodes weights point claim).map
@@ -368,8 +381,8 @@ theorem normRun_runs (leaf μ limit : ℕ) (kernel : ℕ → ℕ → Zq) (suppor
   have degree : max (leaf + 1) 2 = leaf + 1 := by omega
   unfold normLeafStage normPath normRun
   refine runs_recv ?_
-  by_cases small : energy ≤ limit
-  · simp only [ite_eq_left small]
+  by_cases fits : energy ≤ limit
+  · simp only [ite_eq_left fits, ite_eq_left ((energyFits_iff small).mpr fits)]
     refine runs_draw ?_
     have rounds_run := plainRun_runs_with hom leaf
       (combRound μ (normLeafTables μ kernel (point.map φ) w)
@@ -399,7 +412,7 @@ theorem normRun_runs (leaf μ limit : ℕ) (kernel : ℕ → ℕ → Zq) (suppor
     · rw [ite_eq_right passes, ite_eq_right fun equal =>
         passes ((same _ _).mpr (equal.trans value.symm))]
       rfl
-  · simp only [ite_eq_right small]
+  · simp only [ite_eq_right fits, ite_eq_right fun passes => fits ((energyFits_iff small).mp passes)]
     rfl
 
 end Norm

@@ -1,4 +1,5 @@
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Layout
+import NightstreamFPrime.Spec.Compression.Akita.Replay.SumCheck
 import NightstreamFPrime.Spec.Compression.Akita.RowBatch
 
 /-! The claims of Stage 2 of one fold of the pinned Akita verifier (Akita revision `d50f700`:
@@ -20,8 +21,8 @@ import NightstreamFPrime.Spec.Compression.Akita.RowBatch
 The specification of a row is `reducedEval` (`ringEval_into`); the specification of the batch is
 `FieldRows.batchTarget` (`batchEntries_batchTarget`), for field rows whose targets are the public
 rows: `stage2_fused` gives the fused claim as `batchTarget` of the rows and the opening row plus
-`rest`. The proof that the rows of the model of a fold (`Extract/BatchRows.lean`) have these
-targets is not done. -/
+`rest`. `Replay/Rows.lean` proves that the rows of the reductions of the claims have these
+targets. -/
 
 set_option autoImplicit false
 
@@ -41,10 +42,15 @@ def batchEntries (τ : List Ext) : List (ℕ × Ext) → Ext
   | [] => Ext.zero
   | (i, v) :: rest => eqIndex τ i * v + batchEntries τ rest
 
-/-- The rows of the runs with their coefficients `data`: the index and `y(α)_i` of each row. -/
-def rhsEntries (α : Ext) (runs : List (RhsRun × Array Fq)) : List (ℕ × Ext) :=
-  runs.flatMap fun (run, data) => (List.range run.count).map fun r =>
-    (run.row + r, ringEval α (data.extract (run.degree * r) (run.degree * (r + 1))).toList)
+/-- The coefficients of the element `r` of degree `degree` of `data`. -/
+def chunk (degree : ℕ) (data : Array Fq) (r : ℕ) : List Fq :=
+  (data.extract (degree * r) (degree * (r + 1))).toList
+
+/-- The rows of the runs with the coefficients `data run` of each run: the index and `y(α)_i` of
+each row. -/
+def rhsEntries (α : Ext) (data : RhsRun → Array Fq) (runs : List RhsRun) : List (ℕ × Ext) :=
+  runs.flatMap fun run => (List.range run.count).map fun r =>
+    (run.row + r, ringEval α (chunk run.degree (data run) r))
 
 /-- `Σ_i a_i·b_i`. -/
 def dot (a b : Array Ext) : Ext := (a.zip b).foldl (fun sum (x, y) => sum + x * y) Ext.zero
@@ -55,10 +61,10 @@ structure Stage2 where
   opening : Ext
   fused : Ext
 
-def stage2 (τ : List Ext) (α : Ext) (runs : List (RhsRun × Array Fq)) (openingRow : ℕ)
-    (rows claims : Array Ext) (rest : Ext) : Stage2 :=
+def stage2 (τ : List Ext) (α : Ext) (data : RhsRun → Array Fq) (runs : List RhsRun)
+    (openingRow : ℕ) (rows claims : Array Ext) (rest : Ext) : Stage2 :=
   let target := dot rows claims
-  let relation := batchEntries τ (rhsEntries α runs)
+  let relation := batchEntries τ (rhsEntries α data runs)
   let opening := eqIndex τ openingRow * target
   ⟨target, relation, opening, relation + opening + rest⟩
 
@@ -92,6 +98,16 @@ theorem Ext.into_one : (Ext.one.into : E) = 1 := by
 theorem Ext.into_ofBase (a : Fq) : ((Ext.ofBase a).into : E) = algebraMap Zq E a.toZq := by
   simp [Ext.into, Ext.toE_ofBase]
 
+theorem re_into (z : Ext) : Degree2.re (z.into : E) = z.c0.toZq := by
+  simp [Ext.into, Degree2.re, Ext.toE]
+
+theorem im_into (z : Ext) : Degree2.im (z.into : E) = z.c1.toZq := by
+  simp [Ext.into, Degree2.im, Ext.toE]
+
+/-- `Ext.into` maps the operations of `Ext` to those of `E`. -/
+theorem degree2_extHom : ExtHom (Ext.into (E := E)) :=
+  ⟨Ext.into_zero, Ext.into_one, Ext.into_add, Ext.into_sub, Ext.into_mul⟩
+
 theorem eqIndex_into (τ : List Ext) (i : ℕ) :
     ((eqIndex τ i).into : E) = eqAt (τ.map Ext.into) i := by
   induction τ generalizing i with
@@ -119,14 +135,18 @@ theorem ringEval_into_sum (α : Ext) (c : List Fq) :
       refine Finset.sum_congr rfl fun j _ => ?_
       ring
 
-/-- A row of `d` coefficients has the value `reducedEval α` of its ring element in `R_{q,d}`
-(Akita Section 7.3). -/
-theorem ringEval_into (α : Ext) (c : List Fq) {d : ℕ} [NeZero d] (length : c.length = d) :
+/-- A row of at most `d` coefficients has the value `reducedEval α` of its ring element in
+`R_{q,d}` (Akita Section 7.3). -/
+theorem ringEval_into (α : Ext) (c : List Fq) {d : ℕ} [NeZero d] (length : c.length ≤ d) :
     ((ringEval α c).into : E) =
       reducedEval (d := d) (α.into : E) (ofCoeffs fun j => (c.getD j Fq.zero).toZq) := by
-  rw [ringEval_into_sum, reducedEval_apply, aeval_rep, length]
-  refine Finset.sum_congr rfl fun j member => ?_
-  rw [coeff_ofCoeffs _ (Finset.mem_range.mp member)]
+  rw [ringEval_into_sum, reducedEval_apply, aeval_rep]
+  refine Finset.sum_subset (Finset.range_subset_range.mpr length) (fun j _ outside => ?_) |>.trans
+    (Finset.sum_congr rfl fun j member => ?_)
+  · rw [List.getD_eq_getElem?_getD,
+      List.getElem?_eq_none (Nat.le_of_not_lt (outside ∘ Finset.mem_range.mpr)), Option.getD_none,
+      Fq.toZq_zero, zero_smul]
+  · rw [coeff_ofCoeffs _ (Finset.mem_range.mp member)]
 
 /-- `batchEntries` is the multilinear batch of the table whose entry `i` is the sum of the values
 listed at `i`. -/
@@ -173,10 +193,10 @@ theorem batchEntries_append (τ : List Ext) (entries more : List (ℕ × Ext)) :
 
 /-- The fused claim of `stage2` is the batch of the public rows of `y` and the opening row with
 the target, plus `rest`. -/
-theorem stage2_fused (τ : List Ext) (α : Ext) (runs : List (RhsRun × Array Fq)) (openingRow : ℕ)
-    (rows claims : Array Ext) (rest : Ext) :
-    (((stage2 τ α runs openingRow rows claims rest).fused).into : E) =
-      (batchEntries τ (rhsEntries α runs ++ [(openingRow, dot rows claims)])).into +
+theorem stage2_fused (τ : List Ext) (α : Ext) (data : RhsRun → Array Fq) (runs : List RhsRun)
+    (openingRow : ℕ) (rows claims : Array Ext) (rest : Ext) :
+    (((stage2 τ α data runs openingRow rows claims rest).fused).into : E) =
+      (batchEntries τ (rhsEntries α data runs ++ [(openingRow, dot rows claims)])).into +
         rest.into := by
   rw [batchEntries_append]
   simp only [stage2, batchEntries, Ext.into_add, Ext.into_mul, Ext.into_zero, add_zero]

@@ -112,9 +112,20 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.Nonce
 import NightstreamFPrime.Spec.Compression.Akita.FitChance
 import NightstreamFPrime.Spec.Compression.Akita.TraceProver
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Plan
+import NightstreamFPrime.Spec.Compression.Akita.Replay.Prefix
+import NightstreamFPrime.Spec.Compression.Akita.Replay.Readback
+import NightstreamFPrime.Spec.Compression.Akita.Replay.SamplerSigns
+import NightstreamFPrime.Spec.Compression.Akita.Replay.SamplerStage
+import NightstreamFPrime.Spec.Compression.Akita.Replay.FusedJoin
+import NightstreamFPrime.Spec.Compression.Akita.Replay.Grows
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Schedules
+import NightstreamFPrime.Spec.Compression.Akita.Replay.Stage3
 import NightstreamFPrime.Spec.Compression.Akita.Replay.SumCheck
+import NightstreamFPrime.Spec.Compression.Akita.Replay.TerminalJoin
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Transcript
+import NightstreamFPrime.Spec.Compression.Akita.Replay.WeightSpec
+import NightstreamFPrime.Spec.Compression.Akita.Replay.WeightTraceSpec
+import NightstreamFPrime.Spec.Compression.Akita.Replay.WeightPackingSpec
 
 /-! The soundness of the compression argument over Akita (Rust `ns-compress`, SPEC.md section 6):
 a public-coin game with bad sets and its state-restoration bound, and the honest prover of a

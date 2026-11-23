@@ -3,6 +3,8 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.Schedules
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Wire
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Transcript
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Plan
+import NightstreamFPrime.Spec.Compression.Akita.Replay.TerminalSetup
+import NightstreamFPrime.Spec.Compression.Akita.Replay.Grows
 
 /-! The Lean replay of the vectors of real Akita openings in `tests/vectors/akita/`
 (`crates/ns-compress/tests/unit/akita_vectors.rs`, Akita revision `d50f700`;
@@ -20,15 +22,31 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.Plan
   of the negative files with the stages `parse` and `trailing_bytes` are `malformed` and
   `trailing`.
 - Gate 7. Each equation of the tensor reduction, the range proof and the norm check of the replay
-  holds in the order of the `check` events of the file, and the stage functions with a theorem
-  against the specification (`Replay/Range.lean`, `Replay/Tensor.lean`) accept on the values of
-  the replay.
+  holds in the order of the `check` events of the file. The replay records the results of the
+  stage functions at the last check of each group (`Replay/Transcript.lean`), and each accepts with the
+  values of the replay; the factor `θ` of each tensor reduction is the value of the file.
 - Gate 4. FIPS 202 vectors; the root digests; the work bits of the plan; the replay of the
   transcript from the proof and the public inputs only (`gate4`): each challenge, work, absorb and
   the values `opening_target`, `relation_claim` and `opening_claim` of each fold; the changes of the
-  negative files with nothing from the events.
-
-Lake does not track the files, so `scripts/validate.sh` runs this file again. -/
+  negative files with nothing from the events, each a reject with the outcome class of the Rust
+  verifier at the failed site of the file, or a reject at an end check before it (`moved`).
+- Gate 8. Each `fold_challenges` event equals the challenges that the replay draws
+  (`foldChallenges` on the squeezed message).
+- Gate 10. The three `check` events of the terminal are checks of the replay that pass, and the
+  decoded `z`, its norm, the last block of `e` and the opening of the replay equal the events.
+- The end checks. The replay evaluates `fused.end` at each level (`traceFused` at a level with
+  evaluation trace, `foldFused` at a level with coefficient packing; `Replay/FusedJoin.lean`) and
+  `stage3.end` at the root of `key30.aks` (`stage3Run`); the vectors have no event for them.
+- The verdict. On each positive file `verifyBytes` gives `.verdict .accept` with no check left to
+  the verdict `checks`: each check of the replay passes, the end checks and each check of the
+  terminal included. A change of `witness_evaluation` at a level rejects at `fused.end` of that
+  level when no work comes between them, and a change of `stage3.prefix_evaluation` at
+  `stage3.end`: the code checks both before the next transcript operation
+  (`validate_stage2_replay` and `verify_setup_sumcheck` in `verify_fold`), and the Rust test of the
+  vectors cannot evaluate them, so the field `failed` of these changes is the next failure of its
+  replay. The test lists each change whose Lean site differs from `failed` (`moved`).
+- `Replayed` is a positive file with the one replay of its proof; `tests/AkitaAllVectors.lean`
+  runs the replays and the gates of this file and of the five other vector tests on them. -/
 
 namespace AkitaVectors
 
@@ -236,37 +254,86 @@ def gate2 (v : Vector) (o : Oracles) : IO ℕ := do
     levels := levels + 1
   return levels
 
-/-- The terminal numbers of the schedule file of a vector: `z_payload_bytes`, `e_field_elems` and
-`t_field_elems` of `response_shape`. -/
-def terminalNumbers (v : Vector) : IO (ℕ × ℕ × ℕ) := do
+/-- The terminal numbers of the schedule file of a vector. -/
+structure TerminalFile where
+  zMax : ℕ
+  e : ℕ
+  t : ℕ
+  rice : ℕ
+  zCoords : ℕ
+  linf : Option ℕ
+  cap : ℕ
+
+/-- The terminal numbers of the schedule file of a vector: `z_payload_bytes`, `e_field_elems`,
+`t_field_elems`, `z_rice_low_bits`, `z_coords` and `z_linf_cap` of `response_shape`, and the cap
+`response_l2_sq_cap` of the Euclidean route. -/
+def terminalNumbers (v : Vector) : IO TerminalFile := do
   let text ← IO.FS.readFile ("../.." / System.FilePath.mk v.schedule)
   IO.ofExcept do
     let rows ← array (← Json.parse text) ["rows"]
     let row ← match v.schedule, v.shape with
       | "crates/ns-compress/artifacts/key30.aks", (_, 26, _) => pure rows[1]!
       | _, _ => pure rows[0]!
-    let layout ← array row ["schedule", "terminal", "response_shape", "layout", "groups"]
-    let group := layout[0]!
-    return (← nat group ["z_payload_bytes"], ← nat group ["e_field_elems"],
-      ← nat group ["t_field_elems"])
+    let terminal ← field row ["schedule", "terminal"]
+    let group := (← array terminal ["response_shape", "layout", "groups"])[0]!
+    return { zMax := ← nat group ["z_payload_bytes"], e := ← nat group ["e_field_elems"]
+             t := ← nat group ["t_field_elems"], rice := ← nat group ["z_rice_low_bits"]
+             zCoords := ← nat group ["z_coords"], linf := (nat group ["z_linf_cap"]).toOption
+             cap := ← nat terminal ["inner", "matrix", "security_route", "L2",
+               "response_l2_sq_cap"] }
 
-/-- The layout of the schedule row of a vector, from the Lean numbers and `zMax` of the file. The
-file has `e` and `t` of the terminal, and they are the counts of the layout. -/
+/-- The layout of the schedule row of a vector, from the Lean numbers, `zMax` and the Rice
+parameter of the file. The file has `e`, `t`, `z_coords` and the cap of the terminal, and they are
+the numbers of the layout; it has no `ℓ_∞` cap of `z` (the Euclidean route). -/
 def layoutWith (order : ∀ n, Equiv.Perm (Fin n)) (v : Vector) : IO Layout := do
-  let (zMax, e, t) ← terminalNumbers v
+  let file ← terminalNumbers v
   let layout ← match v.schedule, v.shape with
-    | "crates/ns-compress/artifacts/key20.aks", _ => pure (layout20With order zMax)
+    | "crates/ns-compress/artifacts/key20.aks", _ => pure (layout20With order file.zMax file.rice)
     | "crates/ns-compress/artifacts/key30.aks", (_, 27, _) =>
-        pure (layout30With order Key30.w27 zMax)
+        pure (layout30With order Key30.w27 file.zMax file.rice)
     | "crates/ns-compress/artifacts/key30.aks", (_, 26, _) =>
-        pure (layout30With order Key30.w26 zMax)
+        pure (layout30With order Key30.w26 file.zMax file.rice)
     | schedule, _ => throw <| IO.userError s!"no Lean row for {schedule}"
-  unless layout.terminal.e = e do fail s!"{v.name}: e has {e} elements, the layout {layout.terminal.e}"
+  let T := layout.terminal
+  unless T.e = file.e do fail s!"{v.name}: e has {file.e} elements, the layout {T.e}"
   let last := (layout.folds.getLast?.map (·.witness)).getD 0
-  unless last = t do fail s!"{v.name}: t has {t} elements, the layout {last}"
+  unless last = file.t do fail s!"{v.name}: t has {file.t} elements, the layout {last}"
+  unless T.zCoords = file.zCoords ∧ T.limit = file.cap ∧ file.linf.isNone do
+    fail s!"{v.name}: z_coords, the cap or z_linf_cap of the file differ from the layout"
   return layout
 
 def layoutOf (v : Vector) : IO Layout := layoutWith groupOrder v
+
+/-- The script without the end checks `fused.end` and `stage3.end`, for a replay of a change that
+reads no end check: each is about 1 to 35 s in the interpreter of `#eval`. A check reads no
+message and writes no recorded value, so `decode` and the recorded values are the same. -/
+def withoutEnds (ops : Array Op) : Array Op :=
+  ops.filter fun | .check _ (.fused ..) | .check _ (.stage3 ..) => false | _ => true
+
+/-- The levels of a layout with evaluation trace and with coefficient packing. -/
+def fusedLevels (layout : Layout) : List ℕ × List ℕ :=
+  let trace (F : Fold) : Bool := match F.fused with | .trace _ => true | .packing _ => false
+  (layout.folds.zipIdx.filterMap fun (F, level) => if trace F then some level else none,
+    layout.folds.zipIdx.filterMap fun (F, level) => if trace F then none else some level)
+
+/-- The count of setup elements that the end checks and the terminal of a layout read. -/
+def setupCount (layout : Layout) : ℕ :=
+  layout.folds.foldl (fun m F => max m F.setupCount) layout.terminal.setupCount
+
+/-- A positive file with its script, its public input with the setup prefix, its decoded
+messages, and the one replay of its proof (`replay`): its stop and what it derives. -/
+structure Replayed where
+  v : Vector
+  o : Oracles
+  layout : Layout
+  ops : Array Op
+  pub : Public
+  messages : Array Message
+  stop : Option Stop
+  d : Derived
+
+/-- The state at the end of the replay, for the readers of `Replayer`. -/
+def Replayed.state (r : Replayed) : Replayer := ⟨Duplex.empty, 0, r.d.recorded, r.d.fields, r.d.integers, r.d⟩
 
 /-- The operations of a script that read a prover message, in order. -/
 def messageOps (ops : Array Op) : Array Op :=
@@ -348,6 +415,29 @@ def gate3 (v : Vector) (o : Oracles) : IO (Array Op) := do
     bytes, words, work bits)"
   return ops
 
+/-- Each key of the script has one operation that writes it (`Op.writes`), except the point of a
+sum-check, which each round writes before the end of the sum-check: so by `lookup_later` each
+value that a check reads is the value of its writer. -/
+def writesGate (v : Vector) (ops : Array Op) : IO Unit := do
+  let mut writers : Std.HashMap Key (List ℕ) := {}
+  for (op, i) in ops.zipIdx do
+    for key in op.writes do
+      writers := writers.insert key (((writers.get? key).getD []) ++ [i])
+  let mut points := 0
+  for (key, indices) in writers.toList do
+    if indices.length = 1 then continue
+    let ended := ops.findIdx? fun
+      | .ended k _ _ => k.level == key.level && k.site ++ ".point" == key.site
+      | _ => false
+    unless key.site.endsWith ".point" ∧ (ended.map fun e => indices.all (· < e)) == some true do
+      fail s!"{v.name}: {indices.length} operations write {key.site} of level {key.level}"
+    points := points + 1
+  IO.println s!"writes {v.name}: {writers.size} keys; each has one writer except the points of \
+    {points} sum-checks, whose rounds write them before the end"
+
+example : ∀ x ∈ [(Op.work (.tau0 0) 0 0, 0)], (⟨0, "tau0", none⟩ : Key) ∉ x.1.writes := by
+  simp [Op.writes]
+
 /-- A change of a negative file applied to a proof. -/
 def change (proof : ByteArray) (c : Json) : Except String ByteArray := do
   if let .ok offset := nat c ["offset"] then
@@ -414,60 +504,179 @@ def absorbEvents (o : Oracles) : Array (ℕ × String × String) :=
   (productStages logBasis).map (·.1) = rangeArities (2 ^ logBasis) ∧
     leafDegree logBasis = rangeLeaf (2 ^ logBasis)
 
-/-- The stage functions that have a theorem against the specification, on the values of the
-replay: `rangeRun` (`rangeRun_runs`), `treeRun` with `normRun` (`treeRun_runs`, `normRun_runs`) and
-`tensorRun` (`tensorRun_runs`) accept, with the point and the values of the replay. -/
+#guard energyFits 5 5 && !energyFits 6 5 &&
+  !energyFits NightstreamFPrime.Spec.fieldModulus (NightstreamFPrime.Spec.fieldModulus + 1)
+
+/-- The results of the stage functions that the replay records at the last check of each stage
+group (`Derived.stages`; `step_range_runs`, `step_norm_runs`, `step_tensor_runs` of
+`Replay/Transcript.lean`): `rangeRun`, `treeRun` with `normRun`, and `tensorRun` accept with the point
+and the values of the replay, at each level of the layout. The hypotheses of the three theorems
+hold on the recorded values: the arities, the length of the range point, the count and the
+length of the rounds, and a norm cap below `q`. -/
 def stagesGate (v : Vector) (d : Derived) (layout : Layout) : IO Unit := do
-  let get (level : ℕ) (site : String) : Array Ext := (d.recorded.get? ⟨level, site, none⟩).getD #[]
-  let one (level : ℕ) (site : String) : Ext := (get level site).getD 0 Ext.zero
-  let rounds (level : ℕ) (site : String) : List (List Ext × Ext) :=
-    ((d.rounds.find? (·.1 == ⟨level, site, none⟩)).map (·.2)).getD []
+  let s : Replayer := ⟨Duplex.empty, 0, d.recorded, d.fields, d.integers, d⟩
+  let get (level : ℕ) (site : String) : Array Ext := Replayer.recordedIn s ⟨level, site, none⟩
+  let one (level : ℕ) (site : String) : Ext := Replayer.firstIn s ⟨level, site, none⟩
+  let shaped (rounds : List (List Ext × Ext)) (count width : ℕ) : Bool :=
+    rounds.length == count && rounds.all (·.1.length == width)
+  for (F, level) in layout.folds.zipIdx do
+    let arities := (productStages F.logBasis).map (·.1)
+    let point := Replayer.pointIn s (.turned ⟨level, "tau0", none⟩ F.low)
+    let products := Replayer.productsIn s level arities
+    unless products.map (·.arity) == rangeArities (2 ^ F.logBasis) && point.length == F.vars &&
+        products.all (fun S => shaped S.rounds F.vars S.arity) do
+      fail s!"{v.name}: the product stages of level {level} do not have the shapes of the script"
+    if F.euclidean then
+      unless F.limit < NightstreamFPrime.Spec.fieldModulus &&
+          shaped (Replayer.roundsIn s ⟨level, "norm.sumcheck", none⟩) F.vars
+            (leafDegree F.logBasis + 1) do
+        fail s!"{v.name}: the norm check of level {level} does not have the shapes of the script"
+    else
+      unless shaped (Replayer.roundsIn s ⟨level, "range.leaf", none⟩) F.vars
+          (rangeLeaf (2 ^ F.logBasis)) do
+        fail s!"{v.name}: the leaf stage of level {level} does not have the shapes of the script"
   let mut ranges := 0
   let mut norms := 0
   let mut tensors := 0
-  for (F, level) in layout.folds.zipIdx do
-    let stages := (productStages F.logBasis).zipIdx.map fun ((arity, _), k) =>
-      ({ arity, rounds := rounds level s!"range.{k}", children := (get level s!"range.{k}.children").toList
-         gamma := one level s!"range.{k}.batch" } : Product)
-    let tau0 := get level "tau0"
-    let point := tau0.toList.rotate (tau0.size - F.low)
-    let image := one level "range.image"
-    if F.euclidean then
-      let energy := (d.integers.get? ⟨level, "norm.response_l2_sq", none⟩).getD 0
-      let virtual := one level "norm.virtual_evaluations"
-      let out := treeRun (normRun (leafDegree F.logBasis) F.limit energy (one level "norm.merge")
-        (rounds level "norm.sumcheck") virtual image) stages 1 (fun _ => Ext.one) point Ext.zero
-      unless out == some ((get level "norm.sumcheck.point").toList, image, virtual) do
-        fail s!"{v.name}: treeRun with normRun at level {level}"
-      norms := norms + 1
-    else
-      let out := rangeRun (2 ^ F.logBasis) stages (rounds level "range.leaf") image point
-      unless out == some ((get level "range.leaf.point").toList, image) do
-        fail s!"{v.name}: rangeRun at level {level}"
-      ranges := ranges + 1
-  let tensorLevels := (layout.folds.zipIdx.filterMap fun (F, level) =>
-    F.trace.map fun (count, _) => (level, count)) ++ [(layout.folds.length, layout.terminal.rounds)]
-  for (level, count) in tensorLevels do
-    let partials := get level "tensor.partials"
-    let out := tensorRun count (get (level - 1) "fused.point").toList
-      (one (level - 1) "witness_evaluation") (partials.getD 0 Ext.zero) (partials.getD 1 Ext.zero)
-      (one level "tensor.eta") (rounds level "tensor.sumcheck")
-    unless (out.map fun e => (e.point, e.claim)) ==
-        some ((get level "tensor.sumcheck.point").toList, one level "tensor.final_claims") do
-      fail s!"{v.name}: tensorRun at level {level}"
-    tensors := tensors + 1
-  IO.println s!"gate 7 {v.name}: rangeRun accepts at {ranges} levels, treeRun with normRun at \
-    {norms} levels, tensorRun at {tensors} levels, each with the point and the values of the replay"
+  let mut fuseds := 0
+  let mut stage3s := 0
+  for (key, out) in d.stages do
+    let level := key.level
+    match out with
+    | .fused out =>
+        let some F := layout.folds[level]? | fail s!"{v.name}: no level {level}"
+        match F.fused with
+        | .trace T =>
+            let V := Replayer.traceValuesIn s level F
+            let d_A := T.shape.innerDegree
+            unless out.isSome && V.r2.length == F.vars && V.virtual.length == F.vars &&
+                V.tau1.length == F.batch && F.compressed == T.opening.compressed T.fold &&
+                0 < T.fold.responseDigits && T.opening.cells T.fold ≤ 2 ^ F.vars &&
+                T.opening.traceRowCount + 1 ≤ 2 ^ F.batch && 4 * (d_A / 4) == d_A &&
+                (2 * (d_A / 4)) % NightstreamFPrime.Spec.fieldModulus != 0 do
+              fail s!"{v.name}: fused.end at level {level}: the shapes of step_fused_runs"
+        | .packing P =>
+            unless out.isSome && !F.euclidean && P.slots.length = F.groups.length do
+              fail s!"{v.name}: fused.end at level {level}: the shapes of step_packing_runs"
+        fuseds := fuseds + 1
+    | .stage3 out =>
+        let rounds := Replayer.roundsIn s ⟨level, "stage3", none⟩
+        unless out.isSome && rounds.all (·.1.length == 2) &&
+            some rounds.length == (layout.folds[level]?.bind (·.stage3)) do
+          fail s!"{v.name}: stage3.end at level {level}: the shapes of step_stage3_runs"
+        stage3s := stage3s + 1
+    | .range out =>
+        unless out == some ((get level "range.leaf.point").toList, one level "range.image") do
+          fail s!"{v.name}: rangeRun at level {level}"
+        ranges := ranges + 1
+    | .norm out =>
+        unless out == some ((get level "norm.sumcheck.point").toList, one level "range.image",
+            one level "norm.virtual_evaluations") do
+          fail s!"{v.name}: treeRun with normRun at level {level}"
+        norms := norms + 1
+    | .tensor out =>
+        unless shaped (Replayer.roundsIn s ⟨level, "tensor.sumcheck", none⟩)
+            (Replayer.roundsIn s ⟨level, "tensor.sumcheck", none⟩).length 2 &&
+          (out.map fun e => (e.point, e.claim)) ==
+            some ((get level "tensor.sumcheck.point").toList, one level "tensor.final_claims") do
+          fail s!"{v.name}: tensorRun at level {level}"
+        tensors := tensors + 1
+  let euclidean := (layout.folds.filter (·.euclidean)).length
+  unless ranges = layout.folds.length - euclidean ∧ norms = euclidean ∧
+      tensors = (layout.folds.filter (·.trace.isSome)).length + 1 ∧
+      fuseds = layout.folds.length ∧
+      stage3s = (layout.folds.filter (·.setup.isSome)).length do
+    fail s!"{v.name}: the replay records {ranges}, {norms}, {tensors}, {fuseds}, {stage3s} stage \
+      results"
+  IO.println s!"gate 7 {v.name}: the replay records rangeRun at {ranges} levels, treeRun with \
+    normRun at {norms} levels, tensorRun at {tensors} levels, traceFused or foldFused at {fuseds} \
+    levels and stage3Run at {stage3s} (step_range_runs, step_norm_runs, step_tensor_runs, \
+    step_fused_runs, step_packing_runs, step_stage3_runs), each accepting with the point and the \
+    values of the replay; the shapes of the theorems hold"
+
+/-- The factor `θ` of the tensor reduction of each level with evaluation trace and of the terminal
+(`tensorFactor`, `tensorFactor_into`), from the values of the replay, is the value
+`tensor.factor` of the file; with `ρ` in the reverse order it differs at some level. -/
+def factorGate (v : Vector) (o : Oracles) (d : Derived) (layout : Layout) : IO Unit := do
+  let get (level : ℕ) (site : String) : Array Ext := (d.recorded.get? ⟨level, site, none⟩).getD #[]
+  let levels := (layout.folds.zipIdx.filterMap fun (F, level) => F.trace.map fun _ => level) ++
+    [layout.folds.length]
+  let factor (level : ℕ) (ρ : List Ext) : Ext :=
+    tensorFactor (get (level - 1) "fused.point").toList.tail
+      ((get level "tensor.eta").getD 0 Ext.zero) ρ
+  let mut moved := false
+  for level in levels do
+    let ρ := (get level "tensor.sumcheck.point").toList
+    let some e := find? o "value" level "tensor.factor"
+      | fail s!"{v.name}: no tensor.factor at level {level}"
+    let expected ← IO.ofExcept (eventExts e)
+    unless #[factor level ρ] == expected do
+      fail s!"{v.name}: tensor.factor of level {level} differs"
+    moved := moved || #[factor level ρ.reverse] != expected
+  unless moved do fail s!"{v.name}: tensor.factor does not depend on the order of ρ"
+  IO.println s!"gate 7 {v.name}: tensorFactor = tensor.factor at {levels.length} levels; \
+    with ρ reversed it differs"
+
+/-- The challenges of a `fold_challenges` event. -/
+def eventSparse (e : Event) : Except String (List Sparse) := do
+  (← array e.json ["sparse"]).toList.mapM fun c => do
+    (← c.getArr?).toList.mapM fun pair => do
+      match ← pair.getArr? with
+      | #[p, v] => return (← p.getNat?, ← v.getInt?)
+      | _ => throw "a pair of a challenge"
+
+/-- Gate 8: each `fold_challenges` event equals the challenges that the replay draws for its level
+and group (`Derived.drawn`: `foldChallenges` of the squeezed message of the group), pair by pair
+in the ring of `A`, in the order of the squeezes. Returns the count of challenges. -/
+def foldGate (v : Vector) (o : Oracles) (d : Derived) : IO ℕ := do
+  let events := o.events.filter (·.op == "fold_challenges")
+  unless d.drawn.size = events.size ∧ d.foldMessages.size = events.size do
+    fail s!"{v.name}: {d.drawn.size} draws, {events.size} fold_challenges events"
+  let mut count := 0
+  for ((level, group, cs), e) in d.drawn.toList.zip events.toList do
+    unless level = e.level ∧ (nat e.json ["group"]).toOption == some group ∧
+        (eventSparse e).toOption == some cs do
+      fail s!"{v.name}: the fold challenges of group {group} of level {level} differ"
+    count := count + cs.length
+  return count
+
+/-- Gate 10: the values of the terminal checks of the replay (`Derived.terminal`) equal the events:
+the decoded `z` (`terminal.z.coefficients`), `‖z‖_2²` and the cap (`terminal.z.bounds`), the
+recovered last block of `e` (`terminal.e_last_block`) and the opening (`terminal.opening`). -/
+def terminalGate (v : Vector) (o : Oracles) (d : Derived) (layout : Layout) : IO Unit := do
+  let T := layout.folds.length
+  let some out := d.terminal | fail s!"{v.name}: the replay has no terminal values"
+  let event (site : String) : IO Event := do
+    let some e := find? o "value" T site | throw <| IO.userError s!"{v.name}: no event {site}"
+    pure e
+  let zEvent ← event "terminal.z.coefficients"
+  let z ← IO.ofExcept do (← array zEvent.json ["words"]).mapM (·.getInt?)
+  unless z == out.z do fail s!"{v.name}: z differs"
+  let bounds ← event "terminal.z.bounds"
+  unless (decimal (← IO.ofExcept (field bounds.json ["l2_sq"]))).toOption == some out.normSq ∧
+      (decimal (← IO.ofExcept (field bounds.json ["cap"]))).toOption == some layout.terminal.limit do
+    fail s!"{v.name}: the norm bounds differ"
+  let eEvent ← event "terminal.e_last_block"
+  let eLast ← IO.ofExcept do (← array eEvent.json ["words"]).mapM element
+  unless eLast == Poly.canon layout.terminal.shape.innerDegree out.eLast do
+    fail s!"{v.name}: the last block of e differs"
+  unless (eventExts (← event "terminal.opening")).toOption == some #[out.opening] do
+    fail s!"{v.name}: the opening differs"
+  IO.println s!"gate 10 {v.name}: z ({out.z.size}), ‖z‖² = {out.normSq} ≤ {layout.terminal.limit},     the last block of e and the opening of the replay equal to the events"
 
 /-- Gate 4 on a positive file: the replay from the bytes of the proof and the public inputs only.
 Each `challenge` event of the file equals the derived challenge, each proof of work passes, each
-absorb equals the absorb of the file, and each value `opening_target`, `relation_claim` and
-`opening_claim` of the file equals the value of the replay. The fold challenges are squeezed with
-the length of the layout and not decoded (work item 8). -/
-def gate4 (v : Vector) (o : Oracles) (ops : Array Op) (pub : Public) : IO Unit := do
-  let some (messages, _) := (decode ops v.proof).toOption | throw <| IO.userError "decode"
-  let (stop, d) := replay pub ops v.proof messages
-  if let some s := stop then fail s!"{v.name}: the replay stops: {repr s}"
+absorb equals the absorb of the file, each value `opening_target`, `relation_claim` and
+`opening_claim` of the file equals the value of the replay, each `fold_challenges` event equals
+the drawn challenges, each `check` event is a check of the replay that passes, in order, `fused.end`
+holds at each level and `stage3.end` at each level with Stage 3, and the values of the terminal
+equal the events. `verifyBytes` runs with the verdict of this replay (`verdict` is `verdictOf` of
+the stop of the replay of the decoded messages) and no check left to `checks`. -/
+def gate4 (r : Replayed) : IO Unit := do
+  let v := r.v
+  let o := r.o
+  let d := r.d
+  if let some s := r.stop then fail s!"{v.name}: the replay stops: {repr s}"
   let derived := joined d
   let challengeEvents := o.events.filter (·.op == "challenge")
   for e in challengeEvents do
@@ -492,18 +701,42 @@ def gate4 (v : Vector) (o : Oracles) (ops : Array Op) (pub : Public) : IO Unit :
     unless key.level = e.level ∧ key.site = e.site ∧ (← IO.ofExcept (eventExts e)) == #[value] do
       fail s!"{v.name}: the value {key.site} of level {key.level} differs from {e.site} {e.level}"
   let checkEvents := o.events.filter fun e => e.op == "check" && !e.site.endsWith ".claim_chain"
-  let (have_, lack) := checkEvents.partition fun e => !e.site.startsWith "terminal."
-  unless d.checks.size = have_.size ∧
-      (d.checks.zip have_).all (fun (key, e) => key.level == e.level && key.site == e.site) do
+  let checked := d.checks.filter fun key => key.site != "fused.end" && key.site != "stage3.end"
+  unless checked.size = checkEvents.size ∧
+      (checked.zip checkEvents).all (fun (key, e) => key.level == e.level && key.site == e.site) do
     fail s!"{v.name}: the checks of the replay are not the check events of the file"
-  IO.println s!"gate 7 {v.name}: {d.checks.size} equations hold in the order of the check events \
-    (tensor.opening, tensor.end, range.<k>.end, range.leaf.end, norm.integer, norm.end); Lean has \
-    no equation for {lack.size} check events ({(lack.map (·.site)).toList.eraseDups})"
-  stagesGate v d pub.layout
+  let levels := List.range r.layout.folds.length
+  for level in levels do
+    unless d.checks.contains ⟨level, "fused.end", none⟩ do
+      fail s!"{v.name}: fused.end of level {level} is not a check of the replay that passes"
+  let stage3s := r.layout.folds.zipIdx.filterMap fun (F, level) => F.setup.map fun _ => level
+  for level in stage3s do
+    unless d.checks.contains ⟨level, "stage3.end", none⟩ do
+      fail s!"{v.name}: stage3.end of level {level} is not a check of the replay that passes"
+  let (traces, packings) := fusedLevels r.layout
+  IO.println s!"end checks {v.name}: fused.end holds at each level, {traces} with evaluation \
+    trace and {packings} with coefficient packing; stage3.end at {stage3s}"
+  let terminal := (d.checks.filter (·.site.startsWith "terminal.")).size
+  IO.println s!"gate 7 {v.name}: {d.checks.size} checks pass in the order of the {checkEvents.size} \
+    check events (tensor.opening, tensor.end, range.<k>.end, range.leaf.end, norm.integer, \
+    norm.end and {terminal} of the terminal: terminal.z.norm, terminal.e_last_block.digest, \
+    terminal.trace) and the {d.checks.size - checkEvents.size} end checks"
+  stagesGate v d r.layout
+  factorGate v o d r.layout
+  let drawn ← foldGate v o d
+  IO.println s!"gate 8 {v.name}: {d.drawn.size} fold_challenges events equal to the draws of the \
+    replay ({drawn} challenges)"
+  terminalGate v o d r.layout
   let fused := (d.absorbs.filter (·.1.site == "fused.claim")).size
   IO.println s!"gate 4 {v.name}: {challengeEvents.size} challenge events equal, {d.works.size} \
     works pass, {d.absorbs.size} absorbs equal ({fused} fused.claim), {d.values.size} values \
     equal ({names}), {d.squeezed} bytes squeezed; the replay has no input from the events"
+  match verifyBytes (verdictOf r.stop fun _ => .accept) r.ops v.proof with
+  | .verdict .accept => IO.println s!"verdict {v.name}: accept; each check of the replay passes: \
+      fused.end at the levels {levels}, stage3.end at {stage3s}, and terminalRun accepts (the \
+      norm of z, the fold challenges and the unit, the last block of e, the rows of A, the \
+      digests of the last blocks of e and t, the trace)"
+  | other => fail s!"{v.name}: verifyBytes gives {repr other}"
 
 /-- The order of the groups in the rows of the relation: with the groups in their own order in
 place of `groupOrder` of the specification, the relation claim of the root differs from the file
@@ -524,7 +757,8 @@ def orderGate (v : Vector) (o : Oracles) (pub : Public) : IO Unit := do
 
 /-- The public input of a positive file. The slot of Stage 3 (the `stage3.slot` absorb) and the
 commitment rows of the setup prefix (the value `setup_prefix.commitment_rows`) are statement
-values of the file that Lean does not derive from the schedule and the seed yet. -/
+values of the file that Lean does not derive from the schedule and the seed yet. The seed of the
+setup is `sample_akita_setup_seed` of the code (`Setup.sampleSeed`). -/
 def publicOf (v : Vector) (o : Oracles) (layout : Layout) : IO Public := do
   let slot := (o.events.find? fun e => e.op == "absorb" && e.site == "stage3.slot").map
     fun e => (str e.json ["bytes"]).toOption.getD ""
@@ -533,7 +767,7 @@ def publicOf (v : Vector) (o : Oracles) (layout : Layout) : IO Public := do
     | none => pure #[]
   return { layout, plan := v.plan, session := v.session, descriptor := v.descriptor
            groups := v.groups.map fun g => ⟨g.commitment, g.point, g.value⟩
-           slot := ← IO.ofExcept (hex (slot.getD "")), setupRows }
+           slot := ← IO.ofExcept (hex (slot.getD "")), setupRows, seed := Setup.sampleSeed }
 
 /-- T3 for the root: the SHA3-256 digest of the canonical bytes of each root commitment is the
 digest of the file. -/
@@ -566,81 +800,206 @@ def failureOf (ops : Array Op) (i : ℕ) : ℕ × String :=
   | some (.challenge key _) => (key.level, key.site)
   | _ => (0, "?")
 
-/-- The outcome of `verifyBytes` with the verdict of the replay on a changed proof, against the
-stage and the `failed` site of the file. Lean has no equation of the fused sum-check, of Stage 3
-and of the terminal yet, so `checks` rejects each proof whose works and equations pass. -/
-def classify (ops : Array Op) (pub : Public) (changed : ByteArray) (failedLevel : ℕ)
-    (failedSite : String) : String :=
-  let checks : Array Message → Verdict := fun _ => .reject ops.size "no equation check in Lean"
-  match verifyBytes (verdict pub ops changed checks) ops changed with
-  | .malformed _ => "malformed"
-  | .trailing => "trailing"
-  | .verdict (.noWork i _) =>
-      let (level, site) := failureOf ops i
-      if level = failedLevel ∧ site = failedSite then "noWork at the failed site"
-      else s!"noWork at {site} {level}, the file {failedSite} {failedLevel}"
-  | .verdict (.reject i site) => match ops[i]? with
-      | some (.check key _) =>
-          if key.level = failedLevel ∧ site = failedSite then "reject at the failed check"
-          else s!"reject at {site} {key.level}, the file {failedSite} {failedLevel}"
-      | _ => s!"each work and check of Lean passes, the file {failedSite} {failedLevel}"
-  | .verdict .accept => "accept"
+/-- The script operation of the failed site of the file: the work or the challenge of
+`failureOf`, or the check of that name. -/
+def failedAt (ops : Array Op) (failedLevel : ℕ) (failedSite : String) : Option ℕ :=
+  (List.range ops.size).find? fun k => failureOf ops k == (failedLevel, failedSite) ||
+    match ops[k]? with
+    | some (.check key _) => key.level == failedLevel && key.site == failedSite
+    | _ => false
 
-/-- The changes of a negative file with nothing from the events, one task for each change: the
-count of each pair of a stage and a Lean outcome. A change of the stage `parse`, `trailing_bytes`,
-`proof_of_work` or `fold_response`, and a change of the stage `equation` whose check is not one of
-the terminal, must have the outcome class of the file at the failed site of the file. -/
+/-- The step of the states pass: the end checks `fused.end` and `stage3.end` and the terminal are
+skipped. They write only `Derived.stages`, `Derived.checks` and `Derived.terminal`, which no
+operation reads, so each other part of a state is the state of `replay`. -/
+def statesStep (pub : Public) (proof : ByteArray) (messages : Array Message) (i : ℕ) :
+    Op → ReplayM Unit
+  | .check _ (.fused ..) | .check _ (.stage3 ..) | .terminal _ => pure ()
+  | op => Replayer.step pub proof messages i op
+
+/-- The states of the states pass on `proof` before the operations `marks` (increasing), until it
+stops. -/
+def statesAt (pub : Public) (ops : Array Op) (proof : ByteArray) (messages : Array Message)
+    (marks : List ℕ) : Array (ℕ × Replayer) := Id.run do
+  let mut s : Replayer := ⟨channel pub.session pub.descriptor, 0, {}, {}, {}, {}⟩
+  let mut out : Array (ℕ × Replayer) := #[(0, s)]
+  let mut at_ := 0
+  for mark in marks do
+    let run : ReplayM Unit := (ops.zipIdx.extract at_ mark).forM fun (op, i) =>
+      statesStep pub proof messages i op
+    match (run.run).run s with
+    | (.ok (), s') => s := s'; at_ := mark; out := out.push (mark, s)
+    | (.error _, _) => break
+  return out
+
+/-- The stop of the replay of the operations from `start` with the state `s`. -/
+def stopFrom (pub : Public) (ops : Array Op) (proof : ByteArray) (messages : Array Message)
+    (start : ℕ) (s : Replayer) : Option Stop :=
+  let run : ReplayM Unit := (ops.zipIdx.extract start ops.size).forM fun (op, i) =>
+    Replayer.step pub proof messages i op
+  match (run.run).run s with
+  | (.ok (), _) => none
+  | (.error stop, _) => some stop
+
+/-- The states that a changed proof resumes from: before each `64`-th operation and after each
+end check and the terminal, from the states pass of the positive proof. A state before the
+operation `k` is a state of the replay of a changed proof with the same bytes before the end of
+the messages that the operations before `k` read: `decode` reads from left to right, the replay
+reads only these messages and their bytes, and the end checks before `k` pass on them. -/
+structure Resume where
+  states : Array (ℕ × Replayer)
+  ends : Array ℕ
+
+def resumeOf (pub : Public) (ops : Array Op) (proof : ByteArray) (messages : Array Message) :
+    Resume :=
+  let ended (op : Op) : Bool := match op with
+    | Op.check _ (Check.fused ..) | Op.check _ (Check.stage3 ..) | Op.terminal _ => true
+    | _ => false
+  let marks := (List.range ops.size).filter fun k =>
+    k != 0 && (k % 64 == 0 || ((ops[k - 1]?).map ended).getD false)
+  ⟨statesAt pub ops proof messages marks,
+    messages.map fun m => m.offset + m.size⟩
+
+/-- The stop of the replay of a changed proof whose bytes before `offset` are those of the
+positive proof: from the last state whose messages end before `offset`. -/
+def Resume.stop (r : Resume) (pub : Public) (ops : Array Op) (proof : ByteArray) (offset : ℕ)
+    (messages : Array Message) : Option Stop :=
+  let fits (s : Replayer) : Bool := s.next == 0 || r.ends.getD (s.next - 1) 0 ≤ offset
+  match r.states.reverse.find? (fits ·.2) with
+  | some (start, s) => stopFrom pub ops proof messages start s
+  | none => (replay pub ops proof messages).1
+
+/-- The level of an equation or of the terminal at the operation `i`. -/
+def checkLevel (ops : Array Op) (i : ℕ) : Option ℕ :=
+  match ops[i]? with
+  | some (.check key _) => some key.level
+  | some (.terminal level) => some level
+  | _ => none
+
+/-- The outcome of `verifyBytes` with the verdict of the replay on a changed proof: the class
+(`malformed`, `trailing`, `noWork`, `reject` or `accept`) and the level and the site of the stop in
+the names of the file (`failureOf` for a work). -/
+def outcomeOf (ops : Array Op) (pub : Public) (resume : Resume) (changed : ByteArray)
+    (offset : ℕ) : String × Option (ℕ × String) :=
+  match verifyBytes (fun messages => verdictOf (resume.stop pub ops changed offset messages)
+      (fun _ => .accept) messages) ops changed with
+  | .malformed _ => ("malformed", none)
+  | .trailing => ("trailing", none)
+  | .verdict (.noWork i _) => ("noWork", some (failureOf ops i))
+  | .verdict (.reject i site) => ("reject", (checkLevel ops i).map (·, site))
+  | .verdict .accept => ("accept", none)
+
+/-- The class of the Rust verifier at the failed site of the file for the stage of a change: the
+decoder of `z` is the check `terminal.z.decode` of the replay; the file names its stage `decode`
+and its site `terminal.z`. -/
+def stageClass : String → String
+  | "parse" => "malformed"
+  | "trailing_bytes" => "trailing"
+  | "proof_of_work" | "fold_response" | "fold_challenges" => "noWork"
+  | "equation" | "decode" => "reject"
+  | _ => "?"
+
+/-- The changes whose Lean site is not the field `failed` of the file, in the order of the file:
+the index of the change, its stage, site and level, the failed site of the file and the Lean
+site (level and site). Each is a reject at `fused.end` or `stage3.end` before the failed site. -/
+def moved : List (String × List (ℕ × String × String × ℕ × String × ℕ × String × ℕ)) := [
+  ("key20-opening-negative.json", [
+    (4, "fold_response", "fused.round", 0, "fold_nonce", 1, "fused.end", 0),
+    (15, "fold_response", "witness_evaluation", 0, "fold_nonce", 1, "fused.end", 0),
+    (16, "fold_response", "witness_evaluation", 0, "fold_nonce", 1, "fused.end", 0),
+    (23, "proof_of_work", "fused.round", 1, "tensor.partials", 2, "fused.end", 1),
+    (34, "proof_of_work", "witness_evaluation", 1, "tensor.partials", 2, "fused.end", 1),
+    (35, "equation", "witness_evaluation", 1, "tensor.opening", 2, "fused.end", 1),
+    (67, "proof_of_work", "witness_evaluation", 2, "tensor.partials", 3, "fused.end", 2),
+    (68, "proof_of_work", "witness_evaluation", 2, "tensor.partials", 3, "fused.end", 2),
+    (75, "proof_of_work", "fused.round", 3, "tensor.partials", 4, "fused.end", 3),
+    (104, "proof_of_work", "witness_evaluation", 3, "tensor.partials", 4, "fused.end", 3),
+    (105, "proof_of_work", "witness_evaluation", 3, "tensor.partials", 4, "fused.end", 3),
+    (147, "proof_of_work", "witness_evaluation", 4, "tensor.partials", 5, "fused.end", 4),
+    (148, "proof_of_work", "witness_evaluation", 4, "tensor.partials", 5, "fused.end", 4),
+    (150, "proof_of_work", "work", 4, "tensor.sumcheck.round", 5, "fused.end", 4),
+    (192, "proof_of_work", "witness_evaluation", 5, "tensor.partials", 6, "fused.end", 5),
+    (193, "proof_of_work", "witness_evaluation", 5, "tensor.partials", 6, "fused.end", 5),
+    (195, "proof_of_work", "work", 5, "tensor.sumcheck.round", 6, "fused.end", 5)]),
+  ("key30-opening-26-28-negative.json", [
+    (0, "proof_of_work", "stage3.prefix_evaluation", 0, "row_coefficients", 1, "stage3.end", 0),
+    (1, "proof_of_work", "stage3.prefix_evaluation", 0, "row_coefficients", 1, "stage3.end", 0)])]
+
+/-- The changes of a negative file with nothing from the events, one task for each change. Each
+change is a `reject` of the Rust verifier, and the replay rejects it too: at the failed site of
+the file with the class of its stage (`parse` malformed, `trailing_bytes` trailing,
+`proof_of_work`, `fold_response` and `fold_challenges` `noWork`, `equation` `reject` at the check,
+`decode` `reject` at `terminal.z.decode`), or with a reject at `fused.end` or `stage3.end` before
+the failed site. A change of `witness_evaluation` at a level with no work before `fused.end` must
+reject at `fused.end` of its level, and a change of `stage3.prefix_evaluation` at `stage3.end`.
+The changes at another site than `failed` are the list `moved`. -/
 def gate4Negative (name : String) (ops : Array Op) (pub : Public) (proof : ByteArray) :
     IO Unit := do
+  let start ← IO.monoMsNow
   let text ← IO.FS.readFile (directory / name)
   let changes ← IO.ofExcept do array (← Json.parse text) ["changes"]
+  let some (messages, _) := (decode ops proof).toOption | throw <| IO.userError "decode"
+  let resume := resumeOf pub ops proof messages
+  let resumed ← IO.monoMsNow
   let tasks ← changes.mapM fun c => do
-    let stage ← IO.ofExcept (str c ["stage"])
     let changed ← IO.ofExcept (change proof c)
+    let offset := ((nat c ["offset"]).toOption.getD
+      (min proof.size (proof.size - ((nat c ["truncate"]).toOption.getD 0))))
+    return (c, Task.spawn fun _ => outcomeOf ops pub resume changed offset)
+  let mut classes : List (String × String × ℕ) := []
+  let mut found : List (ℕ × String × String × ℕ × String × ℕ × String × ℕ) := []
+  for ((c, task), index) in tasks.toList.zipIdx do
+    let stage ← IO.ofExcept (str c ["stage"])
+    let result ← IO.ofExcept (str c ["result"])
     let failedLevel := (nat c ["failed", "level"]).toOption.getD 0
     let failedSite := (str c ["failed", "site"]).toOption.getD ""
-    return (stage, failedSite, Task.spawn fun _ => classify ops pub changed failedLevel failedSite)
-  let mut classes : List (String × String × ℕ) := []
-  for (stage, failedSite, task) in tasks do
-    let outcome := task.get
-    let expected := match stage with
-      | "parse" => some "malformed"
-      | "trailing_bytes" => some "trailing"
-      | "proof_of_work" | "fold_response" => some "noWork at the failed site"
-      | "equation" => if failedSite.startsWith "terminal." then none
-          else some "reject at the failed check"
-      | _ => none
-    if let some class_ := expected then
-      unless outcome == class_ do fail s!"{name}: a change of the stage {stage} is: {outcome}"
-    classes := match classes.find? (fun (s, k, _) => s == stage && k == outcome) with
-      | some _ => classes.map fun (s, k, n) => if s == stage && k == outcome then (s, k, n + 1)
+    let level := (nat c ["level"]).toOption.getD 0
+    let site := (str c ["site"]).toOption.getD ""
+    let (klass, at_) := task.get
+    let label := s!"{stage} ({site} {level})"
+    if result != "reject" || klass == "accept" then
+      fail s!"{name}: change {index} {label}: the file has {result}, the replay {klass}"
+    let same := match at_ with
+      | none => true
+      | some (l, s) => l == failedLevel &&
+          (s == failedSite || (s == "terminal.z.decode" && failedSite == "terminal.z"))
+    let ended := (at_.map fun (_, s) => s == "fused.end" || s == "stage3.end").getD false
+    let before := ((failedAt ops failedLevel failedSite).bind fun k =>
+      (at_.bind fun (l, s) => ops.findIdx? fun
+        | .check key _ => key == ⟨l, s, none⟩
+        | _ => false).map fun j => decide (j < k)).getD false
+    if same then
+      unless klass == stageClass stage do
+        fail s!"{name}: change {index} {label}: {klass} at the failed site, the stage {stage}"
+    else
+      unless klass == "reject" && ended && before do
+        fail s!"{name}: change {index} {label}: {klass} at {at_}, the file {failedSite} {failedLevel}"
+      let (l, s) := at_.getD (0, "")
+      found := found ++ [(index, stage, site, level, failedSite, failedLevel, s, l)]
+    let check := if site == "witness_evaluation" then some "fused.end"
+      else if site == "stage3.prefix_evaluation" then some "stage3.end" else none
+    let direct := ops.findIdx? fun | .exts key _ => key == ⟨level, site, none⟩ | _ => false
+    let worked := (direct.bind fun k => check.bind fun site' =>
+      ops.findIdx? (fun | .check key _ => key == ⟨level, site', none⟩ | _ => false) |>.map fun e =>
+        (List.range (e - k)).any fun j => match ops[k + j]? with
+          | some (.work _ _ bits) => bits != 0
+          | _ => false)
+    if let (some site', some false) := (check, worked) then
+      unless at_ == some (level, site') do
+        fail s!"{name}: change {index} {label} does not reject at {site'} {level}: {klass} {at_}"
+    let key := if same then s!"{klass} at the failed site" else s!"{klass} at {at_.getD (0, "")}"
+    classes := match classes.find? (fun (s, k, _) => s == stage && k == key) with
+      | some _ => classes.map fun (s, k, n) => if s == stage && k == key then (s, k, n + 1)
           else (s, k, n)
-      | none => classes ++ [(stage, outcome, 1)]
-  IO.println s!"gate 4 {name}: {changes.size} changes; (stage, Lean, count):"
+      | none => classes ++ [(stage, key, 1)]
+  IO.println s!"gate 4 {name}: {changes.size} changes, each a reject of the Rust verifier and of \
+    the replay; the states pass {resumed - start} ms, the changes \
+    {(← IO.monoMsNow) - resumed} ms; (stage, Lean, count):"
   for (s, k, n) in classes do IO.println s!"  {s}: {k}: {n}"
-
-#eval show IO Unit from do
-  let start ← IO.monoMsNow
-  for name in positives do
-    let (v, o) ← load name
-    gate1 v o
-    let levels ← gate2 v o
-    IO.println s!"gate 2 {v.name}: norm.square = virtual² and norm.end on {levels} levels"
-    let ops ← gate3 v o
-    if name == "key20-opening.json" then
-      discard <| gate3Negative "key20-opening-negative.json" ops v.proof
-    if name == "key30-opening-26-28.json" then
-      discard <| gate3Negative "key30-opening-26-28-negative.json" ops v.proof
-    let layout ← layoutOf v
-    let pub ← publicOf v o layout
-    digests v
-    planGate v layout
-    gate4 v o ops pub
-    orderGate v o pub
-    if name == "key20-opening.json" then
-      gate4Negative "key20-opening-negative.json" ops pub v.proof
-    if name == "key30-opening-26-28.json" then
-      gate4Negative "key30-opening-26-28-negative.json" ops pub v.proof
-  IO.println s!"time {(← IO.monoMsNow) - start} ms"
+  IO.println s!"  {found.length} changes at another site than failed, each a reject:"
+  for (i, stage, site, level, failedSite, failedLevel, at_, atLevel) in found do
+    IO.println s!"    change {i}: {stage} of {site} at level {level}; failed {failedSite} \
+      {failedLevel}; the replay rejects at {at_} {atLevel}"
+  unless some found == (moved.find? (·.1 == name)).map (·.2) do
+    fail s!"{name}: the changes at another site than failed are not the list moved"
 
 end AkitaVectors

@@ -9,7 +9,9 @@ schedule row and its grinding plan (Akita revision `d50f700`: `fold/root.rs`, `f
   text in the plan of a vector.
 - `Op` is one operation of the transcript: the absorb of a public value, the receipt of a prover
   message, the proof of work of a site, the squeeze of field challenges, the response nonce of a
-  fold, and the squeeze of the message of the fold challenges of one group.
+  fold, the squeeze of the message of the fold challenges of one group and their draw, an
+  equation of the verifier, and the checks of the terminal (`verify_terminal_ring_relations`,
+  `verify_terminal_trace`) after the payload of `z`.
 - `Value` says how the verifier gets each absorbed public value: from the statement, from
   recorded messages and challenges, or by a computation of the code on them.
 - `Before` is the message form of a sum-check: plain, or equality-factored with the point before
@@ -129,21 +131,28 @@ inductive Weights
   | powers (gamma : Key)
 deriving Repr
 
-/-- An equation of the verifier on recorded values (`Replay/Range.lean`, `Replay/Tensor.lean`). -/
+/-- An equation of the verifier on recorded values (`Replay/Range.lean`, `Replay/Tensor.lean`).
+The last check of the range proof, of the norm check and of the tensor reduction of a level is
+the stage function on the recorded values (`Replay/Transcript.lean`). -/
 inductive Check
   /-- `v = (1 − r_0)·S_0 + r_0·S_1` for the claim `(r, v)` and the column partials. -/
   | tensorOpening (point value partials : Key)
-  /-- Two recorded values are equal. -/
-  | equal (left right : Key)
   /-- The end of a product stage of the range proof (`stageEnd`). -/
   | stage (nodes arity : ℕ) (weights : Weights) (output children : Key)
-  /-- The end of the leaf stage of the range proof (`leafEnd`). -/
-  | leaf (leaf nodes : ℕ) (weights : Weights) (output image : Key)
-  /-- `E_resp ≤ S_max`. -/
+  /-- `E_resp ≤ S_max` and `E_resp < q` (`energyFits`). -/
   | energy (energy : Key) (limit : ℕ)
-  /-- The end of the norm sum-check: `ẽq(before, r)·leaf(s) + ζ·z²` (`normRun`). -/
-  | norm (leaf nodes : ℕ) (weights : Weights) (before : Before)
-      (point output image merge virtual : Key)
+  /-- The range proof of the level on the coefficient route (`rangeRun`) for the base and the
+  arities of its product stages, from the range point. -/
+  | range (level base : ℕ) (arities : List ℕ) (before : Before)
+  /-- The range proof of the level with the norm check on the Euclidean route (`treeRun` with
+  `normRun`). -/
+  | rangeNorm (level leaf limit : ℕ) (arities : List ℕ) (before : Before)
+  /-- The tensor reduction of the level (`tensorRun`) for the claim `(point, opening)`. -/
+  | tensor (level count : ℕ) (point opening : Key)
+  /-- The end of the fused sum-check of a level (`traceFused` or `foldFused`). -/
+  | fused (level : ℕ) (F : Fold)
+  /-- The end of Stage 3 for the plan of its weight (`stage3Run`, `stage3Weight`). -/
+  | stage3 (level : ℕ) (plan : SetupPlan)
 deriving Repr
 
 inductive Op
@@ -156,11 +165,15 @@ inductive Op
   | work (site : Site) (level bits : ℕ)
   | challenge (key : Key) (count : ℕ)
   | foldNonce (level width : ℕ)
-  | squeeze (level group bytes : ℕ)
+  /-- The message of the fold challenges of the group `group` of the family `G`
+  (`G.messageBytes` bytes) and the draw of its challenges (`VerifierFoldDraw`). -/
+  | squeeze (level group : ℕ) (G : FoldGroup)
   /-- The end of the rounds of the sum-check `key`: its point and its end claim. -/
   | ended (key : Key) (rounds : ℕ) (before : Before)
   /-- An equation of the verifier; `key.site` is the name of the check. -/
   | check (key : Key) (check : Check)
+  /-- The checks of the terminal of the level `level` (`Replay/Terminal.lean`). -/
+  | terminal (level : ℕ)
 deriving Repr
 
 abbrev Build := StateT (ℕ × Array Op) (Except String)
@@ -212,7 +225,7 @@ def foldChallenges (plan : Array Run) (level : ℕ) (groups : List FoldGroup) : 
   emit (.foldNonce level run.nonceBits)
   work plan level (.foldChallengeWork level) (groups.map (·.coordinates)).sum
   for (G, g) in groups.zipIdx do
-    emit (.squeeze level g G.messageBytes)
+    emit (.squeeze level g G)
     let run ← take plan (.foldChallengeGroup level g) 0
     unless run.count = G.coordinates + 1 do
       throw s!"the plan has {run.count} entries for the {G.coordinates} challenges of group {g}"
@@ -228,8 +241,7 @@ def tensor (plan : Array Run) (level rounds : ℕ) (point opening : Key) : Build
   sumcheck plan level "tensor.sumcheck" .extensionOpeningReduction 0
     (.tensor (key "tensor.partials") (key "tensor.eta")) rounds 2
   emit (.exts (key "tensor.final_claims") 1)
-  emit (.check (key "tensor.end")
-    (.equal (key "tensor.sumcheck.output") (key "tensor.final_claims")))
+  emit (.check (key "tensor.end") (.tensor level rounds point opening))
 
 /-- The stages of the range proof and the norm check of a fold (`stages/stage1.rs`). -/
 def range (plan : Array Run) (level : ℕ) (F : Fold) : Build Unit := do
@@ -262,17 +274,17 @@ def range (plan : Array Run) (level : ℕ) (F : Fold) : Build Unit := do
     emit (.exts (key "norm.virtual_evaluations") 1)
     emit (.exts (key "range.image") 1)
     emit (.check (key "norm.integer") (.energy (key "norm.response_l2_sq") F.limit))
-    emit (.check (key "norm.end") (.norm leaf (nodes last) (weights last) (before last)
-      (key "norm.sumcheck.point") (key "norm.sumcheck.output") (key "range.image")
-      (key "norm.merge") (key "norm.virtual_evaluations")))
+    emit (.check (key "norm.end") (.rangeNorm level leaf F.limit (stages.map (·.1)) (before 0)))
     challenges plan level (.virtualBatch level) "norm.virtual_batch" 1 1
   else
     sumcheck plan level "range.leaf" .stage1 last (claim last) F.vars leaf (before last)
     emit (.exts (key "range.image") 1)
-    emit (.check (key "range.leaf.end") (.leaf leaf (nodes last) (weights last)
-      (key "range.leaf.output") (key "range.image")))
+    emit (.check (key "range.leaf.end")
+      (.range level (2 ^ F.logBasis) (stages.map (·.1)) (before 0)))
 
-/-- One fold (`fold/mod.rs`, `verify_fold`), after the absorbs of its points and values. -/
+/-- One fold (`fold/mod.rs`, `verify_fold`), after the absorbs of its points and values. The end
+check of Stage 2, `fused.end`, comes after Stage 3 (`validate_stage2_replay` after
+`verify_stage3`). -/
 def fold (plan : Array Run) (level : ℕ) (F : Fold) : Build Unit := do
   let key (site : String) : Key := ⟨level, site, none⟩
   emit (.fields (key "opening_payload") F.payload)
@@ -299,6 +311,8 @@ def fold (plan : Array Run) (level : ℕ) (F : Fold) : Build Unit := do
     emit (.exts (key "stage3.setup_claim") 1)
     sumcheck plan level "stage3" .stage3 0 (.recorded [key "stage3.setup_claim"]) rounds 2
     emit (.exts (key "stage3.prefix_evaluation") 1)
+    if let some setup := F.setup then emit (.check (key "stage3.end") (.stage3 level setup))
+  emit (.check (key "fused.end") (.fused level F))
 
 /-- The absorbs before the fold of a level: the statement at the root (`fold/root.rs`), the
 points and the values of the level before at a level with packing (`fold/suffix.rs`), and the
@@ -335,6 +349,7 @@ def terminal (plan : Array Run) (level : ℕ) (T : Terminal) : Build Unit := do
   emit (.digest (key "terminal.e_last_block_digest"))
   foldChallenges plan level [T.group]
   emit (.bounded (key "terminal.z") T.zMax)
+  emit (.terminal level)
 
 end Build
 

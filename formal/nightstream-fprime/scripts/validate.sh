@@ -70,7 +70,7 @@ case "$phase" in
     # Lake does not track the files that these tests read, so they run again.
     capped lake build --wfail NightstreamFPrimeTests && lean_file tests/EndpointCensus.lean &&
       lean_file tests/PremiseCensus.lean && lean_file tests/AkitaSchedules.lean &&
-      lean_file tests/AkitaVectors.lean && lean_file tests/AkitaSumcheckVectors.lean
+      lean_file tests/AkitaAllVectors.lean
     ;;
   executables)
     capped lake build --wfail $(executables)
@@ -139,8 +139,7 @@ case "$phase" in
     lean_file tests/EndpointCensus.lean
     lean_file tests/PremiseCensus.lean
     lean_file tests/AkitaSchedules.lean
-    lean_file tests/AkitaVectors.lean
-    lean_file tests/AkitaSumcheckVectors.lean
+    lean_file tests/AkitaAllVectors.lean
     ;;
   *) echo "unknown phase: $phase" >&2; exit 2 ;;
 esac

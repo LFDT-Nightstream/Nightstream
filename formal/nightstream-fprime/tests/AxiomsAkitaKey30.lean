@@ -54,6 +54,7 @@ statement (`Export/BoundedDepth/FinalShapes`, `FinalMemory`, `FinalKey30All`), a
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Form.scan_ofMatrix
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Form.scan_response
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.AffineForm.sub
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.AffineForm.const_sub
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.AffineForm.ofMatrix
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.AffineForm.response
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.AffineRow.of_eq
@@ -83,6 +84,7 @@ statement (`Export/BoundedDepth/FinalShapes`, `FinalMemory`, `FinalKey30All`), a
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Form.scan_geometric
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.GeoForm.of_blocked
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.GeoForm.sub
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.GeoForm.const_sub
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.GeoRow.of_eq
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.GeoRow.relocate
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.GeoRow.row

@@ -1,4 +1,5 @@
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Field
+import NightstreamFPrime.Spec.Compression.Akita.Opening
 
 /-! The public input of the replay of an Akita opening proof of the pinned code (Akita
 revision `d50f700`, `crates/akita-verifier/src/fold/`): the numbers of each level of the schedule
@@ -113,6 +114,73 @@ structure RhsRun where
   source : RhsSource
 deriving DecidableEq, Repr
 
+/-- The numbers of one group of a fold (`SetupContributionGroupPlan`): the degrees `d_A` and
+`d_B`, the rank `n_A`, the positions `M` of a block, the digits of the witness, of the fold, of
+`t̂` and of `ê`, the live blocks, the slices of `B`, the rank of `B` and the width
+`k·d_car` of an element of `ê`. One claim. -/
+structure SetupGroup where
+  innerDegree : ℕ
+  outerDegree : ℕ
+  innerRank : ℕ
+  positions : ℕ
+  witnessDigits : ℕ
+  foldDigits : ℕ
+  commitDigits : ℕ
+  openDigits : ℕ
+  blocks : ℕ
+  slices : ℕ
+  outerRank : ℕ
+  openWidth : ℕ
+deriving DecidableEq, Repr
+
+/-- The groups of a fold in the order of the code and the numbers of `D`: its degree and rank,
+the relation block `2^κ` and the bits of the base of the fold gadget. -/
+structure SetupPlan where
+  groups : List SetupGroup
+  openDegree : ℕ
+  openRank : ℕ
+  block : ℕ
+  logBasis : ℕ
+deriving DecidableEq, Repr
+
+/-- The Lean shapes of a level with evaluation trace: the shape, the opening shape and the
+descriptor of its fold (`Key20.Level`). -/
+structure TraceShape where
+  shape : Shape
+  opening : OpeningShape shape
+  fold : Descriptor
+
+/-- One group of a level with coefficient packing: its index in the fold (the index of its claim,
+of its fold challenges and of its point), its shape, its opening shape and its descriptor. -/
+structure PackSlot where
+  index : ℕ
+  shape : Shape
+  opening : OpeningShape shape
+  fold : Descriptor
+
+/-- The numbers of the shared path of `D` and `H`: its degree, its rank and its compression maps. -/
+structure OpenPath where
+  degree : ℕ
+  rank : ℕ
+  chain : Option ChainShape
+
+/-- The Lean shapes of a level with coefficient packing: its groups in the order of the cells of
+the code (`root_group_order`), the path of `D` and the count `δ_quot` of quotient digits. -/
+structure PackShape where
+  slots : List PackSlot
+  path : OpenPath
+  digits : ℕ
+
+/-- The Lean shapes of the end check of the fused sum-check of a level: `traceFused` at a level with
+evaluation trace, `foldFused` at a level with coefficient packing. -/
+inductive FusedShape
+  | trace (T : TraceShape)
+  | packing (P : PackShape)
+
+instance : Repr FusedShape := ⟨fun
+  | .trace T, _ => s!"trace (d_A = {T.shape.innerDegree})"
+  | .packing P, _ => s!"packing ({P.slots.length} groups, δ_quot = {P.digits})"⟩
+
 /-- The numbers of one level before the terminal (`fold/mod.rs`, `verify_fold`):
 
 - `groups`: one claim for each group, in the order of the claims;
@@ -126,9 +194,11 @@ deriving DecidableEq, Repr
 - `logBasis`: the opening base of the range proof (`DigitRangePlan`);
 - `euclidean`: the norm check of the Euclidean route, with the cap `limit` of the squared norm of
   the response (`response_l2_sq_cap`); `compressed`: the compression digits;
-- `stage3`: the rounds of Stage 3 when the next level opens the setup prefix;
+- `stage3`: the rounds of Stage 3 when the next level opens the setup prefix, and `setup` the
+  plan of its weight (`SetupPlan.ofBatch`);
 - `rhs`: the rows of `y` with public coefficients (each other row of `y` is zero), and
-  `openingRow`: the count of rows of `y`, which is the index of the opening row. -/
+  `openingRow`: the count of rows of `y`, which is the index of the opening row;
+- `fused`: the Lean shapes of the end check of the fused sum-check. -/
 structure Fold where
   groups : List FoldGroup
   trace : Option (ℕ × ℕ)
@@ -145,23 +215,34 @@ structure Fold where
   stage3 : Option ℕ
   rhs : List RhsRun
   openingRow : ℕ
-deriving DecidableEq, Repr
+  setup : Option SetupPlan := none
+  fused : FusedShape
+deriving Repr
 
 /-- The numbers of the terminal (`fold/terminal.rs`): the rounds of its tensor reduction, the ring
 degree of `A`, the count of field elements of `e` without its last block, the most bytes of the
-payload of `z`, and its fold challenges. -/
+payload of `z`, its fold challenges, its shape, the cap `S_max` of `‖z‖_2²`
+(`response_l2_sq_cap`) and the Rice parameter of the payload of `z` (`z_rice_low_bits`). -/
 structure Terminal where
   rounds : ℕ
   degree : ℕ
   e : ℕ
   zMax : ℕ
   group : FoldGroup
-deriving DecidableEq, Repr
+  shape : Shape
+  limit : ℕ
+  rice : ℕ
+
+/-- `z_coords`: the coefficients of `z`, `M·δ·d` (`TailSegmentGroupLayout`). -/
+def Terminal.zCoords (T : Terminal) : ℕ :=
+  T.shape.blockLength * T.shape.sourceDigits * T.shape.innerDegree
+
+/-- The elements of the setup prefix that the rows of `A` read: `n_A·M·δ·d`. -/
+def Terminal.setupCount (T : Terminal) : ℕ := T.shape.innerRank * T.zCoords
 
 structure Layout where
   folds : List Fold
   terminal : Terminal
-deriving DecidableEq, Repr
 
 /-- The product stages of the range proof for the opening base `2^logBasis`
 (`DigitRangePlan::product_stage_arities`) and the count of child claims after each. -/
@@ -197,5 +278,9 @@ structure Public where
   groups : Array Statement
   slot : ByteArray
   setupRows : Array Fq
+  seed : ByteArray
+  /-- The prefix of the flat setup vector of `seed` (`Setup.expand`), when it is computed before
+  the replay; the replay expands a longer prefix from `seed` when it needs one. -/
+  setup : Array Fq := #[]
 
 end NightstreamFPrime.Spec.Compression.Akita.Replay

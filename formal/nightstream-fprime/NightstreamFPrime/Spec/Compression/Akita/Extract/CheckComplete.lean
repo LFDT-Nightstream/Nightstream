@@ -421,7 +421,8 @@ theorem Tier.tensored_winsAt [Degree2 E] {Ring Stmt Brk : Type}
   obtain ⟨head, tail, rfl⟩ := List.exists_cons_of_length_eq_add_one long
   exact winsAt_of_fresh (admits := fun M => ∀ message : M, sendable M message)
     (fun _ message all => all message)
-    (tensorCheck_winsTo _ sends.pair (fun message => sends.vector _ message wide) table head
+    (tensorCheck_winsTo _ sends.pair sends.scalar (fun message => sends.vector _ message wide) table
+      head
       (by simpa using long)) room
 
 variable {key : Key S} {openKey : OpeningKey O} {claim : Wire → TraceClaim O E} {μ : ℕ}

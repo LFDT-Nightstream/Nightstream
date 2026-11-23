@@ -1,4 +1,5 @@
-import NightstreamFPrime.Spec.Compression.Akita.Replay.Layout
+import NightstreamFPrime.Spec.Compression.Akita.Replay.Rows
+import NightstreamFPrime.Spec.Compression.Akita.Replay.Stage3Weight
 import NightstreamFPrime.Spec.Compression.Akita.Key20Opening
 import NightstreamFPrime.Spec.Compression.Akita.Key30Opening
 
@@ -16,13 +17,15 @@ message is the count of the pinned code (Akita revision `d50f700`):
   carrier (the subring of the packing, or `R_{q,d_A}` at a trace level);
 - the tensor reduction of a trace level and of the terminal has one round less than the count of
   variables of the level before (`canonical_extension_opening_reduction_shape`, split 1);
-- the rows of the relation of a level (`relation`) have the ranks of `A`, `B` and `D` and the
-  degrees of the compression maps of the shapes of the level, with the groups in the order
-  `groupOrder` of the specification (`RowBatch.lean`): the last group first. `layout20With` and
-  `layout30With` take the order as an argument, for the test of another order.
+- the rows of the relation of a level (`relation` of `Replay/Rows.lean`) have the ranks and the
+  degrees of the shapes of the level, with the groups in the order `groupOrder` of the
+  specification (`RowBatch.lean`): the last group first. `layout20With` and `layout30With` take
+  the order as an argument, for the test of another order.
 
 The schedule files hold the most bytes of the payload of `z` and the code computes it from a
-cap that Lean does not have, so `layout20` and `layout30` take it as `zMax`. -/
+cap that Lean does not have, so `layout20` and `layout30` take it as `zMax`, and the Rice
+parameter of the payload as `rice`. The terminal has the shape `Key20.terminal`
+(`Key30.terminal`) and the cap `normTerminal.limit`. -/
 
 set_option autoImplicit false
 
@@ -44,6 +47,8 @@ structure Numbers where
   compressed : Bool
   setup : Bool
   rhs : List RhsRun × ℕ
+  fused : FusedShape
+  plan : Option SetupPlan := none
 
 /-- The count of field elements of an image of `B` or `D`: after the compression maps, or
 `rank` ring elements of degree `degree`. -/
@@ -54,34 +59,8 @@ def image (chain : Option ChainShape) (rank degree : ℕ) : ℕ :=
 
 def outer (S : Shape) : ℕ := image S.chain S.outerRank S.outerDegree
 
-/-- The ring degree of the last compression map. -/
-def lastDegree : Option ChainShape → ℕ
-  | some c => c.secondDegree
-  | none => 0
-
-/-- The rows of `y` with public coefficients and the count of rows of the relation of a fold
-(`RelationRhsLayout::row_families`, `assemble_relation_rhs`, `assemble_compressed_relation_rhs`,
-`scalar_opening_row_index`, `evaluation_trace_row_index`). `order` has for each group, in the order
-of the rows (`root_group_order`), its commitment shape and the source of its commitment rows. A
-group has its consistency row, the rows of `A` and, for
-each slice, the rows of `B`; then `D` has its rows; a compressed fold has then two compression maps
-with one row for each group and one for `D`. The public rows are those of `B` and `D`, or those of
-the last map when the fold is compressed. -/
-def relation (order : List (Shape × RhsSource)) (openRank openDegree : ℕ)
-    (openChain : Option ChainShape) (compressed : Bool) : List RhsRun × ℕ :=
-  let (runs, start) := order.foldl (fun (runs, start) (S, source) =>
-    (runs ++ [⟨start + 1 + S.innerRank, S.outerDegree, S.slices * S.outerRank, source⟩],
-      start + 1 + S.innerRank + S.slices * S.outerRank)) ([], 0)
-  let base := start + openRank
-  if compressed then
-    ((order.zipIdx.map fun ((S, source), k) =>
-        ⟨base + order.length + 1 + k, lastDegree S.chain, 1, source⟩) ++
-      [⟨base + 2 * order.length + 1, lastDegree openChain, 1, .payload⟩],
-      base + 2 * (order.length + 1))
-  else (runs ++ [⟨start, openDegree, openRank, .payload⟩], base)
-
 def assemble (levels : List Numbers) (setupVars : ℕ) (terminal : Shape) (family : ℕ × ℕ)
-    (zMax : ℕ) : Layout :=
+    (limit zMax rice : ℕ) : Layout :=
   let nexts := (levels.drop 1).map some ++ [none]
   let previous := none :: levels.map some
   let folds := ((levels.zip nexts).zip previous).map fun ((L, next), before) =>
@@ -101,7 +80,9 @@ def assemble (levels : List Numbers) (setupVars : ℕ) (terminal : Shape) (famil
       compressed := L.compressed
       stage3 := if (next.map (·.setup)).getD false then some setupVars else none
       rhs := L.rhs.1
-      openingRow := L.rhs.2 : Fold }
+      openingRow := L.rhs.2
+      setup := if (next.map (·.setup)).getD false then L.plan else none
+      fused := L.fused : Fold }
   { folds
     terminal := {
       rounds := (levels.getLast?.map (·.vars)).getD 0 - 1
@@ -109,13 +90,30 @@ def assemble (levels : List Numbers) (setupVars : ℕ) (terminal : Shape) (famil
       e := (terminal.blocks - 1) * terminal.innerDegree
       zMax
       group := ⟨terminal.blocks, terminal.innerDegree, terminal.innerDegree, family.1, family.2,
-        true⟩ } }
+        true⟩
+      shape := terminal
+      limit
+      rice } }
+
+/-- The source of the commitment rows of the group at the place `k` of a fold with opening groups
+in the order `order`: the commitment of a root group, or the setup prefix or the next witness of
+the level before. -/
+def batchSource {n : ℕ} (order : Equiv.Perm (Fin n)) (R : Level) (root : Bool) (k : Fin n) :
+    RhsSource :=
+  if root then .root (order k).val
+  else if ((R.groups[(order k).val]?).map (·.setup)).getD false then .setup else .witness
+
+/-- The public rows of the relation of a fold with one group, the next witness of the level
+before. -/
+def levelRelation (L : Key20.Level) : List RhsRun × ℕ :=
+  relation (fun _ : Fin 1 => L.shape) L.opening.openRank L.opening.openDegree L.opening.chain
+    fun _ => .witness
 
 /-- The numbers of a fold with opening groups: the root (`root`, the commitments of the
 statement) or a level whose groups are the setup prefix and the next witness of the level
-before. -/
+before, with `digits` quotient digits. -/
 def ofBatch {n : ℕ} (order : Equiv.Perm (Fin n)) (B : Batch (Fin n)) (R : Level) (pairs : ℕ → ℕ × ℕ) (vars batch : ℕ)
-    (base : ℕ) (root : Bool) : Numbers where
+    (base : ℕ) (root : Bool) (digits : ℕ) : Numbers where
   groups := (List.finRange n).map fun g =>
     ⟨(B.shape g).blocks, (B.shape g).innerDegree, B.carrierDegree g, (pairs g).1, (pairs g).2,
       false⟩
@@ -130,13 +128,17 @@ def ofBatch {n : ℕ} (order : Equiv.Perm (Fin n)) (B : Batch (Fin n)) (R : Leve
   limit := 0
   compressed := R.compressed
   setup := (R.groups.head?.map (·.setup)).getD false
-  rhs := relation ((List.finRange n).map fun k => (B.shape (order k),
-      if root then .root (order k).val
-      else if ((R.groups[(order k).val]?).map (·.setup)).getD false then .setup else .witness))
-    B.openRank B.openDegree B.chain R.compressed
+  rhs := relation (fun k => B.shape (order k)) B.openRank B.openDegree B.chain
+    (batchSource order R root)
+  fused := .packing ⟨(List.finRange n).map fun k =>
+      ⟨(order k).val, B.shape (order k), B.opening (order k), B.fold (order k)⟩,
+    ⟨B.openDegree, B.openRank, B.chain⟩, digits⟩
+  plan := some (SetupPlan.ofBatch B order B.low (Nat.log 2 base))
 
-def ofLevel (L : Key20.Level) (R : Level) (pair : ℕ × ℕ) (norm : Option Key20.Squared := none) :
-    Numbers :=
+/-- The numbers of a fold with one group; a level with coefficient packing has `digits` quotient
+digits. -/
+def ofLevel (L : Key20.Level) (R : Level) (pair : ℕ × ℕ) (norm : Option Key20.Squared := none)
+    (digits : ℕ := 0) : Numbers :=
   let trace := (R.groups.head?.map (·.opening)) == some .trace
   let euclidean := (R.groups.head?.map (·.norm)) == some .euclidean
   { groups := [⟨L.shape.blocks, L.shape.innerDegree, L.opening.carrierDegree, pair.1, pair.2,
@@ -152,35 +154,68 @@ def ofLevel (L : Key20.Level) (R : Level) (pair : ℕ × ℕ) (norm : Option Key
     limit := (norm.map (·.limit)).getD 0
     compressed := R.compressed
     setup := false
-    rhs := relation [(L.shape, .witness)] L.opening.openRank L.opening.openDegree L.opening.chain
-      R.compressed }
+    rhs := levelRelation L
+    fused := if trace then .trace ⟨L.shape, L.opening, L.fold⟩ else
+      .packing ⟨[⟨0, L.shape, L.opening, L.fold⟩],
+        ⟨L.opening.openDegree, L.opening.openRank, L.opening.chain⟩, digits⟩ }
 
 def rowLevel (row : Row) (i : ℕ) : Level := row.levels.getD i ⟨[], false, .quotientFree, 0, 0, 0⟩
 
-def layout20With (order : ∀ n, Equiv.Perm (Fin n)) (zMax : ℕ) : Layout :=
+def layout20With (order : ∀ n, Equiv.Perm (Fin n)) (zMax rice : ℕ) : Layout :=
   open Key20 in
   let R := rowLevel Akita.key20
-  assemble [ofBatch (order 3) root (R 0) (family 0) rootVars rootBatch (root.shape 0).openingBase true,
-      ofLevel level₁ (R 1) (family 1 0), ofLevel level₂ (R 2) (family 2 0),
+  assemble [ofBatch (order 3) root (R 0) (family 0) rootVars rootBatch (root.shape 0).openingBase true
+        quotientDigits,
+      ofLevel level₁ (R 1) (family 1 0) (digits := quotientDigits), ofLevel level₂ (R 2) (family 2 0),
       ofLevel level₃ (R 3) (family 3 0) norm₃, ofLevel level₄ (R 4) (family 4 0) norm₄,
       ofLevel level₅ (R 5) (family 5 0) norm₅]
-    0 terminal (family 6 0) zMax
+    0 terminal (family 6 0) normTerminal.limit zMax rice
 
 /-- The layout of `key20.aks`. -/
-def layout20 (zMax : ℕ) : Layout := layout20With groupOrder zMax
+def layout20 (zMax rice : ℕ) : Layout := layout20With groupOrder zMax rice
 
-def layout30With (order : ∀ n, Equiv.Perm (Fin n)) (r : Key30.Row) (zMax : ℕ) : Layout :=
+def layout30With (order : ∀ n, Equiv.Perm (Fin n)) (r : Key30.Row) (zMax rice : ℕ) : Layout :=
   open Key30 in
   let R := rowLevel (if r.vars = 27 then Akita.key30W27 else Akita.key30W26)
   assemble [ofBatch (order 3) (root r) (R 0) (family 0) rootVars rootBatch
-        ((root r).shape 0).openingBase true,
-      ofBatch (order 2) (level₁ r) (R 1) (family 1) vars₁ batch₁ ((level₁ r).shape 0).openingBase false,
-      ofLevel (level₂ r) (R 2) (family 2 0), ofLevel level₃ (R 3) (family 3 0),
+        ((root r).shape 0).openingBase true quotientDigits₀,
+      ofBatch (order 2) (level₁ r) (R 1) (family 1) vars₁ batch₁ ((level₁ r).shape 0).openingBase false
+        quotientDigits,
+      ofLevel (level₂ r) (R 2) (family 2 0) (digits := quotientDigits),
+      ofLevel level₃ (R 3) (family 3 0) (digits := quotientDigits),
       ofLevel level₄ (R 4) (family 4 0), ofLevel level₅ (R 5) (family 5 0) norm₅,
       ofLevel level₆ (R 6) (family 6 0) norm₆]
-    setupVars terminal (family 7 0) zMax
+    setupVars terminal (family 7 0) normTerminal.limit zMax rice
 
 /-- The layout of a row of `key30.aks`. -/
-def layout30 (r : Key30.Row) (zMax : ℕ) : Layout := layout30With groupOrder r zMax
+def layout30 (r : Key30.Row) (zMax rice : ℕ) : Layout := layout30With groupOrder r zMax rice
+
+/-- The public rows of each fold of `layout20` are `relation` of the shapes of the reduction of the
+claims at the level: `Batch.liftedReduction` of `Key20.root` (`batch_fused`), `liftedReduction` of
+level 1 (`packing_fused`) and `traceReduction` of levels 2 to 5 (`trace_fused`). -/
+theorem layout20_relations (zMax rice : ℕ) :
+    (layout20 zMax rice).folds.map (fun F => (F.rhs, F.openingRow)) =
+      [relation (fun k => Key20.root.shape (groupOrder 3 k)) Key20.root.openRank
+          Key20.root.openDegree Key20.root.chain
+          (batchSource (groupOrder 3) (rowLevel Akita.key20 0) true),
+        levelRelation Key20.level₁, levelRelation Key20.level₂, levelRelation Key20.level₃,
+        levelRelation Key20.level₄, levelRelation Key20.level₅] :=
+  rfl
+
+/-- The public rows of each fold of `layout30` are `relation` of the shapes of the reduction of the
+claims at the level: `Batch.liftedReduction` of the root and of level 1 (`batch_fused`),
+`liftedReduction` of levels 2 and 3 (`packing_fused`) and `traceReduction` of levels 4 to 6
+(`trace_fused`). -/
+theorem layout30_relations (r : Key30.Row) (zMax rice : ℕ) :
+    (layout30 r zMax rice).folds.map (fun F => (F.rhs, F.openingRow)) =
+      let R := rowLevel (if r.vars = 27 then Akita.key30W27 else Akita.key30W26)
+      [relation (fun k => (Key30.root r).shape (groupOrder 3 k)) (Key30.root r).openRank
+          (Key30.root r).openDegree (Key30.root r).chain (batchSource (groupOrder 3) (R 0) true),
+        relation (fun k => (Key30.level₁ r).shape (groupOrder 2 k)) (Key30.level₁ r).openRank
+          (Key30.level₁ r).openDegree (Key30.level₁ r).chain
+          (batchSource (groupOrder 2) (R 1) false),
+        levelRelation (Key30.level₂ r), levelRelation Key30.level₃, levelRelation Key30.level₄,
+        levelRelation Key30.level₅, levelRelation Key30.level₆] :=
+  rfl
 
 end NightstreamFPrime.Spec.Compression.Akita.Replay

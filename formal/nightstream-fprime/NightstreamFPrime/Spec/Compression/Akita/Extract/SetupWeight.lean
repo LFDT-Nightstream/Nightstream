@@ -179,6 +179,11 @@ theorem sub {F : (Fin N → Zq) → Form d} (affine : AffineForm E F) (g : Form 
   Affine.congr (fun _ => Form.scan_sub _ _ _ _)
     ((affine α φ).sub (Affine.of_eq (f := fun _ => g.scan α φ) fun _ => rfl))
 
+theorem const_sub {F : (Fin N → Zq) → Form d} (g : Form d) (affine : AffineForm E F) :
+    AffineForm E fun S => g.sub (F S) := fun α φ =>
+  Affine.congr (fun _ => Form.scan_sub _ _ _ _)
+    ((Affine.of_eq (f := fun _ => g.scan α φ) fun _ => rfl).sub (affine α φ))
+
 /-- The row `r` of `M(S)·x` for a matrix `M(S)` that is linear in `S`. -/
 theorem ofMatrix {n : ℕ} {cols : Type} [Fintype cols]
     {M : (Fin N → Zq) → Matrix (Fin n) cols (Rq d)}
@@ -324,7 +329,7 @@ theorem flatRows_affine (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E) (st :
   · refine AffineRow.append (fun t => AffineRow.of_eq fun _ => rfl) (AffineRow.append ?_ ?_)
     · intro a
       exact AffineRow.relocate (AffineRow.row
-        (AffineForm.sub (AffineForm.response (B.fold g) (inner g) a) _) fun _ => 0) _
+        (AffineForm.const_sub _ (AffineForm.response (B.fold g) (inner g) a)) fun _ => 0) _
     · exact fun j => (AffineRow.imageRow _ (fun j => AffineForm.ofMatrix (outer g) _ _) _ _
         j).relocate _
   · refine AffineRow.append (AffineRow.imageRow _ (fun j => AffineForm.ofMatrix opened _ _) _ _)

@@ -218,6 +218,13 @@ theorem sub (geo : GeoForm α κ ψ F) (g : Form d) : GeoForm α κ ψ fun S => 
     show ((F S).sub g).scan α (mark ψ x) - ((F 0).sub g).scan α (mark ψ x) = _
     rw [Form.scan_sub, Form.scan_sub, sub_sub_sub_cancel_right]) (geo S)
 
+theorem const_sub (g : Form d) (geo : GeoForm α κ ψ F) : GeoForm α κ ψ fun S => g.sub (F S) :=
+  fun S => Geometric.congr (fun x => by
+    show (g.sub (F S)).scan α (mark ψ x) - (g.sub (F 0)).scan α (mark ψ x) =
+      0 - ((F S).scan α (mark ψ x) - (F 0).scan α (mark ψ x))
+    rw [Form.scan_sub, Form.scan_sub]
+    ring) (Geometric.zero.sub (geo S))
+
 end GeoForm
 
 namespace GeoRow
@@ -410,8 +417,8 @@ theorem flatRows_geometric (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E) (s
   refine GeoRow.append (GeoRow.gather fun g => ?_) ?_
   · refine GeoRow.append (fun t => GeoRow.of_eq fun _ => rfl) (GeoRow.append ?_ ?_)
     · intro a
-      exact GeoRow.relocate (GeoRow.row (GeoForm.sub (GeoForm.of_blocked (blocked.1 g).2.2.2.1
-        fun _ => responseForm_blocked blocked digits g _ a) _) fun _ => 0)
+      exact GeoRow.relocate (GeoRow.row (GeoForm.const_sub _ (GeoForm.of_blocked (blocked.1 g).2.2.2.1
+        fun _ => responseForm_blocked blocked digits g _ a)) fun _ => 0)
     · exact fun j => GeoRow.relocate (GeoRow.imageRow _ (fun j =>
         GeoForm.of_blocked (blocked.1 g).2.2.2.2
           fun _ => outerForm_blocked blocked digits g _ j) _ _ j)

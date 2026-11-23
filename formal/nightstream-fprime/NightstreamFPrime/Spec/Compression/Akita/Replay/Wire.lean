@@ -15,10 +15,11 @@ the prover messages of a script in the bytes of the proof.
   inside a message, at an element that is not below `q`, at a nonce longer than its maximum and
   at a length of `z` above `zMax`. Otherwise it returns the messages and the count of bytes
   after the last message.
-- `verifyBytes` is the outcome of the byte layer: `malformed`, `trailing` when bytes remain, or
-  the verdict of the later stages on the messages. `verifyBytes_malformed` and
-  `verifyBytes_trailing` are the two statements of `docs/akita-work/match-design.md` section 5.1
-  for this layer. -/
+- `verifyBytes` is the outcome of the byte layer: `malformed`, or the verdict of the later stages
+  on the messages, and `trailing` when that verdict accepts and bytes remain: the code checks the
+  end of the proof after its last check (`batched_verify`, `PendingEof::check_eof`).
+  `verifyBytes_malformed` and `verifyBytes_trailing` are the two statements of
+  `docs/akita-work/match-design.md` section 5.1 for this layer. -/
 
 set_option autoImplicit false
 
@@ -124,7 +125,9 @@ def verifyBytes (after : Array Message → Verdict) (ops : Array Op) (proof : By
     Outcome :=
   match decode ops proof with
   | .error site => .malformed site
-  | .ok (messages, rest) => if rest = 0 then .verdict (after messages) else .trailing
+  | .ok (messages, rest) => match after messages with
+    | .accept => if rest = 0 then .verdict .accept else .trailing
+    | verdict => .verdict verdict
 
 theorem verifyBytes_malformed (after : Array Message → Verdict) (ops : Array Op)
     (proof : ByteArray) (site : Malformed) :
@@ -132,22 +135,32 @@ theorem verifyBytes_malformed (after : Array Message → Verdict) (ops : Array O
   unfold verifyBytes
   rcases decode ops proof with error | ⟨messages, rest⟩
   · simp
-  · by_cases empty : rest = 0 <;> simp [empty]
+  · cases h : after messages <;> by_cases empty : rest = 0 <;> simp [h, empty]
 
 theorem verifyBytes_trailing (after : Array Message → Verdict) (ops : Array Op)
     (proof : ByteArray) :
     verifyBytes after ops proof = .trailing ↔
-      ∃ messages rest, decode ops proof = .ok (messages, rest) ∧ rest ≠ 0 := by
+      ∃ messages rest, decode ops proof = .ok (messages, rest) ∧ rest ≠ 0 ∧
+        after messages = .accept := by
   unfold verifyBytes
   rcases decode ops proof with error | ⟨messages, rest⟩
   · simp
-  · by_cases empty : rest = 0 <;> simp [empty]
+  · cases h : after messages <;> by_cases empty : rest = 0 <;> simp [h, empty]
 
+/-- With no byte left, the outcome is the verdict on the messages. -/
 theorem verifyBytes_verdict (after : Array Message → Verdict) (ops : Array Op)
     (proof : ByteArray) (messages : Array Message)
     (decoded : decode ops proof = .ok (messages, 0)) :
     verifyBytes after ops proof = .verdict (after messages) := by
-  simp [verifyBytes, decoded]
+  simp only [verifyBytes, decoded]
+  cases after messages <;> simp
+
+/-- A verdict that does not accept is the outcome, with bytes left or not. -/
+theorem verifyBytes_rejects (after : Array Message → Verdict) (ops : Array Op)
+    (proof : ByteArray) (messages : Array Message) (rest : ℕ)
+    (decoded : decode ops proof = .ok (messages, rest)) (rejects : after messages ≠ .accept) :
+    verifyBytes after ops proof = .verdict (after messages) := by
+  simp only [verifyBytes, decoded]
 
 theorem fields_canonical {proof : ByteArray} {at_ count : ℕ} {values : Array Fq}
     (decoded : Wire.fields proof at_ count = some values) :

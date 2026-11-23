@@ -408,10 +408,11 @@ noncomputable def imageForm (challenge : Fin S.blocks → Rq O.carrierDegree) (a
     (S.openingBase : Rq S.innerDegree) ^ (entry.2 : ℕ)
   address entry := O.innerCell fold entry.1 a entry.2
 
-/-- Row `a` of the inner row (104) of Akita Figure 5, in `R_{q,d_A}`. -/
+/-- Row `a` of the inner row (104) of Akita Figure 5, in `R_{q,d_A}`, as its left side minus its
+right side (110), the sign of the pinned code. -/
 noncomputable def innerRow (key : Key S) (challenge : Fin S.blocks → Rq O.carrierDegree)
     (a : Fin S.innerRank) : RingRow :=
-  ((responseForm fold key a).sub (imageForm O fold challenge a)).row 0
+  ((imageForm O fold challenge a).sub (responseForm fold key a)).row 0
 
 /-- Entry `j` of the stacked image of `B` (Akita (45) and (105)): the row of `B` on the input of
 its slice, in the `R_{q,d_B}` view of `t̂`. -/
@@ -494,8 +495,8 @@ theorem flatRows_below (β : Module.Basis (Fin O.planes) Zq E) (st : Statement O
       (g := contractForm O fold β st.point t)
       (fun _ _ _ => O.partialPosition_lt fold _ _ _) (fun _ _ _ => O.responseCell_lt fold _ _)).row
         0
-  · exact (Form.Below.sub (f := responseForm fold st.key a) (g := imageForm O fold challenge a)
-      (fun _ _ _ => O.responseCell_lt fold _ _) (fun _ _ _ => O.innerCell_lt fold _ _ _ _)).row 0
+  · exact (Form.Below.sub (f := imageForm O fold challenge a) (g := responseForm fold st.key a)
+      (fun _ _ _ => O.innerCell_lt fold _ _ _ _) (fun _ _ _ => O.responseCell_lt fold _ _)).row 0
   · exact imageRow_below S.chain _ _ _
       (fun _ => Form.ofMatrix_below _ (fun _ _ _ => O.sliceCell_lt fold _ _ _) _)
       (fun _ _ => O.firstCell_lt fold _)
@@ -645,6 +646,7 @@ theorem innerRow_holds (key : Key S) (challenge : Fin S.blocks → Rq O.carrierD
       key.inner.mulVec (gadget fold.responseBase w.response) a =
         (∑ i, embed O.stride O.stride_tower (challenge i) • gadget S.openingBase (w.inner i)) a := by
   rw [innerRow, Form.row_holds, Form.value_sub, sub_eq_zero, responseForm_value, imageForm_value]
+  exact eq_comm
 
 theorem outerForm_value (key : Key S) (j : Fin (S.slices * S.outerRank)) :
     (outerForm O fold key j).value w.flat = stack key.outer (S.sliceInput w.inner) j :=

@@ -18,7 +18,8 @@ specification (`docs/akita-work/match-design.md` section 5.2, T1).
   rejection of a proof. The values are those of the code; the order of the field operations is
   not.
 - `ExtHom φ` states that `φ` maps the operations of `Ext` to those of a ring: `Ext.toE` to
-  `Quadratic` (`toE_extHom`) and its image in a field with `Degree2` (`degree2_extHom`).
+  `Quadratic` (`toE_extHom`), and `Ext.into` to a ring with `Degree2` (`degree2_extHom` of
+  `Replay/Relation.lean`).
 - `plainPath` and `eqCodePath` are the paths of the games of the specification for the messages
   of the code. `plainPoly` is the round polynomial with the solved linear coefficient, and
   `listFn` gives the message of the code to `eqSumcheck` with no change.
@@ -128,6 +129,38 @@ theorem sumcheckRun_equality_eqRun {before : List Ext} {claim : Ext}
   | nil => simp [sumcheckRun] at ran
   | cons τ before => exact ran
 
+/-- The point of the plain rounds is the list of their challenges. -/
+theorem plainRun_point : ∀ (claim : Ext) (rounds : List (List Ext × Ext)),
+    (plainRun claim rounds).point = rounds.map (·.2)
+  | _, [] => rfl
+  | claim, (message, r) :: rounds => by
+      simp only [plainRun, List.map_cons]
+      rw [plainRun_point]
+
+/-- The point of the equality-factored rounds is the list of their challenges. -/
+theorem eqRun_point : ∀ (claim factor : Ext) (before : List Ext) (rounds : List (List Ext × Ext))
+    {e : Ended}, eqRun claim factor before rounds = some e → e.point = rounds.map (·.2)
+  | _, _, [], [], e, ran => by
+      simp only [eqRun, Option.some.injEq] at ran
+      subst ran
+      rfl
+  | claim, factor, τ :: before, (message, r) :: rounds, e, ran => by
+      simp only [eqRun, Option.map_eq_some_iff] at ran
+      obtain ⟨e', ran', rfl⟩ := ran
+      simp only [List.map_cons]
+      rw [eqRun_point _ _ _ _ ran']
+  | _, _, [], _ :: _, _, ran => by simp [eqRun] at ran
+  | _, _, _ :: _, [], _, ran => by simp [eqRun] at ran
+
+/-- The point of the end of a sum-check is the list of the challenges of its rounds. -/
+theorem sumcheckRun_point {form : Form} {claim : Ext} {rounds : List (List Ext × Ext)}
+    {e : Ended} (ran : sumcheckRun form claim rounds = some e) : e.point = rounds.map (·.2) := by
+  rcases form with _ | ⟨_ | ⟨τ, before⟩⟩
+  · simp only [sumcheckRun, Option.some.injEq] at ran
+    rw [← ran, plainRun_point]
+  · simp [sumcheckRun] at ran
+  · exact eqRun_point _ _ _ _ ran
+
 section Spec
 
 variable {K : Type}
@@ -142,15 +175,6 @@ structure ExtHom [CommRing K] (φ : Ext → K) : Prop where
 
 theorem toE_extHom : ExtHom Ext.toE :=
   ⟨Ext.toE_zero, Ext.toE_one, Ext.toE_add, Ext.toE_sub, Ext.toE_mul⟩
-
-theorem degree2_extHom {E : Type} [CommRing E] [Algebra Zq E] [Degree2 E] :
-    ExtHom fun z : Ext => (Degree2.coords (E := E)).symm z.toE := by
-  refine ⟨?_, ?_, fun a b => ?_, fun a b => ?_, fun a b => ?_⟩
-  · rw [Ext.toE_zero, map_zero]
-  · rw [Ext.toE_one, map_one]
-  · rw [Ext.toE_add, map_add]
-  · rw [Ext.toE_sub, map_sub]
-  · rw [Ext.toE_mul, map_mul]
 
 variable [Field K]
 

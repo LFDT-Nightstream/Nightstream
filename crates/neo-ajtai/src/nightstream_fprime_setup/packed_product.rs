@@ -1,5 +1,5 @@
 use neo_ccs::Mat;
-use neo_math::signed_sums::accelerate::{signed_ring_dot, ROW_WORKSPACE_WORDS};
+use neo_math::signed_sums::accelerate::{packed_signed_ring_dot, ROW_WORKSPACE_WORDS};
 use rayon::prelude::*;
 
 use super::{Commitment, ExpandedKey, Fq, SignedBlock, D, MAX_MESSAGE_COLUMNS, PRODUCTION_VERIFIER_ROWS};
@@ -28,14 +28,12 @@ pub(super) fn commit(witness: &Mat<Fq>) -> Option<Commitment> {
     }
 
     let mut output = Commitment::zeros(PRODUCTION_VERIFIER_ROWS as usize);
-    let mut workspace = vec![0.0; WORKSPACE_WORDS];
     output
         .data_mut()
         .par_chunks_exact_mut(D)
         .zip(key.words().par_chunks_exact(key.blocks() as usize * D))
-        .zip(workspace.par_chunks_exact_mut(ROW_WORKSPACE_WORDS))
-        .for_each(|((row, key_row), scratch)| {
-            row.copy_from_slice(&signed_ring_dot(&key_row[..columns * D], positive, negative, scratch));
+        .for_each(|(row, key_row)| {
+            row.copy_from_slice(&packed_signed_ring_dot(&key_row[..columns * D], positive, negative));
         });
     Some(output)
 }

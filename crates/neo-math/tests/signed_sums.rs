@@ -199,13 +199,19 @@ fn small_digits_report_signed_unit_masks() {
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn accelerated_signed_ring_dot_matches_integer_sums_across_groups() {
-    use neo_math::signed_sums::accelerate::{signed_ring_dot, ROW_WORKSPACE_WORDS};
+    use neo_math::signed_sums::accelerate::{packed_signed_ring_dot, signed_ring_dot, ROW_WORKSPACE_WORDS};
 
     let columns = (1 << 16) + 129;
     let mut keys = Vec::with_capacity(columns * D);
     let mut positive = Vec::with_capacity(columns);
     let mut negative = Vec::with_capacity(columns);
     let mut expected = SignedShiftSums::zero();
+    let mut workspace = vec![f64::NAN; ROW_WORKSPACE_WORDS];
+    let mut check = |keys: &[u64], positive: &[u64], negative: &[u64], expected: [Fq; D]| {
+        assert_eq!(packed_signed_ring_dot(keys, positive, negative), expected);
+        assert_eq!(signed_ring_dot(keys, positive, negative, &mut workspace), expected);
+    };
+    check(&[], &[], &[], [Fq::ZERO; D]);
     for column in 0..columns {
         let coefficients = std::array::from_fn(|lane| match lane % 4 {
             0 => Q - 1,
@@ -219,25 +225,21 @@ fn accelerated_signed_ring_dot_matches_integer_sums_across_groups() {
             }
         });
         let (pos, neg) = match column % 512 {
-            0..128 => (0, 0),
+            0..128 => (1 << (column % D), 1 << (D - 1)),
             128..256 => (u64::MAX, 0),
             256..384 => (0, u64::MAX),
-            _ => (1 << (column % (D - 1)), 1 << (D - 1)),
+            _ => (0, 0),
         };
         expected.add_signed_units(&SplitRing::from_u64(&coefficients), pos, neg);
         keys.extend_from_slice(&coefficients);
         positive.push(pos);
         negative.push(neg);
+        if matches!(positive.len(), 1..=4 | 127..=131) {
+            check(&keys, &positive, &negative, expected.reduce());
+        }
     }
-    let mut workspace = vec![f64::NAN; ROW_WORKSPACE_WORDS];
-    assert_eq!(
-        signed_ring_dot(&keys, &positive, &negative, &mut workspace),
-        expected.reduce()
-    );
+    check(&keys, &positive, &negative, expected.reduce());
     positive.fill(0);
     negative.fill(0);
-    assert_eq!(
-        signed_ring_dot(&keys, &positive, &negative, &mut workspace),
-        [Fq::ZERO; D]
-    );
+    check(&keys, &positive, &negative, [Fq::ZERO; D]);
 }

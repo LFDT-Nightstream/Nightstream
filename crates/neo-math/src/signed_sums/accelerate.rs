@@ -9,6 +9,17 @@ const _: () = assert!(GROUP_COLUMNS as u128 * LIMB_BOUND <= 1u128 << f64::MANTIS
 
 pub const ROW_WORKSPACE_WORDS: usize = TILE_COLUMNS * LIMBS + TILE_COLUMNS * D + LIMBS * D;
 
+#[cfg(nightstream_sme2)]
+mod sme2;
+
+pub fn packed_signed_ring_dot(key_words: &[u64], positive: &[u64], negative: &[u64]) -> [F; D] {
+    #[cfg(nightstream_sme2)]
+    if let Some(row) = sme2::try_signed_ring_dot(key_words, positive, negative) {
+        return row;
+    }
+    signed_ring_dot(key_words, positive, negative, &mut vec![0.0; ROW_WORKSPACE_WORDS])
+}
+
 #[link(name = "Accelerate", kind = "framework")]
 extern "C" {
     fn cblas_dgemm(
@@ -29,11 +40,16 @@ extern "C" {
     );
 }
 
-pub fn signed_ring_dot(key_words: &[u64], positive: &[u64], negative: &[u64], workspace: &mut [f64]) -> [F; D] {
+fn check_row(key_words: &[u64], positive: &[u64], negative: &[u64]) {
     let columns = positive.len();
     assert!(columns <= MAX_EXACT_TERMS as usize);
     assert_eq!(negative.len(), columns);
     assert_eq!(key_words.len(), columns * D);
+}
+
+pub fn signed_ring_dot(key_words: &[u64], positive: &[u64], negative: &[u64], workspace: &mut [f64]) -> [F; D] {
+    check_row(key_words, positive, negative);
+    let columns = positive.len();
     assert_eq!(workspace.len(), ROW_WORKSPACE_WORDS);
     let (key_tile, workspace) = workspace.split_at_mut(TILE_COLUMNS * LIMBS);
     let (digit_tile, products) = workspace.split_at_mut(TILE_COLUMNS * D);

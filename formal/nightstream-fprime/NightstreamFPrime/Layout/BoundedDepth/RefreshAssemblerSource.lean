@@ -81,7 +81,7 @@ structure Values (logicalWidth : Nat)
     PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)
   rounds : Fin productionShape.cubeVariables → SumCheck.Finite.FixedPolynomial K 8
   output : FullOutputCoordinates.FullOutput K productionShape
-  digestSelect : Fin 3 → List F
+  digestSelect : Fin 4 → List F
 
 /-- The light step's values for the shared groups; the light rounds, output and digest select lie
 above the columns that the refresh step reads from them. -/
@@ -434,6 +434,7 @@ def honestValues : Values logicalWidth publicFits where
   output := proof.nifs.piCcsOutput
   digestSelect := fun index =>
     if index.val = 0 then slotDigest folded
+    else if index.val = 3 then slotDigest (input.running selected)
     else if index.val - 1 = selected.val then slotDigest folded
     else slotDigest (input.running (finAt 2 (by decide) (index.val - 1)))
 
@@ -463,7 +464,7 @@ theorem target_light (column : Nat) (bound : column < childCommitmentsStart base
     have := sharedEnd_eq base witnessWordCount
     omega)).trans (env_light base witnessWordCount _ column bound)
 
-theorem target_tail (word : Nat) (bound : word < 39684) :
+theorem target_tail (word : Nat) (bound : word < 39688) :
     target (childCommitmentsStart base witnessWordCount + word) =
       tailColumn (honestValues ajtai circuitKeys input output proof selected folded) word :=
   (agree _ (by
@@ -574,7 +575,7 @@ theorem target_output (word : Nat) (bound : word < 9600) :
   exact (target_tail ajtai circuitKeys input output proof selected folded base witnessWordCount
     target agree _ (by omega)).trans (tail_output _ word bound)
 
-theorem target_digestSelect (word : Nat) (bound : word < 12) :
+theorem target_digestSelect (word : Nat) (bound : word < 16) :
     target (digestSelectStart base witnessWordCount + word) =
       LightAssemblerSource.quadColumn (by decide)
         (honestValues ajtai circuitKeys input output proof selected folded).digestSelect word := by
@@ -603,14 +604,6 @@ theorem target_slot_value (slot : Fin 7)
       (honestValues ajtai circuitKeys input output proof selected folded).slots slot :=
   LightAssemblerSource.slot_value target _ _ (fun word bound => target_slot ajtai circuitKeys
     input output proof selected folded base witnessWordCount target agree slot word bound) depth
-
-omit agree in
-theorem honest_prior_slot (slot : Fin 2) :
-    (honestValues ajtai circuitKeys input output proof selected folded).slots
-        ⟨slot.val, by omega⟩ = input.running slot := by
-  have bound := slot.isLt
-  simp only [honestValues, show slot.val < 2 from bound, ↓reduceIte]
-  exact congrArg input.running (finAt_eq _ slot _ (Nat.mod_eq_of_lt bound))
 
 private theorem state_eval (block : Fin 3) (lengths : ∀ block,
       ((honestValues ajtai circuitKeys input output proof selected folded).states block).length =
@@ -666,8 +659,8 @@ theorem stepRepresents (program : Stage1.Application.Program) (circuit : Fin 2)
     currentState := ?_
     nextState := ?_
     witness := ?_
-    priorSlots := fun slot => ?_
-    priorDepth := priorDepth
+    active := ?_
+    otherDigests := fun _ slot _ => ?_
     pcNext := pcNext
     outputDigest := ?_
     fresh := ?_
@@ -703,12 +696,36 @@ theorem stepRepresents (program : Stage1.Application.Program) (circuit : Fin 2)
     funext index
     exact target_witness ajtai circuitKeys input output proof selected folded base
       program.witnessWordCount target agree _ index.isLt
-  · have words := target_slot_words ajtai circuitKeys input output proof selected folded base
-      program.witnessWordCount target agree ⟨slot.val, by omega⟩ (by
-        rw [honest_prior_slot ajtai circuitKeys input output proof selected folded]
-        exact priorDepth slot)
-    rw [honest_prior_slot ajtai circuitKeys input output proof selected folded] at words
-    exact words
+  · have activeSlot : values.slots ⟨2, by decide⟩ = input.running selected := by
+      simp only [values, honestValues, show ¬(2 : Nat) < 2 by decide, ↓reduceIte]
+    have selectedEq : RefreshStepLayout.selectedSlot program
+        (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base
+          program.witnessWordCount) target = selected := by
+      have word := target_counter ajtai circuitKeys input output proof selected folded base
+        program.witnessWordCount target agree 4 (by decide)
+      change (if target (base + 4) = 1 then (1 : Fin 2) else 0) = selected
+      rw [word]
+      simp only [honestValues, List.getD_cons_succ, List.getD_cons_zero]
+      fin_cases selected <;> decide
+    rw [selectedEq, ← activeSlot]
+    exact target_slot_value ajtai circuitKeys input output proof selected folded base
+      program.witnessWordCount target agree ⟨2, by decide⟩ (by rw [activeSlot]; exact priorDepth _)
+  · have slotBound := slot.isLt
+    have block : values.digests ⟨slot.val, by omega⟩ = slotDigest (input.running slot) := by
+      simp only [values, honestValues, show slot.val < 2 from slotBound, ↓reduceIte]
+      exact congrArg (fun index => slotDigest (input.running index))
+        (LightAssemblerSource.finAt_eq _ slot _ (Nat.mod_eq_of_lt slotBound))
+    unfold digestValue
+    rw [← block, ← ofFn_getD 0 (values.digests ⟨slot.val, by omega⟩)
+      (by rw [block, slotDigest, Poseidon2.hash_length])]
+    apply congrArg List.ofFn
+    funext lane
+    have laneBound := lane.isLt
+    change target (digestsStart base program.witnessWordCount + 4 * slot.val + lane.val) = _
+    rw [Nat.add_assoc]
+    exact (target_digest ajtai circuitKeys input output proof selected folded base
+      program.witnessWordCount target agree (4 * slot.val + lane.val) (by omega)).trans
+      (LightAssemblerSource.quadColumn_eq (by decide) values.digests ⟨slot.val, by omega⟩ lane.val laneBound)
   · rw [← ofFn_getD 0 _ xLength]
     apply congrArg List.ofFn
     funext lane

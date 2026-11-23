@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.Generic.FinalAdvance
 import NightstreamFPrime.Export.WitnessEncoding
 import NightstreamFPrime.Layout.PiRLC.v1_2.SamplerSegments
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.Sampler
@@ -449,3 +450,26 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 #audit_axioms NightstreamFPrime.Lifecycle.Transcript.PiRlcSampler.piRlcChallengesWithState_challenges
 
 #audit_axioms NightstreamFPrime.Export.Stage1.PhaseReference.publicFits
+
+#audit_axioms NightstreamFPrime.Export.Generic.FinalAdvance.kept_sublist
+#audit_axioms NightstreamFPrime.Export.Generic.FinalAdvance.kept_packable
+#audit_axioms NightstreamFPrime.Export.Generic.FinalAdvance.complete
+#audit_axioms NightstreamFPrime.Export.Generic.FinalAdvance.sound
+#audit_axioms NightstreamFPrime.Export.Generic.FinalAdvance.agrees_prefix
+
+section
+open NightstreamFPrime.Circuit NightstreamFPrime.Export.Generic
+open NightstreamFPrime.Export.Generic.Pieces
+
+private def samplerBlock : Frame.Block := ⟨320, List.replicate 16 0⟩
+private def samplerPiece : Piece := .permutation samplerBlock.start samplerBlock.lanes
+
+example : (FinalAdvance.plan 320 (some samplerBlock) [samplerPiece] []).isSome = true := by decide
+
+example : (FinalAdvance.plan 320 (some samplerBlock)
+    [samplerPiece, .constraint (.var (320 + 1080))] []).isNone = true := by decide
+
+example : (FinalAdvance.plan 320 (some samplerBlock) [samplerPiece]
+    [WitnessBatch.hinted 1416 [.inverseOrZero (.var (320 + 1095))]]).isNone = true := by decide
+
+end

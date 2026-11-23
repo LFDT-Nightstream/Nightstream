@@ -5,10 +5,7 @@ use neo_math::Fq as F;
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 
 use super::{field_lowering::normalized, layout::forced_column, Linear, Piece, Row, StepPackage};
-use crate::{
-    package::{Entries, BLOCK_LOCALS},
-    PackageError,
-};
+use crate::{package::Entries, PackageError};
 
 type Key = Vec<(usize, u64)>;
 
@@ -240,7 +237,7 @@ fn groups(candidates: &[Guarded], families: &Families) -> Vec<(usize, Vec<usize>
 }
 
 impl GuardFusion {
-    pub(super) fn checked(package: &StepPackage) -> Result<Self, PackageError> {
+    pub(super) fn checked(package: &StepPackage, block_rows: &[bool]) -> Result<Self, PackageError> {
         let Some(Piece::Rows(source)) = package.pieces.first() else {
             return Err(PackageError::Malformed("guard fusion application rows"));
         };
@@ -387,26 +384,16 @@ impl GuardFusion {
         }
         result.groups.sort_by_key(|group| group.sources[0]);
         if !result.groups.is_empty() {
-            let records = package
-                .native
-                .as_ref()
-                .ok_or(PackageError::Malformed("guard fusion source records"))?;
-            let mut dropped = BTreeSet::new();
-            let mut walk = records.walk();
-            for block in package.blocks().take(package.application.pieces - 1) {
-                let first = block.start() - package.application.local_start;
-                for recipe in first..first + BLOCK_LOCALS {
-                    dropped.insert(walk.recipe_row(recipe)?);
-                }
-            }
             let packed = package
                 .packed_booleans
                 .removed
                 .iter()
                 .map(|(index, _)| *index)
                 .collect::<BTreeSet<_>>();
-            let origins = (0..records.row_count())
-                .filter(|index| !dropped.contains(index))
+            let origins = block_rows
+                .iter()
+                .enumerate()
+                .filter_map(|(index, &in_block)| (!in_block).then_some(index))
                 .enumerate()
                 .filter_map(|(index, record)| (!packed.contains(&index)).then_some(record))
                 .collect::<Vec<_>>();

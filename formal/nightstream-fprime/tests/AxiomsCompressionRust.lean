@@ -1,5 +1,6 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Spec.Compression
+import NightstreamFPrime.Export.BoundedDepth.LightCodec
 import NightstreamFPrime.Export.MatrixPassParity
 
 /-! Axiom audits for the links of the compression argument to Rust (`Spec/Compression/Rust`,
@@ -51,3 +52,8 @@ import NightstreamFPrime.Export.MatrixPassParity
 #audit_axioms NightstreamFPrime.Export.MatrixPassParity.inverse_zero
 #audit_axioms NightstreamFPrime.Export.MatrixPassParity.matrixPass_runParams
 #audit_axioms NightstreamFPrime.Export.MatrixPassParity.pass_matrixSpec
+
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.LightCodec.unpack_pack_slot
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.LightCodec.pack_unpacked_slot
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.LightCodec.unpack_pack_rounds
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.LightCodec.pack_unpacked_rounds

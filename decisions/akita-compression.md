@@ -86,7 +86,7 @@ a refresh fold (`Export.BoundedDepth.FinalVerifier.Mode`).
 | Lookup table of slot `s` | `[−accumulatorBound(depth_s), accumulatorBound(depth_s)]`, at most 20,737 values |
 | Lookup challenges `L` | 4 challenges of `F_q`, drawn after the commitment of `W` and before the commitment of `V` |
 | Transcript domains | `Nightstream/OptionB/compress/ccs/v1` for Π_CCS, `Nightstream/compress/akita/shared-denominator/v1` for the argument |
-| Byte tags | `NS-ONEINV-FIN--1` for a final proof of both slots, `NS-ONEINV-FIN--L` for a final proof of slot 0 alone, `NS-COMPRESS-VK-1` for a verification key |
+| Byte tags | `NS-ONEINV-FIN--1` for a final proof of both slots, `NS-ONEINV-FIN--Z`, `NS-ONEINV-FIN--S` or `NS-ONEINV-FIN--L` for slot 0 alone (SPEC.md section 4.5), `NS-COMPRESS-VK-1` for a verification key |
 | Rust toolchain | 1.99.1, which Akita requires |
 | `jolt-field` | git revision `25d87ba68bde9f4a85ac986f5487b2e7b7db2699`, Akita's own pin |
 

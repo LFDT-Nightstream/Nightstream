@@ -719,7 +719,7 @@ fn a_light_final_proof_carries_slot_zero_alone_and_needs_its_mode() {
     let mut proof = full.clone();
     proof.steps.as_mut().unwrap().slots.truncate(1);
     let bytes = proof.to_bytes().expect("bytes");
-    assert_eq!(&bytes[..16], b"NS-ONEINV-FIN--L");
+    assert_eq!(&bytes[..16], b"NS-ONEINV-FIN--Z");
     let decoded = FinalProof::from_bytes(&bytes).expect("decoded proof");
     assert_eq!(decoded.steps.as_ref().unwrap().slots.len(), 1);
     assert_eq!(decoded.to_bytes().expect("bytes"), bytes);
@@ -761,6 +761,106 @@ fn a_light_final_proof_carries_slot_zero_alone_and_needs_its_mode() {
         FinalProof::from_bytes(&retagged).is_err(),
         "one slot under the tag of both decodes"
     );
+}
+
+fn light_wire_fixture() -> FinalProof {
+    let initial = prover(2).initial(z0()).expect("initial envelope");
+    let mut proof = unproven(&initial);
+    let steps = proof.steps.as_mut().unwrap();
+    steps.pc = 1;
+    steps.slots.truncate(1);
+    proof.iteration = 1;
+    proof
+}
+
+fn assert_public_round_trip(bytes: &[u8]) {
+    let proof = crate::FinalProof::from_bytes(bytes).expect("decode public proof");
+    assert_eq!(proof.to_bytes().expect("encode public proof"), bytes);
+}
+
+#[test]
+fn compact_light_public_words_choose_one_encoding() {
+    let mut proof = light_wire_fixture();
+    proof.steps.as_mut().unwrap().slots[0].1 = 1;
+    let start = 96 + 8 * (1 + nightstream_fprime::COMMITMENT_WORDS);
+    let zero_public = proof.to_bytes().unwrap();
+    assert_eq!(&zero_public[..16], b"NS-ONEINV-FIN--S");
+    let mut default_as_signed = zero_public;
+    default_as_signed[96..104].fill(0);
+    assert!(crate::FinalProof::from_bytes(&default_as_signed).is_err());
+
+    let public = &mut proof.steps.as_mut().unwrap().slots[0].0.X;
+    public.set(0, 0, F::from_i64(-128));
+    public.set(0, 1, -F::ONE);
+    public.set(0, 2, F::from_u64(127));
+    let signed = proof.to_bytes().unwrap();
+    assert_eq!(&signed[..16], b"NS-ONEINV-FIN--S");
+    assert_eq!(&signed[start..start + 3], &[128, 255, 127]);
+    assert_public_round_trip(&signed);
+    let decoded = FinalProof::from_bytes(&signed).unwrap();
+    assert_eq!(
+        decoded.steps.unwrap().slots[0].0.X,
+        proof.steps.as_ref().unwrap().slots[0].0.X
+    );
+
+    for wide in [F::from_i64(-129), F::from_u64(128)] {
+        proof.steps.as_mut().unwrap().slots[0]
+            .0
+            .X
+            .set(D - 1, PUBLIC_WORDS / D - 1, wide);
+        let full = proof.to_bytes().unwrap();
+        assert_eq!(&full[..16], b"NS-ONEINV-FIN--L");
+        assert_eq!(full.len() - signed.len(), PUBLIC_WORDS * 7);
+        assert_public_round_trip(&full);
+        let last = start + 8 * (PUBLIC_WORDS - 1);
+        assert_eq!(&full[last..last + 8], &wide.as_canonical_u64().to_le_bytes());
+        let mut signed_as_full = full;
+        signed_as_full[last..last + 8].fill(0);
+        assert!(crate::FinalProof::from_bytes(&signed_as_full).is_err());
+    }
+}
+
+#[test]
+fn compact_light_round_mask_restores_the_full_polynomials() {
+    let mut proof = light_wire_fixture();
+    let argument = &mut proof.steps.as_mut().unwrap().argument;
+    argument.rounds = vec![[K::ONE; 7]; 30];
+    for i in [0, 8, 29] {
+        argument.rounds[i] = [K::ONE, K::ZERO, K::ONE, K::ZERO, K::ZERO, K::ZERO, K::ZERO];
+    }
+    for degree in 3..=6 {
+        argument.rounds[degree] = [K::ZERO; 7];
+        argument.rounds[degree][degree] = K::ONE;
+    }
+    let bytes = proof.to_bytes().unwrap();
+    let argument = &proof.steps.as_ref().unwrap().argument;
+    let inverse = &argument.inverse_commitment;
+    let count_at = bytes
+        .windows(inverse.len())
+        .position(|w| w == inverse)
+        .unwrap()
+        + inverse.len();
+    assert_eq!(&bytes[count_at..count_at + 8], &30u64.to_le_bytes());
+    let mask_at = count_at + 8;
+    let mask = 1u32 | 1 << 8 | 1 << 29;
+    assert_eq!(&bytes[mask_at..mask_at + 4], &mask.to_le_bytes());
+    assert_public_round_trip(&bytes);
+    let decoded = FinalProof::from_bytes(&bytes).unwrap().steps.unwrap();
+    assert_eq!(decoded.argument.rounds, argument.rounds);
+
+    let mut full_quadratic = bytes.clone();
+    full_quadratic[mask_at..mask_at + 4].copy_from_slice(&(mask ^ 1).to_le_bytes());
+    let high_at = mask_at + 4 + 3 * 16;
+    full_quadratic.splice(high_at..high_at, [0u8; 64]);
+    assert!(crate::FinalProof::from_bytes(&full_quadratic).is_err());
+
+    let mut surplus = bytes.clone();
+    surplus[mask_at..mask_at + 4].copy_from_slice(&(mask | 1 << 30).to_le_bytes());
+    assert!(crate::FinalProof::from_bytes(&surplus).is_err());
+    assert!(crate::FinalProof::from_bytes(&bytes[..mask_at + 3]).is_err());
+    let mut oversized = bytes;
+    oversized[count_at..mask_at].copy_from_slice(&31u64.to_le_bytes());
+    assert!(crate::FinalProof::from_bytes(&oversized).is_err());
 }
 
 #[test]

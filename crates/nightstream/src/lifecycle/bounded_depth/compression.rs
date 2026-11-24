@@ -14,7 +14,7 @@ use nightstream_fprime::{
     PI_CCS_V1_2_ROUND_COUNT as ROUNDS, PUBLIC_WORDS,
 };
 use ns_compress::{Layout, Norm, ProverKey, Statement, VerificationKey};
-use p3_field::PrimeField64;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use super::super::encoding::{Reader, Shape, Writer};
 use super::super::ProofCodecError;
@@ -457,12 +457,79 @@ impl BoundedDepth {
 const MAGIC: &[u8; 16] = b"NS-ONEINV-FIN--1";
 /// SPEC.md section 4.5.
 const LIGHT_MAGIC: &[u8; 16] = b"NS-ONEINV-FIN--L";
+const ZERO_MAGIC: &[u8; 16] = b"NS-ONEINV-FIN--Z";
+const SIGNED_MAGIC: &[u8; 16] = b"NS-ONEINV-FIN--S";
+const PUBLIC_START: usize = 8 * (1 + nightstream_fprime::COMMITMENT_WORDS);
+const PUBLIC_END: usize = PUBLIC_START + 8 * PUBLIC_WORDS;
+const SLOT_BYTES: usize = PUBLIC_END + 8 * (2 * ROUNDS + 2 * (MATRICES + 1) * D);
+const MAX_POLYNOMIAL_VARIABLES: u64 = 30;
 const SHAPE: Shape = Shape {
     public_width: PUBLIC_WORDS,
     witness_columns: 0,
     matrices: MATRICES,
 };
-const MAX_POLYNOMIAL_VARIABLES: u64 = 30;
+
+fn signed_byte(value: u64) -> Option<u8> {
+    match value {
+        0..=127 => Some(value as u8),
+        x if (F::ORDER_U64 - 128..F::ORDER_U64).contains(&x) => Some((x - (F::ORDER_U64 - 256)) as u8),
+        _ => None,
+    }
+}
+
+fn public_bytes(slot: &[u8]) -> Option<[u8; PUBLIC_WORDS]> {
+    let mut bytes = [0; PUBLIC_WORDS];
+    for (out, word) in bytes
+        .iter_mut()
+        .zip(slot[PUBLIC_START..PUBLIC_END].as_chunks::<8>().0)
+    {
+        *out = signed_byte(u64::from_le_bytes(*word))?;
+    }
+    Some(bytes)
+}
+
+fn compact_light_slot(output: &mut Writer, begin: usize) -> &'static [u8; 16] {
+    let slot = &output.0[begin..];
+    if slot.iter().all(|&b| b == 0) {
+        output.0.truncate(begin);
+        ZERO_MAGIC
+    } else if let Some(public) = public_bytes(slot) {
+        output
+            .0
+            .splice(begin + PUBLIC_START..begin + PUBLIC_END, public);
+        SIGNED_MAGIC
+    } else {
+        LIGHT_MAGIC
+    }
+}
+
+fn read_slot(input: &mut Reader<'_>, tag: &[u8]) -> Result<(CeClaim, u64), ProofCodecError> {
+    let mut expanded;
+    let slot = if tag == ZERO_MAGIC {
+        &[0; SLOT_BYTES][..]
+    } else if tag == SIGNED_MAGIC {
+        expanded = Vec::with_capacity(SLOT_BYTES);
+        expanded.extend_from_slice(input.take(PUBLIC_START)?);
+        for &byte in input.take(PUBLIC_WORDS)? {
+            let word = F::from_i8(byte as i8).as_canonical_u64();
+            expanded.extend_from_slice(&word.to_le_bytes());
+        }
+        expanded.extend_from_slice(input.take(SLOT_BYTES - PUBLIC_END)?);
+        if expanded.iter().all(|&b| b == 0) {
+            return Err(ProofCodecError("default slot needs the default tag"));
+        }
+        &expanded
+    } else {
+        let slot = input.take(SLOT_BYTES)?;
+        if tag == LIGHT_MAGIC && public_bytes(slot).is_some() {
+            return Err(ProofCodecError("compact slot needs a compact tag"));
+        }
+        slot
+    };
+    let mut slot = Reader(slot);
+    let depth = slot.field()?.as_canonical_u64();
+    Ok((slot.claim(&SHAPE)?, depth))
+}
 
 fn write_bytes(output: &mut Writer, bytes: &[u8]) {
     output.word(bytes.len() as u64);
@@ -484,16 +551,57 @@ fn read_extension(input: &mut Reader<'_>, count: usize) -> Result<Vec<K>, ProofC
     (0..count).map(|_| input.extension()).collect()
 }
 
-fn read_rounds<const COEFFICIENTS: usize>(input: &mut Reader<'_>) -> Result<Vec<[K; COEFFICIENTS]>, ProofCodecError> {
+fn quadratic(coefficients: &[K]) -> bool {
+    coefficients[3..].iter().all(|&value| value == K::ZERO)
+}
+
+fn write_rounds<const N: usize>(output: &mut Writer, rounds: &[[K; N]], masked: bool) -> Result<(), ProofCodecError> {
+    if rounds.len() > MAX_POLYNOMIAL_VARIABLES as usize {
+        return Err(ProofCodecError("argument round count"));
+    }
+    output.word(rounds.len() as u64);
+    let mut mask = 0u32;
+    if masked {
+        for (i, round) in rounds.iter().enumerate() {
+            if quadratic(round) {
+                mask |= 1 << i;
+            }
+        }
+        output.0.extend_from_slice(&mask.to_le_bytes());
+    }
+    for (i, round) in rounds.iter().enumerate() {
+        let count = if mask & (1 << i) != 0 { 3 } else { N };
+        write_extension(output, &round[..count]);
+    }
+    Ok(())
+}
+
+fn read_rounds<const N: usize>(input: &mut Reader<'_>, masked: bool) -> Result<Vec<[K; N]>, ProofCodecError> {
     let rounds = input.word()?;
     if rounds > MAX_POLYNOMIAL_VARIABLES {
         return Err(ProofCodecError("argument round count"));
     }
+    let mask = if masked {
+        let bits = u32::from_le_bytes(input.take(4)?.try_into().expect("one u32"));
+        if bits >> rounds != 0 {
+            return Err(ProofCodecError("surplus round mask bits"));
+        }
+        bits
+    } else {
+        0
+    };
     (0..rounds)
-        .map(|_| {
-            Ok(read_extension(input, COEFFICIENTS)?
-                .try_into()
-                .expect("the coefficients of one round"))
+        .map(|i| {
+            let short = mask & (1 << i) != 0;
+            let count = if short { 3 } else { N };
+            let mut round = [K::ZERO; N];
+            for value in &mut round[..count] {
+                *value = input.extension()?;
+            }
+            if masked && !short && quadratic(&round) {
+                return Err(ProofCodecError("explicit quadratic round"));
+            }
+            Ok(round)
         })
         .collect()
 }
@@ -515,7 +623,7 @@ impl FinalProof {
                 _ => return Err(ProofCodecError("slot count")),
             },
         };
-        let mut output = Writer(if light { LIGHT_MAGIC } else { MAGIC }.to_vec());
+        let mut output = Writer(MAGIC.to_vec());
         output.word(self.steps.as_ref().map_or(0, |steps| steps.pc));
         output.word(self.iteration);
         output.fields(&self.z0);
@@ -523,6 +631,7 @@ impl FinalProof {
         let Some(steps) = &self.steps else {
             return Ok(output.0);
         };
+        let slot_begin = output.0.len();
         for (claim, depth) in &steps.slots {
             if *depth >= F::ORDER_U64 {
                 return Err(ProofCodecError("slot depth word"));
@@ -530,6 +639,12 @@ impl FinalProof {
             output.word(*depth);
             output.claim(claim, &SHAPE)?;
         }
+        let tag = if light {
+            compact_light_slot(&mut output, slot_begin)
+        } else {
+            MAGIC
+        };
+        output.0[..MAGIC.len()].copy_from_slice(tag);
         let fresh = &steps.fresh;
         if fresh.r.len() != ROUNDS || fresh.eval_a.len() != MATRICES {
             return Err(ProofCodecError("fresh claim shape"));
@@ -551,17 +666,11 @@ impl FinalProof {
         let argument = &steps.argument;
         write_bytes(&mut output, &argument.witness_commitment);
         write_bytes(&mut output, &argument.inverse_commitment);
-        output.word(argument.rounds.len() as u64);
-        for round in &argument.rounds {
-            write_extension(&mut output, round);
-        }
+        write_rounds(&mut output, &argument.rounds, tag == ZERO_MAGIC)?;
         write_extension(&mut output, &[argument.witness_value]);
         write_extension(&mut output, &[argument.shared_inverse]);
         write_extension(&mut output, &[argument.key_part]);
-        output.word(argument.key_rounds.len() as u64);
-        for round in &argument.key_rounds {
-            write_extension(&mut output, round);
-        }
+        write_rounds(&mut output, &argument.key_rounds, false)?;
         write_extension(&mut output, &[argument.key_polynomial_value]);
         write_bytes(&mut output, &argument.opening);
         Ok(output.0)
@@ -569,9 +678,10 @@ impl FinalProof {
 
     pub(crate) fn from_bytes(bytes: &[u8]) -> Result<Self, ProofCodecError> {
         let mut input = Reader(bytes);
-        let light = match input.take(MAGIC.len())? {
+        let tag = input.take(MAGIC.len())?;
+        let light = match tag {
             tag if tag == MAGIC => false,
-            tag if tag == LIGHT_MAGIC => true,
+            tag if tag == LIGHT_MAGIC || tag == ZERO_MAGIC || tag == SIGNED_MAGIC => true,
             _ => return Err(ProofCodecError("format tag")),
         };
         let pc = input.word()?;
@@ -581,12 +691,8 @@ impl FinalProof {
             (0, false) if iteration == 0 && z0 == current => None,
             (0, false) => return Err(ProofCodecError("an initial proof starts at its initial state")),
             (1, true) | (1 | 2, false) => {
-                let mut slot = || -> Result<(CeClaim, u64), ProofCodecError> {
-                    let depth = input.field()?.as_canonical_u64();
-                    Ok((input.claim(&SHAPE)?, depth))
-                };
                 let slots = (0..if light { 1 } else { 2 })
-                    .map(|_| slot())
+                    .map(|_| read_slot(&mut input, tag))
                     .collect::<Result<Vec<_>, _>>()?;
                 let c = input.commitment()?;
                 let r = read_extension(&mut input, ROUNDS)?;
@@ -603,11 +709,11 @@ impl FinalProof {
                     .collect::<Result<Vec<_>, _>>()?;
                 let witness_commitment = read_bytes(&mut input)?;
                 let inverse_commitment = read_bytes(&mut input)?;
-                let rounds = read_rounds(&mut input)?;
+                let rounds = read_rounds(&mut input, tag == ZERO_MAGIC)?;
                 let witness_value = input.extension()?;
                 let shared_inverse = input.extension()?;
                 let key_part = input.extension()?;
-                let key_rounds = read_rounds(&mut input)?;
+                let key_rounds = read_rounds(&mut input, false)?;
                 let key_polynomial_value = input.extension()?;
                 Some(Steps {
                     pc,

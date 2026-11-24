@@ -453,8 +453,8 @@ private theorem work_extract_step {purpose : Purpose Oracle Retries} {run : Orac
   have total : workOf game adversary (.extract purpose run index rest retries) =
       1 / mass (retrySets game adversary run index) + later +
         lineAverage (retrySets game adversary run index) next := by
-    simp only [workOf, List.map_cons, List.sum_cons, lineLaw]
-    unfold retryCount
+    dsimp only [later, next]
+    rw [workOf, List.map_cons, List.sum_cons, lineLaw, retryCount]
     rfl
   have pointwise (fresh : Oracle) :
       workOf game adversary

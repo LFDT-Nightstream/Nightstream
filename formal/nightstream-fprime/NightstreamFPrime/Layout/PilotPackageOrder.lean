@@ -164,7 +164,7 @@ theorem sourceToPackage_lt (column : Nat) (bound : column < SourceColumnCount) :
     sourceToPackage column < packageColumnCount := by
   rw [sourceColumnCount_eq] at bound
   unfold sourceToPackage
-  all_goals try split
+  split
   all_goals try split
   all_goals try split
   all_goals try split
@@ -179,8 +179,8 @@ theorem packageToSource_sourceToPackage (column : Nat)
     packageToSource (sourceToPackage column) = some column := by
   rw [sourceColumnCount_eq] at bound
   unfold sourceToPackage packageToSource
-  all_goals try split
-  all_goals try split
+  split
+  all_goals split
   all_goals try split
   all_goals try split
   all_goals try split
@@ -202,7 +202,7 @@ theorem sourceToPackage_ne_constant (column : Nat)
     sourceToPackage column ≠ constantColumn := by
   rw [sourceColumnCount_eq] at bound
   unfold sourceToPackage constantColumn
-  all_goals try split
+  split
   all_goals try split
   all_goals try split
   all_goals try split

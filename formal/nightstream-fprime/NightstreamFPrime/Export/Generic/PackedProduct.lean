@@ -200,7 +200,7 @@ theorem restore_rows (original kept seeds : List R1CS.Row) (gates : List Gate)
   have holdsAt : ∀ i (inside : i < original.length), original[i].Holds env := by
     intro i
     induction i using Nat.strong_induction_on with
-    | h i ih =>
+    | ind i ih =>
       intro inside
       rcases cover i inside with member | ⟨gate, member, position, matched⟩
       · exact keptHold _ member

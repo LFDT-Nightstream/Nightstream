@@ -53,6 +53,7 @@ theorem statisticalError_eq {logicalWidth : Nat}
   show ((1 : Nat) : ℝ) * (((queries + 1 : Nat) : ℝ) * Fork.sampleError) + _ = _
   rw [Nat.cast_one, one_mul]
 
+attribute [local irreducible] Real.instLT Real.instLE in
 /-- The statistical error is at most `(Q + 1) · 575/2^128`. -/
 theorem statisticalError_le (queries : Nat) :
     statisticalError queries ≤ ((queries : ℝ) + 1) * (575 / 2 ^ 128) := by

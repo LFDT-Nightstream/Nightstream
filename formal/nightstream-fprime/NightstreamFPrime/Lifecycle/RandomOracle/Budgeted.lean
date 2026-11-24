@@ -129,6 +129,14 @@ noncomputable def success (oracle : Oracle) (state : Search schedule.rhoCount) :
 noncomputable def work (oracle : Oracle) (state : Search schedule.rhoCount) : ℝ :=
   (state.pending.map fun index => 1 / mass (Fork.retrySets game adversary oracle index)).sum
 
+private theorem work_cons (oracle : Point schedule width → Answer) (index : Fin schedule.rhoCount)
+    (rest : List (Fin schedule.rhoCount)) (retries : Fin schedule.rhoCount → Answer) :
+    work game adversary oracle ⟨index :: rest, retries⟩ =
+      1 / mass (Fork.retrySets game adversary oracle index) +
+        work game adversary oracle ⟨rest, retries⟩ := by
+  unfold work
+  rw [List.map_cons, List.sum_cons]
+
 /-- Every coordinate has a retry, and the retries extract. -/
 def Goal (oracle : Oracle) (state : Search schedule.rhoCount) : Prop :=
   state.pending = [] ∧ Extracts oracle state.retries
@@ -209,19 +217,15 @@ noncomputable def bounds {oracle : Oracle} (succeeds : Fork.Succeeds game advers
               rfl
           · next outside =>
               simp only [next, ite_eq_right outside]
-              rfl
+              exact work_cons game adversary oracle index rest retries
         have expected := line_work_step _ positive later fun _ => 0
         simp only [lineAverage_zero, add_zero] at expected
-        have total : work game adversary oracle ⟨index :: rest, retries⟩ =
-            1 / mass (Fork.retrySets game adversary oracle index) + later := by
-          simp only [work, List.map_cons, List.sum_cons]
-          rfl
         calc
           _ = 1 + 𝔼 answer, next answer := by
             rw [(Finset.expect_congr rfl fun sample _ => stepped sample).trans
               (uniform (Fork.rhoPoint game adversary index oracle) next)]
           _ = 1 / mass (Fork.retrySets game adversary oracle index) + later := expected
-          _ ≤ _ := total.symm.le
+          _ ≤ _ := (work_cons game adversary oracle index rest retries).symm.le
 
 include uniform in
 /-- On a successful base run, the search misses an extracting retry family with chance at most

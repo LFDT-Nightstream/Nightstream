@@ -321,7 +321,7 @@ def WalkCollision (visit : Visit logicalWidth publicFits) : Prop :=
 open Classical in
 /-- The output of the Poseidon2 collision finder at a visit: none at a bottom visit. At a
 recursive visit, the pair that `collisionInputs` gives for the two states of
-`TerminalBridge.Collision`, else, for a light step, its next state's words and the terminal's
+`TerminalBridge.Collision`, else its next state's words and the terminal's
 state preimage when they collide (`WordCollision`). -/
 noncomputable def visitCollision (visit : Visit logicalWidth publicFits) :
     Option PoseidonCollision :=
@@ -333,9 +333,8 @@ noncomputable def visitCollision (visit : Visit logicalWidth publicFits) :
           ((Lifecycle.BoundedDepth.setup productionLightFoldCap ajtai
             (exports.last payload).keys).forCircuit (circuitOf payload.pc))
           (exports.last payload).input (exports.last payload).output)) terminal).or
-        (if words : circuitOf payload.pc = 0 ∧
-            WordCollision (exports.lightNextWords payload) (statePreimage terminal) then
-          some ⟨(exports.lightNextWords payload, statePreimage terminal), words.2⟩
+        (if words : WordCollision (exports.nextWords payload) (statePreimage terminal) then
+          some ⟨(exports.nextWords payload, statePreimage terminal), words⟩
         else none)
 
 /-- A collision at a visit gives an output of the finder. -/
@@ -381,12 +380,10 @@ theorem decode_shaped (circuit : Fin 2)
       lightInput_depth exports.program running _,
       DigestSelect.nextSlots_depth _ _ _ _ (lightInput_depth exports.program running _)
         (Fin.isLt _)⟩
-  · have represents := refreshRepresents exports.program relation ajtai circuitKeys 1
-      (refreshEnv exports.program relation ajtai exports.refreshFresh exports.refreshLayout
-        (Layout.ProductionRelation.Plan.logicalAssignment witness))
-    exact ⟨represents.iterationBound, represents.priorPcBound, by simp [refreshInput],
-      by simp [refreshInput], represents.priorDepth,
-      DigestSelect.nextSlots_depth _ _ _ _ represents.priorDepth (Fin.isLt _)⟩
+  · exact ⟨Fin.isLt _, Fin.isLt _, by simp [refreshInput], by simp [refreshInput],
+      refreshInput_depth exports.program running _,
+      DigestSelect.nextSlots_depth _ _ _ _ (refreshInput_depth exports.program running _)
+        (Fin.isLt _)⟩
 
 theorem initial_relaxed (control : AppState → AppWitness → Fin 2)
     (output : TerminalStatement AppState ×

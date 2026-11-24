@@ -332,6 +332,44 @@ fn geometric_projection_matches_the_ring_product_for_each_prior_lane() {
 }
 
 #[test]
+fn geometric_child_projections_match_the_combined_ring_product() {
+    let blocks = 3;
+    let width = D * blocks;
+    let first = Mat::compact_signed_unit_from_column_masks(D, blocks, &[1 << 63, 0, 7], &[5, 0, 1 << 63]).unwrap();
+    let second = Mat::compact_signed_unit_from_column_masks(D, blocks, &[5, 0, 1 << 63], &[1 << 63, 0, 6]).unwrap();
+    let mut dense = Mat::zero(D, blocks, F::ZERO);
+    dense[(D - 1, 0)] = F::from_u64(13);
+    let witnesses = [first, Mat::virtual_constant(D, blocks, F::ZERO), second, dense];
+    let sources = witnesses
+        .each_ref()
+        .map(|w| SuperneoZBlocks::from_witness_mat(w, width).unwrap());
+    let gamma = K::from_coeffs([F::from_u64(11), F::from_u64(97)]);
+    for coefficients in [
+        [gamma, K::ONE, gamma.square(), K::ZERO],
+        [gamma, K::ZERO, gamma, gamma.square()],
+        [K::ZERO; 4],
+    ] {
+        let combined = (0..width)
+            .map(|i| {
+                witnesses
+                    .iter()
+                    .zip(coefficients)
+                    .map(|(witness, coefficient)| coefficient.scale_base(witness[(i % D, i / D)]))
+                    .sum()
+            })
+            .collect::<Vec<K>>();
+        let combined = SuperneoZBlocks::from_z(&combined);
+        for ratio in [K::ZERO, K::ONE, -K::ONE, gamma] {
+            let weights = std::array::from_fn(|lane| gamma_power(ratio, lane));
+            let expected = weighted_identity_projection(&combined, &weights);
+            let mut actual = vec![K::ONE; width];
+            fill_geometric_projection(&sources, &coefficients, ratio, &mut actual);
+            assert_eq!(actual, expected);
+        }
+    }
+}
+
+#[test]
 fn separated_carried_lane_and_matrix_rows_match_every_dense_round() {
     let (rows, blocks, matrix_count) = (2 * D + 5, 5, 2);
     let width = D * blocks;

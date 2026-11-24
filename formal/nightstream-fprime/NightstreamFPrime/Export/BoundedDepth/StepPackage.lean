@@ -256,6 +256,45 @@ def regroupAux : List Entry → List WitnessBatch → List WitnessBatch
 def witnessOf (batches : List WitnessBatch) (pieces : List Piece) : List WitnessBatch :=
   regroupAux (trimAux (nativeRanges pieces) (batches.flatMap batchEntries) []) []
 
+private def replaceHintInput (replace : Expr → Expr) : Hint → Hint
+  | .bit source index => .bit (replace source) index
+  | .inverseOrZero source => .inverseOrZero (replace source)
+  | .quotientFive source => .quotientFive (replace source)
+  | .remainderFive source => .remainderFive (replace source)
+
+def replaceWitnessInputs (replace : Expr → Expr) (batch : WitnessBatch) : WitnessBatch :=
+  { batch with
+    recipes := batch.recipes.map replace
+    hints := batch.hints.map (replaceHintInput replace) }
+
+theorem replaceWitnessInputs_computed (replace : Expr → Expr) (env : Env)
+    (same : ∀ e, (replace e).eval env = e.eval env) (batch : WitnessBatch) :
+    (replaceWitnessInputs replace batch).Computed env ↔ batch.Computed env := by
+  have recipes (start : Nat) (terms : List Expr) :
+      ConstraintsHold env (recipeConstraints start (terms.map replace)) ↔
+        ConstraintsHold env (recipeConstraints start terms) := by
+    induction terms generalizing start with
+    | nil => rfl
+    | cons term rest ih =>
+        simp only [List.map_cons, recipeConstraints]
+        have cons (head : Expr) (tail : List Expr) :
+            ConstraintsHold env (head :: tail) ↔ head.eval env = 0 ∧ ConstraintsHold env tail := by
+          simp [ConstraintsHold]
+        simp only [cons, Expr.eval_sub, same, ih]
+  have hints (start : Nat) (terms : List Hint) :
+      HintsComputed env start (terms.map (replaceHintInput replace)) ↔
+        HintsComputed env start terms := by
+    induction terms generalizing start with
+    | nil => rfl
+    | cons term rest ih =>
+        have head : (replaceHintInput replace term).eval env = term.eval env := by
+          cases term <;> simp only [replaceHintInput, Hint.eval, same]
+        change (_ = (replaceHintInput replace term).eval env ∧ _) ↔ (_ = term.eval env ∧ _)
+        rw [head]
+        exact and_congr_right fun _ => ih (start + 1)
+  simp only [WitnessBatch.Computed, replaceWitnessInputs, WitnessBatch.hintStart, List.length_map,
+    recipes, hints]
+
 /-! ### The package -/
 
 /-- A step circuit's package. Rust fills the columns in this order: the shared source columns
@@ -381,16 +420,18 @@ def slotRuns (publicColumns : Nat) (pieces : List Piece) (next : Nat)
     (bitColumns batches)
 
 def packageOf (circuit publicColumns : Nat) (pieces : List Piece) (next width : Nat)
-    (batches : List WitnessBatch) (application : Nat × Nat × Nat × Nat × Nat) : Package :=
+    (batches : List WitnessBatch) (application : Nat × Nat × Nat × Nat × Nat)
+    (witness : List WitnessBatch := witnessOf batches pieces) : Package :=
   let sboxStart := CircuitRelation.sboxStart pieces next
   let package := packagePieces pieces next
-  ⟨circuit, publicColumns, width, next, sboxStart, package, witnessOf batches pieces,
+  ⟨circuit, publicColumns, width, next, sboxStart, package, witness,
     runsOf publicColumns sboxStart package (bitColumns batches), application⟩
 
 theorem relationRows_packageOf (circuit publicColumns : Nat) (pieces : List Piece)
     (next width : Nat) (batches : List WitnessBatch) (application : Nat × Nat × Nat × Nat × Nat)
-    (packed : CircuitRelation.packable publicColumns pieces = true) :
-    (packageOf circuit publicColumns pieces next width batches application).relationRows =
+    (packed : CircuitRelation.packable publicColumns pieces = true)
+    (witness : List WitnessBatch := witnessOf batches pieces) :
+    (packageOf circuit publicColumns pieces next width batches application witness).relationRows =
       CircuitRelation.relationRows publicColumns pieces next width := by
   simp only [Package.relationRows, Package.blocks, packageOf, packagePieces, packageAux_eq,
     List.reverse_nil, List.nil_append, blocks_packageSpec, CircuitRelation.relationRows, packed,

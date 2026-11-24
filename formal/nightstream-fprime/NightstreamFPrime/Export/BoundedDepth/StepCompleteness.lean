@@ -111,13 +111,14 @@ theorem pieces_complete (circuit : FormalCircuit) (offset : Nat) (digestColumn :
     (digestAbove : ∀ word, publicColumns ≤ digestColumn word)
     (publicEq : ∀ column (inside : column < publicColumns),
       env column = encHash (publicFits := publicFits) digest ⟨column, inside⟩) :
-    ∀ piece ∈ CircuitRelation.pieces circuit offset digestColumn,
+    ∀ piece ∈ SpecializedCircuit.pieces circuit offset digestColumn,
       ConstraintsHold (withPublic (publicFits := publicFits) digest env)
         (piece.constraints (PilotData.canonicalConstraints ())) := by
   have all : ConstraintsHold (withPublic (publicFits := publicFits) digest env)
       (CircuitRelation.constraints circuit offset digestColumn) :=
     constraints_complete (publicFits := publicFits) _ digestColumn env holds digest digestWords
       digestAbove publicEq
+  apply (SpecializedCircuit.circuitPlan circuit offset digestColumn).complete
   intro piece member expression inPiece
   apply all
   show expression ∈ CircuitRelation.constraints circuit offset digestColumn
@@ -136,12 +137,12 @@ theorem fresh_complete (circuit : FormalCircuit) (offset : Nat) (digestColumn : 
     (publicEq : ∀ column (inside : column < publicColumns),
       env column = encHash (publicFits := publicFits) digest ⟨column, inside⟩)
     (firstFresh width : Nat)
-    (fits : Fits publicColumns (CircuitRelation.pieces circuit offset digestColumn) firstFresh width)
-    (packed : packable publicColumns (CircuitRelation.pieces circuit offset digestColumn) = true)
-    (below : (CircuitRelation.pieces circuit offset digestColumn).all (pieceBelow firstFresh) = true)
+    (fits : Fits publicColumns (SpecializedCircuit.pieces circuit offset digestColumn) firstFresh width)
+    (packed : packable publicColumns (SpecializedCircuit.pieces circuit offset digestColumn) = true)
+    (below : (SpecializedCircuit.pieces circuit offset digestColumn).all (pieceBelow firstFresh) = true)
     (publicBelow : publicColumns ≤ firstFresh) (batches : List WitnessBatch)
     (wideFits : ProductionAssignment.logicalWidth (SlotLayout.runSlots width
-      (StepPackage.slotRuns publicColumns (CircuitRelation.pieces circuit offset digestColumn)
+      (StepPackage.slotRuns publicColumns (SpecializedCircuit.pieces circuit offset digestColumn)
         firstFresh batches)) ≤ logicalWidth)
     (cubeFits : RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)) :
@@ -156,7 +157,7 @@ theorem fresh_complete (circuit : FormalCircuit) (offset : Nat) (digestColumn : 
         (RingCarrierLayout.extendAssignment 0 assignment) ∧
       ∀ column : Fin (RingCarrierLayout.carrierWidth logicalWidth),
         ProductionAssignment.logicalWidth (SlotLayout.runSlots width
-          (StepPackage.slotRuns publicColumns (CircuitRelation.pieces circuit offset digestColumn)
+          (StepPackage.slotRuns publicColumns (SpecializedCircuit.pieces circuit offset digestColumn)
             firstFresh batches)) ≤ column.val →
         RingCarrierLayout.extendAssignment 0 assignment column = 0 := by
   have piecesHold := pieces_complete (publicFits := publicFits) circuit offset digestColumn env
@@ -174,7 +175,7 @@ theorem fresh_complete (circuit : FormalCircuit) (offset : Nat) (digestColumn : 
     rw [atColumn]
     exact encHash_norm (publicFits := publicFits) digest ⟨column, inside⟩
   obtain ⟨rows, bounded⟩ := SlotCompleteness.rowsZero_of_holds fits packed
-    (fun piece member => valid_split _ _ _ piece member)
+    ((SpecializedCircuit.circuitPlan circuit offset digestColumn).validPieces (valid_split _ _ _))
     (fun piece member => List.all_eq_true.mp below piece member) publicBelow batches wideFits
     (withPublic (publicFits := publicFits) digest env) piecesHold marker publicNorm
   refine ⟨_, Layout.ProductionRelation.Plan.rowsZero_implies_freshHolds _ cubeFits ajtai _ _ rows
@@ -196,7 +197,7 @@ theorem fresh_complete (circuit : FormalCircuit) (offset : Nat) (digestColumn : 
     rfl
   rw [RingRelation.projectPublicInput, same, RingCarrierLayout.extendAssignment_embedLogical]
   have narrow : column.val < ProductionAssignment.logicalWidth (SlotLayout.runSlots width
-      (StepPackage.slotRuns publicColumns (CircuitRelation.pieces circuit offset digestColumn) firstFresh batches)) :=
+      (StepPackage.slotRuns publicColumns (SpecializedCircuit.pieces circuit offset digestColumn) firstFresh batches)) :=
     Nat.lt_of_lt_of_le column.isLt (SlotLayout.publicFits _)
   simp only [WideLayout.extend, honestAssignment]
   rw [dite_eq_left narrow,
@@ -230,7 +231,7 @@ theorem digestColumn_above (word : Fin 4) :
 abbrev lightPieces (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     List Piece :=
-  CircuitRelation.pieces (LightAssemblerCircuit.stepCircuit program StepRelation.base relation 0 ajtai)
+  SpecializedCircuit.pieces (LightAssemblerCircuit.stepCircuit program StepRelation.base relation 0 ajtai)
     (LightAssembler.sharedEnd StepRelation.base program.witnessWordCount)
     (StepRelation.lightDigestColumn program)
 
@@ -238,7 +239,7 @@ abbrev lightPieces (relation : ProductionKey.LogicalRelation logicalWidth public
 abbrev refreshPieces (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     List Piece :=
-  CircuitRelation.pieces
+  SpecializedCircuit.pieces
     (RefreshAssemblerCircuit.stepCircuit program StepRelation.base relation 1 ajtai)
     (RefreshAssembler.sharedEnd StepRelation.base program.witnessWordCount)
     (StepRelation.refreshDigestColumn program)
@@ -260,8 +261,7 @@ def refreshOps (relation : ProductionKey.LogicalRelation logicalWidth publicFits
 /-- The pieces that the emitter writes for a step circuit: the pieces of the circuit's
 constraints, then of the decode constraints of its output digest. -/
 def piecesOf (ops : List Op) (digestColumn : Fin 4 → Nat) : List Piece :=
-  split (PilotData.canonicalConstraints ()) (marks ops)
-    (flatConstraints ops ++ LogicalPlan.decodeConstraints digestColumn)
+  SpecializedCircuit.optimize ops (SpecializedCircuit.rawPiecesOf ops digestColumn)
 
 /-- The emitter's light pieces are the pieces of `StepRelation.light_stepHolds` and
 `light_complete`, for every commitment key. -/
@@ -357,6 +357,9 @@ theorem lightPieces_readOwnColumns
     (publicBelow : publicColumns ≤ firstFresh) :
     (lightPieces program relation ajtai).all (pieceBelow firstFresh) = true := by
   rw [← piecesOf_lightOps program relation ajtai]
+  apply (SpecializedCircuit.endColumn_le _ _).mp
+  apply (SpecializedCircuit.prepare _ _).bounded.trans
+  apply (SpecializedCircuit.endColumn_le _ _).mpr
   refine split_below _ _ _ canonical_last canonical_lanes fun constraint member => ?_
   rcases List.mem_append.mp member with member | member
   · exact scope constraint member
@@ -382,6 +385,9 @@ theorem refreshPieces_readOwnColumns
     (publicBelow : publicColumns ≤ firstFresh) :
     (refreshPieces program relation ajtai).all (pieceBelow firstFresh) = true := by
   rw [← piecesOf_refreshOps program relation ajtai]
+  apply (SpecializedCircuit.endColumn_le _ _).mp
+  apply (SpecializedCircuit.prepare _ _).bounded.trans
+  apply (SpecializedCircuit.endColumn_le _ _).mpr
   refine split_below _ _ _ canonical_last canonical_lanes fun constraint member => ?_
   rcases List.mem_append.mp member with member | member
   · exact scope constraint member
@@ -419,6 +425,7 @@ theorem pieces_packable {ops : List Op} {shared : Nat} {digestColumn : Fin 4 →
         member)).mono row sharedLive
   have segmented := liveRows.segmented.append (Segmented.ofFree decodeFree)
   rw [List.append_nil] at segmented
+  apply (SpecializedCircuit.prepare _ _).packed
   exact NightstreamFPrime.Export.Generic.MarkedBlocks.packable_of_segmented segmented
     liveRows.lanes placed.ascend fun mark member => le_trans publicBelow (placed.inside mark member).1
 

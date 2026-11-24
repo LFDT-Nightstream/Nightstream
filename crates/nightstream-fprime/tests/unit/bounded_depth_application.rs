@@ -168,8 +168,12 @@ fn native_blocks_replace_their_rows_and_bits_take_one_coordinate() {
     ] {
         assert_eq!(packed.application.pieces, 3);
         assert!(matches!(&packed.pieces[0], Piece::Rows(rows) if rows.len() == 7));
-        assert_eq!(packed.block_count(), lean.block_count() - 5 + 2);
-        assert_eq!(plain.block_count(), lean.block_count() - 5);
+        let original_blocks = lean.pieces[..lean.application.pieces]
+            .iter()
+            .filter(|piece| matches!(piece, Piece::Block { .. }))
+            .count();
+        assert_eq!(packed.block_count(), lean.block_count() - original_blocks + 2);
+        assert_eq!(plain.block_count(), lean.block_count() - original_blocks);
         let layout = packed.layout().expect("layout");
         let kind = |variable| {
             layout

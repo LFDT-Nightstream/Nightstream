@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.BoundedDepth.SpecializedCircuit
 import NightstreamFPrime.Export.BoundedDepth.Parity
 import NightstreamFPrime.Export.BoundedDepth.StepCompleteness
 import NightstreamFPrime.Export.Stage1.Rows
@@ -108,8 +109,9 @@ def applicationRegion (name : String) (words : Nat) (ops : List Op) (offset firs
       unless child.name == s!"{name}.application" do
         throw (IO.userError s!"{name}: the first child is {child.name}")
   | _ => throw (IO.userError s!"{name}: the first operation is not the application")
-  let own := Pieces.split (PilotData.canonicalConstraints ()) application.marks
+  let source := Pieces.split (PilotData.canonicalConstraints ()) application.marks
     application.flatConstraints
+  let own := SpecializedCircuit.optimize [application] source
   let render := fun (piece : StepPackage.PackagePiece) =>
     (StepPackage.PackagePiece.format.encode piece).render
   unless (StepPackage.packagePieces own firstFresh).map render ==
@@ -130,7 +132,7 @@ writes, it runs the package's completeness checks
 (`completenessChecks`), checks that no row of the circuit reads a public column, and checks the
 package's capacity (`EmittedPackages.Facts`, SPEC.md section 4.4). -/
 def emitPackage (name : String) (circuit : Nat) (ops : List Op) (offset : Nat)
-    (pieces : List Pieces.Piece)
+    (pieces : List Pieces.Piece) (witness : List WitnessBatch)
     (program : Stage1.Application.Program := program) (stem : String := "")
     (write : Bool := true) :
     IO StepPackage.Package := do
@@ -157,9 +159,9 @@ def emitPackage (name : String) (circuit : Nat) (ops : List Op) (offset : Nat)
   say s!"{name}: capacity: columns below {columns}, {rows} rows ({(← IO.monoMsNow) - start} ms)"
   unless write do
     return StepPackage.packageOf circuit CircuitRelation.publicColumns pieces firstFresh width
-      (witnesses ops) (program.witnessWordCount, offset, 0, 0, 0)
+      (witnesses ops) (program.witnessWordCount, offset, 0, 0, 0) witness
   let package := StepPackage.packageOf circuit CircuitRelation.publicColumns pieces
-    firstFresh width (witnesses ops) (program.witnessWordCount, offset, 0, 0, 0)
+    firstFresh width (witnesses ops) (program.witnessWordCount, offset, 0, 0, 0) witness
   let region ← applicationRegion name program.witnessWordCount ops offset firstFresh package.pieces
   let package := { package with application := region }
   let logical := ProductionAssignment.logicalWidth (SlotLayout.runSlots width package.slots)
@@ -298,22 +300,32 @@ def main (arguments : List String) : IO Unit := do
   let lightOffset := LightAssembler.sharedEnd base words
   say s!"start ({(← IO.monoMsNow) - start} ms)"
   let lightOps := StepCompleteness.lightOps program relation
-  let lightPieces := StepCompleteness.piecesOf lightOps (StepRelation.lightDigestColumn program)
+  let lightSource := SpecializedCircuit.rawPiecesOf lightOps (StepRelation.lightDigestColumn program)
+  let lightTrimmed := StepPackage.witnessOf (witnesses lightOps) lightSource
+  let lightPlan := SpecializedCircuit.prepare lightOps lightSource lightTrimmed
+  let lightPieces := lightPlan.pieces
+  let lightWitness := lightTrimmed.map
+    (StepPackage.replaceWitnessInputs lightPlan.replace)
   if withCensus then
     census "light" lightOps lightOffset (StepRelation.lightDigestColumn program) lightPieces
     childCensus "light" lightOps
-  let light ← emitPackage "light" 0 lightOps lightOffset lightPieces (program := program)
+  let light ← emitPackage "light" 0 lightOps lightOffset lightPieces lightWitness (program := program)
     (stem := stem) (write := write)
   let refreshOffset := RefreshAssembler.sharedEnd base words
   say s!"light done ({(← IO.monoMsNow) - start} ms)"
   let refreshOps := StepCompleteness.refreshOps program relation
-  let refreshPieces := StepCompleteness.piecesOf refreshOps
+  let refreshSource := SpecializedCircuit.rawPiecesOf refreshOps
     (StepRelation.refreshDigestColumn program)
+  let refreshTrimmed := StepPackage.witnessOf (witnesses refreshOps) refreshSource
+  let refreshPlan := SpecializedCircuit.prepare refreshOps refreshSource refreshTrimmed
+  let refreshPieces := refreshPlan.pieces
+  let refreshWitness := refreshTrimmed.map
+    (StepPackage.replaceWitnessInputs refreshPlan.replace)
   if withCensus then
     census "refresh" refreshOps refreshOffset (StepRelation.refreshDigestColumn program)
       refreshPieces
     childCensus "refresh" refreshOps
-  let refresh ← emitPackage "refresh" 1 refreshOps refreshOffset refreshPieces
+  let refresh ← emitPackage "refresh" 1 refreshOps refreshOffset refreshPieces refreshWitness
     (program := program) (stem := stem) (write := write)
   unless write do
     say s!"checks done ({(← IO.monoMsNow) - start} ms)"
@@ -329,6 +341,7 @@ def main (arguments : List String) : IO Unit := do
     return
   let parity := Parity.parity width (lightPieces, light.firstFresh, lightOffset, witnesses lightOps)
     (refreshPieces, refresh.firstFresh, refreshOffset, witnesses refreshOps)
+    (CircuitRelation.blocksOf lightSource) (CircuitRelation.blocksOf refreshSource)
   let parityPath := "artifacts/nightstream-fprime-bounded-depth-parity-v1.json"
   IO.FS.writeFile parityPath (parity.render ++ "\n")
   match parity with

@@ -1,3 +1,6 @@
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+pub mod accelerate;
+
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::{field::Q, ring::D, F};

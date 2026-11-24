@@ -19,6 +19,7 @@ enum Step<'a> {
     Ring {
         cells: usize,
         start: usize,
+        quotient: usize,
         lanes: &'a [Linear],
     },
 }
@@ -74,14 +75,22 @@ fn ring_operands(cells: usize, cell: usize, lanes: &[Linear], columns: &[Fq]) ->
     ]
 }
 
+fn stable_ring_inputs(start: usize, cells: usize, lanes: &[Linear]) -> bool {
+    lanes
+        .iter()
+        .take(RING_DEGREE * (1 + cells))
+        .all(|form| form.terms.iter().all(|&(i, _)| i < start))
+}
+
 impl super::ExpandedPackage {
     pub fn assignment_columns(&self, shared: &[Fq], locals: Option<&[Fq]>) -> Result<Vec<Fq>, PackageError> {
         let package = &self.package;
         package.check_shared_columns(shared)?;
         let mut columns = vec![Fq::ZERO; package.source_end()];
         let (inputs, sboxes) = columns.split_at_mut(package.sbox_start);
-        package.fill_circuit_columns(shared, locals, &mut inputs[..package.first_fresh], Some(sboxes))?;
-        package.finish_relation_columns(&mut columns, &self.rows, &self.fresh_product_rows)?;
+        let (inputs, quotients) = inputs.split_at_mut(package.first_fresh);
+        package.fill_circuit_columns(shared, locals, inputs, Some(sboxes), Some(quotients))?;
+        package.finish_relation_columns(&mut columns, &self.rows, &self.fresh_product_rows, true)?;
         Ok(columns)
     }
 
@@ -111,7 +120,7 @@ impl StepPackage {
     pub fn circuit_columns_with(&self, shared: &[Fq], locals: Option<&[Fq]>) -> Result<Vec<Fq>, PackageError> {
         self.check_shared_columns(shared)?;
         let mut columns = vec![Fq::ZERO; self.first_fresh];
-        self.fill_circuit_columns(shared, locals, &mut columns, None)?;
+        self.fill_circuit_columns(shared, locals, &mut columns, None, None)?;
         Ok(columns)
     }
 
@@ -131,6 +140,7 @@ impl StepPackage {
         locals: Option<&[Fq]>,
         columns: &mut [Fq],
         mut sboxes: Option<&mut [Fq]>,
+        mut quotients: Option<&mut [Fq]>,
     ) -> Result<(), PackageError> {
         columns[..shared.len()].copy_from_slice(shared);
         if let Some(records) = &self.native {
@@ -160,8 +170,12 @@ impl StepPackage {
                     block_index += 1;
                 }
                 Piece::Ring {
-                    cells, start, lanes, ..
+                    cells,
+                    start,
+                    lanes,
+                    quotient,
                 } => steps.push(Step::Ring {
+                    quotient: *quotient,
                     cells: *cells,
                     start: *start,
                     lanes,
@@ -194,10 +208,34 @@ impl StepPackage {
                     };
                     columns[outputs..start + BLOCK_LOCALS].copy_from_slice(&output);
                 }
-                Step::Ring { cells, start, lanes } => {
+                Step::Ring {
+                    cells,
+                    start,
+                    lanes,
+                    quotient,
+                } => {
+                    let mut out = if let Some(fresh) = quotients
+                        .as_deref_mut()
+                        .filter(|_| stable_ring_inputs(*start, *cells, lanes))
+                    {
+                        let at = quotient
+                            .checked_sub(self.first_fresh)
+                            .ok_or(PackageError::Malformed("bounded-depth ring quotient column"))?;
+                        Some(
+                            fresh
+                                .get_mut(at..)
+                                .and_then(|slice| slice.get_mut(..RING_DEGREE * cells))
+                                .ok_or(PackageError::Malformed("bounded-depth ring quotient column"))?,
+                        )
+                    } else {
+                        None
+                    };
                     for cell in 0..*cells {
                         let [challenge, value, prior] = ring_operands(*cells, cell, lanes, columns);
-                        let (_, remainder) = divide_by_ring_modulus(product(&challenge, &value));
+                        let (q, remainder) = divide_by_ring_modulus(product(&challenge, &value));
+                        if let Some(values) = out.as_deref_mut() {
+                            values[cell * RING_DEGREE..(cell + 1) * RING_DEGREE].copy_from_slice(&q);
+                        }
                         for lane in 0..RING_DEGREE {
                             columns[start + lane * cells + cell] = prior[lane] + remainder[lane];
                         }
@@ -238,7 +276,7 @@ impl StepPackage {
             };
             columns[column] = rows.evaluate(row, 3, &columns).exp_u64(SBOX_DEGREE);
         }
-        self.finish_relation_columns(&mut columns, rows, &self.fresh_product_rows(rows))?;
+        self.finish_relation_columns(&mut columns, rows, &self.fresh_product_rows(rows), false)?;
         Ok(columns)
     }
 
@@ -247,6 +285,7 @@ impl StepPackage {
         columns: &mut [Fq],
         rows: &PlanRows,
         product_rows: &[usize],
+        fused: bool,
     ) -> Result<(), PackageError> {
         if rows.piece_ranges().len() != self.pieces.len() {
             return Err(PackageError::Malformed("bounded-depth witness row pieces"));
@@ -262,10 +301,17 @@ impl StepPackage {
                     }
                 }
                 Piece::Ring {
-                    cells, quotient, lanes, ..
+                    cells,
+                    quotient,
+                    lanes,
+                    start,
                 } => {
                     if *quotient != next {
                         return Err(PackageError::Malformed("bounded-depth ring quotient column"));
+                    }
+                    if fused && stable_ring_inputs(*start, *cells, lanes) {
+                        next += RING_DEGREE * cells;
+                        continue;
                     }
                     for cell in 0..*cells {
                         let [challenge, value, _] = ring_operands(*cells, cell, lanes, columns);

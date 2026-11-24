@@ -9,6 +9,7 @@ use crate::folding::bounded_depth::{prove, Kind};
 use crate::folding::FoldContext;
 use crate::folding::{pi_dec, pi_rlc, CcsInstance, CeClaim, RunningInstance};
 pub(crate) use compression::FinalProof;
+use neo_ajtai::nightstream_fprime_setup::ExpandedKey;
 use neo_ccs::crypto::poseidon2::poseidon2_hash;
 use neo_math::F;
 use neo_transcript::domain_chunk_v1_2;
@@ -196,6 +197,23 @@ impl BoundedDepth {
             minimum_security_bits,
             compression: Compression::Both,
         })
+    }
+
+    pub(crate) fn prepare_folding_key(&self, retained: &mut Option<Arc<ExpandedKey>>, max_bytes: usize) -> bool {
+        let blocks = self.key_blocks() as u64;
+        if retained
+            .as_ref()
+            .is_some_and(|key| key.blocks() >= blocks && size_of_val(key.words()) <= max_bytes)
+        {
+            return true;
+        }
+        *retained = None;
+        *retained = match self.backend {
+            Backend::Optimized => ExpandedKey::within_budget(blocks, max_bytes),
+            #[cfg(feature = "metal")]
+            Backend::Metal(_) => None,
+        };
+        retained.is_some()
     }
 
     pub(crate) fn with_compression(self, compression: Compression) -> Self {

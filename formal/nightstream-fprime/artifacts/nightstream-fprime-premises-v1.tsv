@@ -1922,8 +1922,8 @@ Claims.Step.refresh_complete	represents.initialState	Eq
 Claims.Step.refresh_complete	represents.currentState	Eq
 Claims.Step.refresh_complete	represents.nextState	Eq
 Claims.Step.refresh_complete	represents.witness	Eq
-Claims.Step.refresh_complete	represents.priorSlots	Eq
-Claims.Step.refresh_complete	represents.priorDepth	LT.lt
+Claims.Step.refresh_complete	represents.active	Eq
+Claims.Step.refresh_complete	represents.otherDigests	Eq
 Claims.Step.refresh_complete	represents.pcNext	Eq
 Claims.Step.refresh_complete	represents.outputDigest	Eq
 Claims.Step.refresh_complete	represents.fresh	Eq
@@ -1971,3 +1971,4 @@ Claims.Step.refresh_sound	layout.publicFits	LE.le
 Claims.Step.refresh_sound	layout.publicForm	Eq
 Claims.Step.refresh_sound	encoded	Eq
 Claims.Step.refresh_sound	rowsZero	Layout.ProductionRelation.Plan.RowsZero
+Claims.Step.refresh_sound	others	Export.BoundedDepth.StepRelation.RefreshOtherDigest

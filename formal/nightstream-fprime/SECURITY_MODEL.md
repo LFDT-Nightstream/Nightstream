@@ -201,7 +201,7 @@ covers.
 | `publicFits` | `LE.le` | 33 | lean | `Export.BoundedDepth.StepRelation.keyPublicFits`, at the key width `2^26` |
 | `cubeFits`, `relation.cubeFits`, `key.relation.cubeFits`, `circuitKeys.relation.cubeFits`, `setup.circuitKeys.relation.cubeFits`, `light.circuitKeys.relation.cubeFits`, `Shipped/relations.cubeFits` | `LE.le` | 84 | lean | `Export.BoundedDepth.StepRelation.keyCubeFits`, at the key width `2^26` |
 | `program.*`, `exports.program.*` | `*` | 336 | lean | `Lifecycle.Stage1.Poseidon2HashChainV1.program` and `Export.Stage1.NebulaMemoryV1Package.application` are programs, so they carry these proofs. A Rust application has no such instance (Out of scope) |
-| `stepEq`, `validControl`, `encoded`, `rowsZero`, `others` | `*` | 9 | lean | `Claims.Ivc.terminal_bridge` joins the two step results and takes none of these |
+| `stepEq`, `validControl`, `encoded`, `rowsZero`, `others` | `*` | 10 | lean | `Claims.Ivc.terminal_bridge` joins the two step results and takes none of these |
 | `layout.*` | `*` | 4 | lean | `Claims.Ivc.terminal_bridge` and `Claims.Ivc.run_complete` take them as fields of their `exports` (rows below) |
 | `programEq` | `Eq` | 5 | game | adversary 5: the memory application is the exported program |
 | `exports.programStep` | `Eq` | 20 | game | `SPEC.md` Algorithm 3: the step of the relation is the step of the application |
@@ -321,17 +321,23 @@ item 5).
 - **Controls:** every value of the assignment of a step circuit and the
   claimed public input.
 - **Wins:** the rows of the circuit's relation are zero and the public input
-  encodes a digest, but the circuit's case of the step relation does not hold
-  with that digest as its output hash.
+  encodes a digest. After the base step, the supplied inactive slot matches its
+  carried digest. The circuit's step relation fails or its output hash differs
+  from the claimed digest.
 - **Result:** no such win, for the light circuit
   (`Claims.Step.light_sound`) and for the refresh circuit
   (`Claims.Step.refresh_sound`). The step holds in an
   environment that agrees with the assignment on the public input and
-  differs only on dead Poseidon2 locals. The package rows are the relation's
+  reconstructs the Poseidon2 traces. For a fixed permutation, the inputs determine
+  every output. For an omitted final sampler advance, no other piece or retained
+  witness instruction reads its trace. An honest assignment satisfies the smaller
+  circuit with the same public input. The package rows are the relation's
   rows (`Export.BoundedDepth.StepPackage.relationRows_packageOf`), and the rows of
   either circuit give its case of the step relation
-  (`Layout.BoundedDepth.StepCircuits.soundness`). Each result takes as a premise
-  that every valid step of the circuit's application has the selector value
+  (`Layout.BoundedDepth.StepCircuits.soundness`). After the base step, each local result
+  requires that the supplied inactive slot has the carried prior digest.
+  Adversary 2 discharges this premise for both circuits or exhibits a collision.
+  Each result also requires that every valid step of the circuit's application has the selector value
   of that circuit. The selector that returns the circuit that runs on a valid step and the
   other circuit otherwise (`Export.BoundedDepth.TerminalBridge.chosen`) meets this
   premise for every application (trust item 4). The decoded key digests are the words that
@@ -433,12 +439,14 @@ not change terminal source checks.
   (`Export.BoundedDepth.TerminalBridge.Exports.decode`). The step relation holds
   on it at the production cap, under the setup's keys, and it ends in the
   terminal's statement, or its next state and the terminal's state collide,
-  or the step is light and its next state's words and the terminal's state
+  or the step's next-state words and the terminal's state
   preimage collide (`Claims.Ivc.terminal_bridge`,
   `Export.BoundedDepth.TerminalBridge.Collision`,
-  `Export.BoundedDepth.TerminalBridge.WordCollision`). A light step's other slot
-  is the terminal's slot, because the light circuit reads only the active
-  slot's words (`Export.BoundedDepth.StepRelation.lightInput`). The terminal is
+  `Export.BoundedDepth.TerminalBridge.WordCollision`). In both circuits the terminal
+  supplies the inactive slot. The circuit copies its
+  digest into the next-state preimage. Equality with the terminal's state preimage
+  therefore binds the carried digest to that slot (`Export.BoundedDepth.StepRelation.lightInput`,
+  `Export.BoundedDepth.StepRelation.refreshInput`). The terminal is
   `Lifecycle.BoundedDepth.Terminal.HoldsFor`. Two well-formed states with one state
   hash are equal or give a Poseidon2 collision on an input pair that the two
   states fix (`Claims.Encodings.state_hash_binds`,
@@ -610,7 +618,7 @@ not change terminal source checks.
   `Lifecycle.BoundedDepth.PoseidonCollision`). At a visit it outputs the
   input pair of the visit's collision
   (`Export.BoundedDepth.IvcWalk.visitCollision`): the next state of the
-  decoded step and the visit's terminal state, or a light step's next state
+  decoded step and the visit's terminal state, or the step's next-state
   words and the terminal's 38-word state preimage
   (`Export.BoundedDepth.TerminalBridge.Collision`). Each collision at the
   visit gives an output

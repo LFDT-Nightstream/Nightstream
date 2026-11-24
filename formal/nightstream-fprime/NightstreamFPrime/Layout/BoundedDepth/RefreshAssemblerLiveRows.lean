@@ -51,11 +51,7 @@ theorem inputsLive (program : Stage1.Application.Program) (base : Nat) {live : N
     currentState := fun lane => wordFacts_of_below (.var _) (below.currentState lane) shared
     nextState := fun lane => wordFacts_of_below (.var _) (below.nextState lane) shared
     witness := fun index => wordFacts_of_below (.var _) (below.witness index) shared
-    prior := fun slot => slotAt_facts _ _ (by
-      have slotBound := slot.isLt
-      rw [endEq, slotsEq]
-      simp only [slotWordCount]
-      omega) shared
+    activeDigest := fun lane => wordFacts_of_below (.var _) (below.activeDigest lane) shared
     active := slotAt_facts _ _ (by
       rw [endEq, slotsEq]
       simp only [slotWordCount]

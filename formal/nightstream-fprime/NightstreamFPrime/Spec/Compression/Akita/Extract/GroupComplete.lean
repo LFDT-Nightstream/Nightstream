@@ -153,13 +153,13 @@ theorem honest_flat_zero_of (openings : ∀ g, 2 ≤ (B.shape g).openingBase)
   funext x
   unfold Witness.flat
   rw [group]
-  show join _ _ (join _ (concat _ fun g => PathDigits.firstTable (B.shape g).chain
+  show join _ _ (join _ (codeConcat _ fun g => PathDigits.firstTable (B.shape g).chain
     (state g).chain) (join _ (PathDigits.firstTable B.chain (honestOpening openKey
-      (honestPartials β point fun g => (state g).source)).1) (join _ (concat _ fun g =>
+      (honestPartials β point fun g => (state g).source)).1) (join _ (codeConcat _ fun g =>
         PathDigits.secondTable (B.shape g).chain (state g).chain) (join _
           (PathDigits.secondTable B.chain (honestOpening openKey
             (honestPartials β point fun g => (state g).source)).1) _)))) x = _
-  rw [first, second, opened.1, opened.2, concat_zero, concat_zero, concat_zero]
+  rw [first, second, opened.1, opened.2, codeConcat_zero, codeConcat_zero, codeConcat_zero]
   simp only [join]
   split_ifs <;> rfl
 

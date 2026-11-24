@@ -82,7 +82,7 @@ theorem flat_ofFlat (table : Table) {x : ℕ} (small : x < B.cells) :
     rw [Witness.flat_relocate, ofFlat_group, (B.opening g).flat_ofFlat (B.fold g) _ inside]
   unfold cells openSecondStart secondStart openFirstStart at small
   by_cases main : x < B.chainStart
-  · obtain ⟨g, y, inside, rfl⟩ := exists_offset B.mainCells main
+  · obtain ⟨g, y, inside, rfl⟩ := exists_codeOffset B.mainCells main
     obtain ⟨first, second, third, last⟩ := B.starts g
     have cell := moved g y (by
       have same : B.mainCells g = (B.opening g).chainStart (B.fold g) := rfl
@@ -91,7 +91,7 @@ theorem flat_ofFlat (table : Table) {x : ℕ} (small : x < B.cells) :
     exact cell
   obtain ⟨x, rfl⟩ := Nat.exists_eq_add_of_le (Nat.le_of_not_lt main)
   by_cases one : x < ∑ g, firstCells (B.shape g).chain
-  · obtain ⟨g, y, inside, rfl⟩ := exists_offset _ one
+  · obtain ⟨g, y, inside, rfl⟩ := exists_codeOffset _ one
     obtain ⟨first, second, third, last⟩ := B.starts g
     have cell := moved g ((B.opening g).chainStart (B.fold g) + y) (by omega)
     rw [B.relocate_first g inside] at cell
@@ -106,7 +106,7 @@ theorem flat_ofFlat (table : Table) {x : ℕ} (small : x < B.cells) :
   obtain ⟨x, rfl⟩ := Nat.exists_eq_add_of_le (Nat.le_of_not_lt two)
   rw [← Nat.add_assoc, ← show B.secondStart = B.openFirstStart + firstCells B.chain from rfl]
   by_cases three : x < ∑ g, secondCells (B.shape g).chain
-  · obtain ⟨g, y, inside, rfl⟩ := exists_offset _ three
+  · obtain ⟨g, y, inside, rfl⟩ := exists_codeOffset _ three
     obtain ⟨first, second, third, last⟩ := B.starts g
     have cell := moved g ((B.opening g).secondStart (B.fold g) + y) (by omega)
     rw [B.relocate_second g inside] at cell
@@ -158,15 +158,15 @@ theorem Witness.Alphabets.flat_cell (alphabets : w.Alphabets)
         (late → -1 ≤ z.valMinAbs ∧ z.valMinAbs ≤ 0) :=
     fun z _ range => ⟨⟨by omega, by omega⟩, fun _ => range⟩
   by_cases main : x < B.chainStart
-  · obtain ⟨g, y, inside, rfl⟩ := exists_offset B.mainCells main
+  · obtain ⟨g, y, inside, rfl⟩ := exists_codeOffset B.mainCells main
     have cell := ((alphabets.groups g).flat_cell (by rw [uniform g]; exact two) y).1
     rw [uniform g] at cell
-    rw [show offset B.mainCells g + y = B.mainStart g + y from rfl, w.flat_main g inside]
+    rw [show codeOffset B.mainCells g + y = B.mainStart g + y from rfl, w.flat_main g inside]
     exact ⟨cell, fun start => absurd start (Nat.not_le.mpr main)⟩
   obtain ⟨x, rfl⟩ := Nat.exists_eq_add_of_le (Nat.le_of_not_lt main)
   by_cases one : x < ∑ g, firstCells (B.shape g).chain
-  · obtain ⟨g, y, inside, rfl⟩ := exists_offset _ one
-    rw [show B.chainStart + (offset (fun h => firstCells (B.shape h).chain) g + y) =
+  · obtain ⟨g, y, inside, rfl⟩ := exists_codeOffset _ one
+    rw [show B.chainStart + (codeOffset (fun h => firstCells (B.shape h).chain) g + y) =
       B.firstStart g + y from (Nat.add_assoc _ _ _).symm, w.flat_first g inside]
     exact binary _ _ ((alphabets.groups g).chainDigits.firstTable y)
   obtain ⟨x, rfl⟩ := Nat.exists_eq_add_of_le (Nat.le_of_not_lt one)
@@ -179,8 +179,8 @@ theorem Witness.Alphabets.flat_cell (alphabets : w.Alphabets)
   rw [show B.openFirstStart + (firstCells B.chain + x) = B.secondStart + x from
     (Nat.add_assoc _ _ _).symm]
   by_cases three : x < ∑ g, secondCells (B.shape g).chain
-  · obtain ⟨g, y, inside, rfl⟩ := exists_offset _ three
-    rw [show B.secondStart + (offset (fun h => secondCells (B.shape h).chain) g + y) =
+  · obtain ⟨g, y, inside, rfl⟩ := exists_codeOffset _ three
+    rw [show B.secondStart + (codeOffset (fun h => secondCells (B.shape h).chain) g + y) =
       B.secondStartOf g + y from (Nat.add_assoc _ _ _).symm, w.flat_second g inside]
     exact binary _ _ ((alphabets.groups g).chainDigits.secondTable y)
   obtain ⟨x, rfl⟩ := Nat.exists_eq_add_of_le (Nat.le_of_not_lt three)

@@ -4,8 +4,10 @@ import NightstreamFPrime.Spec.Compression.Akita.FlatWitness
 /-! The flat witness of one fold of Akita with opening groups and coefficient packing, for one
 claim in each group (ePrint 2026/1983, revision of 2026-11-23, Section 5.5 with (75) and (76)).
 
-- `offset` and `concat` put the tables of a family of groups in one table, in the order of the
-  groups, with no padding.
+- `offset` and `concat` put the tables of a family in one table, in the order of the family,
+  with no padding. `codeOffset` and `codeConcat` do it for the groups in the order `groupOrder`
+  of the pinned code (`root_group_order` of `crates/akita-params/src/witness.rs` of the Akita
+  code): the last group first.
 - `Batch.Witness.flat` is the flat witness for the groups `g : Fin n`: the main segments
   `[ẑ_g | ê_g | t̂_g]` of the groups (75), then the digits of `F_1` of each group, the digits of
   `H_1`, the digits of `F_2` of each group and the digits of `H_2` (76). Each cell from
@@ -20,7 +22,9 @@ claim in each group (ePrint 2026/1983, revision of 2026-11-23, Section 5.5 with 
   positions and the flat witness of `FlatWitness.lean`.
 
 Akita (75) has the order `[ẑ_g | ê_g | t̂_g]` in a group, which is the order of `Witness.flat`.
-As in `FlatWitness.lean`, there are no alignment zeros. -/
+Akita (75) and (76) have the groups in increasing order; the pinned code has the main segments
+and the spans of `F_1` and `F_2` of the groups in the order `groupOrder`, and this file has the
+order of the code. As in `FlatWitness.lean`, there are no alignment zeros. -/
 
 namespace NightstreamFPrime.Spec.Compression.Akita
 
@@ -110,6 +114,57 @@ theorem exists_offset {x : ℕ} (small : x < ∑ g, size g) :
             (Nat.add_sub_cancel' (Nat.le_of_not_lt before)).symm⟩
   exact step n le_rfl (by rwa [offset_all])
 
+/-- The number of cells of the groups before the group `g` in the order `groupOrder`. -/
+def codeOffset (g : Fin n) : ℕ :=
+  offset (fun k => size (groupOrder n k)) ((groupOrder n).symm g)
+
+theorem codeOffset_add_le (g : Fin n) : codeOffset size g + size g ≤ ∑ h, size h := by
+  have step : offset (fun k => size (groupOrder n k)) ((groupOrder n).symm g) +
+      size (groupOrder n ((groupOrder n).symm g)) ≤ ∑ k, size (groupOrder n k) :=
+    offset_add_le _ _
+  rw [Equiv.apply_symm_apply, Equiv.sum_comp (groupOrder n) size] at step
+  exact step
+
+/-- The table with the first `size g` cells of each table `table g`, with the groups in the
+order `groupOrder`. -/
+noncomputable def codeConcat (table : Fin n → Table) : Table :=
+  concat (fun k => size (groupOrder n k)) fun k => table (groupOrder n k)
+
+theorem codeConcat_apply (table : Fin n → Table) (g : Fin n) {y : ℕ} (small : y < size g) :
+    codeConcat size table (codeOffset size g + y) = table g y := by
+  have inside : y < size (groupOrder n ((groupOrder n).symm g)) := by
+    rw [Equiv.apply_symm_apply]
+    exact small
+  have step : concat (fun k => size (groupOrder n k)) (fun k => table (groupOrder n k))
+      (offset (fun k => size (groupOrder n k)) ((groupOrder n).symm g) + y) =
+        table (groupOrder n ((groupOrder n).symm g)) y :=
+    concat_apply _ _ _ inside
+  rw [Equiv.apply_symm_apply] at step
+  exact step
+
+theorem codeConcat_of_le (table : Fin n → Table) {x : ℕ} (large : ∑ g, size g ≤ x) :
+    codeConcat size table x = 0 :=
+  concat_of_le _ _ (by
+    rw [Equiv.sum_comp (groupOrder n) size]
+    exact large)
+
+/-- Each position before the last cell is a position of one group. -/
+theorem exists_codeOffset {x : ℕ} (small : x < ∑ g, size g) :
+    ∃ (g : Fin n) (y : ℕ), y < size g ∧ x = codeOffset size g + y := by
+  have moved : x < ∑ k, size (groupOrder n k) := by
+    rw [Equiv.sum_comp (groupOrder n) size]
+    exact small
+  obtain ⟨k, y, inside, place⟩ := exists_offset (fun k => size (groupOrder n k)) moved
+  refine ⟨groupOrder n k, y, inside, ?_⟩
+  unfold codeOffset
+  rw [Equiv.symm_apply_apply]
+  exact place
+
+theorem codeOffset_one (size : Fin 1 → ℕ) (g : Fin 1) : codeOffset size g = 0 := by
+  unfold codeOffset
+  rw [Subsingleton.elim ((groupOrder 1).symm g) 0]
+  exact offset_zero _
+
 end Concat
 
 namespace Batch
@@ -139,15 +194,18 @@ theorem chainStart_le_cells : B.chainStart ≤ B.cells := by
   unfold cells openSecondStart secondStart openFirstStart
   omega
 
-/-- The offset of the main segment of the group `g`. -/
-def mainStart (g : Fin n) : ℕ := offset B.mainCells g
+/-- The offset of the main segment of the group `g`, for the groups in the order `groupOrder`. -/
+def mainStart (g : Fin n) : ℕ := codeOffset B.mainCells g
 
-/-- The offset of the digits of `F_1` of the group `g`. -/
-def firstStart (g : Fin n) : ℕ := B.chainStart + offset (fun h => firstCells (B.shape h).chain) g
+/-- The offset of the digits of `F_1` of the group `g`, for the groups in the order
+`groupOrder`. -/
+def firstStart (g : Fin n) : ℕ :=
+  B.chainStart + codeOffset (fun h => firstCells (B.shape h).chain) g
 
-/-- The offset of the digits of `F_2` of the group `g`. -/
+/-- The offset of the digits of `F_2` of the group `g`, for the groups in the order
+`groupOrder`. -/
 def secondStartOf (g : Fin n) : ℕ :=
-  B.secondStart + offset (fun h => secondCells (B.shape h).chain) g
+  B.secondStart + codeOffset (fun h => secondCells (B.shape h).chain) g
 
 /-- The position in the flat witness of the fold of the position `x` of the flat witness
 `Witness.flat` of the group `g`: the main segment, the digits of `F_1`, of `H_1`, of `F_2` and of
@@ -224,9 +282,9 @@ theorem bounds (g : Fin n) :
       B.secondStart ≤ B.secondStartOf g ∧
       B.secondStartOf g + secondCells (B.shape g).chain ≤ B.openSecondStart ∧
       B.cells = B.openSecondStart + secondCells B.chain := by
-  have one := offset_add_le (fun h => firstCells (B.shape h).chain) g
-  have two := offset_add_le (fun h => secondCells (B.shape h).chain) g
-  refine ⟨rfl, offset_add_le B.mainCells g, Nat.le_add_right _ _, ?_, rfl, Nat.le_add_right _ _,
+  have one := codeOffset_add_le (fun h => firstCells (B.shape h).chain) g
+  have two := codeOffset_add_le (fun h => secondCells (B.shape h).chain) g
+  refine ⟨rfl, codeOffset_add_le B.mainCells g, Nat.le_add_right _ _, ?_, rfl, Nat.le_add_right _ _,
     ?_, rfl⟩
   · unfold firstStart openFirstStart
     omega
@@ -323,15 +381,15 @@ theorem relocate_support (g : Fin n) {x : ℕ}
 /-- A fold with one group has the positions of the flat witness of this group. -/
 theorem relocate_one (B : Batch (Fin 1)) (x : ℕ) : B.relocate 0 x = x := by
   obtain ⟨first, second, third, last⟩ := B.starts 0
-  have main : B.mainStart 0 = 0 := offset_zero B.mainCells
+  have main : B.mainStart 0 = 0 := codeOffset_one B.mainCells 0
   have chain : B.chainStart = (B.opening 0).chainStart (B.fold 0) := Fin.sum_univ_one _
   have one : B.firstStart 0 = B.chainStart :=
-    congrArg (B.chainStart + ·) (offset_zero fun h => firstCells (B.shape h).chain)
+    congrArg (B.chainStart + ·) (codeOffset_one (fun h => firstCells (B.shape h).chain) 0)
   have openFirst : B.openFirstStart = B.chainStart + firstCells (B.shape 0).chain :=
     congrArg (B.chainStart + ·) (Fin.sum_univ_one fun h => firstCells (B.shape h).chain)
   have middle : B.secondStart = B.openFirstStart + firstCells B.chain := rfl
   have two : B.secondStartOf 0 = B.secondStart :=
-    congrArg (B.secondStart + ·) (offset_zero fun h => secondCells (B.shape h).chain)
+    congrArg (B.secondStart + ·) (codeOffset_one (fun h => secondCells (B.shape h).chain) 0)
   have openSecond : B.openSecondStart = B.secondStart + secondCells (B.shape 0).chain :=
     congrArg (B.secondStart + ·) (Fin.sum_univ_one fun h => secondCells (B.shape h).chain)
   rcases B.relocate_cases 0 x with ⟨small, moved⟩ | ⟨y, small, rfl, moved⟩ |
@@ -358,34 +416,34 @@ variable {B} (w : B.Witness)
 /-- The flat witness of one fold with opening groups on the quotient-free route (Akita (75) and
 (76) for one claim in each group): for each group `[ẑ_g | ê_g | t̂_g]`, then the digits of `F_1` of
 each group, the digits of `H_1`, the digits of `F_2` of each group, the digits of `H_2`, and
-zeros. -/
+zeros. The groups are in the order `groupOrder`. -/
 noncomputable def flat : Table :=
-  join B.chainStart (concat B.mainCells fun g => (w.group g).flat)
+  join B.chainStart (codeConcat B.mainCells fun g => (w.group g).flat)
     (join (∑ g, firstCells (B.shape g).chain)
-      (concat (fun g => firstCells (B.shape g).chain) fun g =>
+      (codeConcat (fun g => firstCells (B.shape g).chain) fun g =>
         PathDigits.firstTable (B.shape g).chain (w.chain g))
       (join (firstCells B.chain) (PathDigits.firstTable B.chain w.openChain)
         (join (∑ g, secondCells (B.shape g).chain)
-          (concat (fun g => secondCells (B.shape g).chain) fun g =>
+          (codeConcat (fun g => secondCells (B.shape g).chain) fun g =>
             PathDigits.secondTable (B.shape g).chain (w.chain g))
           (join (secondCells B.chain) (PathDigits.secondTable B.chain w.openChain)
             fun _ => 0))))
 
 theorem flat_main (g : Fin n) {y : ℕ} (small : y < B.mainCells g) :
     w.flat (B.mainStart g + y) = (w.group g).flat y := by
-  have inside := offset_add_le B.mainCells g
+  have inside := codeOffset_add_le B.mainCells g
   unfold flat
   rw [join_left _ _ (show B.mainStart g + y < B.chainStart from
     Nat.lt_of_lt_of_le (Nat.add_lt_add_left small _) inside)]
-  exact concat_apply B.mainCells _ g small
+  exact codeConcat_apply B.mainCells _ g small
 
 theorem flat_first (g : Fin n) {y : ℕ} (small : y < firstCells (B.shape g).chain) :
     w.flat (B.firstStart g + y) = PathDigits.firstTable (B.shape g).chain (w.chain g) y := by
-  have inside := offset_add_le (fun h => firstCells (B.shape h).chain) g
+  have inside := codeOffset_add_le (fun h => firstCells (B.shape h).chain) g
   simp only [firstStart, Nat.add_assoc]
   unfold flat
   rw [join_right, join_left _ _ (by omega)]
-  exact concat_apply (fun h => firstCells (B.shape h).chain) _ g small
+  exact codeConcat_apply (fun h => firstCells (B.shape h).chain) _ g small
 
 theorem flat_openFirst {y : ℕ} (small : y < firstCells B.chain) :
     w.flat (B.openFirstStart + y) = PathDigits.firstTable B.chain w.openChain y := by
@@ -395,11 +453,11 @@ theorem flat_openFirst {y : ℕ} (small : y < firstCells B.chain) :
 
 theorem flat_second (g : Fin n) {y : ℕ} (small : y < secondCells (B.shape g).chain) :
     w.flat (B.secondStartOf g + y) = PathDigits.secondTable (B.shape g).chain (w.chain g) y := by
-  have inside := offset_add_le (fun h => secondCells (B.shape h).chain) g
+  have inside := codeOffset_add_le (fun h => secondCells (B.shape h).chain) g
   simp only [secondStartOf, secondStart, openFirstStart, Nat.add_assoc]
   unfold flat
   rw [join_right, join_right, join_right, join_left _ _ (by omega)]
-  exact concat_apply (fun h => secondCells (B.shape h).chain) _ g small
+  exact codeConcat_apply (fun h => secondCells (B.shape h).chain) _ g small
 
 theorem flat_openSecond {y : ℕ} (small : y < secondCells B.chain) :
     w.flat (B.openSecondStart + y) = PathDigits.secondTable B.chain w.openChain y := by

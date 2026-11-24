@@ -90,6 +90,9 @@ theorem cellsOf_zero {m : ℕ} (code : ι ≃ Fin m) : cellsOf code (0 : ι → 
 theorem concat_zero {n : ℕ} (size : Fin n → ℕ) : concat size (fun _ => 0) = 0 :=
   funext fun x => Finset.sum_eq_zero fun g _ => by split <;> rfl
 
+theorem codeConcat_zero {n : ℕ} (size : Fin n → ℕ) : codeConcat size (fun _ => 0) = 0 :=
+  concat_zero _
+
 theorem binaryDigit_zero (u : ℕ) : binaryDigit 0 u = 0 := by
   simp [binaryDigit]
 
@@ -143,8 +146,12 @@ theorem FlatRelation.completion_zero (two : 2 ≤ base) (holds : ∀ r, (rel.row
     (mul_eq_zero.mp (((rel.quotients_spec (holds r)).2.symm.trans
       (RingRow.lifted_zero (holds r))))).resolve_left (modulus_monic _).ne_zero
   have table : rel.quotientTable base digits (rel.quotients 0) = 0 := by
+    have inner : ∀ (k : Fin rel.join.count) (a : ℕ), concat (slotDegree rel.join.slot rel.degrees k)
+        (fun r i => fieldDigit base digits ((rel.quotients 0 r).coeff i) a) = 0 := fun k a => by
+      simp only [quotients, Polynomial.coeff_zero, fieldDigit_zero two]
+      exact concat_zero _
     unfold FlatRelation.quotientTable
-    simp only [quotients, Polynomial.coeff_zero, fieldDigit_zero two]
+    simp only [inner]
     exact concat_zero _
   show G.merge 0 (rel.quotientTable base digits (rel.quotients 0)) = 0
   rw [table, G.merge_zero]
@@ -379,13 +386,13 @@ theorem honest_flat_zero (sources : ∀ g, 2 ≤ (B.shape g).sourceBase)
   funext x
   unfold Witness.flat
   rw [group]
-  show join _ _ (join _ (concat _ fun g => PathDigits.firstTable (B.shape g).chain
+  show join _ _ (join _ (codeConcat _ fun g => PathDigits.firstTable (B.shape g).chain
     (commit (key g) 0).2.chain) (join _ (PathDigits.firstTable B.chain (honestOpening openKey
-      (honestPartials β point fun g => (commit (key g) 0).2.source)).1) (join _ (concat _ fun g =>
+      (honestPartials β point fun g => (commit (key g) 0).2.source)).1) (join _ (codeConcat _ fun g =>
         PathDigits.secondTable (B.shape g).chain (commit (key g) 0).2.chain) (join _
           (PathDigits.secondTable B.chain (honestOpening openKey
             (honestPartials β point fun g => (commit (key g) 0).2.source)).1) _)))) x = _
-  rw [first, second, opened.1, opened.2, concat_zero, concat_zero, concat_zero]
+  rw [first, second, opened.1, opened.2, codeConcat_zero, codeConcat_zero, codeConcat_zero]
   simp only [join]
   split_ifs <;> rfl
 

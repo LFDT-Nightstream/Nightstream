@@ -1,5 +1,6 @@
 import NightstreamFPrime.Spec.Compression.Akita.Setup
 import NightstreamFPrime.Spec.Compression.Akita.Batch
+import NightstreamFPrime.Spec.Compression.Akita.RowBatch
 
 /-! The matrices of a level of Akita as views of the shared setup vector (ePrint 2026/1983,
 revision of 2026-11-23, Section 4.3 with (35), and Section 9 with (133)).
@@ -69,12 +70,15 @@ namespace Batch
 variable {n : ℕ} (B : Batch (Fin n))
 
 /-- The order of the columns of `D` in the witness layout: the columns of the groups in the
-order of the groups, and in a group the block, the subcolumn and the digit, in this order (Akita
-(69), (70)). -/
+order `groupOrder` of the pinned code (the groups of the plan in
+`crates/akita-types/src/setup_contribution/plan/prepare.rs` of the Akita code; Akita Section 4.3
+has "in group order"), and in a group the block, the subcolumn and the digit, in this order
+(Akita (69), (70)). -/
 def openSetupCode : B.OpenColumn ≃
     Fin (∑ g, (B.shape g).blocks * ((B.opening g).subcolumns * (B.shape g).openingDigits)) :=
   (Equiv.sigmaCongrRight fun _ =>
-    (Equiv.prodCongr (Equiv.refl _) finProdFinEquiv).trans finProdFinEquiv).trans finSigmaFinEquiv
+    (Equiv.prodCongr (Equiv.refl _) finProdFinEquiv).trans finProdFinEquiv).trans
+    (place fun g => (B.shape g).blocks * ((B.opening g).subcolumns * (B.shape g).openingDigits)).symm
 
 variable {B} {E : Type} {N : ℕ}
 

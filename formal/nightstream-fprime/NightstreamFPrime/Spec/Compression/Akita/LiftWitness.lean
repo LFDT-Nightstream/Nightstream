@@ -13,8 +13,9 @@ next level (ePrint 2026/1983, revision of 2026-11-23, Section 5.5 with (76), Sec
   the witness of a flat table and a table of quotient digits. `Gaps.support` is the set `I_bin`
   of the witness.
 - `FlatRelation.quotientCell` is the address (348) of one digit of one coefficient of the quotient
-  `Q_r` of a ring row: the row `r` has `δ_quot·d_r` entries of the quotient digits, in the order
-  of the rows, and in them the coefficient index changes first, then the digit.
+  `Q_r` of a ring row: the field row `k` of the join has `δ_quot·p_k·d_k` entries of the quotient
+  digits, in the order of the field rows, and in them the coefficient index changes first, then
+  the ring row of the field row (the field coordinate `t` of (348)), then the digit.
 - `FlatRelation.withQuotients` is the `LiftRelation` on the witness: the rows read the positions
   `Gaps.place`, and the quotient digits have the weights `b^u` of the balanced base `b`.
   `FlatRelation.holds_of_lift` gives the relation of the flat table that the witness has at the
@@ -28,9 +29,9 @@ next level (ePrint 2026/1983, revision of 2026-11-23, Section 5.5 with (76), Sec
 Each quotient has `δ_quot` digits for each coefficient, with one base for each row. The quotient
 of the carrier row (102) is `Q_car = Σ_t β_t·Σ_j q_{t,j}·Y^j` of Akita (113): each plane `t` is one
 ring row over `Z_q` with its quotient `Σ_j q_{t,j}·Y^j`, and `Join` joins the planes into one row
-over `E`. The pinned code has the digits of all planes for each digit index
-(`crates/akita-params/src/witness.rs` of the Akita code), and this file has the order plane,
-digit, coefficient in the same cells. -/
+over `E`. Akita (348) and the pinned code (`WitnessQuotientRowLayout::coefficient_index` of
+`crates/akita-params/src/witness.rs` of the Akita code) have the order digit, plane, coefficient,
+and this file has this order. -/
 
 namespace NightstreamFPrime.Spec.Compression.Akita
 
@@ -167,6 +168,47 @@ theorem lifted_relocate (row : RingRow) (move : ℕ → ℕ) (w : Table) :
 
 end RingRow
 
+section QuotientOrder
+
+variable {ring count : ℕ} (slot : Fin ring → Fin count) (degree : Fin ring → ℕ) (digits : ℕ)
+
+/-- The coefficients of the ring row `r` in the field row `k` of a join: `d_r` for a ring row of
+`k`, and 0 for each other ring row. -/
+def slotDegree (k : Fin count) (r : Fin ring) : ℕ := if slot r = k then degree r else 0
+
+/-- The coefficients of the ring rows of the field row `k`: `p_r·d_r` of Akita (348). -/
+def slotWidth (k : Fin count) : ℕ := ∑ r, slotDegree slot degree k r
+
+/-- The number of entries of the digits of the quotient of the field row `k`. -/
+def slotCells (k : Fin count) : ℕ := digits * slotWidth slot degree k
+
+/-- The entry of digit `a` of coefficient `j` of the quotient of the ring row `r` (Akita (348)):
+the field rows in their order, and in a field row the coefficient index changes first, then the
+ring row of the field row, then the digit. -/
+def quotientEntry (r : Fin ring) (j a : ℕ) : ℕ :=
+  offset (slotCells slot degree digits) (slot r) +
+    (a * slotWidth slot degree (slot r) + (offset (slotDegree slot degree (slot r)) r + j))
+
+theorem sum_slotCells_eq : ∑ k, slotCells slot degree digits k = ∑ r, digits * degree r := by
+  unfold slotCells slotWidth slotDegree
+  simp only [Finset.mul_sum]
+  rw [Finset.sum_comm]
+  refine Finset.sum_congr rfl fun r _ => ?_
+  simp only [mul_ite, mul_zero, Finset.sum_ite_eq, Finset.mem_univ, ite_true]
+
+theorem slotDegree_self (r : Fin ring) : slotDegree slot degree (slot r) r = degree r :=
+  ite_eq_left rfl
+
+/-- The coefficient `j` of the ring row `r` is a coefficient of its field row. -/
+theorem slotIndex_lt (r : Fin ring) {j : ℕ} (small : j < degree r) :
+    offset (slotDegree slot degree (slot r)) r + j < slotWidth slot degree (slot r) := by
+  have last := offset_add_le (slotDegree slot degree (slot r)) r
+  rw [slotDegree_self slot degree r] at last
+  unfold slotWidth
+  omega
+
+end QuotientOrder
+
 namespace FlatRelation
 
 variable {E : Type} [Field E] [Algebra Zq E] (rel : FlatRelation E) (G : Gaps)
@@ -178,17 +220,27 @@ def quotientCells (r : Fin rel.ring) : ℕ := digits * (rel.row r).degree
 /-- The end of the witness: the flat positions before `last` and the quotient digits. -/
 def quotientEnd : ℕ := G.last + ∑ r, rel.quotientCells digits r
 
+/-- The degrees of the ring rows. -/
+def degrees (r : Fin rel.ring) : ℕ := (rel.row r).degree
+
 /-- The position of digit `a` of coefficient `j` of the quotient of the row `r`: the local
-position `a·d_r + j` of Akita (348) for one base-field coordinate in a coefficient, in the entries
-of the row, at the position `slot` of the witness. -/
+position `(a·p_r + t)·d_r + j` of Akita (348) in the entries of the field row of `r`, at the
+position `slot` of the witness. The ring rows of one field row are its field coordinates `t`. -/
 def quotientCell (r : Fin rel.ring) (j : ℕ) (a : Fin digits) : ℕ :=
-  G.slot (offset (rel.quotientCells digits) r + (a * (rel.row r).degree + j))
+  G.slot (quotientEntry rel.join.slot rel.degrees digits r j a)
+
+theorem sum_slotCells :
+    ∑ k, slotCells rel.join.slot rel.degrees digits k = ∑ r, rel.quotientCells digits r :=
+  sum_slotCells_eq rel.join.slot rel.degrees digits
 
 theorem quotientCell_lt (r : Fin rel.ring) {j : ℕ} (small : j < (rel.row r).degree)
     (a : Fin digits) : rel.quotientCell G digits r j a < rel.quotientEnd G digits := by
-  have cell := cell_lt a small
-  have last := offset_add_le (rel.quotientCells digits) r
-  have size : rel.quotientCells digits r = digits * (rel.row r).degree := rfl
+  have cell := cell_lt a (slotIndex_lt rel.join.slot rel.degrees r small)
+  have last := offset_add_le (slotCells rel.join.slot rel.degrees digits) (rel.join.slot r)
+  have size : slotCells rel.join.slot rel.degrees digits (rel.join.slot r) =
+      digits * slotWidth rel.join.slot rel.degrees (rel.join.slot r) := rfl
+  have total := rel.sum_slotCells digits
+  unfold quotientCell quotientEntry quotientEnd
   exact G.slot_lt (by omega)
 
 /-- The quotient digits have `δ_quot·Σ_r d_r` entries. -/
@@ -223,11 +275,12 @@ def withQuotients (below : ∀ r c j x, (rel.row r).address c j = some x → x <
   quotient r := ⟨digits, fun a => (base : Zq) ^ (a : ℕ), rel.quotientCell G digits r⟩
   quotientInside r _ a small := (rel.quotientCell_lt G digits r small a).trans_le inside
 
-/-- The table of the digits of the quotients `quotient r`, in the order of the rows. -/
+/-- The table of the digits of the quotients `quotient r`, in the order of the field rows. -/
 noncomputable def quotientTable (quotient : Fin rel.ring → Zq[X]) : Table :=
-  concat (rel.quotientCells digits) fun r y =>
-    fieldDigit base digits ((quotient r).coeff (y % (rel.row r).degree))
-      (y / (rel.row r).degree)
+  concat (slotCells rel.join.slot rel.degrees digits) fun k y =>
+    concat (slotDegree rel.join.slot rel.degrees k)
+      (fun r i => fieldDigit base digits ((quotient r).coeff i) (y / slotWidth rel.join.slot rel.degrees k))
+      (y % slotWidth rel.join.slot rel.degrees k)
 
 /-- The witness with the flat table `w` and the digits of the quotients. -/
 noncomputable def extend (w : Table) (quotient : Fin rel.ring → Zq[X]) : Table :=
@@ -237,24 +290,48 @@ theorem extend_cell (w : Table) (quotient : Fin rel.ring → Zq[X]) (r : Fin rel
     (small : j < (rel.row r).degree) (a : Fin digits) :
     rel.extend G base digits w quotient (rel.quotientCell G digits r j a) =
       fieldDigit base digits ((quotient r).coeff j) a := by
-  have rest : (a * (rel.row r).degree + j) % (rel.row r).degree = j := by
-    rw [Nat.add_comm, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt small]
-  have index : (a * (rel.row r).degree + j) / (rel.row r).degree = a := by
-    rw [Nat.add_comm, Nat.add_mul_div_right _ _ (NeZero.pos _), Nat.div_eq_of_lt small, zero_add]
-  unfold extend quotientCell quotientTable
-  rw [Gaps.merge_slot, concat_apply (rel.quotientCells digits) _ r (cell_lt a small), rest, index]
+  have inner := slotIndex_lt rel.join.slot rel.degrees r small
+  have rest : (a * slotWidth rel.join.slot rel.degrees (rel.join.slot r) +
+      (offset (slotDegree rel.join.slot rel.degrees (rel.join.slot r)) r + j)) % slotWidth rel.join.slot rel.degrees (rel.join.slot r) =
+        offset (slotDegree rel.join.slot rel.degrees (rel.join.slot r)) r + j := by
+    rw [Nat.add_comm, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt inner]
+  have index : (a * slotWidth rel.join.slot rel.degrees (rel.join.slot r) +
+      (offset (slotDegree rel.join.slot rel.degrees (rel.join.slot r)) r + j)) / slotWidth rel.join.slot rel.degrees (rel.join.slot r) =
+        a := by
+    rw [Nat.add_comm, Nat.add_mul_div_right _ _ (Nat.zero_lt_of_lt inner),
+      Nat.div_eq_of_lt inner, zero_add]
+  unfold extend quotientCell quotientEntry quotientTable
+  rw [Gaps.merge_slot, concat_apply (slotCells rel.join.slot rel.degrees digits) _ (rel.join.slot r) (cell_lt a inner)]
+  rw [rest, index]
+  exact concat_apply (slotDegree rel.join.slot rel.degrees (rel.join.slot r)) _ r
+    (small.trans_eq (slotDegree_self rel.join.slot rel.degrees r).symm)
+
+theorem slotTable_range (radix : Radix base) (quotient : Fin rel.ring → Zq[X])
+    (k : Fin rel.join.count) (a x : ℕ) :
+    -((base / 2 : ℕ) : ℤ) ≤ (concat (slotDegree rel.join.slot rel.degrees k)
+        (fun r i => fieldDigit base digits ((quotient r).coeff i) a) x).valMinAbs ∧
+      (concat (slotDegree rel.join.slot rel.degrees k)
+        (fun r i => fieldDigit base digits ((quotient r).coeff i) a) x).valMinAbs ≤
+          ((base / 2 : ℕ) : ℤ) - 1 := by
+  by_cases inside : x < ∑ r, slotDegree rel.join.slot rel.degrees k r
+  · obtain ⟨r, i, small, rfl⟩ := exists_offset (slotDegree rel.join.slot rel.degrees k) inside
+    rw [concat_apply (slotDegree rel.join.slot rel.degrees k) _ r small]
+    exact fieldDigit_balanced radix digits _ _
+  · rw [concat_of_le (slotDegree rel.join.slot rel.degrees k) _ (Nat.le_of_not_lt inside), ZMod.valMinAbs_zero]
+    have two := radix.two
+    constructor <;> omega
 
 /-- Each cell of the table of the quotient digits is in the balanced alphabet `A_b`. -/
 theorem quotientTable_range (radix : Radix base) (quotient : Fin rel.ring → Zq[X]) (x : ℕ) :
     -((base / 2 : ℕ) : ℤ) ≤ (rel.quotientTable base digits quotient x).valMinAbs ∧
       (rel.quotientTable base digits quotient x).valMinAbs ≤ ((base / 2 : ℕ) : ℤ) - 1 := by
-  by_cases inside : x < ∑ r, rel.quotientCells digits r
-  · obtain ⟨r, y, small, rfl⟩ := exists_offset (rel.quotientCells digits) inside
+  by_cases inside : x < ∑ k, slotCells rel.join.slot rel.degrees digits k
+  · obtain ⟨k, y, small, rfl⟩ := exists_offset (slotCells rel.join.slot rel.degrees digits) inside
     unfold quotientTable
-    rw [concat_apply (rel.quotientCells digits) _ r small]
-    exact fieldDigit_balanced radix digits _ _
+    rw [concat_apply (slotCells rel.join.slot rel.degrees digits) _ k small]
+    exact rel.slotTable_range base digits radix quotient k _ _
   · unfold quotientTable
-    rw [concat_of_le (rel.quotientCells digits) _ (Nat.le_of_not_lt inside), ZMod.valMinAbs_zero]
+    rw [concat_of_le (slotCells rel.join.slot rel.degrees digits) _ (Nat.le_of_not_lt inside), ZMod.valMinAbs_zero]
     have two := radix.two
     constructor <;> omega
 
@@ -347,6 +424,7 @@ theorem completion_of_le (counts : G.mainCells + G.middleCells ≤ ∑ r, rel.qu
   unfold quotientEnd at large
   show G.merge w _ x = 0
   rw [G.merge_of_le w _ (by omega)]
+  have total := rel.sum_slotCells digits
   exact concat_of_le _ _ (by omega)
 
 /-- The digit range statement of Akita Section 6.1 for the completion of a table with the digit

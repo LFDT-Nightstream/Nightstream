@@ -109,6 +109,9 @@ import NightstreamFPrime.Spec.Compression.Akita.Key30Root
 import NightstreamFPrime.Spec.Compression.Akita.Key30Accept
 import NightstreamFPrime.Spec.Compression.Akita.ResponseTail
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Nonce
+import NightstreamFPrime.Spec.Compression.Akita.Extract.Present
+import NightstreamFPrime.Spec.Compression.Akita.Extract.PresentDecode
+import NightstreamFPrime.Spec.Compression.Akita.Extract.PresentChecks
 import NightstreamFPrime.Spec.Compression.Akita.FitChance
 import NightstreamFPrime.Spec.Compression.Akita.TraceProver
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Plan
@@ -117,15 +120,38 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.Readback
 import NightstreamFPrime.Spec.Compression.Akita.Replay.SamplerSigns
 import NightstreamFPrime.Spec.Compression.Akita.Replay.SamplerStage
 import NightstreamFPrime.Spec.Compression.Akita.Replay.FusedJoin
+import NightstreamFPrime.Spec.Compression.Akita.Replay.LevelPack
+import NightstreamFPrime.Spec.Compression.Akita.Replay.LevelIn
+import NightstreamFPrime.Spec.Compression.Akita.Replay.RunLevel
+import NightstreamFPrime.Spec.Compression.Akita.Replay.RunWhole
+import NightstreamFPrime.Spec.Compression.Akita.Replay.RunProof
+import NightstreamFPrime.Spec.Compression.Akita.Replay.RunRange
+import NightstreamFPrime.Spec.Compression.Akita.Replay.FinalDrawn
+import NightstreamFPrime.Spec.Compression.Akita.Replay.FinalGame
+import NightstreamFPrime.Spec.Compression.Akita.Replay.FinalKey20
+import NightstreamFPrime.Spec.Compression.Akita.Replay.FinalKey30
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Grows
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Schedules
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Stage3
+import NightstreamFPrime.Spec.Compression.Akita.Replay.Stage3Table
+import NightstreamFPrime.Spec.Compression.Akita.Replay.Stage3Sum
+import NightstreamFPrime.Spec.Compression.Akita.Replay.Stage3Match
 import NightstreamFPrime.Spec.Compression.Akita.Replay.SumCheck
 import NightstreamFPrime.Spec.Compression.Akita.Replay.TerminalJoin
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Transcript
 import NightstreamFPrime.Spec.Compression.Akita.Replay.WeightSpec
 import NightstreamFPrime.Spec.Compression.Akita.Replay.WeightTraceSpec
 import NightstreamFPrime.Spec.Compression.Akita.Replay.WeightPackingSpec
+import NightstreamFPrime.Spec.Compression.Akita.Replay.WeightPackingRows
+import NightstreamFPrime.Spec.Compression.Akita.Replay.WeightPackingGroup
+import NightstreamFPrime.Spec.Compression.Akita.Replay.WeightPackingQuotient
+import NightstreamFPrime.Spec.Compression.Akita.Replay.WeightPackingLevel
+import NightstreamFPrime.Spec.Compression.Akita.Replay.WeightPackingJoin
+import NightstreamFPrime.Spec.Compression.Akita.Replay.WeightPackingBatch
+import NightstreamFPrime.Spec.Compression.Akita.Replay.WeightPackingBatchReplay
+import NightstreamFPrime.Spec.Compression.Akita.Replay.WeightPackingBatchLevel
+import NightstreamFPrime.Spec.Compression.Akita.Replay.WeightPackingBatchFold
+import NightstreamFPrime.Spec.Compression.Akita.Replay.WeightPackingBatchOffload
 
 /-! The soundness of the compression argument over Akita (Rust `ns-compress`, SPEC.md section 6):
 a public-coin game with bad sets and its state-restoration bound, and the honest prover of a

@@ -1,5 +1,5 @@
 import NightstreamFPrime.Spec.Compression.Akita.Replay.WeightPacking
-import NightstreamFPrime.Spec.Compression.Akita.Replay.WeightSpec
+import NightstreamFPrime.Spec.Compression.Akita.Replay.WeightTraceSpec
 
 /-! The building blocks of the weight at `r_2` of a packing fold (`Replay/WeightPacking.lean`)
 against their sums.
@@ -9,7 +9,11 @@ against their sums.
 - `lowLevel_into`: the recursion `L^{(m+1)}_y = (1 − r_m)·L^{(m)}_{2y} + r_m·L^{(m)}_{2y+1}` gives
   `L^{(m)}_y = Σ_{c<2^m} w_{y·2^m+c}·ẽq(r[..m], c)`.
 - `Tables.run_into`: `Tables.run` is `Σ_{c<2^m} w_{y·2^m+c}·ẽq(r_2, b + c)` for each start `b`: one
-  product `L^{(m)}_y·ẽq(r_2[m..], b/2^m)` when `2^m ∣ b` (`eqAt_split`), else the two halves. -/
+  product `L^{(m)}_y·ẽq(r_2[m..], b/2^m)` when `2^m ∣ b` (`eqAt_split`), else the two halves.
+- `Runs` states that an address map is a run of cells in each chunk of `2^m` positions.
+  `Tables.read_into` and `Tables.liftRead_into` give `Σ_k w_k·ẽq(r_2, addr k)` for such a map, and
+  `Lift.value_into` gives the value (112) of a lift:
+  `(Σ_{(s,addr)} s·Σ_j α^j·ẽq(r_2, addr j))·Σ_{(c,A)} c·A(α)`. -/
 
 set_option autoImplicit false
 
@@ -165,5 +169,83 @@ theorem Tables.run_into (α : Ext) (r2 : List Ext) (bits top : ℕ) (w : Array E
         · refine Finset.sum_congr rfl fun c _ => ?_
           rw [show y * (2 ^ m + 2 ^ m) + (2 ^ m + c) = (2 * y + 1) * 2 ^ m + c by ring,
             show b + (2 ^ m + c) = b + 2 ^ m + c by ring]
+
+/-- The address map is a run of cells in each of the first `n` chunks of `2^m` positions, and each
+run ends at `bound` or before. -/
+structure Runs (m n bound : ℕ) (addr : ℕ → Option ℕ) : Prop where
+  run : ∀ y < n, ∀ c < 2 ^ m, addr (y * 2 ^ m + c) = (addr (y * 2 ^ m)).map (· + c)
+  inside : ∀ y < n, ∀ b, addr (y * 2 ^ m) = some b → b + 2 ^ m ≤ bound
+
+/-- `Tables.read` is `Σ_{k<n·2^m} w_k·ẽq(r_2, addr k)` for an address map that is a run of cells in
+each chunk of `2^m` positions. -/
+theorem Tables.read_into (α : Ext) (r2 : List Ext) (bits top : ℕ) (w : Array Ext) {B m n : ℕ}
+    (levels : B ≤ bits) (short : bits ≤ r2.length) (le : m ≤ B) (size : n * 2 ^ m ≤ w.size)
+    {addr : ℕ → Option ℕ} (runs : Runs m n (2 ^ r2.length) addr) :
+    (((Tables.of α r2 bits top).read (lowSums r2 B w) m n addr).into : E) =
+      ∑ k ∈ Finset.range (n * 2 ^ m), ((w.getD k Ext.zero).into : E) *
+        (addr k).elim 0 (eqAt (r2.map Ext.into)) := by
+  unfold Tables.read
+  rw [sumList_into, sum_list_range, ← sum_range_mul]
+  refine Finset.sum_congr rfl fun y member => ?_
+  have small := Finset.mem_range.mp member
+  have fits : (y + 1) * 2 ^ m ≤ w.size :=
+    (Nat.mul_le_mul_right _ (Nat.succ_le_of_lt small)).trans size
+  cases start : addr (y * 2 ^ m) with
+  | none =>
+      rw [Ext.into_zero]
+      refine (Finset.sum_eq_zero fun c inside => ?_).symm
+      rw [runs.run y small c (Finset.mem_range.mp inside), start]
+      simp
+  | some b =>
+      rw [Tables.run_into α r2 bits top w levels short m y b le fits (runs.inside y small b start)]
+      refine Finset.sum_congr rfl fun c inside => ?_
+      rw [runs.run y small c (Finset.mem_range.mp inside), start]
+      rfl
+
+/-- `Tables.liftRead` is `Σ_{j<d} α^j·ẽq(r_2, addr j)` for an address map that is a run of cells
+in each chunk of `2^m` positions, with `2^m ∣ d` and `d` at most the powers of the tables. -/
+theorem Tables.liftRead_into (α : Ext) (r2 : List Ext) (bits top : ℕ) {m d : ℕ}
+    (short : bits ≤ r2.length) (le : m ≤ bits) (divides : 2 ^ m ∣ d) (degree : d ≤ top)
+    {addr : ℕ → Option ℕ} (runs : Runs m (d / 2 ^ m) (2 ^ r2.length) addr) :
+    (((Tables.of α r2 bits top).liftRead m d addr).into : E) =
+      ∑ j ∈ Finset.range d, (α.into : E) ^ j * (addr j).elim 0 (eqAt (r2.map Ext.into)) := by
+  have total : d / 2 ^ m * 2 ^ m = d := Nat.div_mul_cancel divides
+  have size : d / 2 ^ m * 2 ^ m ≤ (powersOf α top).size := by
+    rw [total, powersOf, Array.size_ofFn]
+    exact degree
+  rw [Tables.liftRead, show (Tables.of α r2 bits top).powerLows = lowSums r2 bits (powersOf α top)
+    from rfl, Tables.read_into α r2 bits top _ le_rfl short le size runs, total]
+  exact Finset.sum_congr rfl fun j member => by
+    rw [powersOf_getD α ((Finset.mem_range.mp member).trans_le degree)]
+
+omit [Degree2 E] in
+/-- The value at `α` of the element of `R_{q,d}` of an array: `Σ_{i<d} a_i·α^i`. -/
+theorem aeval_toRq (d : ℕ) [NeZero d] (a : Array Fq) (α : E) :
+    Polynomial.aeval α (rep (Poly.toRq d a)) =
+      ∑ i ∈ Finset.range d, algebraMap Zq E (Poly.get a i).toZq * α ^ i := by
+  rw [aeval_rep]
+  exact Finset.sum_congr rfl fun i member => by
+    rw [Poly.coeff_toRq _ (Finset.mem_range.mp member), Algebra.smul_def]
+
+/-- The value of a lift: `(Σ_{(s,addr)} s·Σ_j α^j·ẽq(r_2, addr j))·Σ_{(c,A)} c·A(α)` (Akita (112)),
+for reads that are runs of cells in the chunks of the lift. -/
+theorem Lift.value_into (α : Ext) (r2 : List Ext) (bits top : ℕ) (t : Lift) [NeZero t.degree]
+    (short : bits ≤ r2.length) (le : t.bits ≤ bits) (divides : 2 ^ t.bits ∣ t.degree)
+    (degree : t.degree ≤ top)
+    (runs : ∀ r ∈ t.reads, Runs t.bits (t.degree / 2 ^ t.bits) (2 ^ r2.length) r.2) :
+    ((t.value (Tables.of α r2 bits top)).into : E) =
+      (t.reads.map fun r => algebraMap Zq E r.1.toZq * ∑ j ∈ Finset.range t.degree,
+        (α.into : E) ^ j * (r.2 j).elim 0 (eqAt (r2.map Ext.into))).sum *
+      (t.muls.map fun m => (m.1.into : E) *
+        Polynomial.aeval (α.into : E) (rep (Poly.toRq t.degree m.2))).sum := by
+  rw [Lift.value, Ext.into_mul, sumList_into, sumList_into]
+  congr 1
+  · refine congrArg List.sum (List.map_congr_left fun r member => ?_)
+    rw [Ext.into_scale, Tables.liftRead_into α r2 bits top short le divides degree (runs r member)]
+  · refine congrArg List.sum (List.map_congr_left fun m _ => ?_)
+    rw [Ext.into_mul, aeval_toRq, show (Tables.of α r2 bits top).powers = powersOf α top from rfl,
+      dotFq_into]
+    exact congrArg _ (Finset.sum_congr rfl fun i member => by
+      rw [powersOf_getD α ((Finset.mem_range.mp member).trans_le degree)])
 
 end NightstreamFPrime.Spec.Compression.Akita.Replay

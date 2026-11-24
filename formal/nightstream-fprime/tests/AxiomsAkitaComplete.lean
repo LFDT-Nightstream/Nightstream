@@ -163,6 +163,7 @@ parts of the verifier game (`BackComplete`) and the two checkpoints of the argum
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.sequence_zero
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.cellsOf_zero
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.concat_zero
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.codeConcat_zero
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.binaryDigit_zero
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.binaryDecompose_zero
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.stack_zero

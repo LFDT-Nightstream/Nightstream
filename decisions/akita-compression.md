@@ -930,7 +930,8 @@ decision.
   specification (`Spec.Compression.Akita.Replay.stage3Run_runs`, and the step
   `Spec.Compression.Akita.Replay.Replayer.step_stage3_runs`), under the
   hypothesis `weighs` that the weight of the code at `ρ` is the weight of the
-  model. No theorem gives `weighs` (difference (v)).
+  model, which `Spec.Compression.Akita.Replay.stage3Weight_codeScan` proves
+  (difference (v)).
 
   The setup: `Spec.Compression.Akita.Replay.page_expand` and `paged_le`
   (difference (c)). The order of the operations: an operation changes only
@@ -952,16 +953,9 @@ decision.
   (`Spec.Compression.Akita.Replay.readBits`) and the tables and the
   thresholds of its filter (`Spec.Compression.Akita.Replay.Filter.of`); the
   Golomb decoder of `z` (`Spec.Compression.Akita.Replay.Golomb.decode`); and
-  the site order of the script. Two weights also have only this evidence:
-  the weight of Stage 3 (`Spec.Compression.Akita.Replay.stage3Weight`) and
-  the relation weight of the levels with coefficient packing
-  (`Spec.Compression.Akita.Replay.foldFused`; Lean proves its parts
-  `Spec.Compression.Akita.Replay.Tables.run_into`, `dotFq_into` and
-  `lowLevel_into`). No theorem relates the replay to the Lean verifier
-  `towerAccepts`. Lean has no total function `verifyBytes` from the public
-  inputs and the proof bytes to an outcome: the script of a public input is
-  an error when the layout does not take its plan, and the outcome type of
-  the design has no case for this. So Lean has no accept theorem for a proof.
+  the site order of the script. The total function on the bytes and its
+  theorems against the games of the levels are in difference (v), with the
+  parts that stay open.
 - (u) The places where the Lean specification now has the form of the code.
   The replay found five places where the Lean verifier did not have the form
   of the code. A real proof or a changed proof hits each, and the Lean
@@ -1027,8 +1021,8 @@ decision.
   `verifyBytes_rejects`), and the change of the stage `decode` rejects at
   `terminal.z.decode`, as in the code. This is the byte layer of the replay;
   the specification has no byte layer.
-- (v) The places where the layout of the model is not the layout of the
-  code. At the levels with evaluation trace, the code table is the model
+- (v) The places where the layout of the model was not the layout of the
+  code. The next sentences give the form of the model before the change. At the levels with evaluation trace, the code table is the model
   table, with no alignment cell. At the levels with coefficient packing and
   at Stage 3, four places of the layout of the model are not those of the
   code. A real proof hits each: `fused.end` fails with the form of the model
@@ -1051,19 +1045,65 @@ decision.
   relation order, which is `root_group_order` (`witness/tail.rs` of
   `crates/akita-params`). Stage 3 needs the second and the third place.
 
-  Each place is a fixed bijection of the cells of the witness or of the
-  columns of `D`. The argument of the paper covers a fixed reordering: the
-  relation (110) and (111), Akita Lemma 7.1 and Theorem 7.4 do not depend on
-  the order of the cells, the weight `m_{τ_1}` and the opening point of the
-  next level change by the same bijection, and the next level commits to the
-  table of the code. This is a reading of the proofs, not a Lean theorem.
-  The proposed change is that the offsets of the segments and the columns of
-  `D` follow `Spec.Compression.Akita.groupOrder`, as the rows do, and that
-  the quotient cells of the carrier row have the order of the code. The
-  weight theorem of the levels with coefficient packing (`foldFused` against
-  `mle r_2` of the batch weight) and the weight theorem of Stage 3
-  (`stage3Weight` against `Batch.codeScan`, the hypothesis `weighs`) wait for
-  these changes.
+  The Lean specification now has the order of the code at each of the four
+  places. For the first place the code has the order of Akita (348),
+  `(u·p_r + t)·d_r + k`: digit, field coordinate, coefficient
+  (`Spec.Compression.Akita.quotientEntry`,
+  `Spec.Compression.Akita.FlatRelation.quotientCell`). For the other three
+  places the paper has the groups in increasing order (Akita (75), (76) and
+  Section 4.3) and the code has the last group first; this is the fixed
+  order of the rows of difference (u). Akita Theorem 7.4 fixes each address
+  map and the row order before `α`, so its argument covers a fixed order of
+  the groups, and `D` stays the same prefix view (35), so its Module-SIS
+  instance does not change. The offsets use
+  `Spec.Compression.Akita.codeOffset` and the columns of `D` use
+  `Spec.Compression.Akita.place`. No number of a claim changed.
+
+  Lean proves that the cells of the specification are the cells of the
+  replay, and that the weight of the replay is the weight `m_{τ_1}(r_2)` of
+  the specification, at each kind of level with coefficient packing: one
+  group (`Spec.Compression.Akita.Replay.foldWeight_one`), groups
+  (`Spec.Compression.Akita.Replay.Placement.move_batch`,
+  `Spec.Compression.Akita.Replay.foldWeight_batch`), and the root with the
+  setup in Stage 3 (`Spec.Compression.Akita.Replay.foldWeight_offload`). The
+  weight of Stage 3 of the replay is the weight of
+  `Spec.Compression.Akita.Batch.codeScan`
+  (`Spec.Compression.Akita.Replay.stage3Weight_codeScan`), so the hypothesis
+  `weighs` is not needed. These theorems are the check of the change of the
+  four places.
+
+  The total function on the public inputs and the proof bytes is
+  `Spec.Compression.Akita.Replay.verifyProof`. Its theorems
+  (`Spec.Compression.Akita.Replay.verifyProof_malformed`,
+  `verifyProof_trailing`, `verifyProof_noWork_iff`, `verifyProof_accept`,
+  `verifyProof_reject`) give each result class. When it accepts, the game of
+  each specification level (`foldCheck`, `foldCheckSq`, `offloadCheck`,
+  `tensorCheck`) runs to acceptance on the path of the challenges and the
+  messages of the code, for the statement of the recorded values and the fold
+  challenges that the sampler of the code drew
+  (`Spec.Compression.Akita.Replay.verifyProof_trace_game`,
+  `verifyProof_traceSq_game`, `verifyProof_pack_game`,
+  `verifyProof_batch_game`, `verifyProof_offload_game`, and for the shapes of
+  the files `verifyProof_key20_root`, `verifyProof_key20_level1`,
+  `verifyProof_key30_root`).
+
+  These theorems are not a statement about the verifier of the claims
+  (`Key20.Tower.accepts`, `towerLinks`). Three parts are open. First, the
+  claims decode a fold challenge from one slot of `E` with the decoder
+  `Spec.Compression.Akita.Extract.draw`, and the code decodes it from a word
+  of 128 to 131 bits. `|E| = q² < 2^128`, so no injection of the words into a
+  slot exists and a challenge of the code need not be a value of `draw`
+  (`Spec.Compression.Akita.Extract.not_injective_words`,
+  `Spec.Compression.Akita.Extract.draw_misses_field`). The claims need a slot
+  type that holds a word before the decoder of the code can be their
+  decoder. Second, no theorem joins the game of one level to the claim of
+  the next level (the statement of each level is built from the recorded
+  values of the level before). Third, a run of a game on a path is the
+  transcript form of the claims only for a transcript whose oracle answers
+  the fixed sampler of the model maps to the challenges of the code
+  (`Spec.Compression.Akita.Extract.position_eq_pure_iff`,
+  `Spec.Compression.Akita.Extract.exists_presents`); that the answers of the
+  Keccak duplex are such answers is the random-oracle model.
 
 ### The results for `key30.aks`
 

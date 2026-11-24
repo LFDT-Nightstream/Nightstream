@@ -257,12 +257,13 @@ def Placement.move (L : Placement) (gs : List PackGroup) (k : ℕ) (C : CellOrde
 /-- The read `(s, addr)` with the address `addr` moved by `move`. -/
 def moved (move : ℕ → ℕ) (f : ℕ → Option ℕ) : ℕ → Option ℕ := fun j => (f j).map move
 
-/-- The order of the cells of the quotient digits of the carrier row: the code has digit, plane,
-coefficient (`WitnessQuotientRowLayout::coefficient_index`), and `FlatRelation.quotientCell` of
-the model has plane, digit, coefficient. -/
+/-- The order of the cells of the quotient digits of the carrier row: Akita (348), the code
+(`WitnessQuotientRowLayout::coefficient_index`) and `FlatRelation.quotientCell` have digit, plane,
+coefficient. `planeFirst` is the order plane, digit, coefficient, which a test uses as a changed
+input. -/
 inductive PackingOrder
   | code
-  | model
+  | planeFirst
 deriving DecidableEq, Repr
 
 /-- The cell of digit `a` of coefficient `j` of plane `t` of a carrier quotient from `start`, with
@@ -270,7 +271,7 @@ deriving DecidableEq, Repr
 def PackingOrder.cell (order : PackingOrder) (start planes digits d a t j : ℕ) : ℕ :=
   match order with
   | .code => start + a * (planes * d) + t * d + j
-  | .model => start + t * (digits * d) + a * d + j
+  | .planeFirst => start + t * (digits * d) + a * d + j
 
 /-- The inputs of the weight of a fold that do not depend on a group. -/
 structure FoldInputs where

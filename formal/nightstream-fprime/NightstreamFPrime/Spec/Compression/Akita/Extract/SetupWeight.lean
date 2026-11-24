@@ -357,12 +357,16 @@ theorem quotientWeight_over (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E) (
         (B.flatRelation β (st.over 0) challenge μ fits).quotientCell (B.gaps digits) digits r j
           a :=
     fun j a => by
-      show (B.gaps digits).slot (offset (fun r : Fin B.planeRows =>
-          digits * (B.flatRows β (st.over S) challenge r).degree) r +
-          (a * (B.flatRows β (st.over S) challenge r).degree + j)) =
-        (B.gaps digits).slot (offset (fun r : Fin B.planeRows =>
-          digits * (B.flatRows β (st.over 0) challenge r).degree) r +
-          (a * (B.flatRows β (st.over 0) challenge r).degree + j))
+      show (B.gaps digits).slot (quotientEntry
+          ((Join.gather fun g => (Join.all (β g)).append (Join.plain E (B.groupTail g))).append
+            (Join.plain E B.restCount)).slot
+          (fun r : Fin B.planeRows => (B.flatRows β (st.over S) challenge r).degree) digits r j
+          a) =
+        (B.gaps digits).slot (quotientEntry
+          ((Join.gather fun g => (Join.all (β g)).append (Join.plain E (B.groupTail g))).append
+            (Join.plain E B.restCount)).slot
+          (fun r : Fin B.planeRows => (B.flatRows β (st.over 0) challenge r).degree) digits r j
+          a)
       simp only [degrees]
       rfl
   rw [degrees r, funext fun j => funext fun a => cells j a]

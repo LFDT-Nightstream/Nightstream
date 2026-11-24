@@ -12,9 +12,11 @@ the setup prefix of `Public.seed`); this file reads its result (`Derived.stages`
 from the events: the vectors have no event for `fused.end`. At each packing level `fused.end`
 holds, and it fails for `v_W + 1` (the weight does not read `v_W`, so the check with `v_W + 1` is
 the record of the replay with `v_W + 1`). At level 1 of `key20-opening.json` it fails also for a
-changed setup element, a changed fold challenge and the order of the cells of the quotient of the
-carrier row of the model (`FlatRelation.quotientCell`); at the root of `key20-opening.json` for
-each of the three orders of the cells of the groups of the model. In the proof bytes, one flipped
+changed setup element, a changed fold challenge and the order plane, digit, coefficient of the
+cells of the quotient of the carrier row; at the root of `key20-opening.json` for the main
+segments, the columns of `D` and the spans of `F` of the groups in the order `Fin n`
+(`Batch.mainStart`, `Batch.openSetupCode` and `Batch.firstStart` have the order `groupOrder` of
+the code). In the proof bytes, one flipped
 bit of the message `witness_evaluation` of a packing level makes the replay reject at `fused.end`
 of that level, or stop at a work between them (the rounds of Stage 3 at the root of
 `key30.aks`). -/
@@ -65,21 +67,20 @@ def changeChallenge (gs : List PackGroup) : List PackGroup :=
         rest
 
 /-- The changes of the inputs of the end check at a level of `key20-opening.json`: at level 1 a
-setup element, a fold challenge and the quotient order of the model; at the root the cells of the
-groups in the order `Fin n` of the model (`Batch.mainStart`, `Batch.openSetupCode`,
-`Batch.firstStart`): the rank of the group at position `k` of the code order is its index in the
-model. -/
+setup element, a fold challenge and the quotient order plane, digit, coefficient; at the root the
+cells of the groups in the order `Fin n`: the rank of the group at position `k` of the code order
+is its index. -/
 def changes (level : ℕ) (F : FoldInputs) (gs : List PackGroup) :
     List (String × FoldInputs × List PackGroup) :=
   if level == 1 then
     [("setup[1] + 1", { F with setup := F.setup.modify 1 (·.add Fq.one) }, gs),
       ("c_0 + 1", F, changeChallenge gs),
-      ("the quotient order of the model", { F with order := .model }, gs)]
+      ("the quotient order plane, digit", { F with order := .planeFirst }, gs)]
   else if level == 0 then
     let ranks := (List.finRange 3).map fun k => (groupOrder 3 k).val
-    [("the main segments of the model", { F with cells := { main := some ranks } }, gs),
-      ("the columns of D of the model", { F with cells := { columns := some ranks } }, gs),
-      ("the spans of F of the model", { F with cells := { spans := some ranks } }, gs)]
+    [("the main segments in the order Fin n", { F with cells := { main := some ranks } }, gs),
+      ("the columns of D in the order Fin n", { F with cells := { columns := some ranks } }, gs),
+      ("the spans of F in the order Fin n", { F with cells := { spans := some ranks } }, gs)]
   else []
 
 /-- The proof with the low bit of the message `witness_evaluation` of each packing level flipped:

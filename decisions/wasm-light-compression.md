@@ -61,8 +61,8 @@ compression of the final proof is a project design
    a table (`Spec.Compression.Rust.layoutNew_light`).
 4. **One encoding for each light proof.** A light proof carries slot 0 alone.
    Select its byte tag from the contents of that slot (SPEC.md section 4.5).
-   Omit the all-zero slot and any zero cubic coefficients of its first
-   sum-check rounds. Otherwise pack the public projection into signed bytes
+   Omit the all-zero slot and the four high coefficients of each quadratic first
+   sum-check round. Otherwise pack the public projection into signed bytes
    when each word fits. The decoder enforces that choice. One verifier sees one mode,
    so the transcript needs no mode word: the sponge calls fix the run among
    the runs of one statement shape

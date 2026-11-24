@@ -1,14 +1,6 @@
-import NightstreamFPrime.Spec.Compression.Verifier.Weights
+import NightstreamFPrime.Spec.Compression.Verifier.Sum
 
-/-! The bad sets of the draws of the verifier and their densities.
-
-- The lookup challenges `τ` (`tauBad`): for each claim with a table, each challenge is a root of its
-  lookup polynomial. Density `Σ_tables ((N + T) / |F|)^L` (`density_tauBad_le`).
-- The challenges after `V` (`challengeBad`): when an error of a claim or of a lookup is not zero, the
-  batch of the errors vanishes. Density `(s − 1 + E + max(D − 1, m − 1)) / |K| + (2 + span) / |K|`
-  (`density_challengeBad_le`).
-- The column point (`columnBad`): the four values of `V` differ from the columns of `V`, and their
-  extension at the column point agrees. Density `cv / |K|` (`density_columnBad_le`). -/
+/-! SPEC.md section 6. -/
 
 namespace NightstreamFPrime.Spec.Compression.Verifier
 
@@ -88,9 +80,9 @@ def Fails : Prop :=
     (ringLeft P.lanes (P.shape c).blocks (P.form c (st c).point) (sliceOf W (P.shape c).witness))
     (P.right (st c)) (sliceOf W (P.shape c).witness)
     (fun y => algebraMap F K ((st c).publicInput y))) ∨
-  ∃ c : Fin P.claims, (P.shape c).lookup = true ∧ ∃ k : Fin P.lookups,
-    (∃ y < 2 ^ (P.shape c).witness.vars, inverseError P W V τ c k y ≠ 0) ∨
-      sumError P W V τ c k ≠ 0
+  ∃ c : Fin P.claims, (P.shape c).lookup = true ∧
+    ((∃ y < 2 ^ (P.shape c).witness.vars, inverseError P W V τ c y ≠ 0) ∨
+      (∃ k, sumError P W V τ c k ≠ 0))
 
 /-- The bad challenges after `V`: an error is not zero and the batch of the errors vanishes. -/
 noncomputable def challengeBad : Finset (Challenges P) := by
@@ -113,110 +105,84 @@ section Densities
 
 variable {P : Params F K} (st : Statement P) (W V : ℕ → F) (τ : Fin P.lookups → F)
 
-/-- The coefficient of `ψ_k` in the batch of the lookups. -/
-def lookupCoefficient (rest : ((Fin P.claims → K) × (Fin P.claims → K)) × (Fin P.spanVars → K))
-    (k : Fin P.lookups) : K :=
-  ∑ c, lookupWeight P c * (rest.1.1 c * ∑ y ∈ range (2 ^ (P.shape c).witness.vars),
-      eqAt ((List.ofFn rest.2).take (P.shape c).witness.vars) y * ι (inverseError P W V τ c k y) +
-    rest.1.2 c * ι (sumError P W V τ c k))
+def lookupCoefficient (lam : Fin P.claims → K) (k : Fin P.lookups) : K :=
+  ∑ c, lam c * (lookupWeight P c * ι (sumError P W V τ c k))
+
+def inverseBatch (xi : Fin P.claims → K) (β : Fin P.spanVars → K) : K :=
+  ∑ c, xi c * (lookupWeight P c * inverseResidual P W V τ c β)
+
+omit [Fintype F] [DecidableEq F] [Fintype K] [DecidableEq K] in
+theorem lookupBatch_split (look : LookupDraw K P.lookups P.claims P.spanVars) :
+    lookupBatch P W V τ look = inverseBatch W V τ look.2.1.1 look.2.2 +
+      ∑ k, look.1 k * lookupCoefficient W V τ look.2.1.2 k := by
+  simp only [lookupBatch, inverseBatch, lookupCoefficient, mul_add, sum_add_distrib, mul_sum]
+  congr 1
+  · exact sum_congr rfl fun c _ => by ring
+  · rw [sum_comm]
+    exact sum_congr rfl fun k _ => sum_congr rfl fun c _ => by ring
 
 omit [Fintype F] [DecidableEq F] in
 theorem density_lookupBatch_le (wf : WellFormed P) (c₀ : Fin P.claims) (table : (P.shape c₀).lookup)
-    (k₀ : Fin P.lookups) (fails : (∃ y < 2 ^ (P.shape c₀).witness.vars,
-      inverseError P W V τ c₀ k₀ y ≠ 0) ∨ sumError P W V τ c₀ k₀ ≠ 0) (target : K) :
+    (fails : (∃ y < 2 ^ (P.shape c₀).witness.vars, inverseError P W V τ c₀ y ≠ 0) ∨
+      (∃ k, sumError P W V τ c₀ k ≠ 0)) (target : K) :
     density (univ.filter fun look : LookupDraw K P.lookups P.claims P.spanVars =>
       lookupBatch P W V τ look = target) ≤ ((2 + P.spanVars : ℕ) : ℝ) / Fintype.card K := by
   classical
   have one : (0 : ℝ) ≤ 1 / Fintype.card K := by positivity
   have weight : lookupWeight P c₀ = 1 := by simp [lookupWeight, table]
-  set SB := univ.filter fun rest : ((Fin P.claims → K) × (Fin P.claims → K)) ×
-    (Fin P.spanVars → K) => lookupCoefficient W V τ rest k₀ = 0
-  have first := density_prod_le (univ.filter fun look : LookupDraw K P.lookups P.claims
-      P.spanVars => lookupBatch P W V τ look = target) SB (1 / Fintype.card K) one
-    fun rest outside => by
-      have nonzero : lookupCoefficient W V τ rest k₀ ≠ 0 := by simpa [SB] using outside
-      refine le_trans (le_of_eq (congrArg density ?_))
-        (density_linear_le P.lookups (lookupCoefficient W V τ rest) target ⟨k₀, nonzero⟩)
-      ext a
-      simp only [mem_filter, mem_univ, true_and]
-      rfl
-  refine first.trans ?_
-  have rest_bound : density SB ≤ ((1 + P.spanVars : ℕ) : ℝ) / Fintype.card K := by
-    rcases fails with ⟨y₀, cell, differ⟩ | differ
-    · set Sβ := univ.filter fun β : Fin P.spanVars → K =>
-        ∑ y ∈ range (2 ^ (P.shape c₀).witness.vars),
-          eqAt ((List.ofFn β).take (P.shape c₀).witness.vars) y *
-            ι (inverseError P W V τ c₀ k₀ y) = 0
-      refine (density_prod_le SB Sβ (1 / Fintype.card K) one fun β outside => ?_).trans ?_
-      · have live : ∑ y ∈ range (2 ^ (P.shape c₀).witness.vars),
-            eqAt ((List.ofFn β).take (P.shape c₀).witness.vars) y *
-              ι (inverseError P W V τ c₀ k₀ y) ≠ 0 := by simpa [Sβ] using outside
-        refine (density_prod_le _ ∅ (1 / Fintype.card K) one fun lam _ => ?_).trans
-          (by rw [density_empty, add_zero])
-        have := density_linear_le P.claims (fun c => lookupWeight P c *
-          ∑ y ∈ range (2 ^ (P.shape c).witness.vars),
-            eqAt ((List.ofFn β).take (P.shape c).witness.vars) y *
-              ι (inverseError P W V τ c k₀ y))
-          (-∑ c, lam c * (lookupWeight P c * ι (sumError P W V τ c k₀)))
-          ⟨c₀, by rw [weight, one_mul]; exact live⟩
-        refine le_trans (le_of_eq ?_) this
-        congr 1
-        ext ξ
-        simp only [SB, mem_filter, mem_univ, true_and, lookupCoefficient, mul_add, sum_add_distrib]
-        rw [eq_neg_iff_add_eq_zero]
-        constructor <;> intro h <;> rw [← h] <;> congr 1 <;>
-          exact sum_congr rfl fun c _ => by ring
-      · have spanned := (wf.span_fit c₀ table).2
-        have mle_form : ∀ β : Fin P.spanVars → K,
-            ∑ y ∈ range (2 ^ (P.shape c₀).witness.vars),
-              eqAt ((List.ofFn β).take (P.shape c₀).witness.vars) y *
-                ι (inverseError P W V τ c₀ k₀ y) =
-            mle ((List.ofFn β).take (P.shape c₀).witness.vars)
-              (fun y => ι (inverseError P W V τ c₀ k₀ y)) := fun β => by
-          rw [mle_eq_cubeSum, cubeSum_eq_sum_range]
-          simp [spanned]
-        have small := density_take_le P.spanVars (P.shape c₀).witness.vars spanned
-          (fun point => mle point (fun y => ι (inverseError P W V τ c₀ k₀ y)) = 0) _
-          (density_mle_zero_le _ _ ⟨y₀, cell, by simpa using differ⟩)
-        have same : Sβ = univ.filter fun β : Fin P.spanVars → K =>
-            mle ((List.ofFn β).take (P.shape c₀).witness.vars)
-              (fun y => ι (inverseError P W V τ c₀ k₀ y)) = 0 := by
-          ext β
-          simp only [Sβ, mem_filter, mem_univ, true_and, mle_form]
-        rw [same]
-        have bound := small.trans (div_le_div_of_nonneg_right
-          (show ((P.shape c₀).witness.vars : ℝ) ≤ P.spanVars by exact_mod_cast spanned)
-          (show (0 : ℝ) ≤ Fintype.card K by positivity))
-        have split : ((1 + P.spanVars : ℕ) : ℝ) / Fintype.card K =
-            1 / Fintype.card K + (P.spanVars : ℝ) / Fintype.card K := by
-          push_cast
-          ring
-        rw [split]
-        linarith
-    · refine (density_prod_le SB ∅ (1 / Fintype.card K) one fun β _ => ?_).trans ?_
-      · refine (density_prod_le' _ ∅ (1 / Fintype.card K) one fun ξ _ => ?_).trans
-          (by rw [density_empty, add_zero])
-        have := density_linear_le P.claims (fun c => lookupWeight P c *
-          ι (sumError P W V τ c k₀))
-          (-∑ c, ξ c * (lookupWeight P c * ∑ y ∈ range (2 ^ (P.shape c).witness.vars),
-            eqAt ((List.ofFn β).take (P.shape c).witness.vars) y *
-              ι (inverseError P W V τ c k₀ y)))
-          ⟨c₀, by
-            rw [weight, one_mul]
-            exact (map_ne_zero _).mpr differ⟩
-        refine le_trans (le_of_eq ?_) this
-        congr 1
+  rcases fails with ⟨y, cell, differs⟩ | ⟨k, differs⟩
+  · let Sβ := univ.filter fun β : Fin P.spanVars → K => inverseResidual P W V τ c₀ β = 0
+    have inside := (wf.span_fit c₀ table).2
+    have eqMle (β : Fin P.spanVars → K) : inverseResidual P W V τ c₀ β =
+        mle ((List.ofFn β).take (P.shape c₀).witness.vars) (fun i => ι (inverseError P W V τ c₀ i)) := by
+      rw [mle_eq_cubeSum, cubeSum_eq_sum_range]
+      simp [inverseResidual, inside]
+    have bound : density Sβ ≤ (P.spanVars : ℝ) / Fintype.card K := by
+      simp only [Sβ, eqMle]
+      let values := fun i => ι (inverseError P W V τ c₀ i)
+      have small := density_mle_zero_le (P.shape c₀).witness.vars values ⟨y, cell, by simpa [values] using differs⟩
+      refine (density_take_le P.spanVars (P.shape c₀).witness.vars inside
+        (fun point => mle point values = 0) _ small).trans ?_
+      exact div_le_div_of_nonneg_right (by exact_mod_cast inside) (by positivity)
+    have nonneg : 0 ≤ 1 / (Fintype.card K : ℝ) + density Sβ := add_nonneg one (by unfold density; positivity)
+    refine (density_prod_le' _ ∅ _ nonneg fun psi _ => ?_).trans ?_
+    · apply density_prod_le _ Sβ _ one
+      intro β outside
+      apply (density_prod_le _ ∅ _ one fun lam _ => ?_).trans (by rw [density_empty, add_zero])
+      have nonzero : inverseResidual P W V τ c₀ β ≠ 0 := by simpa [Sβ] using outside
+      have linear := density_linear_le P.claims (fun c => lookupWeight P c * inverseResidual P W V τ c β)
+        (target - ∑ k, psi k * lookupCoefficient W V τ lam k) ⟨c₀, by rwa [weight, one_mul]⟩
+      refine le_trans (le_of_eq (congrArg density ?_)) linear
+      ext xi
+      simp only [mem_filter, mem_univ, true_and, lookupBatch_split, inverseBatch, eq_sub_iff_add_eq]
+    · rw [density_empty, add_zero]
+      push_cast
+      rw [add_div]
+      linarith [div_nonneg (show (0 : ℝ) ≤ 1 by norm_num) (show (0 : ℝ) ≤ Fintype.card K by positivity),
+        show (2 : ℝ) / Fintype.card K = 1 / Fintype.card K + 1 / Fintype.card K by ring]
+  · let S := univ.filter fun rest : ((Fin P.claims → K) × (Fin P.claims → K)) × (Fin P.spanVars → K) =>
+        lookupCoefficient W V τ rest.1.2 k = 0
+    refine (density_prod_le _ S _ one fun rest outside => ?_).trans ?_
+    · have nz : lookupCoefficient W V τ rest.1.2 k ≠ 0 := by simpa [S] using outside
+      have linear := density_linear_le P.lookups (lookupCoefficient W V τ rest.1.2)
+        (target - inverseBatch W V τ rest.1.1 rest.2) ⟨k, nz⟩
+      refine le_trans (le_of_eq (congrArg density ?_)) linear
+      ext psi
+      simp only [mem_filter, mem_univ, true_and, lookupBatch_split, eq_sub_iff_add_eq]
+      rw [add_comm]
+    · have sb : density S ≤ 1 / Fintype.card K := by
+        apply (density_prod_le _ ∅ _ one fun β _ => ?_).trans (by rw [density_empty, add_zero])
+        apply (density_prod_le' _ ∅ _ one fun xi _ => ?_).trans (by rw [density_empty, add_zero])
+        have linear := density_linear_le P.claims (fun c => lookupWeight P c * ι (sumError P W V τ c k)) 0
+          ⟨c₀, by rw [weight, one_mul]; exact (map_ne_zero _).mpr differs⟩
+        refine le_trans (le_of_eq (congrArg density ?_)) linear
         ext lam
-        simp only [SB, mem_filter, mem_univ, true_and, lookupCoefficient, mul_add, sum_add_distrib]
-        rw [eq_neg_iff_add_eq_zero, add_comm]
-        constructor <;> intro h <;> rw [← h] <;> congr 1 <;>
-          exact sum_congr rfl fun c _ => by ring
-      · rw [density_empty, add_zero]
-        exact div_le_div_of_nonneg_right (by exact_mod_cast (by omega : 1 ≤ 1 + P.spanVars))
-          (by positivity)
-  refine (add_le_add le_rfl rest_bound).trans (le_of_eq ?_)
-  push_cast
-  ring
+        rw [mem_filter, mem_filter, mem_filter, mem_filter]
+        simp [lookupCoefficient]
+      push_cast
+      rw [add_div]
+      linarith [show (2 : ℝ) / Fintype.card K = 1 / Fintype.card K + 1 / Fintype.card K by ring,
+        show (0 : ℝ) ≤ (P.spanVars : ℝ) / Fintype.card K by positivity]
 
 omit [Fintype F] [DecidableEq F] in
 theorem density_ringBatch_le (c : Fin P.claims)
@@ -253,26 +219,6 @@ theorem density_ringBatch_le (c : Fin P.claims)
   refine bound.trans (le_of_eq ?_)
   simp [m]
 
-/-- The bad column points: the values of `V` differ from its columns, and their extensions at the
-column point agree. -/
-noncomputable def columnBad (cv : ℕ) (values columns : ℕ → K) : Finset (Fin cv → K) := by
-  classical
-  exact if ∃ k < 2 ^ cv, values k ≠ columns k then
-    univ.filter fun col : Fin cv → K => mle (List.ofFn col) (fun k => values k - columns k) = 0
-  else ∅
-
-omit [Field F] [Fintype F] [DecidableEq F] [Algebra F K] in
-theorem density_columnBad_le (cv : ℕ) (values columns : ℕ → K) :
-    density (columnBad cv values columns) ≤ cv / Fintype.card K := by
-  classical
-  unfold columnBad
-  split
-  · rename_i differ
-    obtain ⟨k, small, value⟩ := differ
-    exact density_mle_zero_le cv _ ⟨k, small, sub_ne_zero.mpr value⟩
-  · rw [density_empty]
-    positivity
-
 omit [Fintype F] [DecidableEq F] in
 theorem density_challengeBad_le (wf : WellFormed P) :
     density (challengeBad P st W V τ) ≤ challengeError P := by
@@ -298,13 +244,13 @@ theorem density_challengeBad_le (wf : WellFormed P) :
   unfold challengeBad challengeError
   split
   · rename_i fails
-    by_cases look : ∃ c : Fin P.claims, (P.shape c).lookup = true ∧ ∃ k : Fin P.lookups,
-        (∃ y < 2 ^ (P.shape c).witness.vars, inverseError P W V τ c k y ≠ 0) ∨
-          sumError P W V τ c k ≠ 0
-    · obtain ⟨c₀, table, k₀, differ⟩ := look
+    by_cases look : ∃ c : Fin P.claims, (P.shape c).lookup = true ∧
+        ((∃ y < 2 ^ (P.shape c).witness.vars, inverseError P W V τ c y ≠ 0) ∨
+          (∃ k, sumError P W V τ c k ≠ 0))
+    · obtain ⟨c₀, table, differ⟩ := look
       refine (density_prod_le' _ ∅ _ nonneg_look fun r _ => ?_).trans ?_
       · refine le_trans (le_of_eq (congrArg density ?_))
-          (density_lookupBatch_le W V τ wf c₀ table k₀ differ (-ringBatch P st W r))
+          (density_lookupBatch_le W V τ wf c₀ table differ (-ringBatch P st W r))
         ext lk
         simp only [mem_filter, mem_univ, true_and]
         constructor <;> intro h <;> linear_combination h
@@ -313,13 +259,12 @@ theorem density_challengeBad_le (wf : WellFormed P) :
     · obtain ⟨c, claim⟩ := fails.resolve_right look
       push Not at look
       have zero : ∀ lk, lookupBatch P W V τ lk = 0 := fun lk => by
-        refine sum_eq_zero fun k _ => ?_
-        refine mul_eq_zero_of_right _ (sum_eq_zero fun c _ => ?_)
+        refine sum_eq_zero fun c _ => ?_
         by_cases table : (P.shape c).lookup = true
-        · obtain ⟨inverse, sums⟩ := look c table k
-          rw [sum_eq_zero fun y member => by rw [inverse y (mem_range.mp member), map_zero,
-            mul_zero], sums, map_zero]
-          ring
+        · obtain ⟨inverse, sums⟩ := look c table
+          have res : inverseResidual P W V τ c lk.2.2 = 0 :=
+            sum_eq_zero fun y member => by rw [inverse y (mem_range.mp member), map_zero, mul_zero]
+          simp [res, sums]
         · simp [lookupWeight, table]
       have same : (univ.filter fun ch : Challenges P =>
           ringBatch P st W ch.1 + lookupBatch P W V τ ch.2 = 0) =

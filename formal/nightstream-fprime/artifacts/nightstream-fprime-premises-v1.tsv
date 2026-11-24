@@ -23,7 +23,6 @@ Claims.Compression.argument_sound	wf.span_fit	And
 Claims.Compression.argument_sound	wf.span_le	LE.le
 Claims.Compression.argument_sound	counts	Spec.Compression.Verifier.CountsNonzero
 Claims.Compression.argument_sound	matrix	Spec.Compression.Verifier.MatrixSpec
-Claims.Compression.argument_sound	columns	LE.le
 Claims.Compression.argument_sound	rows	LE.le
 Claims.Compression.argument_sound	key_fits	LE.le
 Claims.Compression.fresh_sound	statement.cubeLayout.columns_le	LE.le
@@ -40,7 +39,6 @@ Claims.Compression.fresh_sound	degreeCovers	LE.le
 Claims.Compression.light_error_bits	ok	Eq
 Claims.Compression.light_error_bits	depth_le	LE.le
 Claims.Compression.production_error	slots	LE.le
-Claims.Compression.production_error	columns	Eq
 Claims.Compression.production_error	depths_le	LE.le
 Claims.Compression.production_error	slots_le	LE.le
 Claims.Compression.production_error	span_le	LE.le

@@ -67,9 +67,9 @@ inductive SlotWire
   | wide (slot : Slot F)
 
 def SlotWire.tag : SlotWire → String
-  | .zero => "NS-OPTIONB-FIN-Z"
-  | .signed _ => "NS-OPTIONB-FIN-S"
-  | .wide _ => "NS-OPTIONB-FIN-L"
+  | .zero => "NS-ONEINV-FIN--Z"
+  | .signed _ => "NS-ONEINV-FIN--S"
+  | .wide _ => "NS-ONEINV-FIN--L"
 
 def allSigned (w : Fin (5 * ringDegree) → F) : Prop := ∀ i, (signedByte (w i)).isSome = true
 
@@ -124,16 +124,22 @@ structure Round where
   linear : K
   quadratic : K
   cubic : K
+  quartic : K
+  quintic : K
+  sextic : K
 deriving DecidableEq
+
+private def short (d e f g : K) : Bool :=
+  decide (d = K.zero ∧ e = K.zero ∧ f = K.zero ∧ g = K.zero)
 
 def roundMask : List Round → Nat
   | [] => 0
-  | r :: rs => 2 * roundMask rs + (if r.cubic = K.zero then 1 else 0)
+  | r :: rs => 2 * roundMask rs + (if short r.cubic r.quartic r.quintic r.sextic then 1 else 0)
 
 def coefficients : List Round → List K
   | [] => []
   | r :: rs => r.constant :: r.linear :: r.quadratic ::
-      (if r.cubic = K.zero then coefficients rs else r.cubic :: coefficients rs)
+      (if short r.cubic r.quartic r.quintic r.sextic then coefficients rs else r.cubic :: r.quartic :: r.quintic :: r.sextic :: coefficients rs)
 
 structure DefaultRounds where
   count : Nat
@@ -166,12 +172,12 @@ private def readRounds : Nat → Nat → List K → Option (List Round)
   | 0, mask, words => if mask = 0 ∧ words.isEmpty then some [] else none
   | n + 1, mask, a :: b :: c :: rest =>
     if mask % 2 = 1 then
-      (⟨a, b, c, K.zero⟩ :: ·) <$> readRounds n (mask / 2) rest
+      (⟨a, b, c, K.zero, K.zero, K.zero, K.zero⟩ :: ·) <$> readRounds n (mask / 2) rest
     else match rest with
-      | [] => none
-      | d :: ds =>
-        if d = K.zero then none else
-        (⟨a, b, c, d⟩ :: ·) <$> readRounds n (mask / 2) ds
+      | d :: e :: f :: g :: ds =>
+        if short d e f g then none else
+        (⟨a, b, c, d, e, f, g⟩ :: ·) <$> readRounds n (mask / 2) ds
+      | _ => none
   | _ + 1, _, _ => none
 
 private theorem readRounds_coefficients (rs : List Round) :
@@ -179,10 +185,11 @@ private theorem readRounds_coefficients (rs : List Round) :
   induction rs with
   | nil => rfl
   | cons r rs ih =>
-    obtain ⟨a, b, c, d⟩ := r
-    by_cases h : d = K.zero
-    · subst d; simp [roundMask, coefficients, readRounds, show (2 * roundMask rs + 1) / 2 = roundMask rs by omega, ih]
-    · simp [roundMask, coefficients, readRounds, h, ih]
+    obtain ⟨a, b, c, d, e, f, g⟩ := r
+    by_cases h : d = K.zero ∧ e = K.zero ∧ f = K.zero ∧ g = K.zero
+    · obtain ⟨rfl, rfl, rfl, rfl⟩ := h
+      simp [roundMask, coefficients, readRounds, short, show (2 * roundMask rs + 1) / 2 = roundMask rs by omega, ih]
+    · simp [roundMask, coefficients, readRounds, short, h, ih]
 
 def unpackRounds (w : DefaultRounds) : Option (List Round) :=
   if w.count > 30 ∨ w.maskBytes.length ≠ 4 ∨ w.maskBytes.any (· ≥ 256) then none
@@ -225,24 +232,22 @@ private theorem readRounds_image {n m : Nat} {v : List K} {rs : List Round}
         simp [e] at h
         subst rs
         obtain ⟨len, mask, words⟩ := ih e
-        simp [roundMask, coefficients, len, mask, words]
+        simp [roundMask, coefficients, short, len, mask, words]
         omega
     · rename_i bit
-      cases rest with
-      | nil => contradiction
-      | cons d ds =>
-        simp only at h
-        split at h
-        · contradiction
-        · rename_i live
-          cases e : readRounds n (m / 2) ds with
-          | none => simp [e] at h
-          | some tail =>
-            simp [e] at h
-            subst rs
-            obtain ⟨len, mask, words⟩ := ih e
-            simp [roundMask, coefficients, len, mask, words, live]
-            omega
+      rcases rest with _ | ⟨d, _ | ⟨e, _ | ⟨f, _ | ⟨g, ds⟩⟩⟩⟩ <;> try contradiction
+      simp only at h
+      split at h
+      · contradiction
+      · rename_i live
+        cases decoded : readRounds n (m / 2) ds with
+        | none => simp [decoded] at h
+        | some tail =>
+          simp [decoded] at h
+          subst rs
+          obtain ⟨len, mask, words⟩ := ih decoded
+          simp [roundMask, coefficients, len, mask, words, live]
+          omega
 
 private theorem littleEndianBytes_readLE (bs : List Nat) (h : bs.any (· ≥ 256) = false) :
     AjtaiSetupV1.littleEndianBytes bs.length (readLE bs) = bs := by

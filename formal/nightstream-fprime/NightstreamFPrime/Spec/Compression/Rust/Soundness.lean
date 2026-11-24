@@ -34,16 +34,15 @@ theorem layoutNew_ok {claims : List Claim} {keyBlocks : ℕ} {l : Placed}
   exact above c member
 
 /-- When `layoutNew` accepts, the span has at most 26 variables: the schedule row holds the
-inverses of the span (`rowFits`), and no row of `schedules` gives `V` more than 28 variables. -/
+inverses of the span (`rowFits`), and no row of `schedules` gives `V` more than 26 variables. -/
 theorem layoutNew_span {claims : List Claim} {keyBlocks : ℕ} {l : Placed}
     (ok : layoutNew claims keyBlocks = .ok l) : l.spanVars ≤ 26 := by
   obtain ⟨schedule, member, -, -, row, inRow, fits, rfl⟩ := layoutNew_ok ok
   simp only [rowFits, Bool.and_eq_true, decide_eq_true_eq] at fits
-  have inverse : ∀ s ∈ schedules, ∀ r ∈ s.rows, r.2 ≤ 28 := by decide
+  have inverse : ∀ s ∈ schedules, ∀ r ∈ s.rows, r.2 ≤ 26 := by decide
   have span := fits.2
   have most := inverse schedule member row inRow
   change varsFor (tableSlices claims).2 ≤ 26
-  simp only [lookupVars] at span
   omega
 
 theorem fits_of {s : Slice} {cells n : ℕ} (aligned : 2 ^ s.vars ∣ s.offset)
@@ -244,23 +243,23 @@ theorem layoutNew_light {blocks depth : ℕ} (positive : 0 < blocks) (fits : blo
     omega
   have small : 2 ^ v ≤ 2 ^ 25 := Nat.pow_le_pow_right two_pos (by omega)
   have smallTable : 2 ^ t ≤ 2 ^ 15 := Nat.pow_le_pow_right two_pos (by omega)
-  have rowFit : rowFits (lightClaims blocks depth) (27, 28) = true := by
+  have rowFit : rowFits (lightClaims blocks depth) (27, 26) = true := by
     have countVars : varsFor (countSlices (lightClaims blocks depth)).2 ≤ 27 :=
       Nat.clog_le_of_le_pow (by omega)
-    have spanVars : varsFor (tableSlices (lightClaims blocks depth)).2 + lookupVars ≤ 28 := by
-      rw [span, varsFor, Nat.clog_pow 2 v one_lt_two, lookupVars]
+    have spanVars : varsFor (tableSlices (lightClaims blocks depth)).2 ≤ 26 := by
+      rw [span, varsFor, Nat.clog_pow 2 v one_lt_two]
       omega
     simp only [rowFits, countVars, spanVars, decide_true, Bool.and_self]
   obtain ⟨row, found⟩ := Option.isSome_iff_exists.mp
-    (List.find?_isSome.mpr ⟨(27, 28), by simp, rowFit⟩ :
-      (([(26, 28), (27, 28)] : List (ℕ × ℕ)).find? (rowFits (lightClaims blocks depth))).isSome)
-  refine ⟨assemble (lightClaims blocks depth) ⟨30, [(26, 28), (27, 28)]⟩ row, ?_⟩
+    (List.find?_isSome.mpr ⟨(27, 26), by simp, rowFit⟩ :
+      (([(26, 26), (27, 26)] : List (ℕ × ℕ)).find? (rowFits (lightClaims blocks depth))).isSome)
+  refine ⟨assemble (lightClaims blocks depth) ⟨30, [(26, 26), (27, 26)]⟩ row, ?_⟩
   have wide : ¬ 65535 ≤ 2 * productionGlobalParams.accumulatorBound depth := by omega
   have above : ¬ 524288 < blocks := by omega
   rw [claims] at found
   unfold layoutNew
   simp only [show schedules.find? (fun s => s.blocks == 2 ^ 19) =
-    some ⟨30, [(26, 28), (27, 28)]⟩ from rfl]
+    some ⟨30, [(26, 26), (27, 26)]⟩ from rfl]
   simp [claims, positive.ne', wide, above, found]
 
 /-- Algorithm 11, step 1: the key of `2^19` blocks is the key of more than `2^9` and at most
@@ -276,11 +275,10 @@ theorem keyBlocksFor_eq_light {blocks : ℕ} :
   · simp [keyBlocksFor, schedules, Schedule.blocks, laneVars, rowVars, small]
 
 /-- Algorithm 10, step 5: each light layout that `layoutNew` accepts at a depth at most the cap
-has `error_bits` 119 with 320 public cells and 4 matrices. Its count `360 + 4n + 2·n_A` is
-between 256 and 511, since `n ≤ 27` and `n_A ≤ 19`. -/
+has 119 bits for the small key and 118 bits for the large key. -/
 theorem layoutNew_light_runBits {blocks depth keyBlocks : ℕ} {l : Placed}
     (ok : layoutNew (lightClaims blocks depth) keyBlocks = .ok l)
-    (depth_le : depth ≤ productionLightFoldCap) : runBits (l.counts 320 4) = 119 := by
+    (depth_le : depth ≤ productionLightFoldCap) : runBits (l.counts 320 4) = (if keyBlocks = 2 ^ 9 then 119 else 118) := by
   obtain ⟨schedule, member, rfl, fit, row, inRow, -, rfl⟩ := layoutNew_ok ok
   have bounds : ∀ s ∈ schedules, ∀ r ∈ s.rows,
       s.blocks ≤ 2 ^ 19 ∧ s.keyVars ≤ 30 ∧ r.1 ≤ 27 := by
@@ -297,20 +295,25 @@ theorem layoutNew_light_runBits {blocks depth keyBlocks : ℕ} {l : Placed}
       [(varsFor blocks + 6, productionGlobalParams.accumulatorBound depth)] := by
     simp only [Placed.counts, assemble, length, List.range_succ, List.range_zero, List.nil_append]
     simp [cellOf, claims, ← vars]
-  apply runBits_of_count
-  · have witness : 2 ^ (varsFor blocks + 6) ≤ 2 ^ 25 := Nat.pow_le_pow_right two_pos (by omega)
+  have fits : ((assemble (lightClaims blocks depth) schedule row).counts 320 4).tablesFit = true := by
+    have witness : 2 ^ (varsFor blocks + 6) ≤ 2 ^ 25 := Nat.pow_le_pow_right two_pos (by omega)
     have table := slot_table_le depth_le
     simp only [RunCounts.tablesFit, tables, List.all_cons, List.all_nil, Bool.and_true,
       decide_eq_true_eq]
     calc (2 ^ (varsFor blocks + 6) + (2 * productionGlobalParams.accumulatorBound depth + 1)) ^ 2
         ≤ (2 ^ 25 + 20737) ^ 2 := Nat.pow_le_pow_left (by omega) 2
       _ ≤ fieldOrder := by norm_num [fieldOrder]
-  all_goals
-    rw [runCount, tables]
-    simp only [RunCounts.extensionTerms, Placed.counts, assemble, length, List.length_map,
-      List.length_range, List.length_cons, List.length_nil, laneVars, rowVars,
-      show max 63 (320 - 1) = 319 from rfl]
-    omega
+  rw [runBits, ite_eq_left fits, runCount, tables]
+  simp only [RunCounts.extensionTerms, Placed.counts, assemble, length, List.length_map,
+    List.length_range, List.length_cons, List.length_nil, laneVars, rowVars,
+    show max 63 (320 - 1) = 319 from rfl]
+  have rows : ∀ s ∈ schedules, ∀ r ∈ s.rows,
+      Nat.log 2 (fieldOrder ^ 2 / (358 + 7 * r.1 + 2 * (s.keyVars - 6 - 5))) =
+        (if s.blocks = 2 ^ 9 then 119 else 118) := by decide
+  rw [show 18 + 1 + 4 + 319 + 2 - 1 + 2 + row.1 + 6 * row.1 +
+      2 * (6 + (schedule.keyVars - 6 - 5)) + (0 + 1) =
+      358 + 7 * row.1 + 2 * (schedule.keyVars - 6 - 5) by omega]
+  exact rows schedule member row inRow
 
 end Light
 

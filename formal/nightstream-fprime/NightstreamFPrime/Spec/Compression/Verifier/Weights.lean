@@ -259,9 +259,9 @@ theorem mle_weightTable (wf : WellFormed P) (shaped : Shaped P st)
   rw [show (uses P ch ρ c).blocks = (P.shape c).blocks from rfl]
   ring
 
-/-- Column `k` of `V` on the span at `ρ`. -/
-def columnAt (P : Params F K) (V : ℕ → F) (ρ : List K) (k : ℕ) : K :=
-  mle (ρ.take P.spanVars) (fun y => ι (V (k * 2 ^ P.spanVars + y)))
+/-- The shared inverse on its logical cube. -/
+def inverseAt (P : Params F K) (V : ℕ → F) (ρ : List K) : K :=
+  mle (ρ.take P.spanVars) (fun y => ι (V y))
 
 omit [Field F] [Algebra F K] in
 theorem mle_checkTable (wf : WellFormed P) (length : ρ.length = P.witnessVars) :
@@ -289,48 +289,21 @@ theorem mle_sumTable (wf : WellFormed P) (length : ρ.length = P.witnessVars) :
   rw [mle_mul_left, Slice.mle_place _ _ _ (by rw [length]; exact wf.witness_fits c), mle_const]
   ring
 
-theorem mle_inverseTable (wf : WellFormed P) (length : ρ.length = P.witnessVars) (k : ℕ) :
-    mle ρ (inverseTable P V k) = lowAt P ρ * columnAt P V ρ k := by
-  have place : inverseTable P V k = (⟨0, P.spanVars⟩ : Slice).place
-      (fun y => ι (V (k * 2 ^ P.spanVars + y))) := by
+theorem mle_inverseTable (wf : WellFormed P) (length : ρ.length = P.witnessVars) :
+    mle ρ (inverseTable P V) = lowAt P ρ * inverseAt P V ρ := by
+  have place : inverseTable P V = (⟨0, P.spanVars⟩ : Slice).place
+      (fun y => ι (V y)) := by
     funext x
     simp [inverseTable, Slice.place]
   rw [place, Slice.mle_place _ _ _ ⟨dvd_zero _, by
     rw [length, zero_add]; exact Nat.pow_le_pow_right two_pos wf.span_le, by
     rw [length]; exact wf.span_le⟩]
-  simp [Slice.selector, lowAt, columnAt, eqAt_zero]
+  simp [Slice.selector, lowAt, inverseAt, eqAt_zero]
 
-theorem mle_aTable (wf : WellFormed P) (length : ρ.length = P.witnessVars) :
-    mle ρ (aTable P V ch) = lowAt P ρ * ∑ k, ch.psi k * columnAt P V ρ k := by
-  unfold aTable
-  rw [mle_finset_sum, mul_sum]
-  refine sum_congr rfl fun k _ => ?_
-  rw [mle_mul_left, mle_inverseTable V ρ wf length]
-  ring
-
-theorem mle_bTable (wf : WellFormed P) (length : ρ.length = P.witnessVars) :
-    mle ρ (bTable P V τ ch) = lowAt P ρ * ∑ k, ch.psi k * ι (τ k) * columnAt P V ρ k := by
-  unfold bTable
-  rw [mle_finset_sum, mul_sum]
-  refine sum_congr rfl fun k _ => ?_
-  rw [mle_mul_left, mle_inverseTable V ρ wf length]
-  ring
-
-/-- Rust `inverse_point`: `V` at the span of `ρ`, the column point and zeros is the extension of
-the columns at the column point. -/
-theorem mle_V_opening (wf : WellFormed P) (length : ρ.length = P.witnessVars) (column : List K)
-    (zeros : ℕ) :
-    mle (ρ.take P.spanVars ++ column ++ List.replicate zeros 0) (fun x => ι (V x)) =
-      mle column (columnAt P V ρ) := by
-  have span_length : (ρ.take P.spanVars).length = P.spanVars := by
-    simp [length, wf.span_le]
-  rw [mle_inverse_point, span_length]
-  congr 1
-  funext k
-  unfold columnAt
-  congr 1
-  funext y
-  rw [Nat.add_comm, Nat.mul_comm]
+theorem mle_V_opening (zeros : ℕ) :
+    mle (ρ.take P.spanVars ++ List.replicate zeros 0) (fun x => ι (V x)) =
+      inverseAt P V ρ :=
+  mle_append_zeros _ _ _
 
 end Proofs
 

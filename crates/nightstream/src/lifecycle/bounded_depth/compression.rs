@@ -454,11 +454,11 @@ impl BoundedDepth {
     }
 }
 
-const MAGIC: &[u8; 16] = b"NS-OPTIONB-FIN-2";
+const MAGIC: &[u8; 16] = b"NS-ONEINV-FIN--1";
 /// SPEC.md section 4.5.
-const LIGHT_MAGIC: &[u8; 16] = b"NS-OPTIONB-FIN-L";
-const ZERO_MAGIC: &[u8; 16] = b"NS-OPTIONB-FIN-Z";
-const SIGNED_MAGIC: &[u8; 16] = b"NS-OPTIONB-FIN-S";
+const LIGHT_MAGIC: &[u8; 16] = b"NS-ONEINV-FIN--L";
+const ZERO_MAGIC: &[u8; 16] = b"NS-ONEINV-FIN--Z";
+const SIGNED_MAGIC: &[u8; 16] = b"NS-ONEINV-FIN--S";
 const PUBLIC_START: usize = 8 * (1 + nightstream_fprime::COMMITMENT_WORDS);
 const PUBLIC_END: usize = PUBLIC_START + 8 * PUBLIC_WORDS;
 const SLOT_BYTES: usize = PUBLIC_END + 8 * (2 * ROUNDS + 2 * (MATRICES + 1) * D);
@@ -668,7 +668,7 @@ impl FinalProof {
         write_bytes(&mut output, &argument.inverse_commitment);
         write_rounds(&mut output, &argument.rounds, tag == ZERO_MAGIC)?;
         write_extension(&mut output, &[argument.witness_value]);
-        write_extension(&mut output, &argument.inverse_values);
+        write_extension(&mut output, &[argument.shared_inverse]);
         write_extension(&mut output, &[argument.key_part]);
         write_rounds(&mut output, &argument.key_rounds, false)?;
         write_extension(&mut output, &[argument.key_polynomial_value]);
@@ -711,9 +711,7 @@ impl FinalProof {
                 let inverse_commitment = read_bytes(&mut input)?;
                 let rounds = read_rounds(&mut input, tag == ZERO_MAGIC)?;
                 let witness_value = input.extension()?;
-                let inverse_values = read_extension(&mut input, 4)?
-                    .try_into()
-                    .expect("four values");
+                let shared_inverse = input.extension()?;
                 let key_part = input.extension()?;
                 let key_rounds = read_rounds(&mut input, false)?;
                 let key_polynomial_value = input.extension()?;
@@ -733,7 +731,7 @@ impl FinalProof {
                         inverse_commitment,
                         rounds,
                         witness_value,
-                        inverse_values,
+                        shared_inverse,
                         key_part,
                         key_rounds,
                         key_polynomial_value,

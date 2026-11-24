@@ -20,7 +20,7 @@ use crate::sumcheck;
 use crate::weights::{self, equality, powers, Use, Uses, KAPPA};
 use crate::{commit, verify, Error};
 
-const LIGHT_BLOCKS: usize = 74_146;
+const LIGHT_BLOCKS: usize = 73_281;
 
 fn random_point(rng: &mut ChaCha8Rng, count: usize) -> Vec<K> {
     (0..count).map(|_| random_extension(rng)).collect()

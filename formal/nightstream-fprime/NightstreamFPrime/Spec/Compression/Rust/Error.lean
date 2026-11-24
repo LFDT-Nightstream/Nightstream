@@ -40,11 +40,10 @@ structure RunCounts where
   keyBlockVars : ℕ
 
 /-- The terms of `error_bits` over `|K| = q²` with `κ = 18` and `D = 64`: the batch of the
-equations, the batch of the inverse checks and the sums, the first sum-check, the column point of
-`V` and the key sum-check. -/
+equations, the batch of the inverse checks and the sums, the degree-six sum-check and the key sum-check. -/
 def RunCounts.extensionTerms (c : RunCounts) : ℕ :=
   18 + 1 + c.matrices + max 63 (c.publicCells - 1) + c.claims - 1 + 2 + c.witnessVars +
-    3 * c.witnessVars + 2 + 2 * (6 + c.keyBlockVars)
+    6 * c.witnessVars + 2 * (6 + c.keyBlockVars)
 
 /-- Rust `error_bits` before `−log₂`: `Σ_tables ((2^v + 2·bound + 1)/q)^4 + extensionTerms/q²`. -/
 def runError (c : RunCounts) : ℚ :=
@@ -128,20 +127,6 @@ theorem runError_le_runBits (c : RunCounts) (pos : 0 < runBits c) :
   rw [div_le_div_iff₀ (by norm_num [fieldOrder]) (by positivity), one_mul]
   exact_mod_cast spec
 
-/-- `runBits` is 119 when each table fits and `256 ≤ runCount ≤ 511`, since
-`2^119 · 511 ≤ q² < 2^120 · 256`. -/
-theorem runBits_of_count (c : RunCounts) (fit : c.tablesFit = true) (low : 256 ≤ runCount c)
-    (high : runCount c ≤ 511) : runBits c = 119 := by
-  have pos := runCount_pos c
-  rw [runBits, ite_eq_left fit]
-  refine Nat.log_eq_of_pow_le_of_lt_pow ?_ ?_
-  · rw [Nat.le_div_iff_mul_le pos]
-    calc 2 ^ 119 * runCount c ≤ 2 ^ 119 * 511 := Nat.mul_le_mul_left _ high
-      _ ≤ fieldOrder ^ 2 := by norm_num [fieldOrder]
-  · rw [Nat.div_lt_iff_lt_mul pos]
-    calc fieldOrder ^ 2 < 2 ^ (119 + 1) * 256 := by norm_num [fieldOrder]
-      _ ≤ 2 ^ (119 + 1) * runCount c := Nat.mul_le_mul_left _ low
-
 /-- The counts of a production layout with `n` slots: the table of each slot, `n + 1` claims,
 `m = 320` and `t = 4`. -/
 def productionCounts {n : ℕ} (layout : Layout (n + 1)) (depths : Fin n → ℕ) : RunCounts where
@@ -184,10 +169,10 @@ private theorem tauError_params :
 
 private theorem runError_production :
     ((runError (productionCounts layout depths) : ℚ) : ℝ) = tables depths layout +
-      ((358 + n + 4 * layout.witnessVars + 2 * layout.keyBlockVars : ℕ) : ℝ) /
+      ((356 + n + 7 * layout.witnessVars + 2 * layout.keyBlockVars : ℕ) : ℝ) /
         (fieldOrder ^ 2 : ℕ) := by
   have terms : (productionCounts layout depths).extensionTerms =
-      358 + n + 4 * layout.witnessVars + 2 * layout.keyBlockVars := by
+      356 + n + 7 * layout.witnessVars + 2 * layout.keyBlockVars := by
     simp only [RunCounts.extensionTerms, productionCounts]
     omega
   rw [runError, terms]
@@ -204,7 +189,7 @@ theorem runCost_le_runError
   rw [runError_production]
   unfold runCost challengeError
   rw [tauError_params, card_K, maxPublic_params]
-  simp only [params, Params.equations, Params.lanes, verifierData, production_widths.1, production_widths.2,
+  simp only [params, Params.equations, Params.lanes, production_widths.1, production_widths.2,
     Nat.add_sub_cancel]
   push_cast
   rw [fieldOrder_cast, show max (63 : ℝ) 319 = 319 by norm_num]
@@ -222,7 +207,7 @@ theorem error_le_runError
   rw [runError_production]
   unfold error challengeError
   rw [tauError_params, card_K, maxPublic_params]
-  simp only [params, Params.equations, Params.lanes, verifierData, production_widths.1, production_widths.2,
+  simp only [params, Params.equations, Params.lanes, production_widths.1, production_widths.2,
     Nat.add_sub_cancel]
   push_cast
   rw [fieldOrder_cast, show max (63 : ℝ) 319 = 319 by norm_num]
@@ -245,7 +230,7 @@ theorem params_run_soundness
         (fun r => ¬ ∀ o, r = some o → Relation _ o.1 o.2) ≤
       (runError (productionCounts layout depths) : ℝ) :=
   (run_soundness _ wf (params_countsNonzero key _ depths layout slots_le)
-    (verifierData_matrixSpec key rel which depths layout zeros) (le_of_eq rfl)
+    (verifierData_matrixSpec key rel which depths layout zeros)
     (Nat.le_of_ble_eq_true rfl) key_fits s).trans
     (runCost_le_runError key rel which depths layout zeros wf)
 

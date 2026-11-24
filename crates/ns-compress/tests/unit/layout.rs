@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 use serde_json::Value;
 
-use super::{Cells, Layout, Slice, LANE_VARS, LOOKUP_VARS};
+use super::{Cells, Layout, Slice, LANE_VARS};
 use crate::akita::SCHEDULES;
 use crate::key::ROW_VARS;
 use crate::{error_bits, Error, Norm};
@@ -132,8 +132,8 @@ fn schedules_and_variables_are_lean_constants() {
         .collect();
     assert_eq!(rust, schedules, "Lean schedules is Rust SCHEDULES");
     assert_eq!(
-        [LANE_VARS, ROW_VARS, LOOKUP_VARS],
-        [&lean["lane_vars"], &lean["row_vars"], &lean["lookup_vars"]].map(number)
+        [LANE_VARS, ROW_VARS],
+        [&lean["lane_vars"], &lean["row_vars"]].map(number)
     );
 }
 
@@ -170,20 +170,20 @@ fn error_bits_is_lean_run_bits_on_each_layout() {
         );
         layouts += 1;
     }
-    assert_eq!(layouts, 8450 + 508, "the claim sets with a layout");
+    assert_eq!(layouts, 8450 + 684, "the claim sets with a layout");
 }
 
 #[test]
 fn error_bits_is_118_where_the_error_sum_is_just_above_2_to_the_minus_119() {
-    let mut claims = vec![
-        (1, Norm::Table { bound: 0 }),
-        (1 << 19, Norm::BoundByCaller),
-        (1 << 19, Norm::BoundByCaller),
-    ];
-    claims.extend([(1, Norm::BoundByCaller); 6]);
-    let layout = Layout::new(&claims, 1 << 19).expect("layout");
-    assert_eq!(layout.witness_vars, 27);
-    assert_eq!(error_bits(&layout, PUBLIC_CELLS, MATRICES), 118);
+    let mut claims = vec![(1, Norm::BoundByCaller); 25];
+    claims[0].1 = Norm::Table { bound: 0 };
+    let bits = |claims: &[(usize, Norm)]| {
+        let layout = Layout::new(claims, 1 << 9).expect("layout");
+        error_bits(&layout, PUBLIC_CELLS, MATRICES)
+    };
+    assert_eq!(bits(&claims), 119);
+    claims.push((1, Norm::BoundByCaller));
+    assert_eq!(bits(&claims), 118);
 }
 
 #[test]

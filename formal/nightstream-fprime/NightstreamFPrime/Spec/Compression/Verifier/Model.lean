@@ -2,13 +2,14 @@ import NightstreamFPrime.Spec.Compression.Verifier.Slice
 import NightstreamFPrime.Spec.Compression.Algebra.Batch
 import NightstreamFPrime.Spec.Compression.Algebra.Key
 import NightstreamFPrime.Spec.Compression.Lib.LogUp
+import Mathlib.Algebra.MvPolynomial.CommRing
 
 /-! The argument of Rust `ns-compress` as data (SPEC.md section 6).
 
 `Params` holds what the verifier knows before a proof: the shapes and the layout of the claims,
 the honest Ajtai key, and the matrix weights `matrixForm` of each claim, which this unit keeps
 abstract. The prover names the values of the claims (`Statement`), commits the table `W` of the
-witnesses and the counts, and later the table `V` of the inverses. Both tables are base-field
+witnesses and the counts, and later the table `V` of the shared inverses. Both tables are base-field
 tables. One draw of the transcript gives the lookup challenges `τ` (`Fin L → F`), and one gives
 `(μ, ω, δ, γ)` and `(ψ, ξ, λ, β)` (`Challenges`). Rust draws one `ξ` and one `λ` for each claim with
 a table. This model draws one for each claim and reads only those of the claims with a table,
@@ -175,31 +176,74 @@ def checkTable : ℕ → K := fun x =>
 def sumTable : ℕ → K := fun x =>
   ∑ c, lookupWeight P c * (P.shape c).witness.place (fun _ => ch.lam c) x
 
-/-- Column `k` of `V`: the inverses of challenge `k` on the span. -/
-def inverseTable (k : ℕ) : ℕ → K := fun x =>
-  if x < 2 ^ P.spanVars then algebraMap F K (V (k * 2 ^ P.spanVars + x)) else 0
+/-- SPEC.md section 6. -/
+def inverseTable : ℕ → K := fun x =>
+  if x < 2 ^ P.spanVars then algebraMap F K (V x) else 0
 
-/-- `A = Σ_k ψ_k I_k`. -/
-def aTable : ℕ → K := fun x => ∑ k, ch.psi k * inverseTable P V k x
+def denominator {R : Type*} [CommRing R] {n : ℕ} (poles : Fin n → R) (w : R) : R :=
+  ∏ k, (poles k - w)
 
-/-- `B = Σ_k ψ_k τ_k I_k`. -/
-def bTable : ℕ → K := fun x => ∑ k, ch.psi k * algebraMap F K (τ k) * inverseTable P V k x
+def cofactor {R : Type*} [CommRing R] {n : ℕ} (poles : Fin n → R) (k : Fin n) (w : R) : R :=
+  ∏ j ∈ univ.erase k, (poles j - w)
 
-/-- The tables of the first sum-check: `W`, `G`, `E`, `A`, `B`, `S`. -/
-def mainTables : Fin 6 → ℕ → K :=
-  ![fun x => algebraMap F K (W x), weightTable P st τ ch, checkTable P ch, aTable P V ch,
-    bTable P V τ ch, sumTable P ch]
+theorem factor_mul_cofactor {R : Type*} [CommRing R] {n : ℕ} (poles : Fin n → R)
+    (k : Fin n) (w : R) : (poles k - w) * cofactor poles k w = denominator poles w :=
+  Finset.mul_prod_erase univ (fun j => poles j - w) (mem_univ k)
 
-/-- The summand `W·(G − E·A) + E·B + S·A` (Rust `sumcheck` module). -/
-noncomputable def mainComb : MvPolynomial (Fin 6) K :=
-  MvPolynomial.X 0 * (MvPolynomial.X 1 - MvPolynomial.X 2 * MvPolynomial.X 3) +
-    MvPolynomial.X 2 * MvPolynomial.X 4 + MvPolynomial.X 5 * MvPolynomial.X 3
+def mainSummand {R : Type*} [CommRing R] {n : ℕ} (poles weights : Fin n → R)
+    (w g e u s : R) : R :=
+  w * g + e * (u * denominator poles w) + s * (u * ∑ k, weights k * cofactor poles k w)
+
+def mainTables : Fin 5 → ℕ → K :=
+  ![fun x => algebraMap F K (W x), weightTable P st τ ch, checkTable P ch, inverseTable P V,
+    sumTable P ch]
+
+noncomputable def mainComb : MvPolynomial (Fin 5) K :=
+  mainSummand (fun k => MvPolynomial.C (algebraMap F K (τ k))) (fun k => MvPolynomial.C (ch.psi k))
+    (.X 0) (.X 1) (.X 2) (.X 3) (.X 4)
+
+theorem eval_mainComb (v : Fin 5 → K) :
+    MvPolynomial.eval v (mainComb P τ ch) =
+      mainSummand (fun k => algebraMap F K (τ k)) ch.psi (v 0) (v 1) (v 2) (v 3) (v 4) := by
+  simp [mainComb, mainSummand, denominator, cofactor]
+
+theorem mainComb_degree : (mainComb P τ ch).totalDegree ≤ P.lookups + 2 := by
+  let factor := fun k => MvPolynomial.C (algebraMap F K (τ k)) - (MvPolynomial.X 0 : MvPolynomial (Fin 5) K)
+  have degree (s : Finset (Fin P.lookups)) : (∏ i ∈ s, factor i).totalDegree ≤ s.card := by
+    refine (MvPolynomial.totalDegree_finsetProd s factor).trans ?_
+    calc ∑ i ∈ s, (factor i).totalDegree ≤ ∑ _i ∈ s, 1 := sum_le_sum fun i _ =>
+          (MvPolynomial.totalDegree_sub _ _).trans (by simp [MvPolynomial.totalDegree_X])
+         _ = _ := by simp
+  have entire := degree univ
+  rw [card_univ, Fintype.card_fin] at entire
+  have num : (∑ k, MvPolynomial.C (ch.psi k) * ∏ i ∈ univ.erase k, factor i).totalDegree ≤ P.lookups := by
+    apply MvPolynomial.totalDegree_finsetSum_le
+    intro k _
+    refine (MvPolynomial.totalDegree_mul _ _).trans ?_
+    simpa only [MvPolynomial.totalDegree_C, zero_add] using
+      (degree (univ.erase k)).trans (by simp)
+  unfold mainComb mainSummand denominator cofactor
+  apply (MvPolynomial.totalDegree_add _ _).trans
+  apply max_le
+  · apply (MvPolynomial.totalDegree_add _ _).trans
+    apply max_le
+    · exact (MvPolynomial.totalDegree_mul _ _).trans (by simp [MvPolynomial.totalDegree_X])
+    · apply (MvPolynomial.totalDegree_mul _ _).trans
+      apply le_trans (Nat.add_le_add_left (MvPolynomial.totalDegree_mul _ _) _)
+      simp only [MvPolynomial.totalDegree_X]
+      change 1 + (1 + (∏ i, factor i).totalDegree) ≤ _
+      omega
+  · apply (MvPolynomial.totalDegree_mul _ _).trans
+    apply le_trans (Nat.add_le_add_left (MvPolynomial.totalDegree_mul _ _) _)
+    simp only [MvPolynomial.totalDegree_X]
+    change 1 + (1 + (∑ k, MvPolynomial.C (ch.psi k) * ∏ i ∈ univ.erase k, factor i).totalDegree) ≤ _
+    omega
 
 /-- The sum that the first sum-check proves (Rust `claimed_sum`). -/
 def claimedSum : K :=
   ∑ c : Fin P.claims, ch.mu ^ (c : ℕ) * claimTarget P.lanes P.equations (P.shape c).publicCells
       (P.right (st c)) (fun y => algebraMap F K ((st c).publicInput y)) ch.omega ch.delta ch.gamma +
-    (∑ k, ch.psi k) * ∑ c, lookupWeight P c * ch.xi c
+    ∑ c, lookupWeight P c * ch.xi c
 
 end Tables
 

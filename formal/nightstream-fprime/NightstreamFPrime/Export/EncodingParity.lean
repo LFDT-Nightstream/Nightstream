@@ -164,9 +164,9 @@ def sampleRun : Run where
       claims := [sampleClaim 62 (64, 3, 1), sampleClaim 70 (128, 3, 2)]
       witness := sampleBytes 80 45
       inverse := sampleBytes 81 14
-      rounds := (List.range sampleShape.witnessVars).map fun round => sampleWords (82 + round) 8
+      rounds := (List.range sampleShape.witnessVars).map fun round => sampleWords (82 + round) 14
       witnessValue := sampleWords 90 2
-      inverseValues := sampleWords 91 8
+      inverseValue := sampleWords 91 2
       keyWeight := sampleWords 92 2
       keyRounds := (List.range (Compression.Rust.laneVars + sampleShape.keyBlockVars)).map
         fun round => sampleWords (93 + round) 6

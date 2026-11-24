@@ -153,7 +153,6 @@ def fixture : Lean.Json :=
     ("modulus", Lean.toJson fieldOrder),
     ("lane_vars", Lean.toJson laneVars),
     ("row_vars", Lean.toJson rowVars),
-    ("lookup_vars", Lean.toJson lookupVars),
     ("schedules", Lean.Json.arr (schedules.map fun s => Lean.Json.mkObj [
       ("key_vars", Lean.toJson s.keyVars),
       ("rows", Lean.toJson (s.rows.map fun r => [r.1, r.2]))]).toArray),

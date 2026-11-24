@@ -48,10 +48,10 @@ def HonestCounts (P : Params F K) (W : ℕ → F) : Prop :=
     W ((P.shape c).counts.offset + v) = (((range (2 ^ (P.shape c).witness.vars)).filter fun y =>
       W ((P.shape c).witness.offset + y) = tableValue (P.shape c).bound v).card : F)
 
-/-- `V` holds the honest inverses `1/(τ_k − w)`. -/
+/-- The shared inverse witness on every active lookup cell. -/
 def HonestInverses (P : Params F K) (W V : ℕ → F) (τ : Fin P.lookups → F) : Prop :=
-  ∀ c, (P.shape c).lookup = true → ∀ k : Fin P.lookups, ∀ y < 2 ^ (P.shape c).witness.vars,
-    inverseOf P V c k y = 1 / (τ k - W ((P.shape c).witness.offset + y))
+  ∀ c, (P.shape c).lookup = true → ∀ y < 2 ^ (P.shape c).witness.vars,
+    V ((P.shape c).witness.offset + y) = 1 / denominator τ (W ((P.shape c).witness.offset + y))
 
 /-- The values of a table are distinct in `F`: `2 · bound + 1 ≤ char F`. -/
 def TablesDistinct (P : Params F K) : Prop :=
@@ -66,9 +66,9 @@ theorem honest_sum (st : Statement P) (W V : ℕ → F) (τ : Fin P.lookups → 
     (inverses : HonestInverses P W V τ) (distinct : TablesDistinct P)
     (τ_ok : ∀ c, (P.shape c).lookup = true → ∀ k, ∀ v < 2 * (P.shape c).bound + 1,
       τ k ≠ tableValue (P.shape c).bound v) :
-    ∑ x ∈ range (2 ^ P.witnessVars), (ι (W x) * (weightTable P st τ ch x -
-        checkTable P ch x * aTable P V ch x) + checkTable P ch x * bTable P V τ ch x +
-        sumTable P ch x * aTable P V ch x) = claimedSum P st ch := by
+    ∑ x ∈ range (2 ^ P.witnessVars), mainSummand (fun k => ι (τ k)) ch.psi (ι (W x))
+      (weightTable P st τ ch x) (checkTable P ch x) (inverseTable P V x) (sumTable P ch x) =
+      claimedSum P st ch := by
   rw [← sub_eq_zero, sum_sub_claimed st W V τ ch wf]
   have ring_zero : ringBatch P st W ch.1 = 0 := by
     refine sum_eq_zero fun c _ => ?_
@@ -85,30 +85,31 @@ theorem honest_sum (st : Statement P) (W V : ℕ → F) (τ : Fin P.lookups → 
         (sliceOf W (P.shape c).witness y - ι ((st c).publicInput y)) = 0 := fun y member => by
       rw [sliceOf, publics y (mem_range.mp member), sub_self, mul_zero]
     simp only [claimBatch, sum_eq_zero values, sum_eq_zero cells, mul_zero, add_zero]
+  have local_zero (c : Fin P.claims) (table : (P.shape c).lookup = true) (y : ℕ)
+      (cell : y < 2 ^ (P.shape c).witness.vars) : inverseError P W V τ c y = 0 := by
+    obtain ⟨v, lt, equal⟩ := (relation c).2.2 table y cell
+    have nonzero : denominator τ (W ((P.shape c).witness.offset + y)) ≠ 0 := by
+      apply prod_ne_zero_iff.mpr
+      intro k _
+      rw [sub_ne_zero, equal]
+      exact τ_ok c table k v lt
+    rw [inverseError, inverses c table y cell, one_div, inv_mul_cancel₀ nonzero, sub_self]
+  have sum_zero (c : Fin P.claims) (table : (P.shape c).lookup = true) (k : Fin P.lookups) :
+      sumError P W V τ c k = 0 := by
+    rw [sumError, sub_eq_zero, sum_congr rfl fun y member =>
+      eq_one_div_of_mul_eq_one_right (inverseOf_spec P W V τ c k y
+        (local_zero c table y (mem_range.mp member)))]
+    rw [lookup_complete _ _ (fun y => W ((P.shape c).witness.offset + y))
+      (tableValue (P.shape c).bound) (distinct c table) ((relation c).2.2 table)
+      (fun u => 1 / (τ k - u))]
+    exact sum_congr rfl fun v member => by rw [counts c table v (mem_range.mp member)]
   have look_zero : lookupBatch P W V τ ch.2 = 0 := by
-    refine sum_eq_zero fun k _ => mul_eq_zero_of_right _ (sum_eq_zero fun c _ => ?_)
+    unfold lookupBatch
+    refine sum_eq_zero fun c _ => ?_
     by_cases table : (P.shape c).lookup = true
-    · obtain ⟨_, _, bounded⟩ := relation c
-      have cell (y : ℕ) (member : y < 2 ^ (P.shape c).witness.vars) :
-          τ k - W ((P.shape c).witness.offset + y) ≠ 0 := by
-        obtain ⟨v, lt, equal⟩ := bounded table y member
-        rw [sub_ne_zero, equal]
-        exact τ_ok c table k v lt
-      have inverse_zero : ∀ y ∈ range (2 ^ (P.shape c).witness.vars),
-          eqAt ((List.ofFn ch.2.2.2).take (P.shape c).witness.vars) y *
-            ι (inverseError P W V τ c k y) = 0 := fun y member => by
-        rw [inverseError, inverses c table k y (mem_range.mp member),
-          mul_one_div_cancel (cell y (mem_range.mp member)), sub_self, map_zero, mul_zero]
-      have sum_zero : sumError P W V τ c k = 0 := by
-        rw [sumError, sub_eq_zero, sum_congr rfl fun y member =>
-          inverses c table k y (mem_range.mp member)]
-        rw [lookup_complete _ _ (fun y => W ((P.shape c).witness.offset + y))
-          (tableValue (P.shape c).bound) (distinct c table) (bounded table)
-          (fun u => 1 / (τ k - u))]
-        exact sum_congr rfl fun v member => by
-          rw [counts c table v (mem_range.mp member)]
-      rw [sum_eq_zero inverse_zero, sum_zero, map_zero]
-      ring
+    · have residual : inverseResidual P W V τ c ch.2.2.2 = 0 := by
+        exact sum_eq_zero fun y h => by rw [local_zero c table y (mem_range.mp h), map_zero, mul_zero]
+      simp [residual, sum_zero c table]
     · simp [lookupWeight, table]
   rw [ring_zero, look_zero, add_zero]
 
@@ -136,19 +137,16 @@ theorem key_check_honest (ch : Challenges P) (ρ : List K) (kp : List K) (wf : W
   ring
 
 omit [Fintype F] [DecidableEq F] [Fintype K] [DecidableEq K] in
-/-- The honest values at `ρ` pass the last check of the first sum-check: with `W(ρ)`, the columns
-of `V`, the key part and the matrix part, the verifier's value is the summand at `ρ`. -/
+/-- The honest values at `ρ` pass the last check of the first sum-check: with `W(ρ)`, the shared inverse, the key part and the matrix part, the verifier's value is the summand at `ρ`. -/
 theorem main_check_honest (vf : VerifierData P) (st : Statement P) (W V : ℕ → F)
     (τ : Fin P.lookups → F) (ch : Challenges P) (ρ : List K) (wf : WellFormed P)
     (shaped : Shaped P st) (length : ρ.length = P.witnessVars) (matrix : MatrixSpec vf) :
-    combTruth P.witnessVars (mainTables P st W V τ ch) mainComb ρ =
-      mle ρ (fun x => ι (W x)) * (keyTrue P ch ρ + vf.matrixPart st ch ρ +
-          closedPart P st τ ch ρ -
-        checkAt P ch ρ * (lowAt P ρ * ∑ k, ch.psi k * columnAt P V ρ k)) +
-      checkAt P ch ρ * (lowAt P ρ * ∑ k, ch.psi k * ι (τ k) * columnAt P V ρ k) +
-      sumAt P ch ρ * (lowAt P ρ * ∑ k, ch.psi k * columnAt P V ρ k) := by
+    combTruth P.witnessVars (mainTables P st W V τ ch) (mainComb P τ ch) ρ =
+      mainSummand (fun k => ι (τ k)) ch.psi (mle ρ fun x => ι (W x))
+        (keyTrue P ch ρ + vf.matrixPart st ch ρ + closedPart P st τ ch ρ)
+        (checkAt P ch ρ) (lowAt P ρ * inverseAt P V ρ) (sumAt P ch ρ) := by
   rw [main_truth_final st W V τ ch ρ length, matrix st ch ρ length,
     mle_weightTable st τ ch ρ wf shaped length, mle_checkTable ch ρ wf length,
-    mle_sumTable ch ρ wf length, mle_aTable V ch ρ wf length, mle_bTable V τ ch ρ wf length]
+    mle_sumTable ch ρ wf length, mle_inverseTable V ρ wf length]
 
 end NightstreamFPrime.Spec.Compression.Verifier

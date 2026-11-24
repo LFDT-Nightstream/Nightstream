@@ -3,7 +3,6 @@ use std::time::{Duration, Instant};
 
 use neo_ccs::Mat;
 use neo_math::{D, F, K};
-use neo_reductions::superneo_eval::EqualityWeights;
 use neo_transcript::Poseidon2Transcript;
 use p3_field::{Field, PrimeCharacteristicRing};
 use rayon::prelude::*;
@@ -11,11 +10,11 @@ use rayon::prelude::*;
 use crate::akita::{self, Polynomial};
 use crate::key::{self, ProverKey};
 use crate::lane_prefix::{LaneStart, Masks};
-use crate::layout::{Layout, Slice, LANE_VARS, LOOKUPS, LOOKUP_VARS};
-use crate::lookup::{code, Inverses, OUTSIDE};
-use crate::sumcheck::{self, Lookup, Start, ZeroPrefix};
-use crate::transcript::{absorb_bytes, absorb_extension, challenges as draw, session};
-use crate::weights::{self, Challenges, Uses};
+use crate::layout::{Layout, Slice, LANE_VARS, LOOKUPS};
+use crate::lookup::{code, OUTSIDE};
+use crate::sumcheck::{self, lookup::Slot};
+use crate::transcript::{absorb_bytes, absorb_extension, session};
+use crate::weights::{self, Uses};
 use crate::{
     absorb_statements, challenges, claimed_sum, inverse_point, layout, lookup_challenges, Error, Proof, Statement,
     SESSION,
@@ -208,24 +207,20 @@ pub fn commit<'k>(key: &'k ProverKey, layout: Layout, witnesses: &[&Mat<F>]) -> 
     })
 }
 
-fn table_inverses(layout: &Layout, taus: &[F; LOOKUPS]) -> Result<Vec<(Slice, Inverses)>, Error> {
+fn table_inverses(layout: &Layout, taus: &[F; LOOKUPS]) -> Result<Vec<Vec<F>>, Error> {
     layout
         .tables()
-        .map(|(_, slice, bound, _)| Ok((slice, Inverses::new(bound, taus)?)))
-        .collect()
-}
-
-fn lookups(tables: &[(Slice, Inverses)], challenges: &Challenges) -> Vec<Lookup> {
-    let scaled_psi: [K; LOOKUPS] = std::array::from_fn(|k| challenges.psi[k] * challenges.taus[k]);
-    tables
-        .iter()
-        .zip(challenges.xi.iter().zip(&challenges.lambda))
-        .map(|((slice, inverses), (&xi, &lambda))| Lookup {
-            slice: *slice,
-            xi,
-            lambda,
-            inverse: inverses.combine(&challenges.psi),
-            scaled: inverses.combine(&scaled_psi),
+        .map(|(_, _, bound, _)| {
+            let denominators: Vec<F> = (0..=2 * bound)
+                .map(|i| {
+                    let value = F::from_u64(i) - F::from_u64(bound);
+                    taus.iter().map(|pole| *pole - value).product()
+                })
+                .collect();
+            if denominators.contains(&F::ZERO) {
+                return Err(Error::Challenge);
+            }
+            Ok(p3_field::batch_multiplicative_inverse(&denominators))
         })
         .collect()
 }
@@ -233,58 +228,6 @@ fn lookups(tables: &[(Slice, Inverses)], challenges: &Challenges) -> Vec<Lookup>
 impl Committed<'_> {
     pub fn commitment_to_bind(&self) -> &[u8] {
         &self.committed.bytes
-    }
-
-    fn write_inverse_column(&self, tables: &[(Slice, Inverses)], k: usize, column: &mut [akita::Base]) {
-        for (slice, inverses) in tables {
-            column[slice.range()]
-                .par_iter_mut()
-                .zip(&self.codes[slice.range()])
-                .for_each(|(cell, &code)| *cell = akita::base(inverses.at(k, code)));
-        }
-    }
-
-    fn inverse_values(&self, tables: &[(Slice, Inverses)], rho: &[K]) -> [K; 1 << LOOKUP_VARS] {
-        if let Some((_, code)) = self.zero_prefix {
-            let mut values = [K::ZERO; 1 << LOOKUP_VARS];
-            for (k, value) in values.iter_mut().enumerate().take(LOOKUPS) {
-                *value = K::from(tables[0].1.at(k, code));
-            }
-            return values;
-        }
-        let mut values = [K::ZERO; 1 << crate::layout::LOOKUP_VARS];
-        for (slice, inverses) in tables {
-            let equality = EqualityWeights::new(&rho[..slice.vars]);
-            let codes = &self.codes[slice.range()];
-            let bins = || vec![K::ZERO; inverses.len()];
-            let weights = codes
-                .par_chunks(CELLS_PER_TASK)
-                .enumerate()
-                .fold(bins, |mut weights, (task, codes)| {
-                    for (cell, &code) in codes.iter().enumerate() {
-                        if code != OUTSIDE {
-                            weights[usize::from(code)] += equality.at(task * CELLS_PER_TASK + cell);
-                        }
-                    }
-                    weights
-                })
-                .reduce(bins, |mut left, right| {
-                    left.iter_mut()
-                        .zip(right)
-                        .for_each(|(left, right)| *left += right);
-                    left
-                });
-            let selector = slice.selector(&rho[..self.layout.table_witness_vars]);
-            for (k, value) in values.iter_mut().enumerate().take(LOOKUPS) {
-                *value += selector
-                    * weights
-                        .iter()
-                        .enumerate()
-                        .map(|(code, &weight)| weight * inverses.at(k, code as u16))
-                        .sum::<K>();
-            }
-        }
-        values
     }
 
     pub fn prove(
@@ -316,39 +259,31 @@ impl Committed<'_> {
         let start = Instant::now();
         let tables = table_inverses(&self.layout, &taus)?;
         let inverse = if let Some((slice, code)) = self.zero_prefix {
-            let runs = (0..LOOKUPS)
-                .map(|k| (slice.len(), akita::base(tables[0].1.at(k, code))))
-                .collect();
-            self.key
-                .akita
-                .commit_inverse_runs(self.layout.shape(), runs)?
-        } else if let Some(inverses) = match tables.as_slice() {
-            [(slice, values)] if slice.offset == 0 && slice.len() == self.codes.len() => Some(values),
-            _ => None,
-        } {
-            let columns = (0..LOOKUPS)
-                .map(|k| {
-                    (0..inverses.len())
-                        .map(|i| akita::base(inverses.at(k, i as u16)))
-                        .collect()
-                })
-                .collect();
-            self.key.akita.commit_lookup_columns(
+            self.key.akita.commit_inverse_runs(
+                self.layout.shape(),
+                vec![(slice.len(), akita::base(tables[0][usize::from(code)]))],
+            )?
+        } else if let [table] = tables.as_slice() {
+            self.key.akita.commit_lookup_column(
                 self.layout.shape(),
                 1 << self.layout.table_witness_vars,
                 Arc::clone(&self.codes),
-                columns,
+                table.iter().copied().map(akita::base).collect(),
                 metal_kernels,
             )?
         } else {
-            let mut inverse = vec![akita::base(F::ZERO); self.layout.inverse_len()];
-            for k in 0..LOOKUPS {
-                let column = &mut inverse[k << self.layout.table_witness_vars..][..self.layout.table_witness_len];
-                self.write_inverse_column(&tables, k, column);
+            let mut column = vec![akita::base(F::ZERO); self.layout.table_witness_len];
+            for ((_, slice, _, _), table) in self.layout.tables().zip(&tables) {
+                column[slice.range()]
+                    .par_iter_mut()
+                    .zip(&self.codes[slice.range()])
+                    .for_each(|(cell, &code)| {
+                        *cell = akita::base(table.get(usize::from(code)).copied().unwrap_or(F::ZERO));
+                    });
             }
             self.key
                 .akita
-                .commit(self.layout.shape(), Polynomial::Inverse, inverse)?
+                .commit(self.layout.shape(), Polynomial::Inverse, column)?
         };
         times.commit_inverse = start.elapsed();
         absorb_bytes(transcript, &inverse.bytes);
@@ -400,37 +335,46 @@ impl Committed<'_> {
 
         let start = Instant::now();
         let mut prefix_key = None;
-        let claim = claimed_sum(statements, &challenges);
-        let rounds = self.layout.witness_vars;
-        let (rounds, rho, witness_value) = if let Some((slice, code)) = self.zero_prefix {
-            let inverse = |weights: &[K; LOOKUPS]| {
-                (0..LOOKUPS)
-                    .map(|k| weights[k] * tables[0].1.at(k, code))
-                    .sum()
-            };
-            let lookup = ZeroPrefix {
-                beta: &challenges.beta[..slice.vars],
-                xi: challenges.xi[0],
-                lambda: challenges.lambda[0],
-                inverse: inverse(&challenges.psi),
-                scaled: inverse(&std::array::from_fn(|k| challenges.psi[k] * challenges.taus[k])),
-            };
-            sumcheck::prove_with_zero_prefix(transcript, witness, weights, lane_start, claim, rounds, lookup, |rho| {
+        let slots = self
+            .layout
+            .tables()
+            .zip(&tables)
+            .enumerate()
+            .map(|(i, ((_, slice, bound, _), pool))| {
+                let (codes, values) = if self.zero_prefix.is_some() {
+                    (&[][..], &[][..])
+                } else {
+                    (&self.codes[slice.range()][..], &witness[slice.range()][..])
+                };
+                Slot::new(
+                    slice,
+                    bound,
+                    codes,
+                    pool,
+                    [challenges.xi[i], challenges.lambda[i]],
+                    values,
+                    &challenges.beta,
+                )
+            })
+            .collect();
+        let restore = self.zero_prefix.map(|_| {
+            |rho: &[K]| {
                 let (weight, key) = weights::first_slice_at(&statements[0], &challenges, &folded, rho)?;
                 prefix_key = Some(key);
                 Ok(weight)
-            })?
-        } else {
-            let start = Start {
-                witness,
-                weights,
-                codes: &self.codes,
-                beta: &challenges.beta,
-                lookups: lookups(&tables, &challenges),
-            };
-            sumcheck::prove(transcript, start, claim, rounds)
-        };
-        let inverse_values = self.inverse_values(&tables, &rho);
+            }
+        });
+        let (rounds, rho, witness_value, shared_inverse) = sumcheck::lookup::prove(
+            transcript,
+            witness,
+            weights,
+            slots,
+            &challenges,
+            &self.layout,
+            claimed_sum(statements, &challenges),
+            lane_start,
+            restore,
+        )?;
         times.sumcheck = start.elapsed();
 
         let start = Instant::now();
@@ -441,9 +385,9 @@ impl Committed<'_> {
             None => weights::key_part(&uses.form, &blocks, &folded),
         };
         absorb_extension(transcript, &[witness_value]);
-        absorb_extension(transcript, &inverse_values);
+        absorb_extension(transcript, &[shared_inverse]);
         absorb_extension(transcript, &[key_part]);
-        let column = draw(transcript, LOOKUP_VARS);
+
         let (key_rounds, mut key_point, folded_value) = sumcheck::prove_product(
             transcript,
             folded,
@@ -462,18 +406,13 @@ impl Committed<'_> {
         times.key = start.elapsed();
 
         let start = Instant::now();
-        let inverse_value = weights::equality(&column, inverse_values.len())
-            .iter()
-            .zip(&inverse_values)
-            .map(|(&weight, &value)| weight * value)
-            .sum();
         let witness_commitment = self.committed.bytes.clone();
         let inverse_commitment = inverse.bytes.clone();
         let opening = self.key.akita.open(
             [
                 (self.key.committed.clone(), &key_point, key_polynomial_value),
                 (self.committed, &rho, witness_value),
-                (inverse, &inverse_point(&self.layout, &rho, &column), inverse_value),
+                (inverse, &inverse_point(&self.layout, &rho), shared_inverse),
             ],
             &session(transcript, SESSION),
             metal_kernels,
@@ -485,7 +424,7 @@ impl Committed<'_> {
                 inverse_commitment,
                 rounds,
                 witness_value,
-                inverse_values,
+                shared_inverse,
                 key_part,
                 key_rounds,
                 key_polynomial_value,

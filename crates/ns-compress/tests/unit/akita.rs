@@ -11,7 +11,7 @@ use crate::Error;
 
 const DIGESTS: [&str; 2] = [
     "8ee08715b2120cfb576227f195fde041e5e1dd828511ca5e75d5df73d4c097b5",
-    "b71861d25a4cb23b8eb68b20365bc5b76336224dcacdcada86242c9d9c084f94",
+    "028f0e8296f47494ad6e6dca843762ddfef8a64805792dad59ce114be1059d77",
 ];
 const SESSION: &[u8] = b"ns-compress/tests/akita";
 const ORDER: [Polynomial; 3] = [Polynomial::Key, Polynomial::Witness, Polynomial::Inverse];

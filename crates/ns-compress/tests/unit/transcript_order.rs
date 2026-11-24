@@ -49,7 +49,7 @@ fn messages(statements: &[Statement<'_>], proof: &Proof) -> HashMap<&'static str
             "values",
             vec![
                 words(&[proof.witness_value]),
-                words(&proof.inverse_values),
+                words(&[proof.shared_inverse]),
                 words(&[proof.key_part]),
             ],
         ),
@@ -182,15 +182,24 @@ fn verifies_with(
         .iter()
         .map(|&coordinate| K::ONE - coordinate)
         .product();
-    let combine = |weights: [K; LOOKUPS]| -> K {
-        low * weights
-            .iter()
-            .zip(&proof.inverse_values)
-            .map(|(&weight, &value)| weight * value)
-            .sum::<K>()
-    };
-    let inverse = combine(challenges.psi);
-    let scaled = combine(std::array::from_fn(|k| challenges.psi[k] * challenges.taus[k]));
+    let factors = challenges
+        .taus
+        .map(|tau| K::from(tau) - proof.witness_value);
+    let denominator: K = factors.iter().copied().product();
+    let numerator: K = challenges
+        .psi
+        .iter()
+        .enumerate()
+        .map(|(k, weight)| {
+            *weight
+                * factors
+                    .iter()
+                    .enumerate()
+                    .filter(|(j, _)| *j != k)
+                    .map(|(_, factor)| *factor)
+                    .product::<K>()
+        })
+        .sum();
     let (mut check, mut sum) = (K::ZERO, K::ZERO);
     for (table, (_, slice, _, _)) in layout.tables().enumerate() {
         let selector = slice.selector(rho);
@@ -205,15 +214,9 @@ fn verifies_with(
     let closed = weights::closed_part(statements, layout, &challenges, &uses, rho).expect("closed part");
     let matrices = weights::matrix_part(statements, &challenges, &uses).expect("matrix part");
     let weights = proof.key_part + matrices + closed;
-    if claim != proof.witness_value * (weights - check * inverse) + check * scaled + sum * inverse {
+    if claim != proof.witness_value * weights + low * proof.shared_inverse * (check * denominator + sum * numerator) {
         return false;
     }
-    let column = draws.of("column");
-    let inverse_value = weights::equality(column, proof.inverse_values.len())
-        .iter()
-        .zip(&proof.inverse_values)
-        .map(|(&weight, &value)| weight * value)
-        .sum();
     let mut key_point = zeta.to_vec();
     key_point.extend(row);
     let verification = key().verification_key();
@@ -234,8 +237,8 @@ fn verifies_with(
                     },
                     Opening {
                         commitment: &proof.inverse_commitment,
-                        point: &inverse_point(layout, rho, column),
-                        value: inverse_value,
+                        point: &inverse_point(layout, rho),
+                        value: proof.shared_inverse,
                     },
                 ],
                 &proof.opening,

@@ -51,6 +51,6 @@ def holds (path : System.FilePath) (rows : List Row) : IO Unit := do
   unless found == rows do throw <| IO.userError s!"{path} does not hold the Lean rows"
 
 #eval holds "../../crates/ns-compress/artifacts/key20.aks" [key20]
-#eval holds "../../crates/ns-compress/artifacts/key30.aks" [key30W27, key30W26]
+#eval holds "../../crates/ns-compress/artifacts/key30.aks" [key30W26, key30W27]
 
 end AkitaSchedules

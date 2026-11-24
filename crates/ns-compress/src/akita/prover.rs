@@ -110,12 +110,12 @@ impl Prover {
         })
     }
 
-    pub(crate) fn commit_lookup_columns(
+    pub(crate) fn commit_lookup_column(
         &self,
         shape: Shape,
         width: usize,
         codes: Arc<Vec<u16>>,
-        tables: Vec<Vec<Base>>,
+        inverse: Vec<Base>,
         metal: bool,
     ) -> Result<Committed, Error> {
         let device = metal.then(|| self.backend.with_metal_kernels());
@@ -125,7 +125,7 @@ impl Prover {
                 shape.inverse,
                 width,
                 codes,
-                tables,
+                vec![inverse],
             )?])
         })
     }

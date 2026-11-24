@@ -36,7 +36,7 @@ pub(crate) const SCHEDULES: [Schedules; 2] = [
     },
     Schedules {
         key_vars: 30,
-        rows: &[(26, 28), (27, 28)],
+        rows: &[(26, 26), (27, 26)],
         bytes: include_bytes!("../artifacts/key30.aks"),
         key: include_bytes!("../artifacts/key30.vk"),
     },

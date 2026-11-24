@@ -60,7 +60,7 @@ compression of the final proof is a project design
    stays in the argument at depth 0, because the layout needs a claim with
    a table (`Spec.Compression.Rust.layoutNew_light`).
 4. **One proof form for each mode.** A light final proof has the tag
-   `NS-OPTIONB-FIN-L` and carries slot 0 alone. One verifier sees one mode,
+   `NS-ONEINV-FIN--L` and carries slot 0 alone. One verifier sees one mode,
    so the transcript needs no mode word: the sponge calls fix the run among
    the runs of one statement shape
    (`Export.BoundedDepth.CompressionSponge.calls_injective`).

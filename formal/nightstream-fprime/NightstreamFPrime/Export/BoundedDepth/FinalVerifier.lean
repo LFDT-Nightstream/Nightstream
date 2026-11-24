@@ -500,7 +500,7 @@ and the gate of step 5, with any fresh commitment (`checks_light`, `laid_light`,
 `Spec.Compression.Rust.layoutNew_light_runBits`). -/
 theorem accepts_light (light : Setup .light logicalWidth publicFits)
     (key : Compression.Rust.keyBlocksFor (light.blocks 0) = some light.keyBlocks)
-    (shipped : light.keyBlocks = 2 ^ 19) (minimum_le : light.minimum ≤ 119)
+    (shipped : light.keyBlocks = 2 ^ 19) (minimum_le : light.minimum ≤ 118)
     (statement : TerminalStatement AppState)
     (payload : TerminalProof (SlotData logicalWidth publicFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -519,7 +519,7 @@ theorem accepts_light (light : Setup .light logicalWidth publicFits)
   refine ⟨checks, key, ⟨l, ok, ?_⟩, laid.2⟩
   rw [placed_light light pcOne] at ok
   rw [Compression.Rust.layoutNew_light_runBits ok (checks.2.2.2.1 0)]
-  exact minimum_le
+  simpa [shipped] using minimum_le
 
 /-- On each path that avoids the bad sets, the verifier of Algorithm 6 accepts each accepted
 statement with the proof that its outcome gives (`Setup.proofOf`). -/
@@ -566,7 +566,7 @@ theorem game_avoids (premises : Premises setup packageWidths) :
             rw [avoids_bind]
             refine (Compression.Verifier.game_avoids (setup.verifier claims) wf
               (params_countsNonzero _ _ _ _ fun c _ => small c) (verifierData_matrixSpec _ _ _ _ _ _)
-              (le_of_eq rfl) (Nat.le_of_ble_eq_true rfl) key_fits
+              (Nat.le_of_ble_eq_true rfl) key_fits
               (setup.claimsOf statement claims probe) W).mono fun r relationGood => ?_
             intro o equal
             cases r with
@@ -600,7 +600,7 @@ theorem game_densityLe : setup.game.DensityLe finalError := by
         intro W
         obtain ⟨wf, small, -, span⟩ := setup.layout_facts gate.laid
         have errorLe : error (setup.verifier claims) ≤ finalError := by
-          have := params_error_lt _ _ _ _ (setup.verifier claims) mode.slots_le rfl
+          have := params_error_lt _ _ _ _ (setup.verifier claims) mode.slots_le
             (fun _ => checks.2.2.2.1 _) (fun c _ => small c) (span.trans (by decide))
           unfold finalError
           linarith [show (0 : ℝ) ≤ 38 / (fieldModulus : ℝ) ^ 2 by positivity]

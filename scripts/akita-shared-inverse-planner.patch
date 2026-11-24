@@ -1,0 +1,46 @@
+--- a/crates/akita-planner/src/planner.rs
++++ b/crates/akita-planner/src/planner.rs
+@@ -491,6 +491,30 @@
+         ScheduleSearchOptions {
+             root_main_constraint: Some(&main_row.schedule().root.params),
+             adaptation_guide: Some(main_row.schedule()),
++            ..ScheduleSearchOptions::canonical()
++        },
++    )
++}
++
++pub(crate) fn plan_shared_inverse(
++    key: &ScheduleLookupKey,
++    final_source_contract: CommittedSourceContract,
++    precommitted_source_contracts: &[CommittedSourceContract],
++    policy: &PlannerPolicy,
++    ring_challenge_config: impl Fn(usize) -> Result<akita_challenges::SparseChallengeConfig, AkitaError>,
++) -> Result<PlannedFoldSchedule, AkitaError> {
++    type Config = akita_config::RecursiveCommitmentConfig<akita_config::proof_optimized::fp64::Dense>;
++    let catalog = akita_config::TrustedScheduleCatalog::<Config>::from_artifact_bytes(
++        include_bytes!("../key30-guide.aks"),
++        akita_params::ChunkedWitnessCfg::default_non_chunked(),
++    )?;
++    let guide = catalog.rows().find(|row| {
++        row.profiles().precommitteds == key.precommitteds
++    }).ok_or_else(|| AkitaError::InvalidInput("unknown Nightstream producer profiles".into()))?;
++    find_schedule_in_relation_order(
++        key, final_source_contract, precommitted_source_contracts, policy, ring_challenge_config,
++        ScheduleSearchOptions {
++            adaptation_guide: Some(guide.schedule()),
+             ..ScheduleSearchOptions::canonical()
+         },
+     )
+--- a/crates/akita-planner/src/emit/materialize.rs
++++ b/crates/akita-planner/src/emit/materialize.rs
+@@ -253,6 +253,10 @@
+     let reused_preplan = preplanned.is_some();
+     let result = match preplanned {
+         Some(preplanned) => Ok(preplanned.schedule.clone()),
++        None if key.final_group.num_vars() == 26 && key.precommitteds.len() == 2 =>
++            crate::planner::plan_shared_inverse(
++                &key, spec.source_contract, &contracts, &spec.policy, spec.ring_challenge_config,
++            ).map(|planned| planned.schedule),
+         None => crate::find_schedule(
+             &key,
+             spec.source_contract,

@@ -83,7 +83,7 @@ fn a_changed_proof_does_not_verify() {
         ),
     ];
     for round in [0, rounds / 2, rounds - 1] {
-        for coefficient in 0..4 {
+        for coefficient in 0..proof.rounds[round].len() {
             changes.push((
                 format!("round {round} coefficient {coefficient}"),
                 Box::new(move |proof| proof.rounds[round][coefficient] += K::ONE),
@@ -98,12 +98,7 @@ fn a_changed_proof_does_not_verify() {
             ));
         }
     }
-    for column in 0..proof.inverse_values.len() {
-        changes.push((
-            format!("inverse value {column}"),
-            Box::new(move |proof| proof.inverse_values[column] += K::ONE),
-        ));
-    }
+    changes.push(("inverse value".into(), Box::new(|proof| proof.shared_inverse += K::ONE)));
     for (name, length) in [
         ("witness commitment", proof.witness_commitment.len()),
         ("inverse commitment", proof.inverse_commitment.len()),

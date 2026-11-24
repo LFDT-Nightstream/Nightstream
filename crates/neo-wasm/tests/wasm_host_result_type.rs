@@ -71,7 +71,7 @@ fn i32_host_result_cannot_forge_a_nonzero_high_limb() {
         .host_event_rom_slot
         .as_mut()
         .expect("result slot ROM")
-        .immediate1 = 1;
+        .type_or_input = 1;
     trace[high]
         .stack_write0
         .as_mut()
@@ -102,7 +102,8 @@ fn i32_host_result_cannot_forge_a_nonzero_high_limb() {
     let error = neo_wasm::sanity_check_memory_rows(layout, &witnesses, &preload)
         .expect_err("static i32 result type must reject a wide result row");
     assert!(
-        error.contains("host_event_slot_immediate_1") && error.contains("expected 0, got 1"),
+        error.contains("memory `host_event_slot_descriptor` ROM mismatch")
+            && error.ends_with("expected 8204, got 139276"),
         "unexpected rejection: {error}"
     );
 }

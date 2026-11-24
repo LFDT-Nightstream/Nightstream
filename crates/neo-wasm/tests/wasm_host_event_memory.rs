@@ -194,6 +194,48 @@ fn memory_bindings(host_fref: u32, export_fref: u32) -> HostEventBindings {
     bindings
 }
 
+#[test]
+fn memory_write_payload_keeps_all_offset_bits_with_a_high_input_index() {
+    use neo_wasm::{WasmMemoryId, WasmMemoryPreload};
+
+    let component = wat::parse_str(component_wat()).unwrap();
+    let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component).unwrap();
+    let mut bindings = memory_bindings(1, 2);
+    let import = bindings.imports.get_mut(&1).unwrap();
+    import.input_count = u8::MAX;
+    import.events = (0..32)
+        .map(|block| EventBlock {
+            absorb: true,
+            block: std::array::from_fn(|lane| {
+                let input = (8 * block + lane) as u8;
+                if input == u8::MAX {
+                    ZERO
+                } else {
+                    SlotBinding::MemoryWrite8 {
+                        input,
+                        base: MemoryBase::Arg(0),
+                        byte_offset: u32::MAX,
+                    }
+                }
+            }),
+        })
+        .collect();
+    bindings
+        .validate_against_program(&artifacts.tables)
+        .unwrap();
+    let mut preload = WasmMemoryPreload::default();
+    neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings, &artifacts);
+    let word = |id| {
+        preload
+            .cells_for(&id)
+            .find(|(address, _)| *address == [31, 6])
+            .unwrap()
+            .1
+    };
+    assert_eq!(word(WasmMemoryId::HostEventSlotPayload), u32::MAX);
+    assert_eq!(word(WasmMemoryId::HostEventSlotDescriptor) >> 17, 254);
+}
+
 struct ImportMemoryFixture {
     component_bytes: Vec<u8>,
     run: neo_wasm::WasmtimeTraceRun,

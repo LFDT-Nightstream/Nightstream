@@ -75,16 +75,16 @@ define_column_region! {
             "stack slot index of the current call's first argument, after this row",
         COL_HOST_EVENT_SLOT_CURSOR_BEFORE: Field => "next block word a gather row stages (0..=7), before this row",
         COL_HOST_EVENT_SLOT_CURSOR_AFTER: Field => "next block word a gather row stages (0..=7), after this row",
-        COL_HOST_EVENT_SLOT_DESCRIPTOR: Field => "kind + 32 * arg + 8192 * variant",
+        COL_HOST_EVENT_SLOT_DESCRIPTOR: Field => "kind + 32 * arg + 8192 * variant + 131072 * type_or_input",
         COL_HOST_EVENT_SLOT_KIND: (Bits(5)) =>
             "host-event ROM slot binding kind (0 const, 1 arg, 2 result, 3 input-local, 4 output, 5 memory-read, 6 memory-write)",
         COL_HOST_EVENT_SLOT_ARG: (Bits(8)) => "host-event ROM slot argument or input index",
         COL_HOST_EVENT_SLOT_VARIANT: (Bits(4)) =>
             "encoded host-event ROM slot variant: value kinds use 0 lo / 1 hi; memory kinds use bit 0 for local base, bit 1 for byte width, bit 2 for half width, and bit 3 for captured-output base",
-        COL_HOST_EVENT_SLOT_IMMEDIATE0: Field =>
-            "host-event ROM slot immediate 0; see WasmHostEventRomEntry",
-        COL_HOST_EVENT_SLOT_IMMEDIATE1: Field =>
-            "host-event ROM slot immediate 1; see WasmHostEventRomEntry",
+        COL_HOST_EVENT_SLOT_TYPE_OR_INPUT: Byte =>
+            "type flag or memory-write input index in the descriptor",
+        COL_HOST_EVENT_SLOT_PAYLOAD: Field =>
+            "32-bit host-event ROM payload",
         COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT: Field =>
             "host-event ROM initial-schedule count for the called import or entered export (biased +1; reread to offset export-exit indices)",
         COL_HOST_EVENT_BASE: MemoryRepairable =>

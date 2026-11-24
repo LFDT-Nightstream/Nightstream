@@ -521,8 +521,7 @@ impl WasmHostEventRomVariant {
     }
 }
 
-/// The host-event ROM entry expected by a gather row (bound by the internal `host_event_slot_*`
-/// families at key `(fref, event_index, slot_cursor)`).
+/// The decoded descriptor and payload at the gather row's program event index and slot cursor.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct WasmHostEventRomEntry {
     pub kind: WasmHostEventSlotKind,
@@ -530,10 +529,10 @@ pub struct WasmHostEventRomEntry {
     pub arg: u8,
     /// Kind-dependent native variant; encoded only at the ROM/circuit boundary.
     pub variant: WasmHostEventRomVariant,
-    /// `Const` low limb; memory byte offset; zero for other slot kinds.
-    pub immediate0: u32,
-    /// `Const` high limb; `MemoryWrite*` input index; zero for other slot kinds.
-    pub immediate1: u32,
+    /// Constant word, memory byte offset, or host-scalar type flag.
+    pub payload: u32,
+    /// Memory-write input index or value-width flag.
+    pub type_or_input: u8,
     /// Whether this slot belongs to an unabsorbed event.
     pub advice: bool,
 }

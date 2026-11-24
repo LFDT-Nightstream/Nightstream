@@ -36,9 +36,14 @@ to 3 and 5 on 2026-11-16 (`wasm-light-compression.md`).
    cell, a word of linear memory, and so on (`WasmLimits`). A size gives a
    width to each of these. In the order program counter, function, event,
    slot, stack, linear memory, global, call depth, host depth, table and
-   table index, the widths are 8 5 3 3 6 7 2 2 2 1 2 for Micro, 8 6 6 3 8
+   table index, the widths are 8 5 3 3 6 7 2 2 2 1 2 for Micro, 8 6 7 3 8
    9 5 4 4 1 4 for Small, 9 6 7 3 9 10 6 5 4 1 5 for Medium, and 10 7 8 3
-   10 11 7 6 4 1 6 for Large.
+   10 11 7 6 4 1 6 for Large. Each event slot has one descriptor and one 32-bit
+   payload. Descriptor bits 0 through 4 encode the kind and advice flag,
+   bits 5 through 12 the argument, bits 13 through 16 the variant, and
+   bits 17 through 24 the type flag or memory-write input index. The payload
+   holds a 32-bit constant, byte offset, or type flag. A 64-bit literal
+   uses two slots in low-word-first order.
 3. **Steps and segments.** Micro proves 800 rows in each step, Small 672,
    and Medium and Large 664. A segment of Micro and of Small has 1 step, of
    Medium 2 and of Large 4. Micro has at most 30 segments, Small 24, Medium

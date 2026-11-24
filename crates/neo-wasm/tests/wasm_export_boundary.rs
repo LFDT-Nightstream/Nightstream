@@ -10,10 +10,10 @@ use p3_field::PrimeCharacteristicRing;
 use wasmtime::component::Val as ComponentVal;
 
 const ZERO: SlotBinding = SlotBinding::Const(0);
-const ENTRY_HEADER_TAG: u64 = 1;
-const ENTRY_INPUT_TAG: u64 = 2;
-const EXIT_OUTPUT_TAG: u64 = 3;
-const ENTRY_HEADER_WORD: u64 = 9;
+const ENTRY_HEADER_TAG: u32 = 1;
+const ENTRY_INPUT_TAG: u32 = 2;
+const EXIT_OUTPUT_TAG: u32 = 3;
+const ENTRY_HEADER_WORD: u32 = u32::MAX;
 
 fn slots(entries: &[(usize, SlotBinding)]) -> [SlotBinding; COMM_CHAIN_EVENT_ARGS] {
     let mut out = [ZERO; COMM_CHAIN_EVENT_ARGS];
@@ -104,9 +104,9 @@ fn export_boundary_folds_entry_and_exit_events() {
     assert_eq!(
         staged,
         vec![
-            [ENTRY_HEADER_TAG, ENTRY_HEADER_WORD, 0, 0, 0, 0, 0, 0],
-            [ENTRY_INPUT_TAG, 7, 35, 0, 0, 0, 0, 0],
-            [EXIT_OUTPUT_TAG, 42, 0, 0, 0, 0, 0, 0],
+            [ENTRY_HEADER_TAG, ENTRY_HEADER_WORD, 0, 0, 0, 0, 0, 0].map(u64::from),
+            [ENTRY_INPUT_TAG, 7, 35, 0, 0, 0, 0, 0].map(u64::from),
+            [EXIT_OUTPUT_TAG, 42, 0, 0, 0, 0, 0, 0].map(u64::from),
         ],
     );
 

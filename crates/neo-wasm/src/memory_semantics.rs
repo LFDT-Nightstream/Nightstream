@@ -236,13 +236,7 @@ pub fn preload_host_event_tables(
             let (kind, arg) = opaque_control_encoding(source).expect("control slot");
             (kind.code().into(), arg.into(), 0, 0, 0)
         }
-        SlotBinding::Const(value) => (
-            u32::from(WasmHostEventSlotKind::Const.code()),
-            0,
-            0,
-            value as u32,
-            (value >> 32) as u32,
-        ),
+        SlotBinding::Const(value) => (u32::from(WasmHostEventSlotKind::Const.code()), 0, 0, value, 0),
         SlotBinding::ArgElem { arg, limb } => (
             u32::from(WasmHostEventSlotKind::Arg.code()),
             u32::from(arg),
@@ -348,16 +342,15 @@ pub fn preload_host_event_tables(
         for (event_index, event) in events.into_iter().enumerate() {
             for (slot_index, source) in event.block.iter().enumerate() {
                 let key = vec![bindings.event_base(fref) + event_index as u32, slot_index as u32];
-                let (kind, arg, variant, immediate0, immediate1) = encode(fref, source);
+                let (kind, arg, variant, payload, type_or_input) = encode(fref, source);
                 let kind = kind + WasmHostEventSlotKind::COUNT as u32 * u32::from(!event.absorb);
-                assert!(kind < 32 && arg < 256 && variant < 16);
+                assert!(kind < 32 && arg < 256 && variant < 16 && type_or_input < 256);
                 preload.insert(
                     WasmMemoryId::HostEventSlotDescriptor,
                     key.clone(),
-                    kind + 32 * arg + 8192 * variant,
+                    kind + 32 * arg + 8192 * variant + (type_or_input << 17),
                 );
-                preload.insert(WasmMemoryId::HostEventSlotImmediate0, key.clone(), immediate0);
-                preload.insert(WasmMemoryId::HostEventSlotImmediate1, key, immediate1);
+                preload.insert(WasmMemoryId::HostEventSlotPayload, key, payload);
             }
         }
     };

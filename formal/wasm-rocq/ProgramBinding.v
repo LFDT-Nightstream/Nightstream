@@ -63,18 +63,22 @@ Qed.
 Lemma full_host_slot_descriptor : forall w,
   fieldPrime -> FullRelation.satFull w ->
   w COL_HOST_EVENT_SLOT_DESCRIPTOR = w COL_HOST_EVENT_SLOT_KIND +
-    32 * w COL_HOST_EVENT_SLOT_ARG + 8192 * w COL_HOST_EVENT_SLOT_VARIANT /\
+    32 * w COL_HOST_EVENT_SLOT_ARG + 8192 * w COL_HOST_EVENT_SLOT_VARIANT +
+    131072 * w COL_HOST_EVENT_SLOT_TYPE_OR_INPUT /\
   0 <= w COL_HOST_EVENT_SLOT_KIND < 32 /\
-  0 <= w COL_HOST_EVENT_SLOT_ARG < 256 /\ 0 <= w COL_HOST_EVENT_SLOT_VARIANT < 16.
+  0 <= w COL_HOST_EVENT_SLOT_ARG < 256 /\ 0 <= w COL_HOST_EVENT_SLOT_VARIANT < 16 /\
+  0 <= w COL_HOST_EVENT_SLOT_TYPE_OR_INPUT < 256.
 Proof.
   intros w Hprime Hfull. pose proof (proj1 Hfull) as Hone.
   pose proof (value_bound w COL_HOST_EVENT_SLOT_DESCRIPTOR) as Hpacked.
   circuit_range COL_HOST_EVENT_SLOT_KIND Hkind.
   circuit_range COL_HOST_EVENT_SLOT_ARG Harg.
   circuit_range COL_HOST_EVENT_SLOT_VARIANT Hvariant.
+  circuit_range COL_HOST_EVENT_SLOT_TYPE_OR_INPUT Hextra.
   split; [ | lia].
   circuit_row ([(COL_HOST_EVENT_SLOT_DESCRIPTOR, 1); (COL_HOST_EVENT_SLOT_KIND, -1);
-    (COL_HOST_EVENT_SLOT_ARG, -32); (COL_HOST_EVENT_SLOT_VARIANT, -8192)],
+    (COL_HOST_EVENT_SLOT_ARG, -32); (COL_HOST_EVENT_SLOT_VARIANT, -8192);
+    (COL_HOST_EVENT_SLOT_TYPE_OR_INPUT, -131072)],
     [(COL_ONE, 1)], ([] : SparseRow)) Hrow.
   expand_row Hrow. normalize_columns. rewrite Hone in Hrow. field_linear Hrow.
 Qed.

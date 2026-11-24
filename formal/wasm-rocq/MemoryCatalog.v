@@ -28,18 +28,17 @@ Definition memories : list MemorySpec :=
    (* call_target *) mkMemory 21%nat Rom [mkPort [9%nat] 165%nat Read (When 127%nat); mkPort [9%nat] 165%nat Read (When 320%nat)];
    (* function_entry *) mkMemory 22%nat Rom [mkPort [165%nat] 10%nat Read (When 43%nat); mkPort [412%nat] 10%nat Read (When 463%nat)];
    (* host_event_slot_descriptor *) mkMemory 23%nat Rom [mkPort [445%nat; 449%nat] 451%nat Read (When 439%nat)];
-   (* host_event_slot_immediate_0 *) mkMemory 24%nat Rom [mkPort [445%nat; 449%nat] 455%nat Read (When 439%nat)];
-   (* host_event_slot_immediate_1 *) mkMemory 25%nat Rom [mkPort [445%nat; 449%nat] 456%nat Read (When 439%nat)];
-   (* host_event_import_schedule_count *) mkMemory 26%nat Rom [mkPort [165%nat] 386%nat Read (When 440%nat); mkPort [412%nat] 386%nat Read (When 371%nat)];
-   (* host_event_base *) mkMemory 27%nat Rom [mkPort [165%nat] 458%nat Read (When 440%nat); mkPort [412%nat] 458%nat Read (When 371%nat); mkPort [413%nat] 458%nat Read (When 462%nat); mkPort [412%nat] 458%nat Read (When 463%nat)];
-   (* host_event_export_schedule_count *) mkMemory 28%nat Rom [mkPort [413%nat] 386%nat Read (When 462%nat); mkPort [412%nat] 386%nat Read (When 463%nat)];
-   (* pc_rom *) mkMemory 29%nat Rom [mkPort [52%nat] 10%nat Read (When 21%nat)];
-   (* frame_slide_remaining *) mkMemory 30%nat Rom [mkPort [52%nat] 40%nat Read (When 23%nat)];
-   (* frame_slide_distance *) mkMemory 31%nat Rom [mkPort [52%nat] 36%nat Read (When 23%nat); mkPort [52%nat] 24%nat Read (When 462%nat)];
-   (* program_br_table_len *) mkMemory 32%nat Rom [mkPort [9%nat] 352%nat Read (When 126%nat)];
-   (* host_context_refs *) mkMemory 33%nat Ram [mkPort [375%nat] 379%nat (Write None) (When 369%nat); mkPort [375%nat] 379%nat Read (When 371%nat)];
-   (* host_context_args_depth *) mkMemory 34%nat Ram [mkPort [375%nat] 382%nat (Write None) (When 369%nat); mkPort [375%nat] 382%nat Read (When 371%nat)];
-   (* host_context_sp *) mkMemory 35%nat Ram [mkPort [375%nat] 385%nat (Write None) (When 369%nat); mkPort [375%nat] 385%nat Read (When 374%nat)]].
+   (* host_event_slot_payload *) mkMemory 24%nat Rom [mkPort [445%nat; 449%nat] 456%nat Read (When 439%nat)];
+   (* host_event_import_schedule_count *) mkMemory 25%nat Rom [mkPort [165%nat] 386%nat Read (When 440%nat); mkPort [412%nat] 386%nat Read (When 371%nat)];
+   (* host_event_base *) mkMemory 26%nat Rom [mkPort [165%nat] 458%nat Read (When 440%nat); mkPort [412%nat] 458%nat Read (When 371%nat); mkPort [413%nat] 458%nat Read (When 462%nat); mkPort [412%nat] 458%nat Read (When 463%nat)];
+   (* host_event_export_schedule_count *) mkMemory 27%nat Rom [mkPort [413%nat] 386%nat Read (When 462%nat); mkPort [412%nat] 386%nat Read (When 463%nat)];
+   (* pc_rom *) mkMemory 28%nat Rom [mkPort [52%nat] 10%nat Read (When 21%nat)];
+   (* frame_slide_remaining *) mkMemory 29%nat Rom [mkPort [52%nat] 40%nat Read (When 23%nat)];
+   (* frame_slide_distance *) mkMemory 30%nat Rom [mkPort [52%nat] 36%nat Read (When 23%nat); mkPort [52%nat] 24%nat Read (When 462%nat)];
+   (* program_br_table_len *) mkMemory 31%nat Rom [mkPort [9%nat] 352%nat Read (When 126%nat)];
+   (* host_context_refs *) mkMemory 32%nat Ram [mkPort [375%nat] 379%nat (Write None) (When 369%nat); mkPort [375%nat] 379%nat Read (When 371%nat)];
+   (* host_context_args_depth *) mkMemory 33%nat Ram [mkPort [375%nat] 382%nat (Write None) (When 369%nat); mkPort [375%nat] 382%nat Read (When 371%nat)];
+   (* host_context_sp *) mkMemory 34%nat Ram [mkPort [375%nat] 385%nat (Write None) (When 369%nat); mkPort [375%nat] 385%nat Read (When 374%nat)]].
 
 Definition stackId : nat := 0%nat.
 Definition callStackReturnPcId : nat := 1%nat.
@@ -53,14 +52,14 @@ Definition functionTypeId : nat := 18%nat.
 Definition programHeaderId : nat := 9%nat.
 Definition programLocalIndexId : nat := 10%nat.
 Definition programTableDescriptorId : nat := 12%nat.
-Definition pcRomId : nat := 29%nat.
-Definition frameSlideRemainingId : nat := 30%nat.
-Definition frameSlideDistanceId : nat := 31%nat.
-Definition programBrTableLenId : nat := 32%nat.
+Definition pcRomId : nat := 28%nat.
+Definition frameSlideRemainingId : nat := 29%nat.
+Definition frameSlideDistanceId : nat := 30%nat.
+Definition programBrTableLenId : nat := 31%nat.
 Definition tableElementId : nat := 7%nat.
 Definition tableSizeId : nat := 8%nat.
-Definition exportScheduleCountId : nat := 28%nat.
-Definition hostEventBaseId : nat := 27%nat.
+Definition exportScheduleCountId : nat := 27%nat.
+Definition hostEventBaseId : nat := 26%nat.
 
 Definition gateExclusions : list (nat * nat) :=
   [(21%nat, 462%nat); (21%nat, 45%nat); (45%nat, 462%nat); (44%nat, 440%nat); (44%nat, 464%nat); (56%nat, 460%nat); (56%nat, 461%nat); (56%nat, 1210%nat); (59%nat, 460%nat); (59%nat, 461%nat); (59%nat, 1210%nat); (60%nat, 460%nat); (60%nat, 1210%nat); (320%nat, 440%nat); (321%nat, 440%nat); (460%nat, 1210%nat); (461%nat, 1210%nat); (1199%nat, 1200%nat); (354%nat, 460%nat); (354%nat, 461%nat); (354%nat, 1210%nat); (355%nat, 460%nat); (355%nat, 461%nat); (355%nat, 1210%nat); (356%nat, 460%nat); (356%nat, 1210%nat); (358%nat, 460%nat); (358%nat, 461%nat); (358%nat, 1210%nat)].

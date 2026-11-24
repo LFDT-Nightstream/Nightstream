@@ -101,6 +101,33 @@ fn each_size_is_a_secure_geometry_whose_regions_fit_its_spaces() {
 }
 
 #[test]
+fn small_holds_128_blocks_of_distinct_u32_literals() {
+    use neo_wasm::host_event_bindings::{EventBlock, ExportTemplate, SlotBinding};
+    let checked = common::checked_main(FIB);
+    let mut bindings = HostEventBindings::default();
+    for (count, expected) in [(65, WasmSize::Small), (128, WasmSize::Small), (129, WasmSize::Large)] {
+        let entry = (0..count)
+            .map(|block| EventBlock {
+                block: std::array::from_fn(|slot| SlotBinding::Const(u32::MAX - (8 * block + slot as u32))),
+                absorb: true,
+            })
+            .collect();
+        bindings.exports.insert(
+            1,
+            ExportTemplate {
+                entry,
+                ..Default::default()
+            },
+        );
+        let mut preload = WasmMemoryPreload::default();
+        preload_host_event_tables(&mut preload, &bindings, &checked.artifacts);
+        let limits = WasmLimits::of(&[&preload], &[]).unwrap();
+        assert_eq!(WasmSize::smallest(&limits, 1), Some(expected));
+    }
+    assert_eq!(WasmSize::Small.limits().regions().unwrap().1, [4032, 962]);
+}
+
+#[test]
 fn the_starstream_test_transactions_fit_micro_or_small() {
     let need = |pc, function, event, linear_memory, global| WasmLimits {
         pc,

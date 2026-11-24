@@ -991,7 +991,7 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
         COL_HOST_EVENT_ARGS_BASE_BEFORE, COL_HOST_EVENT_EXIT_LATCH, COL_HOST_EVENT_EXIT_SCHEDULE_COUNT,
         COL_HOST_EVENT_INDEX_AFTER, COL_HOST_EVENT_INDEX_BEFORE, COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT,
         COL_HOST_EVENT_SLOT_ARG, COL_HOST_EVENT_SLOT_CURSOR_AFTER, COL_HOST_EVENT_SLOT_CURSOR_BEFORE,
-        COL_HOST_EVENT_SLOT_IMMEDIATE0, COL_HOST_EVENT_SLOT_IMMEDIATE1, COL_HOST_EVENT_SLOT_KIND,
+        COL_HOST_EVENT_SLOT_KIND, COL_HOST_EVENT_SLOT_PAYLOAD, COL_HOST_EVENT_SLOT_TYPE_OR_INPUT,
         COL_HOST_EVENT_SLOT_VARIANT,
     };
 
@@ -1068,11 +1068,12 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
             F::from_u64(u64::from(rom.kind.code()) + WasmHostEventSlotKind::COUNT as u64 * u64::from(rom.advice));
         wit[COL_HOST_EVENT_SLOT_ARG] = F::from_u64(u64::from(rom.arg));
         wit[COL_HOST_EVENT_SLOT_VARIANT] = F::from_u64(u64::from(rom.variant.encoded()));
+        wit[COL_HOST_EVENT_SLOT_TYPE_OR_INPUT] = F::from_u8(rom.type_or_input);
         wit[crate::layout::COL_HOST_EVENT_SLOT_DESCRIPTOR] = wit[COL_HOST_EVENT_SLOT_KIND]
             + F::from_u64(32) * wit[COL_HOST_EVENT_SLOT_ARG]
-            + F::from_u64(8192) * wit[COL_HOST_EVENT_SLOT_VARIANT];
-        wit[COL_HOST_EVENT_SLOT_IMMEDIATE0] = F::from_u64(u64::from(rom.immediate0));
-        wit[COL_HOST_EVENT_SLOT_IMMEDIATE1] = F::from_u64(u64::from(rom.immediate1));
+            + F::from_u64(8192) * wit[COL_HOST_EVENT_SLOT_VARIANT]
+            + F::from_u64(1 << 17) * wit[COL_HOST_EVENT_SLOT_TYPE_OR_INPUT];
+        wit[COL_HOST_EVENT_SLOT_PAYLOAD] = F::from_u64(u64::from(rom.payload));
     }
     if let Some(count) = trace.host_event_initial_schedule_count {
         wit[COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT] = F::from_u64(u64::from(count));

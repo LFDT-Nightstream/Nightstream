@@ -59,9 +59,9 @@ pub enum SlotBinding {
     OpaqueSaved { lane: u8 },
     /// Internal copy-back of the active root; lane three restores the outer chain and exits object mode.
     OpaqueRoot { lane: u8 },
-    /// Fixed field element (canonical u64): zero padding, function ids,
+    /// Fixed 32-bit word: zero padding, function ids,
     /// interface-id limbs, ref sizes, enum tags.
-    Const(u64),
+    Const(u32),
     /// A limb of the call's `arg`-th argument (declared parameter order).
     ArgElem { arg: u8, limb: Limb },
     /// A limb of the call's single flat result.
@@ -165,7 +165,7 @@ pub struct EventBlock {
 
 impl EventBlock {
     /// The discriminant-led single-block op layout: `[Const(disc) | slots]`.
-    pub fn op(discriminant: u64, slots: [SlotBinding; COMM_CHAIN_EVENT_ARGS]) -> Self {
+    pub fn op(discriminant: u32, slots: [SlotBinding; COMM_CHAIN_EVENT_ARGS]) -> Self {
         let mut block = [SlotBinding::Const(0); COMM_CHAIN_BLOCK_WORDS];
         block[0] = SlotBinding::Const(discriminant);
         block[1..].copy_from_slice(&slots);
@@ -271,13 +271,10 @@ impl ExportTemplate {
                 };
                 for slot in &event.block {
                     match *slot {
-                        SlotBinding::EnterOpaque | SlotBinding::OpaqueSaved { .. } | SlotBinding::OpaqueRoot { .. } => {
-                        }
-                        SlotBinding::Const(value) => {
-                            if value >= F::ORDER_U64 {
-                                return err(ctx("constant is not a canonical field element"));
-                            }
-                        }
+                        SlotBinding::EnterOpaque
+                        | SlotBinding::OpaqueSaved { .. }
+                        | SlotBinding::OpaqueRoot { .. }
+                        | SlotBinding::Const(_) => {}
                         SlotBinding::InputLocal { input, local, limb } => {
                             if matches!(phase, ExportPhase::Exit) {
                                 return err(ctx("locals bootstrap only applies to the entry phase"));
@@ -594,12 +591,10 @@ impl ImportTemplate {
                     return err(ctx("advice events may only contain ResultElem and Const slots"));
                 }
                 match *slot {
-                    SlotBinding::EnterOpaque | SlotBinding::OpaqueSaved { .. } | SlotBinding::OpaqueRoot { .. } => {}
-                    SlotBinding::Const(value) => {
-                        if value >= F::ORDER_U64 {
-                            return err(ctx("constant is not a canonical field element"));
-                        }
-                    }
+                    SlotBinding::EnterOpaque
+                    | SlotBinding::OpaqueSaved { .. }
+                    | SlotBinding::OpaqueRoot { .. }
+                    | SlotBinding::Const(_) => {}
                     SlotBinding::ArgElem { arg, .. } => {
                         if arg >= param_count {
                             return err(ctx(&format!("arg index {arg} out of range for {param_count} params")));
@@ -773,7 +768,7 @@ pub fn expand_export_entry(
             for (word, slot) in block.iter_mut().zip(&event.block) {
                 *word = match *slot {
                     SlotBinding::EnterOpaque | SlotBinding::OpaqueSaved { .. } | SlotBinding::OpaqueRoot { .. } => 0,
-                    SlotBinding::Const(value) => value,
+                    SlotBinding::Const(value) => u64::from(value),
                     SlotBinding::InputLocal { input, local, .. } => {
                         let value = entry_inputs[usize::from(input)];
                         if value > u64::from(u32::MAX) {
@@ -834,7 +829,7 @@ pub fn expand_export_exit(
             for (word, slot) in block.iter_mut().zip(&event.block) {
                 *word = match *slot {
                     SlotBinding::EnterOpaque | SlotBinding::OpaqueSaved { .. } | SlotBinding::OpaqueRoot { .. } => 0,
-                    SlotBinding::Const(value) => value,
+                    SlotBinding::Const(value) => u64::from(value),
                     SlotBinding::OutputElem { limb } => output
                         .map(|pair| limb_of(pair, limb))
                         .ok_or_else(|| WasmBuildError::Trace("export slot references a missing output".to_string()))?,
@@ -927,7 +922,7 @@ fn resolve_slot(
 ) -> Result<u64, WasmBuildError> {
     match slot {
         SlotBinding::EnterOpaque | SlotBinding::OpaqueSaved { .. } | SlotBinding::OpaqueRoot { .. } => Ok(0),
-        SlotBinding::Const(value) => Ok(value),
+        SlotBinding::Const(value) => Ok(u64::from(value)),
         SlotBinding::ArgElem { arg, limb } => args
             .get(usize::from(arg))
             .map(|&pair| limb_of(pair, limb))

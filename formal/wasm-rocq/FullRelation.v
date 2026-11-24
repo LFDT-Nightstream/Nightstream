@@ -6,7 +6,7 @@ Open Scope Z_scope.
 
 Definition publicInputCount : nat := 7%nat.
 Definition oneColumn : nat := 0%nat.
-Definition rowCount : nat := 3967%nat.
+Definition rowCount : nat := 3976%nat.
 
 Definition rows : list Row :=
   [([(N.to_nat 20%N, 1)], [(N.to_nat 13%N, 1); (N.to_nat 63%N, -1); (N.to_nat 66%N, -1); (N.to_nat 68%N, -1); (N.to_nat 74%N, -1); (N.to_nat 78%N, -1); (N.to_nat 137%N, -1); (N.to_nat 138%N, -1); (N.to_nat 139%N, -1); (N.to_nat 140%N, -1); (N.to_nat 141%N, -1); (N.to_nat 142%N, -1); (N.to_nat 143%N, -1); (N.to_nat 144%N, -1); (N.to_nat 145%N, -1); (N.to_nat 292%N, -1); (N.to_nat 293%N, -1); (N.to_nat 294%N, -1); (N.to_nat 297%N, -1); (N.to_nat 298%N, -1); (N.to_nat 299%N, -1); (N.to_nat 84%N, -1); (N.to_nat 96%N, -1); (N.to_nat 135%N, -1); (N.to_nat 136%N, -1); (N.to_nat 111%N, -1); (N.to_nat 112%N, -1); (N.to_nat 113%N, -1); (N.to_nat 114%N, -1); (N.to_nat 124%N, -1); (N.to_nat 127%N, -1); (N.to_nat 128%N, -1); (N.to_nat 320%N, -1); (N.to_nat 321%N, -1); (N.to_nat 130%N, -1); (N.to_nat 131%N, -1); (N.to_nat 132%N, -1); (N.to_nat 133%N, -1); (N.to_nat 134%N, -1); (N.to_nat 300%N, -1); (N.to_nat 301%N, -1); (N.to_nat 302%N, -1); (N.to_nat 303%N, -1); (N.to_nat 304%N, -1); (N.to_nat 305%N, -1); (N.to_nat 306%N, -1); (N.to_nat 307%N, -1); (N.to_nat 308%N, -1); (N.to_nat 309%N, -1); (N.to_nat 310%N, -1); (N.to_nat 311%N, -1); (N.to_nat 312%N, -1); (N.to_nat 313%N, -1); (N.to_nat 314%N, -1); (N.to_nat 315%N, -1); (N.to_nat 316%N, -1); (N.to_nat 317%N, -1); (N.to_nat 318%N, -1); (N.to_nat 319%N, -1)], []);
@@ -233,10 +233,10 @@ Definition rows : list Row :=
    ([(N.to_nat 1191%N, 1)], [(N.to_nat 436%N, 1); (N.to_nat 1206%N, -1)], []);
    ([(N.to_nat 1192%N, 1)], [(N.to_nat 437%N, 1); (N.to_nat 1206%N, -1)], []);
    ([(N.to_nat 1193%N, 1); (N.to_nat 465%N, -1)], [(N.to_nat 438%N, 1); (N.to_nat 1206%N, -1)], []);
-   ([(N.to_nat 1194%N, 1)], [(N.to_nat 1206%N, 1); (N.to_nat 455%N, -1); (N.to_nat 456%N, -4294967296)], []);
+   ([(N.to_nat 1194%N, 1)], [(N.to_nat 1206%N, 1); (N.to_nat 456%N, -1)], []);
    ([(N.to_nat 1196%N, 1)], [(N.to_nat 454%N, 1)], [(N.to_nat 1207%N, 1)]);
-   ([(N.to_nat 1196%N, 1)], [(N.to_nat 455%N, 1); (N.to_nat 0%N, -1)], []);
-   ([(N.to_nat 1207%N, 1)], [(N.to_nat 13%N, 1); (N.to_nat 456%N, -1)], []);
+   ([(N.to_nat 1196%N, 1)], [(N.to_nat 456%N, 1); (N.to_nat 0%N, -1)], []);
+   ([(N.to_nat 1207%N, 1)], [(N.to_nat 13%N, 1); (N.to_nat 455%N, -1)], []);
    ([(N.to_nat 1195%N, 1)], [(N.to_nat 177%N, 1); (N.to_nat 447%N, -2); (N.to_nat 453%N, -2)], []);
    ([(N.to_nat 454%N, 1)], [(N.to_nat 186%N, 1); (N.to_nat 183%N, -1)], [(N.to_nat 1204%N, 1); (N.to_nat 183%N, -1)]);
    ([(N.to_nat 1195%N, 1)], [(N.to_nat 1206%N, 1); (N.to_nat 1204%N, -1)], []);
@@ -247,8 +247,8 @@ Definition rows : list Row :=
    ([(N.to_nat 1207%N, 1)], [(N.to_nat 1206%N, 1); (N.to_nat 192%N, -1)], []);
    ([(N.to_nat 60%N, 1); (N.to_nat 59%N, -1); (N.to_nat 1207%N, -1)], [(N.to_nat 0%N, 1)], []);
    ([(N.to_nat 460%N, 1); (N.to_nat 1197%N, -1)], [(N.to_nat 0%N, 1)], []);
-   ([(N.to_nat 1197%N, 1)], [(N.to_nat 13%N, 1); (N.to_nat 456%N, -1)], []);
-   ([(N.to_nat 1197%N, 1)], [(N.to_nat 455%N, 1); (N.to_nat 0%N, -1)], []);
+   ([(N.to_nat 1197%N, 1)], [(N.to_nat 13%N, 1); (N.to_nat 455%N, -1)], []);
+   ([(N.to_nat 1197%N, 1)], [(N.to_nat 456%N, 1); (N.to_nat 0%N, -1)], []);
    ([(N.to_nat 1197%N, 1)], [(N.to_nat 0%N, 1); (N.to_nat 454%N, -1)], [(N.to_nat 461%N, 1)]);
    ([(N.to_nat 1197%N, 1)], [(N.to_nat 153%N, 1); (N.to_nat 453%N, -1)], []);
    ([(N.to_nat 461%N, 1)], [(N.to_nat 1206%N, 1); (N.to_nat 156%N, -1)], []);
@@ -258,13 +258,13 @@ Definition rows : list Row :=
    ([(N.to_nat 1199%N, 1); (N.to_nat 1200%N, 1); (N.to_nat 1212%N, -1); (N.to_nat 1213%N, -1)], [(N.to_nat 196%N, 1)], []);
    ([(N.to_nat 1213%N, 1)], [(N.to_nat 224%N, 1); (N.to_nat 226%N, 1)], []);
    ([(N.to_nat 1199%N, 1); (N.to_nat 1200%N, 1); (N.to_nat 1210%N, -1); (N.to_nat 1211%N, -1)], [(N.to_nat 177%N, 1); (N.to_nat 447%N, -2); (N.to_nat 453%N, -2)], []);
-   ([(N.to_nat 1199%N, 1); (N.to_nat 1200%N, 1); (N.to_nat 1210%N, -1); (N.to_nat 1211%N, -1)], [(N.to_nat 206%N, 4); (N.to_nat 196%N, 1); (N.to_nat 183%N, -1); (N.to_nat 455%N, -1)], []);
+   ([(N.to_nat 1199%N, 1); (N.to_nat 1200%N, 1); (N.to_nat 1210%N, -1); (N.to_nat 1211%N, -1)], [(N.to_nat 206%N, 4); (N.to_nat 196%N, 1); (N.to_nat 183%N, -1); (N.to_nat 456%N, -1)], []);
    ([(N.to_nat 1199%N, 1); (N.to_nat 1200%N, 1); (N.to_nat 1210%N, -1); (N.to_nat 1211%N, -1)], [(N.to_nat 186%N, 1)], []);
    ([(N.to_nat 1210%N, 1)], [(N.to_nat 153%N, 1); (N.to_nat 453%N, -1)], []);
    ([(N.to_nat 1211%N, 1)], [(N.to_nat 1%N, 1); (N.to_nat 0%N, -1)], []);
-   ([(N.to_nat 1211%N, 1)], [(N.to_nat 206%N, 4); (N.to_nat 196%N, 1); (N.to_nat 3%N, -1); (N.to_nat 455%N, -1)], []);
+   ([(N.to_nat 1211%N, 1)], [(N.to_nat 206%N, 4); (N.to_nat 196%N, 1); (N.to_nat 3%N, -1); (N.to_nat 456%N, -1)], []);
    ([(N.to_nat 1211%N, 1)], [(N.to_nat 5%N, 1)], []);
-   ([(N.to_nat 1210%N, 1)], [(N.to_nat 206%N, 4); (N.to_nat 196%N, 1); (N.to_nat 156%N, -1); (N.to_nat 455%N, -1)], []);
+   ([(N.to_nat 1210%N, 1)], [(N.to_nat 206%N, 4); (N.to_nat 196%N, 1); (N.to_nat 156%N, -1); (N.to_nat 456%N, -1)], []);
    ([(N.to_nat 1210%N, 1)], [(N.to_nat 157%N, 1)], []);
    ([(N.to_nat 1199%N, 1); (N.to_nat 1200%N, 1); (N.to_nat 1212%N, -1); (N.to_nat 1213%N, -1)], [(N.to_nat 1206%N, 1); (N.to_nat 209%N, -1)], []);
    ([(N.to_nat 1212%N, 1)], [(N.to_nat 1206%N, 1); (N.to_nat 282%N, -1)], []);
@@ -1108,7 +1108,7 @@ Definition rows : list Row :=
    ([(N.to_nat 1210%N, 1)], [(N.to_nat 0%N, 1); (N.to_nat 439%N, -1)], []);
    ([(N.to_nat 7%N, 1); (N.to_nat 61%N, -1); (N.to_nat 62%N, -65); (N.to_nat 63%N, -66); (N.to_nat 64%N, -210); (N.to_nat 65%N, -106); (N.to_nat 66%N, -124); (N.to_nat 67%N, -107); (N.to_nat 68%N, -125); (N.to_nat 69%N, -40); (N.to_nat 70%N, -44); (N.to_nat 71%N, -45); (N.to_nat 72%N, -46); (N.to_nat 73%N, -47); (N.to_nat 74%N, -41); (N.to_nat 75%N, -54); (N.to_nat 76%N, -58); (N.to_nat 77%N, -59); (N.to_nat 78%N, -55); (N.to_nat 137%N, -60); (N.to_nat 138%N, -61); (N.to_nat 139%N, -62); (N.to_nat 140%N, -49); (N.to_nat 141%N, -51); (N.to_nat 142%N, -53); (N.to_nat 143%N, -48); (N.to_nat 144%N, -50); (N.to_nat 145%N, -52); (N.to_nat 292%N, -167); (N.to_nat 293%N, -173); (N.to_nat 294%N, -172); (N.to_nat 295%N, -192); (N.to_nat 296%N, -193); (N.to_nat 297%N, -194); (N.to_nat 298%N, -195); (N.to_nat 299%N, -196); (N.to_nat 79%N, -63); (N.to_nat 80%N, -64); (N.to_nat 81%N, -64528); (N.to_nat 82%N, -37); (N.to_nat 83%N, -38); (N.to_nat 84%N, -26); (N.to_nat 85%N, -12); (N.to_nat 86%N, -2); (N.to_nat 87%N, -3); (N.to_nat 88%N, -4); (N.to_nat 89%N, -5); (N.to_nat 90%N, -11); (N.to_nat 91%N, 0); (N.to_nat 92%N, -103); (N.to_nat 93%N, -104); (N.to_nat 94%N, -105); (N.to_nat 95%N, -69); (N.to_nat 96%N, -80); (N.to_nat 97%N, -70); (N.to_nat 98%N, -71); (N.to_nat 135%N, -81); (N.to_nat 136%N, -82); (N.to_nat 99%N, -72); (N.to_nat 100%N, -73); (N.to_nat 101%N, -74); (N.to_nat 102%N, -75); (N.to_nat 103%N, -76); (N.to_nat 104%N, -77); (N.to_nat 105%N, -78); (N.to_nat 106%N, -79); (N.to_nat 107%N, -113); (N.to_nat 108%N, -114); (N.to_nat 109%N, -115); (N.to_nat 110%N, -108); (N.to_nat 111%N, -131); (N.to_nat 112%N, -132); (N.to_nat 113%N, -133); (N.to_nat 114%N, -126); (N.to_nat 115%N, -116); (N.to_nat 116%N, -118); (N.to_nat 117%N, -117); (N.to_nat 118%N, -119); (N.to_nat 119%N, -120); (N.to_nat 120%N, -110); (N.to_nat 121%N, -109); (N.to_nat 122%N, -112); (N.to_nat 123%N, -111); (N.to_nat 124%N, -27); (N.to_nat 125%N, -13); (N.to_nat 126%N, -14); (N.to_nat 127%N, -16); (N.to_nat 128%N, -17); (N.to_nat 320%N, -18); (N.to_nat 321%N, -19); (N.to_nat 322%N, -65520); (N.to_nat 129%N, -15); (N.to_nat 130%N, -32); (N.to_nat 131%N, -33); (N.to_nat 132%N, -34); (N.to_nat 133%N, -35); (N.to_nat 134%N, -36); (N.to_nat 300%N, -83); (N.to_nat 301%N, -84); (N.to_nat 302%N, -85); (N.to_nat 303%N, -86); (N.to_nat 304%N, -87); (N.to_nat 305%N, -88); (N.to_nat 306%N, -89); (N.to_nat 307%N, -90); (N.to_nat 308%N, -134); (N.to_nat 309%N, -135); (N.to_nat 310%N, -136); (N.to_nat 311%N, -137); (N.to_nat 312%N, -138); (N.to_nat 313%N, -127); (N.to_nat 314%N, -128); (N.to_nat 315%N, -129); (N.to_nat 316%N, -130); (N.to_nat 317%N, -121); (N.to_nat 318%N, -122); (N.to_nat 319%N, -123)], [(N.to_nat 0%N, 1)], []);
    ([(N.to_nat 8%N, 1); (N.to_nat 7%N, -1); (N.to_nat 12%N, -65536)], [(N.to_nat 0%N, 1)], []);
-   ([(N.to_nat 451%N, 1); (N.to_nat 452%N, -1); (N.to_nat 453%N, -32); (N.to_nat 454%N, -8192)], [(N.to_nat 0%N, 1)], []);
+   ([(N.to_nat 451%N, 1); (N.to_nat 452%N, -1); (N.to_nat 453%N, -32); (N.to_nat 454%N, -8192); (N.to_nat 455%N, -131072)], [(N.to_nat 0%N, 1)], []);
    ([(N.to_nat 22%N, 1); (N.to_nat 61%N, -1); (N.to_nat 62%N, -1); (N.to_nat 63%N, -1); (N.to_nat 64%N, -1); (N.to_nat 65%N, -1); (N.to_nat 66%N, -1); (N.to_nat 67%N, -1); (N.to_nat 68%N, -1); (N.to_nat 69%N, -1); (N.to_nat 70%N, -1); (N.to_nat 71%N, -1); (N.to_nat 72%N, -1); (N.to_nat 73%N, -1); (N.to_nat 74%N, -1); (N.to_nat 75%N, -1); (N.to_nat 76%N, -1); (N.to_nat 77%N, -1); (N.to_nat 78%N, -1); (N.to_nat 137%N, -1); (N.to_nat 138%N, -1); (N.to_nat 139%N, -1); (N.to_nat 140%N, -1); (N.to_nat 141%N, -1); (N.to_nat 142%N, -1); (N.to_nat 143%N, -1); (N.to_nat 144%N, -1); (N.to_nat 145%N, -1); (N.to_nat 292%N, -1); (N.to_nat 293%N, -1); (N.to_nat 294%N, -1); (N.to_nat 295%N, -1); (N.to_nat 296%N, -1); (N.to_nat 297%N, -1); (N.to_nat 298%N, -1); (N.to_nat 299%N, -1); (N.to_nat 79%N, -1); (N.to_nat 80%N, -1); (N.to_nat 81%N, -1); (N.to_nat 82%N, -1); (N.to_nat 83%N, -1); (N.to_nat 84%N, -1); (N.to_nat 92%N, -1); (N.to_nat 93%N, -1); (N.to_nat 94%N, -1); (N.to_nat 95%N, -1); (N.to_nat 96%N, -1); (N.to_nat 97%N, -1); (N.to_nat 98%N, -1); (N.to_nat 135%N, -1); (N.to_nat 136%N, -1); (N.to_nat 99%N, -1); (N.to_nat 100%N, -1); (N.to_nat 101%N, -1); (N.to_nat 102%N, -1); (N.to_nat 103%N, -1); (N.to_nat 104%N, -1); (N.to_nat 105%N, -1); (N.to_nat 106%N, -1); (N.to_nat 107%N, -1); (N.to_nat 108%N, -1); (N.to_nat 109%N, -1); (N.to_nat 110%N, -1); (N.to_nat 111%N, -1); (N.to_nat 112%N, -1); (N.to_nat 113%N, -1); (N.to_nat 114%N, -1); (N.to_nat 115%N, -1); (N.to_nat 116%N, -1); (N.to_nat 117%N, -1); (N.to_nat 118%N, -1); (N.to_nat 119%N, -1); (N.to_nat 120%N, -1); (N.to_nat 121%N, -1); (N.to_nat 122%N, -1); (N.to_nat 123%N, -1); (N.to_nat 124%N, -1); (N.to_nat 130%N, -1); (N.to_nat 131%N, -1); (N.to_nat 132%N, -1); (N.to_nat 133%N, -1); (N.to_nat 134%N, -1); (N.to_nat 300%N, -1); (N.to_nat 301%N, -1); (N.to_nat 302%N, -1); (N.to_nat 303%N, -1); (N.to_nat 304%N, -1); (N.to_nat 305%N, -1); (N.to_nat 306%N, -1); (N.to_nat 307%N, -1); (N.to_nat 308%N, -1); (N.to_nat 309%N, -1); (N.to_nat 310%N, -1); (N.to_nat 311%N, -1); (N.to_nat 312%N, -1); (N.to_nat 313%N, -1); (N.to_nat 314%N, -1); (N.to_nat 315%N, -1); (N.to_nat 316%N, -1); (N.to_nat 317%N, -1); (N.to_nat 318%N, -1); (N.to_nat 319%N, -1)], [(N.to_nat 0%N, 1)], []);
    ([(N.to_nat 22%N, 1)], [(N.to_nat 10%N, 1); (N.to_nat 9%N, -1); (N.to_nat 0%N, -1)], []);
    ([(N.to_nat 16%N, 1); (N.to_nat 15%N, -1); (N.to_nat 54%N, 1); (N.to_nat 55%N, -1); (N.to_nat 37%N, 1); (N.to_nat 1195%N, -1); (N.to_nat 1199%N, -1); (N.to_nat 1200%N, -1); (N.to_nat 1210%N, 1); (N.to_nat 1211%N, 1); (N.to_nat 14%N, 1); (N.to_nat 1208%N, 1); (N.to_nat 392%N, 1)], [(N.to_nat 0%N, 1)], []);
@@ -3924,6 +3924,15 @@ Definition rows : list Row :=
    ([(N.to_nat 3405%N, 1)], [(N.to_nat 3405%N, 1); (N.to_nat 0%N, -1)], []);
    ([(N.to_nat 3406%N, 1)], [(N.to_nat 3406%N, 1); (N.to_nat 0%N, -1)], []);
    ([(N.to_nat 3403%N, 1); (N.to_nat 3404%N, 2); (N.to_nat 3405%N, 4); (N.to_nat 3406%N, 8)], [(N.to_nat 0%N, 1)], [(N.to_nat 454%N, 1)]);
+   ([(N.to_nat 3407%N, 1)], [(N.to_nat 3407%N, 1); (N.to_nat 0%N, -1)], []);
+   ([(N.to_nat 3408%N, 1)], [(N.to_nat 3408%N, 1); (N.to_nat 0%N, -1)], []);
+   ([(N.to_nat 3409%N, 1)], [(N.to_nat 3409%N, 1); (N.to_nat 0%N, -1)], []);
+   ([(N.to_nat 3410%N, 1)], [(N.to_nat 3410%N, 1); (N.to_nat 0%N, -1)], []);
+   ([(N.to_nat 3411%N, 1)], [(N.to_nat 3411%N, 1); (N.to_nat 0%N, -1)], []);
+   ([(N.to_nat 3412%N, 1)], [(N.to_nat 3412%N, 1); (N.to_nat 0%N, -1)], []);
+   ([(N.to_nat 3413%N, 1)], [(N.to_nat 3413%N, 1); (N.to_nat 0%N, -1)], []);
+   ([(N.to_nat 3414%N, 1)], [(N.to_nat 3414%N, 1); (N.to_nat 0%N, -1)], []);
+   ([(N.to_nat 3407%N, 1); (N.to_nat 3408%N, 2); (N.to_nat 3409%N, 4); (N.to_nat 3410%N, 8); (N.to_nat 3411%N, 16); (N.to_nat 3412%N, 32); (N.to_nat 3413%N, 64); (N.to_nat 3414%N, 128)], [(N.to_nat 0%N, 1)], [(N.to_nat 455%N, 1)]);
    ([(N.to_nat 460%N, 1)], [(N.to_nat 460%N, 1); (N.to_nat 0%N, -1)], []);
    ([(N.to_nat 461%N, 1)], [(N.to_nat 461%N, 1); (N.to_nat 0%N, -1)], []);
    ([(N.to_nat 462%N, 1)], [(N.to_nat 462%N, 1); (N.to_nat 0%N, -1)], []);
@@ -4010,9 +4019,9 @@ Definition binaryWriteAddressRow : nat := 1160%nat.
 Definition stackWriteHighAddressRow : nat := 1154%nat.
 Definition stackPointerBalanceRow : nat := 1102%nat.
 Definition stackFrameBasePreservedRow : nat := 119%nat.
-Definition gmemLocalBooleanRow : nat := 3941%nat.
-Definition gmemOutputBooleanRow : nat := 3942%nat.
-Definition gmemByteBooleanRow : nat := 3943%nat.
-Definition gmemHalfBooleanRow : nat := 3944%nat.
+Definition gmemLocalBooleanRow : nat := 3950%nat.
+Definition gmemOutputBooleanRow : nat := 3951%nat.
+Definition gmemByteBooleanRow : nat := 3952%nat.
+Definition gmemHalfBooleanRow : nat := 3953%nat.
 Definition stackRead0BooleanRow : nat := 1936%nat.
 Definition stackRead1BooleanRow : nat := 1937%nat.

@@ -213,7 +213,11 @@ fn shared_transcript_fixture_excludes_opaque_internal_blocks() {
             .with_opaque(2, schema, vec![SlotBinding::Const(value)])
             .unwrap();
         events.splice(0..1, lowered);
-        expected[index][2..6].copy_from_slice(&opaque_value_root(schema, &[value]).unwrap().map(f));
+        expected[index][2..6].copy_from_slice(
+            &opaque_value_root(schema, &[u64::from(value)])
+                .unwrap()
+                .map(f),
+        );
     }
     assert_eq!(expected_transcript(&setup.bindings, setup.run_fref), expected);
 }

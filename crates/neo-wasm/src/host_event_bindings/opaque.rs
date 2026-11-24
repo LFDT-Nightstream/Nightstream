@@ -1,17 +1,18 @@
 use super::{opaque_control_encoding, EventBlock, SlotBinding};
+use crate::comm_chain::absorb_block;
 use crate::WasmBuildError;
-use neo_application::event_commitment::commit_block;
 use neo_math::F;
-use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use p3_field::PrimeField64;
 
-const DOMAIN: u64 = u64::from_le_bytes(*b"NEOOBJ01");
+const DOMAIN: u32 = u32::from_le_bytes(*b"NOBJ");
 
 fn error(message: &str) -> WasmBuildError {
     WasmBuildError::Trace(format!("opaque value: {message}"))
 }
 
-fn header(schema: [u64; 4], len: usize) -> [u64; 8] {
-    [DOMAIN, 1, schema[0], schema[1], schema[2], schema[3], len as u64, 0]
+fn header(schema: [u32; 4], len: usize) -> Result<[u32; 8], WasmBuildError> {
+    let len = u32::try_from(len).map_err(|_| error("word count exceeds u32"))?;
+    Ok([DOMAIN, 1, schema[0], schema[1], schema[2], schema[3], len, 0])
 }
 
 fn canonical(words: &[u64]) -> Result<(), WasmBuildError> {
@@ -25,22 +26,17 @@ fn canonical(words: &[u64]) -> Result<(), WasmBuildError> {
 /// The embedder must derive the same structural schema identity and word order
 /// on both sides of a boundary. Schema identities are verifier data, not authority
 /// supplied by the prover. Length distinguishes values differing by trailing zeroes.
-/// The framing block is `[NEOOBJ01, 1, schema[0..4], word_count, 0]`, followed
+/// The framing block is `[NOBJ, 1, schema[0..4], word_count, 0]`, followed
 /// by zero-padded eight-word payload blocks, starting from an all-zero chain.
-pub fn opaque_value_root(schema: [u64; 4], words: &[u64]) -> Result<[u64; 4], WasmBuildError> {
-    canonical(&schema)?;
+pub fn opaque_value_root(schema: [u32; 4], words: &[u64]) -> Result<[u64; 4], WasmBuildError> {
     canonical(words)?;
-    let mut state = absorb([0; 4], header(schema, words.len()));
+    let mut state = absorb_block([0; 4], header(schema, words.len())?.map(u64::from));
     for chunk in words.chunks(8) {
         let mut block = [0; 8];
         block[..chunk.len()].copy_from_slice(chunk);
-        state = absorb(state, block);
+        state = absorb_block(state, block);
     }
     Ok(state)
-}
-
-fn absorb(state: [u64; 4], block: [u64; 8]) -> [u64; 4] {
-    commit_block(state.map(F::from_u64), block.map(F::from_u64)).map(|value| value.as_canonical_u64())
 }
 
 impl EventBlock {
@@ -72,10 +68,9 @@ impl EventBlock {
     pub fn with_opaque(
         self,
         word: usize,
-        schema: [u64; 4],
+        schema: [u32; 4],
         sources: Vec<SlotBinding>,
     ) -> Result<Vec<Self>, WasmBuildError> {
-        canonical(&schema)?;
         if !self.absorb || word > 4 {
             return Err(error("root needs four slots in an absorbing outer block"));
         }
@@ -96,7 +91,7 @@ impl EventBlock {
             absorb: true,
         }];
         events.push(Self {
-            block: header(schema, sources.len()).map(SlotBinding::Const),
+            block: header(schema, sources.len())?.map(SlotBinding::Const),
             absorb: true,
         });
         for chunk in sources.chunks(8) {
@@ -154,7 +149,6 @@ pub(super) fn validate(events: &[EventBlock]) -> Result<(), WasmBuildError> {
             };
             *out = value;
         }
-        canonical(&fields)?;
         if !framing.absorb || fields[0] != DOMAIN || fields[1] != 1 || fields[7] != 0 {
             return Err(error("invalid object header"));
         }
@@ -231,7 +225,7 @@ pub(super) fn replay(events: &[EventBlock], blocks: &mut [[u64; 8]]) -> Result<V
             root = [0; 4];
             active = true;
         } else if active {
-            root = absorb(root, *block);
+            root = absorb_block(root, *block);
         }
         mask.push(event.absorb && !enter && !active);
     }

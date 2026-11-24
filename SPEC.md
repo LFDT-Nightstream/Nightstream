@@ -263,23 +263,31 @@ These layouts are Rust's (not checked against Lean). Every word is 8 bytes, litt
 
 Here `w_s` is the number of ring columns of the relation of circuit `s`, and `c = pc − 1`. A proof with `pc = 0` is the initial proof, and it has only the tag and the header. The decoder checks the exact length that `pc` and the two relations fix before it reads. It rejects a word not below `q`, a malformed witness mask, and an initial proof with `i ≠ 0` or `zi ≠ z0`. An accumulator witness is not in `{−1, 0, 1}`, so its entries are field words.
 
-A final proof (`crates/nightstream/src/lifecycle/bounded_depth/compression.rs`; not checked against Lean) is these parts.
+A final proof uses the following byte layout (`crates/nightstream/src/lifecycle/bounded_depth/compression.rs`).
 
 | Part | Size | Content |
 |---|---|---|
-| tag | 16 | `NS-OPTIONB-FIN-2`, or `NS-OPTIONB-FIN-L` in the light mode |
+| tag | 16 | `NS-OPTIONB-FIN-2` for both slots. The light tags are `NS-OPTIONB-FIN-Z`, `NS-OPTIONB-FIN-S` and `NS-OPTIONB-FIN-L` |
 | header | 80 | `pc`, `i`, `z0` and `zi` as ten words |
-| slot 0, then slot 1; slot 0 alone in the light mode | `8 + 8(κd + 320 + 2ℓ + 10d)` each | the depth, then the accumulator's commitment, public projection, point, `Eval_K` and `Eval_A` |
+| slot 0, then slot 1; slot 0 alone in the light mode | 17,352 each in full. A light slot uses 0, 15,112 or 17,352 bytes | the depth, then the accumulator's commitment, public projection, point, `Eval_K` and `Eval_A` |
 | fresh claim | `8(κd + 2ℓ + 10d) + 32` | the commitment, the point, `Eval_K` and `Eval_A` of the CE claim of the fresh instance, then the digest of the Π_CCS transcript as four words. The bytes do not hold the public input. |
 | Π_CCS rounds | `8 · 18ℓ` | the 9 coefficients of each of the `ℓ` round polynomials |
 | commitments | `8 + a` and `8 + a'` | the Akita commitment of `W`, then that of `V`, each after its byte count as one word |
-| first sum-check | `8 + 64n` | the round count `n`, at most 30, then the 4 coefficients in `K` of each round polynomial |
+| first sum-check | `8 + 64n`, or `12 + 64n − 16m` for tag `Z` | the round count `n`, at most 30. Tag `Z` adds a four-byte mask with `m` set bits. The round coefficients follow in order of increasing degree |
 | evaluations | `16 + 64 + 16` | `W` at the point `ρ` of the first sum-check, then the four columns `V_k` of `V`, then the key's part `K_w` of the public weights at `ρ` (Algorithm 9, step 9) |
 | key sum-check | `8 + 48(6 + n_A)` | the round count, at most 30, then the 3 coefficients in `K` of each round polynomial |
 | key value | 16 | `Â(ζ, s)`, the key polynomial at the point of the key sum-check and the row point (Algorithm 9, step 10) |
 | opening | `8 + o` | the one Akita proof that opens `Â`, `W` and `V`, after its byte count as one word |
 
-A final proof with `pc = 0` is the final proof of zero steps, and it has only the tag `NS-OPTIONB-FIN-2` and the header. The decoder rejects another tag, `pc > 2`, the tag `NS-OPTIONB-FIN-L` with `pc ≠ 1`, a field word not below `q`, `pc = 0` with `i ≠ 0` or `zi ≠ z0`, a round count above 30 in either sum-check, short bytes, and a byte after the proof. Akita fixes the bytes of its commitments and opening, and Algorithm 10 rejects a commitment whose bytes are not the encoding of the commitment that they decode to. The parts before the Akita commitments have `96 + 2 · 17,352 + 14,816 + 4,032 = 53,648` bytes, or `36,296` in the light mode. For the reference application at `n = 27` and `n_A = 19`, the parts after the commitments, without the opening, have `1,736 + 96 + 1,208 + 16 + 8 = 3,064` bytes (both computed). The encoder refuses a proof of slot 0 alone with `pc ≠ 1`, so each encoding decodes. `FinalProof::to_bytes` and `FinalProof::from_bytes` are the public byte form (`crates/nightstream/src/circuit.rs`). The bytes of a compressed memory proof (section 7) are the 39 carry words, each below `q`, and then the bytes of its final proof (`nebula::FinalProof::to_bytes` and `nebula::FinalProof::from_bytes`, `crates/nightstream/src/nebula/proving.rs`).
+For light proofs, use the first applicable slot form in this order. The suffixes below refer to the tags in the table.
+
+1. **Z.** If the depth and all words of slot 0 are zero, omit the slot. The decoder restores all 17,352 bytes as zeros. After the first sum-check round count, write a little-endian 32-bit mask. Bit `j` is set exactly when the coefficient of degree 3 in round `j` is zero in `K`. Write only coefficients 0 through 2 for each set bit. For each clear bit write all four. The decoder restores each omitted coefficient as zero. It rejects a set bit at or above `n` and a full round with a zero cubic coefficient.
+2. **S.** If each of the 320 public projection words represents an integer in `[−128, 127]`, write each as one two’s-complement byte in the usual projection order. A byte `b < 128` gives field word `b`. Any other byte gives field word `q − (256 − b)`. All other slot fields use their full widths. Reject an all-zero slot under this tag.
+3. **L.** Write the full slot. Reject this tag if all 320 projection words fit the signed-byte form.
+
+Lean proves that the light-slot decoder recovers every encoded slot (`Export.BoundedDepth.LightCodec.unpack_pack_slot` (`fd045c5dc70ac5ad`)) and that each accepted slot has one encoding (`Export.BoundedDepth.LightCodec.pack_unpacked_slot` (`6cbb19fa3c3a30be`)). For up to 30 first sum-check rounds under tag `Z`, the decoder recovers every coefficient (`Export.BoundedDepth.LightCodec.unpack_pack_rounds` (`2721048ecd2b1eb5`)), and each accepted mask and coefficient sequence re-encodes exactly (`Export.BoundedDepth.LightCodec.pack_unpacked_rounds` (`8cf5982fcf415101`)). These theorems cover the slot and round representations. Rust tests check their public byte encoding.
+
+A final proof with `pc = 0` has only the tag `NS-OPTIONB-FIN-2` and the header. The decoder rejects an unknown tag, `pc > 2`, a light tag with `pc ≠ 1`, a field word at or above `q`, an initial proof with `i ≠ 0` or `zi ≠ z0`, a round count above 30 in either sum-check, short bytes, and a byte after the proof. Akita fixes the bytes of its commitments and opening, and Algorithm 10 rejects a commitment whose bytes differ from its canonical encoding. For a noninitial proof, the parts before the Akita commitments have 53,648 bytes in two-slot mode, 18,944 bytes for `Z`, 34,056 for `S`, and 36,296 for `L`. For the reference application with `n = 27` and `n_A = 19`, the parts after the commitments, including the opening length but excluding its payload, have 3,064 bytes for a full first sum-check or `3,068 − 16m` bytes for `Z`. The encoder refuses a proof of slot 0 alone with `pc ≠ 1`, so each encoding decodes. `FinalProof::to_bytes` and `FinalProof::from_bytes` are the public byte form (`crates/nightstream/src/circuit.rs`). The bytes of a compressed memory proof (section 7) are the 39 carry words, each below `q`, and then the bytes of its final proof (`nebula::FinalProof::to_bytes` and `nebula::FinalProof::from_bytes`, `crates/nightstream/src/nebula/proving.rs`).
 
 A compression key (`crates/ns-compress/src/key.rs`; not checked against Lean) is these parts.
 

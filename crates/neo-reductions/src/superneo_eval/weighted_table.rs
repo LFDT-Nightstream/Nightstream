@@ -1,7 +1,7 @@
 use super::{Rq, SuperneoEvalCache, SuperneoMatrixCache, SuperneoZBlocks};
 use neo_math::{
     signed_sums::{SignedLimbs, SmallDigits},
-    sum_of_scaled, superneo_bar_block, KExtensions, D, F, K,
+    sum_of_scaled, superneo_bar_block, KExtensions, ProductSum, D, F, K,
 };
 use p3_field::{Field, PrimeCharacteristicRing};
 
@@ -235,30 +235,44 @@ pub(crate) fn weighted_identity_projection(z_blocks: &SuperneoZBlocks, weights: 
     out
 }
 
+fn check_projection_shape(witnesses: &[SuperneoZBlocks], coefficients: &[K], output: &[K]) {
+    assert_eq!(
+        witnesses.len(),
+        coefficients.len(),
+        "projection source coefficient count"
+    );
+    assert!(output.len().is_multiple_of(D), "projection needs complete ring blocks");
+    let blocks = output.len() / D;
+    assert!(
+        witnesses
+            .iter()
+            .all(|source| source.block_len() == blocks && source.imag_all_zero()),
+        "projection sources must be real and match the complete carrier"
+    );
+}
+
 pub(crate) fn fill_geometric_projection(witnesses: &[SuperneoZBlocks], coefficients: &[K], ratio: K, output: &mut [K]) {
+    check_projection_shape(witnesses, coefficients, output);
     let mut power = K::ONE;
     let powers: [K; D] = std::array::from_fn(|_| {
         let next = power;
         power *= ratio;
         next
     });
-    let mut active = witnesses
+    let active = witnesses
         .iter()
         .zip(coefficients)
         .filter(|(source, coefficient)| !source.is_zero() && **coefficient != K::ZERO);
-    if let (Some((source, &coefficient)), None) = (active.next(), active.next()) {
-        assert_eq!(
-            witnesses.len(),
-            coefficients.len(),
-            "projection source coefficient count"
-        );
-        assert!(output.len().is_multiple_of(D), "projection needs complete ring blocks");
-        assert!(
-            witnesses
-                .iter()
-                .all(|source| source.block_len() == output.len() / D && source.imag_all_zero()),
-            "projection sources must be real and match the complete carrier"
-        );
+    let mut first_two = active.clone();
+    let Some((source, &coefficient)) = first_two.next() else {
+        output.fill(K::ZERO);
+        return;
+    };
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    let blocks = output.par_chunks_mut(D).enumerate();
+    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+    let blocks = output.chunks_mut(D).enumerate();
+    if first_two.next().is_none() {
         let inverse = ratio.try_inverse();
         let scale = inverse.map(|inverse| coefficient * (K::ONE + power) * inverse);
         let fill = |(block, output): (usize, &mut [K])| {
@@ -279,10 +293,38 @@ pub(crate) fn fill_geometric_projection(witnesses: &[SuperneoZBlocks], coefficie
                 }
             }
         };
-        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-        output.par_chunks_mut(D).enumerate().for_each(fill);
-        #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-        output.chunks_mut(D).enumerate().for_each(fill);
+        blocks.for_each(fill);
+        return;
+    }
+    let packed = active
+        .map(|(source, coefficient)| Some((source.signed_unit_masks()?, coefficient.as_coeffs())))
+        .collect::<Option<Vec<_>>>();
+    if let Some(packed) = packed {
+        let rotation = ratio
+            .try_inverse()
+            .map(|inverse| (inverse, (K::ONE + power) * inverse));
+        blocks.for_each(|(block, output)| {
+            let mut real = Rq::zero();
+            let mut imaginary = Rq::zero();
+            for &((positive, negative), [re, im]) in &packed {
+                add_signed_units(&mut real, &mut imaginary, positive[block], re, im);
+                add_signed_units(&mut real, &mut imaginary, negative[block], -re, -im);
+            }
+            let digits: [K; D] = std::array::from_fn(|lane| K::from_coeffs([real.0[lane], imaginary.0[lane]]));
+            if let Some((inverse, scale)) = rotation {
+                let mut value = digits
+                    .iter()
+                    .zip(&powers)
+                    .fold(ProductSum::default(), |sum, (&digit, &weight)| sum.add(digit, weight))
+                    .value();
+                for (slot, digit) in output.iter_mut().zip(digits) {
+                    *slot = value;
+                    value = value * inverse - scale * digit;
+                }
+            } else {
+                output.copy_from_slice(&digits);
+            }
+        });
         return;
     }
     fill_combined_projection(witnesses, coefficients, &powers, output);
@@ -294,19 +336,7 @@ pub(crate) fn fill_combined_projection(
     weights: &[K; D],
     output: &mut [K],
 ) {
-    assert_eq!(
-        witnesses.len(),
-        coefficients.len(),
-        "projection source coefficient count"
-    );
-    assert!(output.len().is_multiple_of(D), "projection needs complete ring blocks");
-    let blocks = output.len() / D;
-    assert!(
-        witnesses
-            .iter()
-            .all(|source| source.block_len() == blocks && source.imag_all_zero()),
-        "projection sources must be real and match the complete carrier"
-    );
+    check_projection_shape(witnesses, coefficients, output);
     let active = witnesses
         .iter()
         .zip(coefficients)

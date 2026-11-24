@@ -1,5 +1,6 @@
 //! Lean `StepPackage.Package.application`.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use neo_ccs::crypto::poseidon2;
@@ -163,21 +164,9 @@ impl StepPackage {
         let words = witness_words as i128 - old.witness_words as i128;
         let locals = words + records.recipe_count() as i128 - old.locals as i128;
         let fresh = locals - old.fresh as i128;
-        let sbox = fresh + (SBOX_COLUMNS as i128) * (shape.blocks.len() as i128 - blocks as i128);
         let region_locals = old.local_start..old.local_start + old.locals;
         let region_fresh = self.first_fresh..self.first_fresh + old.fresh;
         let region_sbox = self.sbox_start..self.sbox_start + SBOX_COLUMNS * blocks;
-        let map = |column: usize| match column {
-            c if c < WITNESS_START => Some(c),
-            c if c < WITNESS_START + old.witness_words => None,
-            c if c < old.local_start => moved(c, words),
-            c if region_locals.contains(&c) => None,
-            c if c < self.first_fresh => moved(c, locals),
-            c if region_fresh.contains(&c) => None,
-            c if c < self.sbox_start => moved(c, fresh),
-            c if region_sbox.contains(&c) => None,
-            c => moved(c, sbox),
-        };
         let inside = |column: usize| {
             column < old.local_start
                 || region_locals.contains(&column)
@@ -202,7 +191,7 @@ impl StepPackage {
                 witness_words,
                 local_start: moved(old.local_start, words).ok_or(PackageError::Malformed("bounded-depth columns"))?,
                 locals: records.recipe_count(),
-                pieces: 1 + shape.blocks.len(),
+                pieces: 0,
                 fresh: 0,
             },
             native: Some(Arc::clone(records)),
@@ -214,7 +203,21 @@ impl StepPackage {
             witness: Vec::new(),
             slots: Vec::new(),
         };
-        let mut pieces = package.native_pieces(records, shape)?;
+        let (mut pieces, block_rows) = package.native_pieces(records, shape)?;
+        package.application.pieces = pieces.len();
+        let kept_blocks = pieces.len() - 1;
+        let sbox = fresh + SBOX_COLUMNS as i128 * (kept_blocks as i128 - blocks as i128);
+        let map = |column: usize| match column {
+            c if c < WITNESS_START => Some(c),
+            c if c < WITNESS_START + old.witness_words => None,
+            c if c < old.local_start => moved(c, words),
+            c if region_locals.contains(&c) => None,
+            c if c < self.first_fresh => moved(c, locals),
+            c if region_fresh.contains(&c) => None,
+            c if c < self.sbox_start => moved(c, fresh),
+            c if region_sbox.contains(&c) => None,
+            c => moved(c, sbox),
+        };
         for piece in &self.pieces[old.pieces..] {
             pieces.push(
                 map_piece(piece, &map).ok_or(PackageError::Malformed("bounded-depth piece reads the application"))?,
@@ -238,7 +241,7 @@ impl StepPackage {
         package.slots = package.rule_slots(&packed_bits, &packed_forced);
         package.field_lowering = super::field_lowering::FieldLowering::checked(&package)?;
         package.slots = package.rule_slots(&packed_bits, &packed_forced);
-        package.guard_fusion = super::guard_fusion::GuardFusion::checked(&package)?;
+        package.guard_fusion = super::guard_fusion::GuardFusion::checked(&package, &block_rows)?;
         package.word_packing = super::word_packing::WordPacking::checked(&package)?;
         package.check_packed_slots()?;
         Ok(package)
@@ -299,7 +302,11 @@ impl StepPackage {
     }
 
     /// Lean `Frame.Framed`.
-    fn native_pieces(&self, records: &ApplicationRecords, shape: &NativeShape) -> Result<Vec<Piece>, PackageError> {
+    fn native_pieces(
+        &self,
+        records: &ApplicationRecords,
+        shape: &NativeShape,
+    ) -> Result<(Vec<Piece>, Vec<bool>), PackageError> {
         let first = 8 + self.application.witness_words;
         let end = first + records.recipe_count();
         let mut dead = vec![false; end];
@@ -307,6 +314,7 @@ impl StepPackage {
         let mut walk = records.walk();
         let mut free = first;
         let mut blocks = Vec::with_capacity(shape.blocks.len());
+        let mut constants = HashMap::new();
         for block in &shape.blocks {
             let start = block.first_local;
             if start < free || end < BLOCK_LOCALS || start > end - BLOCK_LOCALS {
@@ -327,7 +335,7 @@ impl StepPackage {
                             "bounded-depth native lane reads past its inputs",
                         ));
                     }
-                    self.columns_of(lane)
+                    self.columns_of(lane, &constants)
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             for recipe in start - first..start - first + BLOCK_LOCALS {
@@ -339,25 +347,48 @@ impl StepPackage {
                 }
             }
             dead[start..start + BLOCK_OUTPUTS].fill(true);
-            blocks.push(Piece::Block {
-                start: self.variable_column(start)?,
-                lanes,
-            });
+            if lanes.iter().all(|lane| lane.terms.is_empty()) {
+                let input = std::array::from_fn(|lane| lanes[lane].constant);
+                for (lane, value) in poseidon2::permute_state(input).into_iter().enumerate() {
+                    constants.insert(start + BLOCK_OUTPUTS + lane, value);
+                }
+            } else {
+                blocks.push(Piece::Block {
+                    start: self.variable_column(start)?,
+                    lanes,
+                });
+            }
             free = start + BLOCK_LOCALS;
         }
-        let rows = self.application_rows(&mut walk, &dropped, &dead)?;
-        Ok(std::iter::once(Piece::Rows(rows)).chain(blocks).collect())
+        let rows = self.application_rows(&mut walk, &dropped, &dead, &constants)?;
+        Ok((std::iter::once(Piece::Rows(rows)).chain(blocks).collect(), dropped))
     }
 
-    fn columns_of(&self, linear: &Linear) -> Result<Linear, PackageError> {
-        Ok(Linear {
+    fn columns_of(&self, linear: &Linear, constants: &HashMap<usize, Fq>) -> Result<Linear, PackageError> {
+        let mut result = Linear {
             constant: linear.constant,
-            terms: linear
-                .terms
-                .iter()
-                .map(|&(variable, coefficient)| Ok((self.variable_column(variable)?, coefficient)))
-                .collect::<Result<_, PackageError>>()?,
-        })
+            terms: Vec::with_capacity(linear.terms.len()),
+        };
+        for &(variable, coefficient) in &linear.terms {
+            self.add_application_term(&mut result, variable, coefficient, constants)?;
+        }
+        Ok(result)
+    }
+
+    fn add_application_term(
+        &self,
+        side: &mut Linear,
+        variable: usize,
+        coefficient: Fq,
+        constants: &HashMap<usize, Fq>,
+    ) -> Result<(), PackageError> {
+        if let Some(&value) = constants.get(&variable) {
+            side.constant += coefficient * value;
+        } else {
+            side.terms
+                .push((self.variable_column(variable)?, coefficient));
+        }
+        Ok(())
     }
 
     fn application_rows(
@@ -365,6 +396,7 @@ impl StepPackage {
         walk: &mut ApplicationWalk<'_>,
         dropped: &[bool],
         dead: &[bool],
+        constants: &HashMap<usize, Fq>,
     ) -> Result<Vec<Row>, PackageError> {
         let mut rows = Vec::with_capacity(dropped.iter().filter(|&&dropped| !dropped).count());
         let mut terms = Vec::new();
@@ -380,9 +412,12 @@ impl StepPackage {
                         "bounded-depth application row reads a dead local",
                     ));
                 }
-                sides[term.form.index()]
-                    .terms
-                    .push((self.variable_column(term.variable)?, Fq::from_u64(term.coefficient)));
+                self.add_application_term(
+                    &mut sides[term.form.index()],
+                    term.variable,
+                    Fq::from_u64(term.coefficient),
+                    constants,
+                )?;
             }
             let [a, b, c] = sides;
             rows.push(Row { a, b, c });

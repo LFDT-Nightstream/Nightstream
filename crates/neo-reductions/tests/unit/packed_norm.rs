@@ -1,6 +1,7 @@
 use super::*;
 use crate::engines::optimized_engine::prefix::early_norm_coefficients;
-use neo_math::KExtensions;
+use neo_ccs::Mat;
+use neo_math::{KExtensions, F};
 
 #[test]
 fn packed_prefix_matches_each_round_and_the_next_assignment() {
@@ -20,7 +21,8 @@ fn packed_prefix_matches_each_round_and_the_next_assignment() {
         K::ONE,
     ];
     let mut serial = Assignment::new(&witness, D * w_pos.len());
-    let packed = PackedNorm::new(&witness, serial.len(), &alpha).unwrap();
+    let mut actual = [Assignment::new(&witness, D * w_pos.len())];
+    let packed = PackedNorm::new(&actual, &alpha, K::ONE).unwrap();
     for round in 0..PACKED_NORM_ROUNDS {
         let weights = EqualityWeights::new(&alpha[round + 1..]);
         let expected = early_norm_coefficients(&serial.early_pairs().unwrap(), serial.len().div_ceil(2), &weights);
@@ -32,7 +34,8 @@ fn packed_prefix_matches_each_round_and_the_next_assignment() {
     }
 
     let previous = crate::sumcheck::poly_eval_k(&packed.coefficients(&point[..2], &[]), point[2]);
-    let actual = packed.into_assignment(&point);
+    packed.bind(&mut actual, &point);
+    let [actual] = actual;
     assert_eq!(actual.len(), serial.len());
     for slot in 0..actual.len() {
         assert_eq!(actual.get(slot), serial.get(slot));
@@ -47,7 +50,8 @@ fn packed_prefix_matches_each_round_and_the_next_assignment() {
         panic!("encoded result")
     };
     let weights = EqualityWeights::new(&alpha[4..]);
-    let third = encoded_moments(&codes, &values, zero, &weights, previous, alpha[3]);
+    let higher = encoded_moments(&codes, &values, zero, &weights);
+    let third = super::super::recover_weighted_constant(previous, alpha[3], higher);
     assert_eq!(third, reference(&serial, &weights));
     let challenge = K::from_coeffs([F::from_u64(29), F::from_u64(53)]);
     let weights = EqualityWeights::new(&alpha[5..]);
@@ -60,4 +64,62 @@ fn packed_prefix_matches_each_round_and_the_next_assignment() {
     let next =
         super::super::recover_weighted_constant(crate::sumcheck::poly_eval_k(&third, challenge), alpha[4], higher);
     assert_eq!(next, reference(&serial, &weights));
+}
+
+#[test]
+fn six_packed_challenges_match_dense_norm_rounds_and_assignments() {
+    use crate::engines::optimized_engine::prefix::{fold, pair};
+
+    let witnesses = [
+        ([0xffff, 0, 0x31], [0, 0, 0x200]),
+        ([0; 3], [0; 3]),
+        ([0x5467, 0, 0], [0, 1, 0]),
+        ([0, 1 << 29, 0], [0x53, 0, 1 << 63]),
+    ]
+    .map(|(positive, negative)| Mat::compact_signed_unit_from_column_masks(D, 3, &positive, &negative).unwrap());
+    let alpha = [3, 7, 101, 11, 987, 47, 97, 37].map(|n| K::from_coeffs([F::from_u64(n), F::from_u64(n + 19)]));
+    let challenges = [alpha[7], K::ZERO, alpha[6], alpha[1], alpha[2], K::ONE];
+
+    for gamma in [K::ZERO, K::ONE, alpha[0]] {
+        let mut assignments = witnesses
+            .each_ref()
+            .map(|witness| Assignment::new(witness, 3 * D));
+        let mut dense = assignments.each_ref().map(|assignment| {
+            (0..assignment.len())
+                .map(|i| assignment.get(i))
+                .collect::<Vec<_>>()
+        });
+        let packed = PackedNorm::new(&assignments, &alpha, gamma).unwrap();
+        for (round, &challenge) in challenges.iter().enumerate() {
+            for source in &mut dense {
+                fold(source, challenge);
+            }
+            let point = &challenges[..=round];
+            let weights = EqualityWeights::new(&alpha[round + 2..]);
+            let actual = match point.len() {
+                3 => packed.moments(point, &weights, gamma),
+                4 => packed.face::<2>(point, &weights, gamma, &mut assignments),
+                5 => packed.face::<4>(point, &weights, gamma, &mut assignments),
+                6 => packed.face::<8>(point, &weights, gamma, &mut assignments),
+                _ => continue,
+            };
+            let mut expected = [K::ZERO; 4];
+            let mut source_weight = K::ONE;
+            for source in &dense {
+                for i in 0..source.len().div_ceil(2) {
+                    let (low, high) = pair(source, i);
+                    let weight = source_weight * weights.at(i);
+                    expected = add_coefficients(expected, norm_pair(low, high).map(|coefficient| weight * coefficient));
+                }
+                source_weight *= gamma;
+            }
+            assert_eq!(actual, expected[1..], "after {} challenges", point.len());
+        }
+        for (source, actual) in dense.iter().zip(&assignments) {
+            assert_eq!(actual.len(), source.len());
+            for (i, &expected) in source.iter().enumerate() {
+                assert_eq!(actual.get(i), expected);
+            }
+        }
+    }
 }

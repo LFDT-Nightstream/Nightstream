@@ -179,7 +179,11 @@ fn budget_fallback_does_not_materialize_or_disable_the_index() {
         + size_of::<Range<usize>>()
         + size_of::<&SuperneoZBlocks>()
         + TaskSums::working_bytes(1, 1).unwrap();
-    assert!(OpeningBands::new(rows.factored, work - 1, 1, 0).is_none());
+    rows.visits.store(0, Ordering::Relaxed);
+    let fallback =
+        eval_real_v1_2_openings_from_rows_reusing(&rows, &point, &witness, work - 1, Vec::new(), None, None).unwrap();
+    assert_eq!(fallback, baseline);
+    assert!(rows.visits.load(Ordering::Relaxed) > 0);
     let bands = OpeningBands::new(rows.factored, work, 1, 0).unwrap();
     assert!(bands.index_budget.is_none() && !bands.parallel_transpose);
     rows.visits.store(0, Ordering::Relaxed);

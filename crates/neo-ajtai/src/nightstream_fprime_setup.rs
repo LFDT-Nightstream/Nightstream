@@ -1,7 +1,12 @@
 use std::{borrow::Borrow, ops::Range};
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+mod child_batch;
 mod expanded;
+mod four_plane;
 mod key;
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+mod packed_product;
 
 pub use expanded::ExpandedKey;
 #[doc(hidden)]
@@ -228,6 +233,10 @@ pub fn commit_production_signed_unit_matrix(witness: &Mat<Fq>) -> AjtaiResult<Co
 
 /// Lean `AjtaiSetupV1.Prefix.commit_zeroExtend`.
 pub fn commit_production_signed_unit_prefix_matrix(witness: &Mat<Fq>) -> AjtaiResult<Commitment> {
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    if let Some(commitment) = packed_product::commit(witness) {
+        return Ok(commitment);
+    }
     let blocks = signed_unit_prefix_blocks(witness)?;
     Ok(commit_signed_blocks(&blocks))
 }
@@ -302,6 +311,10 @@ impl SignedUnitBatchError {
 pub fn commit_production_signed_unit_prefix_matrices<W: Borrow<Mat<Fq>>>(
     witnesses: &[W],
 ) -> Result<Vec<Commitment>, SignedUnitBatchError> {
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    if let Some(commitments) = child_batch::commit(witnesses) {
+        return Ok(commitments);
+    }
     let blocks = witnesses
         .iter()
         .enumerate()
@@ -331,6 +344,9 @@ pub fn commit_production_signed_unit_prefix_matrices<W: Borrow<Mat<Fq>>>(
         .filter_map(|(index, present)| present.then_some(index as u64))
         .collect();
     let key = ExpandedKey::shared();
+    if four_plane::commit_if_supported(&blocks, &columns, key.as_deref(), &mut commitments) {
+        return Ok(commitments);
+    }
     let totals = row_totals(column_count, |row, range| {
         let blocks: Vec<_> = blocks
             .iter()

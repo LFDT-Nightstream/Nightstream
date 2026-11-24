@@ -36,7 +36,8 @@ structure InputsBelow {witnessWordCount : Nat}
   currentState : ∀ lane, (interface.currentState lane).VarsBelow offset
   nextState : ∀ lane, (interface.nextState lane).VarsBelow offset
   witness : ∀ index, (interface.witness index).VarsBelow offset
-  prior : ∀ slot, ∀ word ∈ (interface.prior slot).words, word.VarsBelow offset
+  activeWords : ∀ word ∈ interface.active.words, word.VarsBelow offset
+  activeDigest : ∀ lane, (interface.activeDigest lane).VarsBelow offset
   activePoint : ∀ coordinate, (interface.active.point coordinate).VarsBelow offset
   activePad : ∀ coefficient, (interface.active.evaluation.eval_K coefficient).VarsBelow offset
   activeMatrix : ∀ matrix coefficient,
@@ -101,11 +102,9 @@ omit below in
 theorem dec_le : offset ≤ decOffset program circuit interface offset := by
   have le := fun (child : FormalCircuit) (start : Nat) =>
     (Nat.le_add_right start _ : start ≤ Formal.nextOffset child start)
-  have priorZeroLe : offset ≤ priorSlotZeroOffset program interface offset := le _ _
-  have priorOneLe : offset ≤ priorSlotOneOffset program interface offset :=
-    Nat.le_trans priorZeroLe (le _ _)
+  have activeLe : offset ≤ activeSlotOffset program interface offset := le _ _
   have priorStateLe : offset ≤ priorStateOffset program interface offset :=
-    Nat.le_trans priorOneLe (le _ _)
+    Nat.le_trans activeLe (le _ _)
   have nextStateLe : offset ≤ nextStateOffset program interface offset :=
     Nat.le_trans priorStateLe (le _ _)
   exact Nat.le_trans nextStateLe (le _ _)
@@ -442,11 +441,9 @@ theorem assumptions :
     RefreshStepLayout.Assumptions program relation circuit interface offset env := by
   have le := fun (child : FormalCircuit) (start : Nat) =>
     (Nat.le_add_right start _ : start ≤ Formal.nextOffset child start)
-  have priorZeroLe : offset ≤ priorSlotZeroOffset program interface offset := le _ _
-  have priorOneLe : offset ≤ priorSlotOneOffset program interface offset :=
-    Nat.le_trans priorZeroLe (le _ _)
+  have activeLe : offset ≤ activeSlotOffset program interface offset := le _ _
   have priorStateLe : offset ≤ priorStateOffset program interface offset :=
-    Nat.le_trans priorOneLe (le _ _)
+    Nat.le_trans activeLe (le _ _)
   have nextStateLe : offset ≤ nextStateOffset program interface offset :=
     Nat.le_trans priorStateLe (le _ _)
   have keysAt := fun (bound : Nat) (le : offset ≤ bound) key lane =>
@@ -457,12 +454,9 @@ theorem assumptions :
     application := Stage1.Application.Program.assumptions program
       (applicationInterface program interface) offset env
       ⟨below.currentState, below.witness, below.nextState⟩
-    priorSlotZero := ⟨LightStepBounds.slotPreimage_below _ _ fun word member =>
-        Expr.VarsBelow.mono _ (below.prior 0 word member) priorZeroLe,
-      fun lane => Expr.VarsBelow.mono _ (below.priorDigest 0 lane) priorZeroLe⟩
-    priorSlotOne := ⟨LightStepBounds.slotPreimage_below _ _ fun word member =>
-        Expr.VarsBelow.mono _ (below.prior 1 word member) priorOneLe,
-      fun lane => Expr.VarsBelow.mono _ (below.priorDigest 1 lane) priorOneLe⟩
+    activeSlot := ⟨LightStepBounds.slotPreimage_below _ _ fun word member =>
+        Expr.VarsBelow.mono _ (below.activeWords word member) activeLe,
+      fun lane => Expr.VarsBelow.mono _ (below.activeDigest lane) activeLe⟩
     priorState := ⟨statePreimage_below program interface _ _ _ _ _
         (keysAt _ priorStateLe) (initialAt _ priorStateLe)
         (Expr.VarsBelow.mono _ below.iteration priorStateLe)

@@ -447,6 +447,19 @@ pub(super) fn bind_sum_products<const N: usize>(
     weights: &EqualityWeights,
     term: impl Fn(K, K) -> [K; N] + Sync,
 ) -> [K; N] {
+    bind_weighted_pairs(values, challenge, weights, |products, low, high, weight| {
+        for (sum, value) in products.iter_mut().zip(term(low, high)) {
+            *sum = sum.add(weight, value);
+        }
+    })
+}
+
+fn bind_weighted_pairs<const N: usize>(
+    values: &mut Vec<K>,
+    challenge: K,
+    weights: &EqualityWeights,
+    add: impl Fn(&mut [neo_math::ProductSum; N], K, K, K) + Sync,
+) -> [K; N] {
     if values.is_empty() {
         return [K::ZERO; N];
     }
@@ -467,9 +480,7 @@ pub(super) fn bind_sum_products<const N: usize>(
             for (local, &weight) in low[..count].iter().enumerate() {
                 let pair = first + local;
                 let bound = bind_four(part, pair, challenge);
-                for (product, value) in products.iter_mut().zip(term(bound[0], bound[1])) {
-                    *product = product.add(weight, value);
-                }
+                add(&mut products, bound[0], bound[1], weight);
             }
             let high = high[job * groups_per_job + first / low.len()];
             sum = add_coefficients(sum, products.map(|product| product.value() * high));
@@ -491,6 +502,31 @@ pub(super) fn bind_sum_products<const N: usize>(
     compact_bound_chunks(values, span);
     values.truncate(values.len().div_ceil(2));
     sum
+}
+
+fn norm_moments(sums: &mut [neo_math::ProductSum; 3], low: K, high: K, weight: K) {
+    let delta = high - low;
+    if delta != K::ZERO {
+        const THIRD: F = F::new((neo_math::field::Q + 1) / 3);
+        let weighted_delta = weight * delta;
+        let terms = [
+            low.square() - K::from(THIRD),
+            high.square() - K::from(THIRD),
+            delta.square(),
+        ];
+        for (sum, term) in sums.iter_mut().zip(terms) {
+            *sum = sum.add(weighted_delta, term);
+        }
+    }
+}
+
+fn from_norm_moments([low, high, cubic]: [K; 3]) -> [K; 3] {
+    let quadratic = (high - low - cubic).halve();
+    [low.double() + low, quadratic.double() + quadratic, cubic]
+}
+
+pub(super) fn bind_norm_products(values: &mut Vec<K>, challenge: K, weights: &EqualityWeights) -> [K; 3] {
+    from_norm_moments(bind_weighted_pairs(values, challenge, weights, norm_moments))
 }
 
 pub(super) fn bind_four(values: &mut [K], pair: usize, challenge: K) -> [K; 2] {

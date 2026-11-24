@@ -67,9 +67,11 @@ def runBatches (sharedEnd size : Nat) (batches : List WitnessBatch) : Array F :=
     (Array.ofFn (n := size) fun column =>
       if column.val < sharedEnd then sharedWord column.val else 0)
 
-def deadMask (size : Nat) (blocks : List Frame.Block) : Array Bool :=
-  blocks.foldl (fun mask block =>
-      (List.range 1080).foldl (fun mask offset => mask.set! (block.start + offset) true) mask)
+def deadMask (size : Nat) (source kept : List Frame.Block) : Array Bool :=
+  let keptStarts := Std.HashSet.ofList (kept.map (·.start))
+  source.foldl (fun mask block =>
+      let count := if keptStarts.contains block.start then 1080 else 1096
+      (List.range count).foldl (fun mask offset => mask.set! (block.start + offset) true) mask)
     (Array.replicate size false)
 
 /-- Every live column's value times `mix 0 column`. -/
@@ -101,11 +103,11 @@ assignment, its logical width, and the checksum of its dense rows. The last word
 `RowsParity.fastSum width pieces next batches`, with the relation rows and the slots computed
 once. -/
 def summary (width : Nat) (pieces : List Pieces.Piece) (next sharedEnd : Nat)
-    (batches : List WitnessBatch) : Value :=
+    (batches : List WitnessBatch) (source : List Frame.Block) : Value :=
   let rows := CircuitRelation.relationRows CircuitRelation.publicColumns pieces next width
   let blocks := CircuitRelation.blocksOf pieces
   let values := runBatches sharedEnd next batches
-  let witness := witnessSum values (deadMask next blocks)
+  let witness := witnessSum values (deadMask next source blocks)
   let runs := StepPackage.slotRuns CircuitRelation.publicColumns pieces next batches
   let logical := logicalSum values runs next
   let slots := SlotLayout.runSlots width runs
@@ -145,10 +147,11 @@ def probeRefresh : StepPackage.Package :=
 
 /-- The parity file: its version, both circuits' summaries, and the probe packages with their
 identity. -/
-def parity (width : Nat) (light refresh : List Pieces.Piece × Nat × Nat × List WitnessBatch) :
+def parity (width : Nat) (light refresh : List Pieces.Piece × Nat × Nat × List WitnessBatch)
+    (lightSource refreshSource : List Frame.Block) :
     Value :=
-  .array [.atom 4, summary width light.1 light.2.1 light.2.2.1 light.2.2.2,
-    summary width refresh.1 refresh.2.1 refresh.2.2.1 refresh.2.2.2,
+  .array [.atom 4, summary width light.1 light.2.1 light.2.2.1 light.2.2.2 lightSource,
+    summary width refresh.1 refresh.2.1 refresh.2.2.1 refresh.2.2.2 refreshSource,
     StepPackage.identityValue probeLight probeRefresh,
     .array ((StepPackage.identityFast probeLight probeRefresh).map fun word => .atom word.val)]
 

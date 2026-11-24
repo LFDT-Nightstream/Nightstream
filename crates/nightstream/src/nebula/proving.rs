@@ -153,6 +153,11 @@ impl<A: Application + Clone> Prover<A> {
         Ok(bytes)
     }
 
+    /// Retain the expanded folding key (`crate::Prover::prepare_folding_key`).
+    pub fn prepare_folding_key(&mut self, max_bytes: usize) -> bool {
+        self.stage1.prepare_folding_key(max_bytes)
+    }
+
     /// The prover's key of the compression (`crate::Prover::compression_setup`).
     pub fn compression_setup(&self) -> Result<crate::CompressionSetup, crate::Error> {
         self.stage1.compression_setup()

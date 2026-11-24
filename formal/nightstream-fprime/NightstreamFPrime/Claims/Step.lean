@@ -35,7 +35,7 @@ theorem light_sound
     (firstFresh : ℕ)
     (width : ℕ)
     (fitsPackage : CircuitRelation.Fits CircuitRelation.publicColumns
-        (CircuitRelation.pieces
+        (SpecializedCircuit.pieces
           (LightAssemblerCircuit.stepCircuit program StepRelation.base relation 0 ajtai)
           (LightAssembler.sharedEnd StepRelation.base program.witnessWordCount)
           (StepRelation.lightDigestColumn program))
@@ -46,7 +46,7 @@ theorem light_sound
     (encoded : Eq (α := PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
         (LogicalPlan.publicInput (LogicalPlan.sourceEnv layout assignment)) (encHash digest))
     (rowsZero : (CircuitRelation.plan CircuitRelation.publicColumns
-            (CircuitRelation.pieces
+            (SpecializedCircuit.pieces
               (LightAssemblerCircuit.stepCircuit program StepRelation.base relation 0 ajtai)
               (LightAssembler.sharedEnd StepRelation.base program.witnessWordCount)
               (StepRelation.lightDigestColumn program))
@@ -69,10 +69,10 @@ theorem light_sound
     circuitKeys step control stepEq validControl firstFresh width fitsPackage layout assignment digest
     encoded rowsZero running others
 
-/-- A satisfying assignment of the refresh circuit's logical relation whose public input
-encodes `digest` gives the refresh case of the bounded-depth step relation, with output hash the
-first four words of `digest` (with zeros for missing words, so `digest` itself when it has four
-words). -/
+/-- A satisfying assignment of the refresh circuit's logical relation whose public input encodes
+`digest` gives the refresh case of the bounded-depth step relation, with output hash the first four
+words of `digest` (with zeros for missing words, so `digest` itself when it has four words), on the
+step with the other slot of `running` when that slot's digest is its prior digest word. -/
 theorem refresh_sound
     {logicalWidth : ℕ}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
@@ -88,7 +88,7 @@ theorem refresh_sound
     (firstFresh : ℕ)
     (width : ℕ)
     (fitsPackage : CircuitRelation.Fits CircuitRelation.publicColumns
-        (CircuitRelation.pieces
+        (SpecializedCircuit.pieces
           (RefreshAssemblerCircuit.stepCircuit program StepRelation.base relation 1 ajtai)
           (RefreshAssembler.sharedEnd StepRelation.base program.witnessWordCount)
           (StepRelation.refreshDigestColumn program))
@@ -99,25 +99,28 @@ theorem refresh_sound
     (encoded : Eq (α := PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
         (LogicalPlan.publicInput (LogicalPlan.sourceEnv layout assignment)) (encHash digest))
     (rowsZero : (CircuitRelation.plan CircuitRelation.publicColumns
-            (CircuitRelation.pieces
+            (SpecializedCircuit.pieces
               (RefreshAssemblerCircuit.stepCircuit program StepRelation.base relation 1 ajtai)
               (RefreshAssembler.sharedEnd StepRelation.base program.witnessWordCount)
               (StepRelation.refreshDigestColumn program))
             firstFresh width fitsPackage layout).RowsZero
-        assignment) :
+        assignment)
+    (running : Fin 2 → SlotData logicalWidth publicFits)
+    (others : StepRelation.RefreshOtherDigest program running
+        (StepRelation.refreshEnv program relation ajtai firstFresh layout assignment)) :
     have env := StepRelation.refreshEnv program relation ajtai firstFresh layout assignment;
       BoundedDepth.StepHolds Folding.Schedule.productionLightFoldCap ajtai
           (StepRelation.decodedKeys circuitKeys
-            (RefreshStepLayout.Interface.verifierKeys (logicalWidth := logicalWidth)
-              (publicFits := publicFits) (StepRelation.refreshInterface program))
+            (RefreshStepLayout.Interface.verifierKeys (logicalWidth := logicalWidth) (publicFits :=
+              publicFits) (StepRelation.refreshInterface program))
             env)
-          step control 1 (StepRelation.refreshInput program env)
-          (StepRelation.refreshOutput program relation 1 env) ∧
-        (StepRelation.refreshOutput program relation 1 env).x =
+          step control 1 (StepRelation.refreshInput program running env)
+          (StepRelation.refreshOutput program relation 1 running env) ∧
+        (StepRelation.refreshOutput program relation 1 running env).x =
           List.ofFn (n := 4) fun (word : Fin 4) => List.getD digest (↑word) 0 :=
-  @Export.BoundedDepth.StepRelation.refresh_stepHolds logicalWidth publicFits program relation
-    ajtai circuitKeys step control stepEq validControl firstFresh width fitsPackage layout assignment
-    digest encoded rowsZero
+  @Export.BoundedDepth.StepRelation.refresh_stepHolds logicalWidth publicFits program relation ajtai
+    circuitKeys step control stepEq validControl firstFresh width fitsPackage layout assignment digest
+    encoded rowsZero running others
 
 /-- An honest light step's assignment (`LightAssemblerCompleteness.complete`) gives a fresh
 instance with public input `encHash` of the step's output hash that holds under the light key,

@@ -1,5 +1,7 @@
-use neo_ccs::Mat;
-use neo_math::{D, F, K};
+#[path = "packed_norm/deferred.rs"]
+mod deferred;
+
+use neo_math::{D, K};
 use p3_field::PrimeCharacteristicRing;
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
@@ -22,33 +24,24 @@ const MASK_CODES: [usize; 1 << GROUP_LANES] = {
     codes
 };
 
-pub(in crate::engines::optimized_engine) struct PackedNorm<'a> {
+struct PackedSource<'a> {
     positive: &'a [u64],
     negative: &'a [u64],
     groups: usize,
-    histogram: Vec<K>,
 }
 
-impl<'a> PackedNorm<'a> {
-    pub(in crate::engines::optimized_engine) fn new(witness: &'a Mat<F>, length: usize, alpha: &[K]) -> Option<Self> {
-        let (positive, negative) = witness.packed_signed_unit_column_masks()?;
-        let mut norm = Self {
-            positive,
-            negative,
-            groups: length.div_ceil(GROUP_LANES),
-            histogram: Vec::new(),
-        };
-        let weights = EqualityWeights::new(&alpha[PACKED_NORM_ROUNDS..]);
+impl PackedSource<'_> {
+    fn histogram(&self, weights: &EqualityWeights) -> Vec<K> {
         let zero = || vec![K::ZERO; PATTERNS];
         let add = |mut sums: Vec<K>, index: usize| {
-            let pattern = norm.pattern(index);
+            let pattern = self.pattern(index);
             if pattern != 0 && pattern != ZERO && pattern + 1 != PATTERNS {
                 sums[pattern] += weights.at(index);
             }
             sums
         };
         #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-        let sums = (0..norm.groups)
+        let sums = (0..self.groups)
             .into_par_iter()
             .with_min_len(1 << 14)
             .fold(zero, add)
@@ -59,9 +52,8 @@ impl<'a> PackedNorm<'a> {
                 left
             });
         #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-        let sums = (0..norm.groups).fold(zero(), add);
-        norm.histogram = sums;
-        Some(norm)
+        let sums = (0..self.groups).fold(zero(), add);
+        sums
     }
 
     fn pattern(&self, index: usize) -> usize {
@@ -71,6 +63,76 @@ impl<'a> PackedNorm<'a> {
         let p = (self.positive[block] >> shift) & mask;
         let n = (self.negative[block] >> shift) & mask;
         ZERO + MASK_CODES[p as usize] - MASK_CODES[n as usize]
+    }
+
+    fn into_assignment(self, point: &[K; PACKED_NORM_ROUNDS]) -> Assignment<'static> {
+        let code = |index| self.pattern(index) as u16;
+        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+        let codes = (0..self.groups)
+            .into_par_iter()
+            .with_min_len(1 << 12)
+            .map(code)
+            .collect();
+        #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+        let codes = (0..self.groups).map(code).collect();
+        Assignment::Encoded {
+            codes,
+            values: codebook(point),
+            zero: ZERO as u16,
+        }
+    }
+}
+
+pub(in crate::engines::optimized_engine) struct PackedNorm<'a> {
+    sources: Vec<(usize, PackedSource<'a>)>,
+    histogram: Vec<K>,
+}
+
+impl<'a> PackedNorm<'a> {
+    pub(in crate::engines::optimized_engine) fn new(
+        assignments: &[Assignment<'a>],
+        alpha: &[K],
+        gamma: K,
+    ) -> Option<Self> {
+        let sources = assignments
+            .iter()
+            .enumerate()
+            .filter(|(_, a)| a.len() != 0)
+            .map(|(index, assignment)| {
+                let Assignment::Input { witness, len } = assignment else {
+                    return None;
+                };
+                let (positive, negative) = witness.packed_signed_unit_column_masks()?;
+                Some((
+                    index,
+                    PackedSource {
+                        positive,
+                        negative,
+                        groups: len.div_ceil(GROUP_LANES),
+                    },
+                ))
+            })
+            .collect::<Option<Vec<_>>>()?;
+        let weights = EqualityWeights::new(&alpha[PACKED_NORM_ROUNDS..]);
+        let histogram = sources
+            .iter()
+            .map(|(index, source)| {
+                let mut bins = source.histogram(&weights);
+                let weight = crate::engines::pi_ccs_joint::gamma_power(gamma, *index);
+                if weight != K::ONE {
+                    for value in &mut bins {
+                        *value *= weight;
+                    }
+                }
+                bins
+            })
+            .reduce(|mut total, bins| {
+                for (sum, contribution) in total.iter_mut().zip(bins) {
+                    *sum += contribution;
+                }
+                total
+            })?;
+        Some(Self { sources, histogram })
     }
 
     pub(in crate::engines::optimized_engine) fn coefficients(&self, point: &[K], tail: &[K]) -> [K; 4] {
@@ -104,23 +166,16 @@ impl<'a> PackedNorm<'a> {
             })
     }
 
-    pub(in crate::engines::optimized_engine) fn into_assignment(
+    pub(in crate::engines::optimized_engine) fn bind(
         self,
+        assignments: &mut [Assignment<'a>],
         point: &[K; PACKED_NORM_ROUNDS],
-    ) -> Assignment<'a> {
-        let code = |index| self.pattern(index) as u16;
-        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-        let codes = (0..self.groups)
-            .into_par_iter()
-            .with_min_len(1 << 12)
-            .map(code)
-            .collect();
-        #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-        let codes = (0..self.groups).map(code).collect();
-        Assignment::Encoded {
-            codes,
-            values: codebook(point),
-            zero: ZERO as u16,
+    ) {
+        for table in assignments.iter_mut() {
+            *table = Assignment::Folded(Vec::new());
+        }
+        for (index, source) in self.sources {
+            assignments[index] = source.into_assignment(point);
         }
     }
 }
@@ -145,9 +200,7 @@ pub(in crate::engines::optimized_engine) fn encoded_moments(
     values: &[K],
     zero: u16,
     weights: &EqualityWeights,
-    previous: K,
-    alpha: K,
-) -> [K; 4] {
+) -> [K; 3] {
     let residuals: Vec<_> = values
         .iter()
         .map(|&value| value * value * value - value)
@@ -187,12 +240,7 @@ pub(in crate::engines::optimized_engine) fn encoded_moments(
         .map(group)
         .fold([K::ZERO; 3], add_coefficients);
     let [endpoints, quadratic, cubic] = totals;
-    [
-        previous - alpha * endpoints,
-        endpoints - quadratic,
-        quadratic - cubic,
-        cubic,
-    ]
+    [endpoints - quadratic, quadratic - cubic, cubic]
 }
 
 pub(in crate::engines::optimized_engine) fn bind_encoded(

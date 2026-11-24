@@ -8,8 +8,8 @@ is one variable in a source region that starts at `base`. The first groups are t
 next states (12), the application witness, the prior, active, inner and next slots
 (7 × 2,169), the slot and output digests (20) and the fresh instance (1,472). Then come the 14
 children's commitments (16,128) and evaluation families (8,960), their digit words (4,480), the
-round messages (504), the Π_CCS output of all 15 sources (9,600), and the new and inner digests
-(12). The step's gadgets start at `sharedEnd`. -/
+round messages (504), the Π_CCS output of all 15 sources (9,600), and the new, inner and active digests
+(16). The step's gadgets start at `sharedEnd`. -/
 
 namespace NightstreamFPrime.Layout.BoundedDepth.RefreshAssembler
 
@@ -22,6 +22,7 @@ open NightstreamFPrime.Circuit.Quadratic
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Lifecycle.BoundedDepth.SlotWords
+open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Spec.HyperNova.Construction2
 open NightstreamFPrime.Layout.BoundedDepth.LightAssembler (kAt slotAt slotAt_below slotWordCount
   keysStart statesStart witnessStart slotsStart digestsStart freshStart)
@@ -40,15 +41,15 @@ def digitsStart (base witnessWordCount : Nat) : Nat :=
 def roundsStart (base witnessWordCount : Nat) : Nat := digitsStart base witnessWordCount + 4480
 def outputStart (base witnessWordCount : Nat) : Nat := roundsStart base witnessWordCount + 504
 
-/-- The digest select's 12 words: the new slot's digest, then each slot's inner digest. -/
+/-- The digest select's new, inner and active slot digests. -/
 def digestSelectStart (base witnessWordCount : Nat) : Nat :=
   outputStart base witnessWordCount + 9600
 
 /-- The first column after the shared words, where the step's gadgets start. -/
-def sharedEnd (base witnessWordCount : Nat) : Nat := digestSelectStart base witnessWordCount + 12
+def sharedEnd (base witnessWordCount : Nat) : Nat := digestSelectStart base witnessWordCount + 16
 
 theorem sharedEnd_eq (base witnessWordCount : Nat) :
-    sharedEnd base witnessWordCount = base + witnessWordCount + 56384 := by
+    sharedEnd base witnessWordCount = base + witnessWordCount + 56388 := by
   simp only [sharedEnd, digestSelectStart, outputStart, roundsStart, digitsStart, childEvaluationsStart,
     childCommitmentsStart, freshStart, digestsStart, slotsStart, witnessStart, slotWordCount]
   omega
@@ -78,6 +79,7 @@ def interface (base witnessWordCount : Nat) :
   newDigest := fun lane => .var (digestSelectStart base witnessWordCount + lane.val)
   innerDigest := fun slot lane =>
     .var (digestSelectStart base witnessWordCount + 4 + 4 * slot.val + lane.val)
+  activeDigest := fun lane => .var (digestSelectStart base witnessWordCount + 12 + lane.val)
   fresh :=
     ⟨fun _ row lane => .var (freshStart base witnessWordCount + row.val * ringDegree + lane.val),
       fun _ column => .var (freshStart base witnessWordCount + 1152 + column.val)⟩
@@ -150,11 +152,13 @@ theorem inputsBelow (base witnessWordCount : Nat) :
         rw [endEq]
         simp only [witnessStart]
         omega
-      prior := fun slot => slotAt_below _ _ (by
-        have slotBound := slot.isLt
+      activeWords := slotAt_below _ _ (by
         rw [endEq, slotsEq]
         simp only [slotWordCount]
         omega)
+      activeDigest := fun lane => by
+        change digestSelectStart base witnessWordCount + 12 + lane.val < digestSelectStart base witnessWordCount + 16
+        omega
       activePoint := fun coordinate => kAt_below _ _ (by
         have coordinateBound := coordinate.isLt
         change coordinate.val < 28 at coordinateBound
@@ -328,11 +332,9 @@ theorem rows_implies_stepHolds (program : Stage1.Application.Program)
     (represents : RefreshStepSoundness.StepRepresents program
       (interface base program.witnessWordCount) ajtai circuitKeys circuit input output proof env)
     (next : output.runningNext = DigestSelect.nextSlots input.iteration input.running
-      (DigestSelect.selected (RefreshStepLayout.selectInterface program
-          (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base
-            program.witnessWordCount))
-        (RefreshStepLayout.selectOffset program relation circuit
-          (interface base program.witnessWordCount) (sharedEnd base program.witnessWordCount)) env)
+      (RefreshStepLayout.selectedSlot program
+        (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base
+          program.witnessWordCount) env)
       ((RefreshStepLayout.newSlot program relation circuit
         (interface base program.witnessWordCount) (sharedEnd base program.witnessWordCount)).value
         env)) :
@@ -345,5 +347,31 @@ theorem rows_implies_stepHolds (program : Stage1.Application.Program)
       (interface base program.witnessWordCount) (sharedEnd base program.witnessWordCount)
       (inputsBelow base program.witnessWordCount) env)
     rows input output proof represents next
+
+theorem rows_nextWords (program : Stage1.Application.Program)
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits) (base : Nat)
+    (step : AppState → AppWitness → AppState) (control : AppState → AppWitness → Fin 2)
+    (circuit : Fin 2) (stepEq : program.step = step)
+    (validControl : ∀ state witness, program.valid state witness →
+      control state witness = circuit)
+    (env : Env)
+    (rows : holds env (Circuit.ops (RefreshStepLayout.main program relation circuit
+      (interface base program.witnessWordCount)) (sharedEnd base program.witnessWordCount))) :
+    let shared := interface (logicalWidth := logicalWidth) (publicFits := publicFits) base
+      program.witnessWordCount
+    digestValue shared.outputDigest env =
+        Poseidon2.hash (Hash.evalList env (RefreshStepLayout.statePreimageExpr program shared
+          (shared.iteration + 1) shared.nextState (Expr.const (natWord (circuit.val + 1)))
+          shared.nextDigest)) ∧
+      (shared.iteration.eval env ≠ 0 → ∀ slot,
+        slot ≠ RefreshStepLayout.selectedSlot program shared env →
+        digestValue (shared.nextDigest slot) env =
+          digestValue (shared.priorDigest slot) env) :=
+  RefreshStepSoundness.rows_nextWords program (interface base program.witnessWordCount) step
+    control circuit stepEq validControl relation (sharedEnd base program.witnessWordCount) env
+    (RefreshStepBounds.assumptions program relation circuit
+      (interface base program.witnessWordCount) (sharedEnd base program.witnessWordCount)
+      (inputsBelow base program.witnessWordCount) env)
+    rows
 
 end NightstreamFPrime.Layout.BoundedDepth.RefreshAssembler

@@ -2,6 +2,7 @@ use std::io::{Read, Write};
 use std::path::Path;
 use std::sync::Arc;
 
+use neo_ajtai::nightstream_fprime_setup::ExpandedKey;
 use neo_math::F;
 use nightstream_fprime::{Linear, NativeBlock, NativeShape};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -304,6 +305,7 @@ impl Circuit {
 
     fn prover_on(&self, backend: Backend, minimum_security_bits: u32) -> Result<Prover, Error> {
         Ok(Prover {
+            folding_key: None,
             lifecycle: lifecycle::BoundedDepth::new(&self.steps, minimum_security_bits, backend)?,
             application: self.application.clone(),
         })
@@ -392,6 +394,7 @@ impl CompressionKey {
 }
 
 pub struct Prover {
+    folding_key: Option<Arc<ExpandedKey>>,
     lifecycle: lifecycle::BoundedDepth,
     application: Option<ApplicationCircuit>,
 }
@@ -405,6 +408,16 @@ impl Prover {
     pub fn load(path: impl AsRef<Path>, engine: Engine, minimum_security_bits: u32) -> Result<Self, Error> {
         let backend = Backend::new(engine)?;
         Circuit::load(path)?.prover_on(backend, minimum_security_bits)
+    }
+
+    /// Retain the expanded Ajtai key across CPU folds. Returns true if the
+    /// key words fit in `max_bytes` and the prover could retain them. If
+    /// another thread is preparing a suitable key, this call can return false.
+    /// By default the prover expands missing words on demand. Pass zero to
+    /// release its key. Other provers and compression setups can still hold it.
+    pub fn prepare_folding_key(&mut self, max_bytes: usize) -> bool {
+        self.lifecycle
+            .prepare_folding_key(&mut self.folding_key, max_bytes)
     }
 
     pub fn prove(&self, initial_state: [F; 4], private_inputs: &[F]) -> Result<Proof, Error> {

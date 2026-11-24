@@ -44,6 +44,7 @@ import NightstreamFPrime.Export.BoundedDepth.StepPackage
 import NightstreamFPrime.Export.Generic.SlotLayout
 import NightstreamFPrime.Export.Generic.NativeBlock
 import NightstreamFPrime.Export.Generic.NativeFill
+import NightstreamFPrime.Export.BoundedDepth.SpecializedCircuit
 import NightstreamFPrime.Export.Generic.Substitute
 import NightstreamFPrime.Export.Generic.PieceRowsCompleteness
 import NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerCompleteness
@@ -355,6 +356,7 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.RefreshStepLayout.decSpec_any
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.RefreshStepLayout.rlcSpec_any
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.RefreshStepLayout.soundness
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.RefreshStepSoundness.rows_nextWords
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.RefreshStepSoundness.newSlot_value
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.RefreshStepSoundness.decWired
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.RefreshStepSoundness.piccsRepresents
@@ -365,6 +367,7 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Layout.BoundedDepth.RefreshStepBounds.rlcAssumptions
 #audit_axioms NightstreamFPrime.Layout.BoundedDepth.RefreshStepBounds.newSlot_below
 #audit_axioms NightstreamFPrime.Layout.BoundedDepth.RefreshStepBounds.assumptions
+#audit_axioms NightstreamFPrime.Layout.BoundedDepth.RefreshAssembler.rows_nextWords
 #audit_axioms NightstreamFPrime.Layout.BoundedDepth.RefreshAssembler.inputsBelow
 #audit_axioms NightstreamFPrime.Layout.BoundedDepth.RefreshAssembler.rows_implies_stepHolds
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.RefreshPiCCSPhase.chain_of_check
@@ -375,11 +378,13 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Layout.BoundedDepth.RefreshStepCompleteness.completeGadgetsFrom
 #audit_axioms NightstreamFPrime.Layout.BoundedDepth.RefreshStepCompleteness.completeDecFrom
 #audit_axioms NightstreamFPrime.Layout.BoundedDepth.RefreshStepCompleteness.completeRlcPhaseFrom
+#audit_axioms NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerSource.target_tail
+#audit_axioms NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerSource.target_digestSelect
 #audit_axioms NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerSource.childCommitment_eval
 #audit_axioms NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerSource.childEvaluation_eval
 #audit_axioms NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerSource.digit_eval
 #audit_axioms NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerSource.stepRepresents
-#audit_axioms NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerCompleteness.priorSlot_spec
+#audit_axioms NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerCompleteness.activeSlot_spec
 #audit_axioms NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerCompleteness.priorState_spec
 #audit_axioms NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerCompleteness.completePhasesFrom
 #audit_axioms NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerCompleteness.complete
@@ -454,11 +459,16 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.rowsZero_implies_pieces
 #audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.rowsZero_implies_constraints
 #audit_axioms NightstreamFPrime.Export.Generic.CircuitRelation.rowsZero_implies_spec
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.SpecializedCircuit.Plan.replace_eval
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.SpecializedCircuit.valid_iff
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.SpecializedCircuit.endColumn_le
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.SpecializedCircuit.rowsZero_implies_spec
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepPackage.Package.format
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepPackage.lowerPiecesAux_eq
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepPackage.packageAux_eq
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepPackage.flatMap_packageSpec
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepPackage.blocks_packageSpec
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.StepPackage.replaceWitnessInputs_computed
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepPackage.relationRows_packageOf
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepPackage.identityFast_eq
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.TerminalBridge.serializeSlot_words
@@ -478,6 +488,11 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepRelation.light_stepHolds
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepRelation.refreshOutput_runningNext
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepRelation.refreshRepresents
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.StepRelation.refreshInput_depth
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.StepRelation.refresh_rowsWords
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.StepRelation.refreshNextDigests_of_words
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.StepRelation.refreshNextWords_length
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.StepRelation.refresh_freshWords
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepRelation.refresh_stepHolds
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepRelation.publicInput_eq_project
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepRelation.light_freshHolds

@@ -122,15 +122,14 @@ fn assert_native_packages_match_lean(package: Package, stem: &str) {
         assert_eq!(native.width(), lean.width());
         let expanded = native.clone().expand().unwrap();
         let layout = expanded.layout();
-        let block = native.blocks().next().unwrap();
-        let first_local = application.shape().blocks[0].first_local;
-        assert_eq!(first_local, application.generated_range().start);
+        assert_eq!(native.application_local_start(), lean.application_local_start());
+        let first_local = application.generated_range().start;
         for &variable in &forced {
             let column = if variable < 4 + application.private_input_count() {
                 nightstream_fprime::PUBLIC_WORDS + 5 + 8 + 12 + variable - 4
             } else {
                 assert!(application.generated_range().contains(&variable));
-                block.start() + variable - first_local
+                native.application_local_start() + variable - first_local
             };
             let (_, kind) = layout.slot(column).expect("forced word has a slot");
             assert_eq!(format!("{kind:?}"), "Bit", "application variable {variable}");

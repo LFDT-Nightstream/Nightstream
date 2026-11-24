@@ -82,7 +82,6 @@ fn increment(commitment: &mut Commitment, word: usize) {
 #[ignore = "Production-size compression, 30 GB; run separately under the 300-second cap."]
 fn a_compressed_proof_verifies_and_a_changed_one_does_not() {
     let prover = prover(2);
-    assert_eq!(prover.relations[0].blocks(), 74_146);
     let envelopes = envelopes(&prover);
     let (setup, setup_time) = setup_and_time(&prover);
     let key_bytes = setup.verification_key().to_bytes();

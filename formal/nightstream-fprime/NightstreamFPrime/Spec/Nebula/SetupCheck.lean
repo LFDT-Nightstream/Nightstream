@@ -28,6 +28,13 @@ private theorem floor_nat_iff (m : ℕ) :
     have edge : (2 * 139509) ^ 100 * 2 ^ 10991 ≤ fieldModulus ^ 200 := by decide +kernel
     omega
 
+private theorem cast_floor_bound (m q a b c : ℕ) :
+    (2 * m) ^ a * 2 ^ b ≤ q ^ c ↔ (2 * (m : ℝ)) ^ a * 2 ^ b ≤ (q : ℝ) ^ c := by
+  rw [← Nat.cast_le (α := ℝ)]
+  push_cast
+  rfl
+
+attribute [local irreducible] Real.instLT Real.instLE in
 /-- Rule 6 holds exactly when
 `ε_test = 2·m_mem/q² ≤ 2^−109.91`. -/
 theorem Geometry.secure_iff (p : Geometry) :
@@ -45,6 +52,6 @@ theorem Geometry.secure_iff (p : Geometry) :
   rw [Geometry.Secure, ← floor_nat_iff, ← pow_le_pow_iff_left₀ left right (by norm_num : 100 ≠ 0),
     floor, div_pow, ← pow_mul, show 2 * 100 = 200 from rfl, div_le_iff₀ modulus,
     ← div_eq_inv_mul, le_div_iff₀ two]
-  norm_cast
+  exact cast_floor_bound p.maxTuples fieldModulus 100 10991 200
 
 end NightstreamFPrime.Spec.Nebula

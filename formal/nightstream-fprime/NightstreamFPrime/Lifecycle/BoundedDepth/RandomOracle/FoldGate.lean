@@ -119,6 +119,8 @@ theorem production_bits : bits production = 115 := by
   rw [Nat.log_eq_iff (Or.inl (by norm_num))]
   constructor <;> decide
 
+attribute [local irreducible] Real.instLT Real.instLE
+
 private theorem sampleError_lt : Fork.sampleError < 1 / 5 ^ 64 + 1 / 2 ^ 173 := by
   have distance := Spec.Folding.Nifs.NonInteractive.PiRlcSampler.distance_lt
   have count : (Spec.Folding.Nifs.NonInteractive.PiRlcSampler.scalarCount : ℝ) = 5 ^ 64 := by

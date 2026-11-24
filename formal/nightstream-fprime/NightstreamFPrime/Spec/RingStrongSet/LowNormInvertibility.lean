@@ -23,16 +23,16 @@ private abbrev Base := ZMod fieldModulus
 local instance : Fact (Nat.Prime fieldModulus) := ⟨FieldPrime.fieldModulus_natPrime⟩
 
 /-- `X ^ 2 ^ n - a` is irreducible over a field in which `-1` is a square and `a` is not a
-square. Mathlib has the odd case, `X_pow_sub_C_irreducible_of_prime_pow_of_ne_two`. -/
+square. Mathlib has the odd case, `irreducible_X_pow_sub_C_of_prime_pow_of_ne_two`. -/
 private theorem X_pow_two_pow_sub_C_irreducible {K : Type u} [Field K] (n : Nat) {a : K}
     (negOneSquare : ∃ i : K, i ^ 2 = -1) (notSquare : ∀ b : K, b ^ 2 ≠ a) :
     Irreducible (X ^ 2 ^ n - C a) := by
   induction n generalizing K a with
   | zero => simpa using irreducible_X_sub_C a
   | succ n hypothesis =>
-    have quadratic := X_pow_sub_C_irreducible_of_prime Nat.prime_two notSquare
+    have quadratic := irreducible_X_pow_sub_C_of_prime Nat.prime_two notSquare
     rw [pow_succ]
-    apply X_pow_mul_sub_C_irreducible quadratic
+    apply irreducible_X_pow_mul_sub_C quadratic
     have := Fact.mk quadratic
     obtain ⟨i, square⟩ := negOneSquare
     apply hypothesis
@@ -99,7 +99,8 @@ private theorem coeff_coefficientPolynomial {count : Nat} (coefficient : Fin cou
     (coefficientPolynomial coefficient).coeff index =
       if inside : index < count then coefficient ⟨index, inside⟩ else 0 := by
   classical
-  simp only [coefficientPolynomial, finsetSum_coeff, C_mul_X_pow_eq_monomial, coeff_monomial]
+  simp only [coefficientPolynomial, finsetSum_coeff, C_mul_X_pow_eq_monomial,
+    coeff_monomial, Finsupp.single_apply]
   split_ifs with inside
   · rw [Finset.sum_eq_single ⟨index, inside⟩]
     · simp

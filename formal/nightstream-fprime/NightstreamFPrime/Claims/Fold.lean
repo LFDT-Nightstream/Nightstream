@@ -377,8 +377,9 @@ theorem honest_bounds
 under the Π_RLC sampler and under its ideal law
 (`Spec.Folding.Nifs.NonInteractive.PiRlcSampler.expect_difference_abs_le`). -/
 theorem sampler_distance :
-    Nifs.NonInteractive.PiRlcSampler.distance < 1 / 2 ^ 173 :=
-  @Spec.Folding.Nifs.NonInteractive.PiRlcSampler.distance_lt
+    Nifs.NonInteractive.PiRlcSampler.distance < 1 / 2 ^ 173 := by
+  with_reducible
+    exact @Spec.Folding.Nifs.NonInteractive.PiRlcSampler.distance_lt
 
 /-- The statistical term of the light fold with `Q` queries is at most `(Q + 1)/2^bits`. -/
 theorem light_error_bits
@@ -570,9 +571,10 @@ theorem light_production_knowledge_error
                 RandomOracleSetup.lightSolverAdvantage key adversary budget +
               2 * RandomOracleSetup.lightHashAdvantage key adversary budget +
             (7 * (↑queries : ℝ) + 124) / (↑budget : ℝ) +
-          1 / 2 ^ 1129 :=
-  @Export.BoundedDepth.RandomOracleSetup.light_production_knowledge_error_lt_solvers key adversary
-    queries bounded budget positive
+          1 / 2 ^ 1129 := by
+  with_reducible
+    exact @Export.BoundedDepth.RandomOracleSetup.light_production_knowledge_error_lt_solvers key adversary
+      queries bounded budget positive
 
 /-- The refresh knowledge bound at the bounded-depth scheme's key width with both terms of named problems as
 the advantage of an explicit algorithm. -/
@@ -612,9 +614,10 @@ theorem refresh_production_knowledge_error
                 RandomOracleSetup.refreshSolverAdvantage key adversary budget +
               16 * RandomOracleSetup.refreshHashAdvantage key adversary budget +
             (77 * (↑queries : ℝ) + 1286) / (↑budget : ℝ) +
-          1 / 2 ^ 1129 :=
-  @Export.BoundedDepth.RandomOracleSetup.refresh_production_knowledge_error_lt_solvers key
-    adversary queries bounded budget positive
+          1 / 2 ^ 1129 := by
+  with_reducible
+    exact @Export.BoundedDepth.RandomOracleSetup.refresh_production_knowledge_error_lt_solvers key
+      adversary queries bounded budget positive
 
 /-- The light knowledge bound of `light_production_knowledge_error` with numbers: the statistical
 term is at most `(Q + 1) · 575/2^128`, and under `Spec.Sponge.Transfer` of the collision event
@@ -662,9 +665,10 @@ theorem light_knowledge_error_numeric
                 RandomOracleSetup.lightSolverAdvantage key adversary budget +
               2 * (Sponge.birthdayBound calls + Sponge.spongeError calls) +
             (7 * (↑queries : ℝ) + 124) / (↑budget : ℝ) +
-          1 / 2 ^ 1129 :=
-  @Export.BoundedDepth.RandomOracleSetup.light_production_knowledge_error_lt_numeric key adversary
-    queries bounded budget positive blocks calls finder
+          1 / 2 ^ 1129 := by
+  with_reducible
+    exact @Export.BoundedDepth.RandomOracleSetup.light_production_knowledge_error_lt_numeric key adversary
+      queries bounded budget positive blocks calls finder
 
 /-- The refresh knowledge bound of `refresh_production_knowledge_error` with numbers: the statistical
 term is at most `(Q + 1) · 4748/2^128`, and under `Spec.Sponge.Transfer` of the collision event
@@ -712,8 +716,9 @@ theorem refresh_knowledge_error_numeric
                 RandomOracleSetup.refreshSolverAdvantage key adversary budget +
               16 * (Sponge.birthdayBound calls + Sponge.spongeError calls) +
             (77 * (↑queries : ℝ) + 1286) / (↑budget : ℝ) +
-          1 / 2 ^ 1129 :=
-  @Export.BoundedDepth.RandomOracleSetup.refresh_production_knowledge_error_lt_numeric key adversary
-    queries bounded budget positive blocks calls finder
+          1 / 2 ^ 1129 := by
+  with_reducible
+    exact @Export.BoundedDepth.RandomOracleSetup.refresh_production_knowledge_error_lt_numeric key adversary
+      queries bounded budget positive blocks calls finder
 
 end NightstreamFPrime.Claims.Fold

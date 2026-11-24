@@ -22,7 +22,7 @@ are not checked.
 
 ## What Lean checks
 
-- The kernel of the official Lean v4.35.0 toolchain, with Mathlib v4.35.0 and
+- The kernel of the official Lean v4.36.0 toolchain, with Mathlib v4.36.0 and
   the CompPoly revision that `lakefile.toml` pins.
 - `scripts/validate.sh` runs on the developer Mac. Its `build`, `axioms`,
   `executables` and `all` phases use `lake build --wfail`, and single files

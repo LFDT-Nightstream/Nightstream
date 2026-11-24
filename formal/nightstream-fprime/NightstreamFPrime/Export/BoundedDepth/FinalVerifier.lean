@@ -584,6 +584,7 @@ theorem game_avoids (premises : Premises setup packageWidths) :
 /-- The bound on the density of each bad set: the argument's and Π_CCS's. -/
 noncomputable def finalError : ℝ := 1 / 2 ^ 119 + 38 / (fieldModulus : ℝ) ^ 2
 
+attribute [local irreducible] Real.instLT in
 theorem game_densityLe : setup.game.DensityLe finalError := by
   have ccsLe : (38 / (fieldModulus : ℝ) ^ 2) ≤ finalError := by
     unfold finalError

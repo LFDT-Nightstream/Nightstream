@@ -149,10 +149,10 @@ theorem production_error
     (depths_le : ∀ (s : Fin n), depths s ≤ Folding.Schedule.productionLightFoldCap)
     (slots_le : ∀ (c : Fin (n + 1)), (↑c : ℕ) < n → (layout.witness c).vars ≤ 25)
     (span_le : layout.spanVars ≤ 27) :
-    Verifier.error vf < 1 / 2 ^ 119 :=
-  @Spec.Compression.Production.params_error_lt n key matrices depths layout vf slots
-    depths_le
-    slots_le span_le
+    Verifier.error vf < 1 / 2 ^ 119 := by
+  with_reducible
+    exact @Spec.Compression.Production.params_error_lt n key matrices depths layout vf slots
+      depths_le slots_le span_le
 
 /-- In the light mode, each layout that the Lean model of Rust `Layout::new` accepts at a depth at
 most the cap has 119 bits for the small key and 118 bits for the large key. -/

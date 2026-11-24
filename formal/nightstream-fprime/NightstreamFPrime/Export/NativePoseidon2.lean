@@ -506,11 +506,17 @@ private def identityBlock0 : List UInt64 :=
 private def identityBlock1 : List UInt64 :=
   [70, 80, 114, 105, 109, 101, 47, 112, 97, 99, 107, 97]
 
+private theorem canonicalWords (words : List UInt64)
+    (checked : words.all (fun word => decide (word.toNat < fieldModulus)) = true) :
+    ∀ word ∈ words, word.toNat < fieldModulus := by
+  simpa only [List.all_eq_true, decide_eq_true_eq] using checked
+
 def initialState64 : HashState64 where
-  sponge := absorbWords64 (absorbWords64 State64.zero identityBlock0 (by decide))
-    identityBlock1 (by decide)
+  sponge := absorbWords64
+    (absorbWords64 State64.zero identityBlock0 (canonicalWords _ (by decide +kernel)))
+    identityBlock1 (canonicalWords _ (by decide +kernel))
   pending := [103, 101, 47, 118, 50]
-  pendingCanonical := by decide
+  pendingCanonical := canonicalWords _ (by decide +kernel)
 
 theorem initialState64_denote :
     initialState64.denote = StreamingIdentity.initialState := by

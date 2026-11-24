@@ -389,6 +389,8 @@ end Refresh
 
 section Production
 
+attribute [local irreducible] Real.instLT Real.instLE
+
 local notation "Width" => StepRelation.keyWidth
 local notation "Fits" => StepRelation.keyPublicFits
 

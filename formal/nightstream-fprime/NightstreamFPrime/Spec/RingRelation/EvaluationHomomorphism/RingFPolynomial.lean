@@ -26,7 +26,7 @@ theorem coeff_toPolynomial (value : RingF) (index : Fin ringDegree) :
     (toPolynomial value).coeff index.val = value index := by
   classical
   simp only [toPolynomial, finsetSum_coeff, C_mul_X_pow_eq_monomial,
-    coeff_monomial]
+    coeff_monomial, Finsupp.single_apply]
   rw [Finset.sum_eq_single index]
   · simp
   · intro other _ different
@@ -37,7 +37,7 @@ private theorem coeff_toPolynomial_of_ge (value : RingF) (index : Nat)
     (outside : ringDegree ≤ index) : (toPolynomial value).coeff index = 0 := by
   classical
   simp only [toPolynomial, finsetSum_coeff, C_mul_X_pow_eq_monomial,
-    coeff_monomial]
+    coeff_monomial, Finsupp.single_apply]
   apply Finset.sum_eq_zero
   intro other _
   exact ite_eq_right (by have := other.isLt; omega)

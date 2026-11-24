@@ -5,12 +5,12 @@ allowNonModules = true
 [[require]]
 name = "mathlib"
 scope = "leanprover-community"
-rev = "v4.35.0"
+rev = "v4.36.0"
 
 [[require]]
 name = "CompPoly"
 git = "https://github.com/Verified-zkEVM/CompPoly"
-rev = "06686e4c70939af82203af21516f8ab8a21a8051"
+rev = "afb9b1363984a70f10e24bd597f6ff40ebc8afbb"
 
 [[lean_lib]]
 name = "NightstreamFPrime"

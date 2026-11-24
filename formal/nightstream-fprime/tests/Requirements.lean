@@ -221,6 +221,7 @@ example {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
 -- when the collision finder makes at most `N` permutation calls, the light success is below the
 -- extraction chance plus `(Q + 1) · 575/2^128`, the MSIS solver's advantage,
 -- `2 · (C(N + 2, 2)/q⁴ + N²/q⁴)`, `(7Q + 124)/budget` and `2^−1129`, with `q = 2^64 − 59`.
+attribute [local irreducible] Real.instLT in
 example
     (key : (RandomOracleSetup.SetupIndex StepRelation.keyWidth StepRelation.keyPublicFits →
       AjtaiSetupV1.Rejection.Stream) → CircuitKey StepRelation.keyWidth StepRelation.keyPublicFits)
@@ -250,6 +251,7 @@ example
 -- when the collision finder makes at most `N` permutation calls, the refresh success is below the
 -- extraction chance plus `(Q + 1) · 4748/2^128`, the MSIS solver's advantage,
 -- `16 · (C(N + 2, 2)/q⁴ + N²/q⁴)`, `(77Q + 1286)/budget` and `2^−1129`, with `q = 2^64 − 59`.
+attribute [local irreducible] Real.instLT in
 example
     (key : (RandomOracleSetup.SetupIndex StepRelation.keyWidth StepRelation.keyPublicFits →
       AjtaiSetupV1.Rejection.Stream) → CircuitKey StepRelation.keyWidth StepRelation.keyPublicFits)

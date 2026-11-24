@@ -110,6 +110,7 @@ theorem slot_table_le {depth : ℕ} (le : depth ≤ productionLightFoldCap) :
   simp only [GlobalParams.accumulatorBound, productionGlobalParams, productionLightFoldCap] at le ⊢
   omega
 
+attribute [local irreducible] Real.instLT in
 /-- At the production bounds of the layout and at most two slots, the error of `soundness` is
 below `2^−119`. -/
 theorem params_error_lt (vf : VerifierData (params key matrices depths layout)) (slots : n ≤ 2)

@@ -262,7 +262,7 @@ noncomputable def forked (oracle : Oracle) (retries : Retries) (index : Fin sche
   Function.update oracle (rhoPoint game adversary index oracle) (retries index)
 
 /-- The answers at the `ρ` point of `index` that keep the run successful at that point. -/
-def retrySets (oracle : Oracle) (index : Fin schedule.rhoCount) : Set Answer :=
+noncomputable def retrySets (oracle : Oracle) (index : Fin schedule.rhoCount) : Set Answer :=
   lineSet (Hits game adversary index) (rhoPoint game adversary index oracle) oracle
 
 /-- The retry at `index` succeeds at the base run's `ρ` point, samples a new scalar, and keeps
@@ -317,6 +317,7 @@ private theorem mass_union_le (left right : Set Answer) :
     by_cases inLeft : answer ∈ left <;> by_cases inRight : answer ∈ right <;>
       simp [inLeft, inRight]
 
+attribute [local irreducible] Real.instLT in
 theorem mass_ne_zero {set : Set Answer} {answer : Answer} (inside : answer ∈ set) :
     mass set ≠ 0 := by
   unfold mass

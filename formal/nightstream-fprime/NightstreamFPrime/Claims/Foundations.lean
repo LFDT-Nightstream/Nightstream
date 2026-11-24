@@ -56,8 +56,9 @@ theorem setup_error :
     Export.BoundedDepth.RandomOracleSetup.programmingError
           Export.BoundedDepth.StepRelation.keyWidth
           Export.BoundedDepth.StepRelation.keyPublicFits <
-        1 / 2 ^ 1129 :=
-  @Export.BoundedDepth.RandomOracleSetup.programmingError_lt
+        1 / 2 ^ 1129 := by
+  with_reducible
+    exact @Export.BoundedDepth.RandomOracleSetup.programmingError_lt
 
 /-- An accepted sum-check transcript on a truth path with a false claim has a round with a bad
 challenge. -/

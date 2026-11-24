@@ -185,6 +185,7 @@ noncomputable def uniformExpect (test : Scalar → ℝ) : ℝ :=
 noncomputable def distance : ℝ :=
   ((remainder * (scalarCount - remainder) : Nat) : ℝ) / ((scalarCount * drawCount : Nat) : ℝ)
 
+attribute [local irreducible] Real.instLT in
 theorem distance_lt : distance < 1 / 2 ^ 173 := by
   have exact : remainder * (scalarCount - remainder) * 2 ^ 173 < scalarCount * drawCount := by
     decide

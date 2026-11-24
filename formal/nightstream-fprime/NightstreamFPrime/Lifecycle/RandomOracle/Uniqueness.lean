@@ -294,6 +294,7 @@ theorem weight_le_retryMass (oracle : Oracle) {event : Retries → Prop} {retrie
       (fun retries _ => mul_nonneg (weight_nonnegative game adversary oracle retries)
         (by split <;> norm_num)) (Finset.mem_univ retries)
 
+attribute [local irreducible] Real.instLT Real.instLE in
 theorem weight_pos {oracle : Oracle} {retries : Retries}
     (valid : Valid game adversary oracle retries) :
     0 < weight game adversary oracle retries := by

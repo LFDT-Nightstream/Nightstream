@@ -119,6 +119,8 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.Prefix
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Readback
 import NightstreamFPrime.Spec.Compression.Akita.Replay.SamplerSigns
 import NightstreamFPrime.Spec.Compression.Akita.Replay.SamplerStage
+import NightstreamFPrime.Spec.Compression.Akita.Replay.SamplerPool
+import NightstreamFPrime.Spec.Compression.Akita.Replay.CodeSlot
 import NightstreamFPrime.Spec.Compression.Akita.Replay.FusedJoin
 import NightstreamFPrime.Spec.Compression.Akita.Replay.LevelPack
 import NightstreamFPrime.Spec.Compression.Akita.Replay.LevelIn

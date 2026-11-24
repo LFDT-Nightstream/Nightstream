@@ -10,8 +10,9 @@ The results for the Akita openings of the compressed proof under the schedule fi
 each schedule are in `Claims.Akita`.
 
 - Model: the model of `Claims.Akita`. The answers of the stages are one uniform table on the keys
-  of the stage inputs, with independent slots. The verifier is the Lean verifier of the opening
-  with an offloaded root. It is not the verifier of the pinned Akita code.
+  of the stage inputs, with independent slots `Spec.Compression.Akita.Replay.CodeSlot E`. The
+  verifier is the Lean verifier of the opening with an offloaded root and the fold decoders
+  `slotDecode` of the code. It is not the verifier of the pinned Akita code.
 - Bounds: Nightstream results, not Akita Theorem 10.46. One query returns all the slots of a key,
   and the paper counts a query for each indexed coordinate stream (Akita Section 10.3). The file
   has no `(λ_FS, Q_max)`. Each bound has the term `breakChance`, or it bounds only the event that
@@ -34,7 +35,7 @@ each schedule are in `Claims.Akita`.
   this proof is a prover of the game of `key30_opening_bound`, with no hypothesis on the fit for
   the zero tables and the zero setup prefix only. For another setup prefix and other tables, the
   fit conditions of the honest prover are hypotheses (`Spec.Compression.Akita.Key30.tower_complete`).
-  No Lean result compares the Lean decoders or the Lean verifier with the code. -/
+  No Lean result joins `verifyProof` of the code to the Lean verifier. -/
 
 namespace NightstreamFPrime.Claims.AkitaKey30
 
@@ -46,8 +47,8 @@ attribute [local instance] NightstreamFPrime.Export.BoundedDepth.FinalKey20.inst
 /-- The output of the extractor for the opening of a row of
 `crates/ns-compress/artifacts/key30.aks`, the file of the key of `2^19` blocks (Akita Proposition
 10.44 (i) and Lemma 9.1 for this schedule). The verifier is the Lean verifier
-`Key30.Tower.accepts` of the opening with an offloaded root, with the decoders
-`Akita.Extract.draw` of the sparse families. It is not the verifier of the pinned Akita code.
+`Key30.Tower.accepts` of the opening with an offloaded root, with the fold decoders of the
+pinned Akita code. No Lean result joins `verifyProof` of the code to it.
 Each output of the extractor is a certified decommitment of the commitment of each group of the
 root to a table that has the claimed value at the claimed point, or a solution of Module-SIS for
 a matrix of a group, of a level or for `A_term` (`[MSIS]`). `shared`: the matrices `A`, `B` and
@@ -75,10 +76,10 @@ theorem key30_opening_sound
     {read : Akita.Extract.Reader Wire}
     (drawn : o.Drawn shared read 0)
     (slots : 28 ≤ Fintype.card Coord)
-    (prover : RandomOracle.OracleComp (Akita.Extract.Address Wire total) (Option Coord → E) (ℕ → Wire))
+    (prover : RandomOracle.OracleComp (Akita.Extract.Address Wire total) (Option Coord → Akita.Replay.CodeSlot E) (ℕ → Wire))
     (budget : ℕ)
-    (table : Akita.Extract.Address Wire total → Option Coord → E)
-    (tape : Checkpoint.Tape (Akita.Extract.Address Wire total) (Option Coord) E budget
+    (table : Akita.Extract.Address Wire total → Option Coord → Akita.Replay.CodeSlot E)
+    (tape : Checkpoint.Tape (Akita.Extract.Address Wire total) (Option Coord) (Akita.Replay.CodeSlot E) budget
           (o.body shared read 0 (o.accepts shared read)).protocol.stages)
     (out : Akita.Extract.Opened (Akita.Key30.root r).Weak
             (Akita.Extract.Opened (Akita.Key30.level₁ r).Weak
@@ -87,7 +88,7 @@ theorem key30_opening_sound
                   (Akita.Extract.Opened (Akita.Weak Akita.Key30.level₄.opening)
                     (Akita.Extract.Opened (Akita.Weak Akita.Key30.level₅.opening)
                       (Akita.Extract.Opened (Akita.Weak Akita.Key30.level₆.opening)
-                        (Akita.Extract.Prefix Wire (Option Coord → E) total ×
+                        (Akita.Extract.Prefix Wire (Option Coord → Akita.Replay.CodeSlot E) total ×
                           Option (Akita.TerminalFork Akita.Key30.terminal)))))))) ⊕
           (Akita.Batch.LevelBreak o.key o.openKey fun g =>
               2 * (2 * Akita.Key30.mass g) *
@@ -127,7 +128,7 @@ theorem key30_opening_sound
 /-- The Nightstream extraction bound (Bounds above), not Akita Theorem 10.46, for the opening of
 a row of `crates/ns-compress/artifacts/key30.aks`, with Akita Lemma 9.1 for the offloaded root.
 The model is that of `Claims.Akita.checkpoint_extraction`, and the verifier is the Lean verifier
-`Key30.Tower.accepts`, which differs from the verifier of the pinned Akita code. For each prover
+`Key30.Tower.accepts` with the fold decoders of the code, and no Lean result joins `verifyProof` of the code to it. For each prover
 with at most `Q` queries, the probability that the verifier accepts and the extractor returns no
 output is at most `(Q + 1)·(1623435/(4096·q²) + (1458 + B_1 + B_2)/q²) +
 (Q + 1)·(1467 + B_1 + B_2)/budget`. `B_1` and `B_2` are the live blocks of the witness group of
@@ -158,7 +159,7 @@ theorem key30_opening_bound
     [finiteWire : Finite Wire]
     (drawn : o.Drawn shared read 0)
     (slots : 28 ≤ Fintype.card Coord)
-    (prover : RandomOracle.OracleComp (Akita.Extract.Address Wire total) (Option Coord → E) (ℕ → Wire))
+    (prover : RandomOracle.OracleComp (Akita.Extract.Address Wire total) (Option Coord → Akita.Replay.CodeSlot E) (ℕ → Wire))
     {queries : ℕ}
     (bounded : prover.QueryBound queries)
     {budget : ℕ}
@@ -195,7 +196,7 @@ search of the honest prover for the work bits of Akita Remark 10.18), a proof ex
 message has the commitments of the tables, the points and the values, and whose transcript the
 verifier `offLinks` accepts. The proof is a sequence of messages of the type `Key30.Wire E`,
 which is finite (`Spec.Compression.Akita.Key30.Note.finite`): the points are vectors, and
-`Key30.Note.place` and `Key30.Note.places` read them as lists. For the decoders `draw` of
+`Key30.Note.place` and `Key30.Note.places` read them as lists. For the decoders of the code of
 `Key30.Tower`, the split `Key30.Tower.scan` and the readers of `Key30.Note`, the proof is a
 prover with no queries of the game of `key30_opening_bound` (`key30_opening_played`). With the
 count `Spec.Compression.Akita.Key20.Kept`, each slot decodes, so `decodes` to `decodesL` hold for
@@ -224,7 +225,7 @@ theorem key30_opening_accepts
     (key : (g : Fin 3) → Akita.Key ((Akita.Key30.root r).shape g))
     (openKey : (Akita.Key30.root r).OpenKey)
     (block : (Akita.Key30.root r).Block → Coord)
-    (decode : (g : Fin 3) → E → Option (Akita.Rq ((Akita.Key30.root r).carrierDegree g)))
+    (decode : (g : Fin 3) → Akita.Replay.CodeSlot E → Option (Akita.Rq ((Akita.Key30.root r).carrierDegree g)))
     (mass : Fin 3 → ℕ)
     (scan : (wire : Akita.Key30.Wire r E) →
           (challenge : (Akita.Key30.root r).Challenge) →
@@ -238,40 +239,40 @@ theorem key30_opening_accepts
     (key₁ : (g : Fin 2) → Akita.Key ((Akita.Key30.level₁ r).shape g))
     (openKey₁ : (Akita.Key30.level₁ r).OpenKey)
     (block₁ : (Akita.Key30.level₁ r).Block → Coord)
-    (decode₁ : (g : Fin 2) → E → Option (Akita.Rq ((Akita.Key30.level₁ r).carrierDegree g)))
+    (decode₁ : (g : Fin 2) → Akita.Replay.CodeSlot E → Option (Akita.Rq ((Akita.Key30.level₁ r).carrierDegree g)))
     (mass₁ : Fin 2 → ℕ)
     (β₂ : Module.Basis (Fin (Akita.Key30.level₂ r).opening.planes) Akita.Zq E)
     (key₂ : Akita.Key (Akita.Key30.level₂ r).shape)
     (openKey₂ : Akita.OpeningKey (Akita.Key30.level₂ r).opening)
     (block₂ : Fin (Akita.Key30.level₂ r).shape.blocks → Coord)
-    (decode₂ : E → Option (Akita.Rq (Akita.Key30.level₂ r).opening.carrierDegree))
+    (decode₂ : Akita.Replay.CodeSlot E → Option (Akita.Rq (Akita.Key30.level₂ r).opening.carrierDegree))
     (weight₂ : ℕ)
     (β₃ : Module.Basis (Fin Akita.Key30.level₃.opening.planes) Akita.Zq E)
     (key₃ : Akita.Key Akita.Key30.level₃.shape)
     (openKey₃ : Akita.OpeningKey Akita.Key30.level₃.opening)
     (block₃ : Fin Akita.Key30.level₃.shape.blocks → Coord)
-    (decode₃ : E → Option (Akita.Rq Akita.Key30.level₃.opening.carrierDegree))
+    (decode₃ : Akita.Replay.CodeSlot E → Option (Akita.Rq Akita.Key30.level₃.opening.carrierDegree))
     (weight₃ : ℕ)
     (key₄ : Akita.Key Akita.Key30.level₄.shape)
     (openKey₄ : Akita.OpeningKey Akita.Key30.level₄.opening)
     (block₄ : Fin Akita.Key30.level₄.shape.blocks → Coord)
-    (decode₄ : E → Option (Akita.Rq Akita.Key30.level₄.shape.innerDegree))
+    (decode₄ : Akita.Replay.CodeSlot E → Option (Akita.Rq Akita.Key30.level₄.shape.innerDegree))
     (weight₄ : ℕ)
     (key₅ : Akita.Key Akita.Key30.level₅.shape)
     (openKey₅ : Akita.OpeningKey Akita.Key30.level₅.opening)
     (block₅ : Fin Akita.Key30.level₅.shape.blocks → Coord)
-    (decode₅ : E → Option (Akita.Rq Akita.Key30.level₅.shape.innerDegree))
+    (decode₅ : Akita.Replay.CodeSlot E → Option (Akita.Rq Akita.Key30.level₅.shape.innerDegree))
     (weight₅ : ℕ)
     (key₆ : Akita.Key Akita.Key30.level₆.shape)
     (openKey₆ : Akita.OpeningKey Akita.Key30.level₆.opening)
     (block₆ : Fin Akita.Key30.level₆.shape.blocks → Coord)
-    (decode₆ : E → Option (Akita.Rq Akita.Key30.level₆.shape.innerDegree))
+    (decode₆ : Akita.Replay.CodeSlot E → Option (Akita.Rq Akita.Key30.level₆.shape.innerDegree))
     (weight₆ : ℕ)
     (matrix : Matrix (Fin Akita.Key30.terminal.innerRank)
           (Fin Akita.Key30.terminal.blockLength × Fin Akita.Key30.terminal.sourceDigits)
           (Akita.Rq Akita.Key30.terminal.innerDegree))
     (blockL : Fin Akita.Key30.terminal.blocks → Coord)
-    (decodeL : E → Option (Akita.Rq Akita.Key30.terminal.innerDegree))
+    (decodeL : Akita.Replay.CodeSlot E → Option (Akita.Rq Akita.Key30.terminal.innerDegree))
     {total : ℕ}
     (inside : ((Akita.Extract.committedTraceSq key₆ openKey₆
                   (Akita.Key30.Note.claim₆ ∘ Akita.Extract.Page.data : Akita.Key30.Wire r E → _) Akita.Key30.level₆.vars
@@ -342,8 +343,8 @@ theorem key30_opening_accepts
                       Akita.Key30.level₅.tail).finish).tensored
               Akita.Key30.level₆.tail).finish <
           total)
-    (accept : Akita.Extract.Prefix (Akita.Key30.Wire r E) (Option Coord → E) total → Prop)
-    (table : Akita.Extract.Address (Akita.Key30.Wire r E) total → Option Coord → E)
+    (accept : Akita.Extract.Prefix (Akita.Key30.Wire r E) (Option Coord → Akita.Replay.CodeSlot E) total → Prop)
+    (table : Akita.Extract.Address (Akita.Key30.Wire r E) total → Option Coord → Akita.Replay.CodeSlot E)
     (decodes : ∀ (input : Akita.Extract.Address (Akita.Key30.Wire r E) total)
           (b : (Akita.Key30.root r).Block), (decode b.fst (table input (some (block b)))).isSome = true)
     (decodes₁ : ∀ (input : Akita.Extract.Address (Akita.Key30.Wire r E) total)
@@ -362,7 +363,7 @@ theorem key30_opening_accepts
     (decodesL : ∀ (input : Akita.Extract.Address (Akita.Key30.Wire r E) total)
           (i : Fin Akita.Key30.terminal.blocks), (decodeL (table input (some (blockL i)))).isSome = true)
     (worked : ∀ (input : Akita.Extract.Address (Akita.Key30.Wire r E) total),
-          table input none ∈ Akita.Extract.workZeros E 57)
+          table input none ∈ Akita.Extract.workZeros (Akita.Replay.CodeSlot E) 57)
     {tables : Fin 3 → Akita.Table}
     (live : ∀ (g : Fin 3) (cell : ℕ), 2 ^ ![30, r.vars, 28] g ≤ cell → tables g cell = 0)
     {places : Fin 3 → List E}
@@ -700,7 +701,7 @@ theorem key30_opening_accepts
         (Akita.Key30.Note.commit₆ ∘ Akita.Extract.Page.data : Akita.Key30.Wire r E → _)
         (Akita.Key30.Note.state ∘ Akita.Extract.Page.data : Akita.Key30.Wire r E → _)
         ((Akita.Extract.transcript total accept).final (RandomOracle.OracleComp.done proof) table) :=
-  @NightstreamFPrime.Spec.Compression.Akita.Key30.accepts E fieldE fintypeE decidableEqE algebraZqE
+  @NightstreamFPrime.Spec.Compression.Akita.Key30.accepts_code E fieldE fintypeE decidableEqE algebraZqE
     degree2E Coord fintypeCoord decidableEqCoord r member flat β key openKey block decode mass scan β₁ key₁
     openKey₁ block₁ decode₁ mass₁ β₂ key₂ openKey₂ block₂ decode₂ weight₂ β₃ key₃ openKey₃ block₃ decode₃
     weight₃ key₄ openKey₄ block₄ decode₄ weight₄ key₅ openKey₅ block₅ decode₅ weight₅ key₆ openKey₆ block₆
@@ -712,7 +713,7 @@ theorem key30_opening_accepts
 Theorem 10.9, Section 9 with (136), and Theorem 10.17). The data `o` of that claim is
 `Spec.Compression.Akita.Key30.noteTower`: the wire messages `Key30.Wire E` with the readers of
 `Key30.Note`, the setup prefix `flat` with the commitment and the reference decommitment of the
-Lean commitment algorithm, the decoders `draw` of `Key30.Tower`, and free bases, matrices and
+Lean commitment algorithm, the decoders of the code of `Key30.Tower`, and free bases, matrices and
 coordinates of the slots. `shared` and `drawn` are the hypotheses of `key30_opening_bound` for
 this data, and `drawn` fixes the stage `stage` of the terminal. Lean proves that the wire type is
 finite, so `key30_opening_bound` holds for `o`, and that for each table of the oracle on keys whose
@@ -774,33 +775,30 @@ theorem key30_opening_played
     (drawn : (Akita.Key30.noteTower member flat β key openKey block β₁ key₁ openKey₁ block₁ β₂ key₂ openKey₂
           block₂ β₃ key₃ openKey₃ block₃ key₄ openKey₄ block₄ key₅ openKey₅ block₅ key₆ openKey₆ block₆
           matrix blockL total stage).Drawn shared Akita.Extract.Page.read 0)
-    (table : Akita.Extract.Address (Akita.Key30.Wire r E) total → Option Coord → E)
+    (table : Akita.Extract.Address (Akita.Key30.Wire r E) total → Option Coord → Akita.Replay.CodeSlot E)
     (worked : ∀ (input : Akita.Extract.Address (Akita.Key30.Wire r E) total),
-          table input none ∈ Akita.Extract.workZeros E 57)
+          table input none ∈ Akita.Extract.workZeros (Akita.Replay.CodeSlot E) 57)
     {tables : Fin 3 → Akita.Table}
     (live : ∀ (g : Fin 3) (cell : ℕ), 2 ^ ![30, r.vars, 28] g ≤ cell → tables g cell = 0)
     {places : Fin 3 → List E}
     (lengths : ∀ (g : Fin 3), (places g).length = ![30, r.vars, 28] g)
     (fit : Akita.Key30.Fit member flat β key openKey (Akita.Key30.rootDecode E r) β₁ key₁ openKey₁
         (Akita.Key30.decode₁ E r) β₂ key₂ openKey₂
-        (Akita.Extract.draw (Akita.SparseFamily (Akita.Key30.level₂ r).opening.carrierDegree 31 10) fun _ => True)
+        (Akita.Replay.CodeSlot.open Akita.Key20.open64 Akita.Key20.open64_fits)
         β₃ key₃ openKey₃
-        (Akita.Extract.draw (Akita.SparseFamily Akita.Key30.level₃.opening.carrierDegree 31 10) fun _ => True)
+        (Akita.Replay.CodeSlot.open Akita.Key20.open64 Akita.Key20.open64_fits)
         key₄ openKey₄
-        (Akita.Extract.draw (Akita.SparseFamily Akita.Key30.level₄.shape.innerDegree 31 0) fun _ => True)
+        (Akita.Replay.CodeSlot.open Akita.Key20.open128 Akita.Key20.open128_fits)
         key₅ openKey₅
-        (Akita.Extract.draw (Akita.SparseFamily Akita.Key30.level₅.shape.innerDegree 31 11)
-          (Akita.TrigTable.codeAccepts Akita.Key30.level₅.shape.innerDegree Akita.Key30.norm₅.operator))
+        Akita.Replay.CodeSlot.kept64
         key₆ openKey₆
-        (Akita.Extract.draw (Akita.SparseFamily Akita.Key30.level₆.shape.innerDegree 31 11)
-          (Akita.TrigTable.codeAccepts Akita.Key30.level₆.shape.innerDegree Akita.Key30.norm₆.operator))
-        (Akita.Extract.draw (Akita.SparseFamily Akita.Key30.terminal.innerDegree 31 11)
-          (Akita.TrigTable.codeAccepts Akita.Key30.terminal.innerDegree Akita.Key30.normTerminal.operator))
+        Akita.Replay.CodeSlot.kept64
+        Akita.Replay.CodeSlot.kept64
         tables) :
     Finite (Akita.Key30.Wire r E) ∧
       ∃ proof : ℕ → Akita.Key30.Wire r E,
         (RandomOracle.OracleComp.done proof :
-            RandomOracle.OracleComp (Akita.Extract.Address (Akita.Key30.Wire r E) total) (Option Coord → E)
+            RandomOracle.OracleComp (Akita.Extract.Address (Akita.Key30.Wire r E) total) (Option Coord → Akita.Replay.CodeSlot E)
               (ℕ → Akita.Key30.Wire r E)).QueryBound 0 ∧
         ((proof 0).data.commit = fun g => (Akita.commit (key g) (tables g)).1) ∧
         (proof 0).data.place = places ∧
@@ -856,7 +854,7 @@ theorem key30_verifier_sound
     (kind : Wire → Option ι)
     (family : ι → FinalKey30.Opening logicalWidth publicFits Wire Coord total)
     (shared : ∀ (index : ι), (family index).tower.Shared)
-    (prover : RandomOracle.OracleComp (Akita.Extract.Address Wire total) (Option Coord → K) (ℕ → Wire))
+    (prover : RandomOracle.OracleComp (Akita.Extract.Address Wire total) (Option Coord → Akita.Replay.CodeSlot K) (ℕ → Wire))
     [finiteWire : Finite Wire]
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {cubeFits : Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
@@ -920,7 +918,7 @@ theorem key30_history_sound
     (kind : Wire → Option ι)
     (family : ι → FinalKey30.Opening logicalWidth publicFits Wire Coord total)
     (shared : ∀ (index : ι), (family index).tower.Shared)
-    (prover : RandomOracle.OracleComp (Akita.Extract.Address Wire total) (Option Coord → K) (ℕ → Wire))
+    (prover : RandomOracle.OracleComp (Akita.Extract.Address Wire total) (Option Coord → Akita.Replay.CodeSlot K) (ℕ → Wire))
     [finiteWire : Finite Wire]
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {cubeFits : Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
@@ -956,7 +954,7 @@ theorem key30_history_sound
               (FinalKey30.adversary setup complete.packageWidth step cap control read head kind family shared
                 prover budget))))
     (depth : ℕ)
-    (depthBound : ∀ (table : Akita.Extract.Address Wire total → Option Coord → K),
+    (depthBound : ∀ (table : Akita.Extract.Address Wire total → Option Coord → Akita.Replay.CodeSlot K),
           FinalKey30.finalAccepts setup complete.packageWidth step cap control read head kind family shared
               (FinalKey20.played prover table) →
             (head (FinalKey20.played prover table).first).statement.iteration ≤ depth) :
@@ -1009,7 +1007,7 @@ theorem key30_history_knowledge
     (kind : Wire → Option ι)
     (family : ι → FinalKey30.Opening logicalWidth publicFits Wire Coord total)
     (shared : ∀ (index : ι), (family index).tower.Shared)
-    (prover : RandomOracle.OracleComp (Akita.Extract.Address Wire total) (Option Coord → K) (ℕ → Wire))
+    (prover : RandomOracle.OracleComp (Akita.Extract.Address Wire total) (Option Coord → Akita.Replay.CodeSlot K) (ℕ → Wire))
     [finiteWire : Finite Wire]
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {cubeFits : Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
@@ -1045,7 +1043,7 @@ theorem key30_history_knowledge
               (FinalKey30.adversary setup complete.packageWidth step cap control read head kind family shared
                 prover budget))))
     (depth : ℕ)
-    (depthBound : ∀ (table : Akita.Extract.Address Wire total → Option Coord → K),
+    (depthBound : ∀ (table : Akita.Extract.Address Wire total → Option Coord → Akita.Replay.CodeSlot K),
           FinalKey30.finalAccepts setup complete.packageWidth step cap control read head kind family shared
               (FinalKey20.played prover table) →
             (head (FinalKey20.played prover table).first).statement.iteration ≤ depth) :
@@ -1114,7 +1112,7 @@ theorem key30_memory_sound
     (family : ι → FinalKey30.Opening logicalWidth publicFits Wire Coord total)
     (shared : ∀ (index : ι), (family index).tower.Shared)
     (prover : RandomOracle.OracleComp (Akita.Extract.Address Wire total)
-          (Option Coord → K) (ℕ → Wire))
+          (Option Coord → Akita.Replay.CodeSlot K) (ℕ → Wire))
     [finiteWire : Finite Wire]
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {cubeFits : Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth ≤
@@ -1142,7 +1140,7 @@ theorem key30_memory_sound
           (IvcWalk.back setup.ajtai setup.circuitKeys exports) Admitted StageAdmitted Efficient)
     {p : Nebula.Plan}
     (app : Nebula.PortApp p.toGeometry)
-    (claim : (Akita.Extract.Address Wire total → Option Coord → K) →
+    (claim : (Akita.Extract.Address Wire total → Option Coord → Akita.Replay.CodeSlot K) →
           PMF (Nebula.EndToEnd.MemoryStatement app.width))
     (rows : ∀ (circuit : Fin 2),
           (setup.rows (↑circuit : ℕ)).matrices =
@@ -1364,7 +1362,7 @@ theorem key30_instances
                   (Akita.Extract.Opened (Akita.Weak Akita.Key30.level₄.opening)
                     (Akita.Extract.Opened (Akita.Weak Akita.Key30.level₅.opening)
                       (Akita.Extract.Opened (Akita.Weak Akita.Key30.level₆.opening)
-                        (Akita.Extract.Prefix Wire (Option Coord → K) total ×
+                        (Akita.Extract.Prefix Wire (Option Coord → Akita.Replay.CodeSlot K) total ×
                           Option (Akita.TerminalFork Akita.Key30.terminal)))))))) ⊕
           (Akita.Batch.LevelBreak o.tower.key o.tower.openKey fun g =>
               2 * (2 * Akita.Key30.mass g) *
@@ -1442,7 +1440,7 @@ theorem key30_instances_shared
                   (Akita.Extract.Opened (Akita.Weak Akita.Key30.level₄.opening)
                     (Akita.Extract.Opened (Akita.Weak Akita.Key30.level₅.opening)
                       (Akita.Extract.Opened (Akita.Weak Akita.Key30.level₆.opening)
-                        (Akita.Extract.Prefix Wire (Option Coord → K) total ×
+                        (Akita.Extract.Prefix Wire (Option Coord → Akita.Replay.CodeSlot K) total ×
                           Option (Akita.TerminalFork Akita.Key30.terminal)))))))) ⊕
           (Akita.Batch.LevelBreak o.tower.key o.tower.openKey fun g =>
               2 * (2 * Akita.Key30.mass g) *

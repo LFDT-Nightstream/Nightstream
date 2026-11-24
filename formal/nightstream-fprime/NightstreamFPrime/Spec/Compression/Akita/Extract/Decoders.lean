@@ -145,4 +145,123 @@ theorem exists_fair_challenges
 
 end Challenges
 
+section FieldSlots
+
+open NightstreamFPrime.Spec.Compression
+
+/-- A map whose fibres have one size `size > 0` keeps the uniform law. -/
+theorem expect_read {R R' : Type} [Fintype R] [Fintype R'] (read : R → R') {size : ℕ}
+    (positive : 0 < size) (fibres : ∀ y, Nat.card {x // read x = y} = size) (φ : R' → ℝ) :
+    𝔼 x, φ (read x) = 𝔼 y, φ y := by
+  have each (ψ : R' → ℝ) : ∑ x, ψ (read x) = size * ∑ y, ψ y := by
+    rw [← Fintype.sum_fiberwise' read ψ, Finset.mul_sum]
+    refine Finset.sum_congr rfl fun y _ => ?_
+    rw [Finset.sum_const, Finset.card_univ, ← Nat.card_eq_fintype_card, fibres, nsmul_eq_mul]
+  have cards := each fun _ => 1
+  simp only [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, mul_one] at cards
+  rw [Finset.expect_eq_sum_div_card, Finset.expect_eq_sum_div_card, Finset.card_univ,
+    Finset.card_univ, each φ, cards, mul_div_mul_left _ _ (Nat.cast_ne_zero.mpr positive.ne')]
+
+/-- `expect_read` for the probability of a set. -/
+theorem mass_read {R R' : Type} [Fintype R] [Fintype R'] (read : R → R') {size : ℕ}
+    (positive : 0 < size) (fibres : ∀ y, Nat.card {x // read x = y} = size) (S : Set R') :
+    mass {x | read x ∈ S} = mass S := by
+  unfold mass
+  exact expect_read read positive fibres fun y => if y ∈ S then 1 else 0
+
+/-- A fair decoder after a map whose fibres have one size is fair. -/
+theorem Fair.comp {R R' C : Type} [Fintype R] [Fintype R'] [Fintype C] {decode : R' → C}
+    (fair : Fair decode) (read : R → R') {size : ℕ}
+    (fibres : ∀ y, Nat.card {x // read x = y} = size) : Fair fun x => decode (read x) := by
+  intro bad
+  rcases Nat.eq_zero_or_pos size with rfl | positive
+  · have : IsEmpty R := ⟨fun x => by
+      have : Nonempty {y // read y = read x} := ⟨⟨x, rfl⟩⟩
+      have := (Nat.card_pos (α := {y // read y = read x})).trans_eq (fibres (read x))
+      omega⟩
+    rw [show mass {x | decode (read x) ∈ bad} = 0 by simp [mass]]
+    positivity
+  · exact (le_of_eq (mass_read read positive fibres {y | decode y ∈ bad})).trans (fair bad)
+
+/-- A map from the slots to `E` whose fibres have one size: a uniform slot gives a uniform
+element of `E`. -/
+class FieldSlot (Slot E : Type) [Fintype Slot] [Fintype E] : Prop where
+  exists_field : ∃ (field : Slot → E) (size : ℕ), ∀ e, Nat.card {slot // field slot = e} = size
+
+instance FieldSlot.self (E : Type) [Fintype E] : FieldSlot E E :=
+  ⟨⟨id, 1, fun e => Nat.card_eq_one_iff_exists.mpr ⟨⟨e, rfl⟩, fun s => Subtype.ext s.2⟩⟩⟩
+
+/-- A nonempty slot type with a field map gives a nonempty `E`. -/
+theorem FieldSlot.nonempty (Slot E : Type) [Fintype Slot] [Nonempty Slot] [Fintype E]
+    [FieldSlot Slot E] : Nonempty E := by
+  obtain ⟨field, -⟩ := FieldSlot.exists_field (Slot := Slot) (E := E)
+  exact ⟨field (Classical.arbitrary Slot)⟩
+
+variable {Coord Slot E : Type} [Fintype Coord] [DecidableEq Coord] [Fintype Slot] [Nonempty Slot]
+  [Fintype E] [FieldSlot Slot E]
+
+omit [DecidableEq Coord] [Nonempty Slot] in
+variable (Coord Slot E) in
+/-- An answer with slots of `Slot` maps to an answer with slots of `E` by a map whose fibres
+have one size. -/
+theorem FieldSlot.exists_read :
+    ∃ (read : (Coord → Slot) → Coord → E) (size : ℕ),
+      ∀ y, Nat.card {x // read x = y} = size := by
+  obtain ⟨field, size, fibres⟩ := FieldSlot.exists_field (Slot := Slot) (E := E)
+  refine ⟨fun x c => field (x c), size ^ Fintype.card Coord, fun y => ?_⟩
+  calc Nat.card {x : Coord → Slot // (fun c => field (x c)) = y}
+      = Nat.card (∀ c, {s // field s = y c}) :=
+        Nat.card_congr ((Equiv.subtypeEquivRight fun _ => funext_iff).trans
+          (Equiv.subtypePiEquivPi (p := fun c s => field s = y c)))
+    _ = ∏ c, Nat.card {s // field s = y c} := Nat.card_pi
+    _ = size ^ Fintype.card Coord := by
+        rw [Finset.prod_congr rfl fun c _ => fibres (y c), Finset.prod_const, Finset.card_univ]
+
+/-- `exists_fair_slot` for the slot type `Slot`: a uniform element of `E`. -/
+theorem exists_fair_field [Nonempty Coord] : ∃ decode : (Coord → Slot) → E, Fair decode := by
+  have := FieldSlot.nonempty Slot E
+  obtain ⟨decode, fair⟩ := exists_fair_slot (Coord := Coord) (Slot := E)
+  obtain ⟨read, _, fibres⟩ := FieldSlot.exists_read Coord Slot E
+  exact ⟨_, fair.comp read fibres⟩
+
+/-- `exists_fair_slots` for the slot type `Slot`: a uniform vector of `count` elements of `E`. -/
+theorem exists_fair_fields {count : ℕ} (enough : count ≤ Fintype.card Coord) :
+    ∃ decode : (Coord → Slot) → Fin count → E, Fair decode := by
+  have := FieldSlot.nonempty Slot E
+  obtain ⟨decode, fair⟩ := exists_fair_slots (Coord := Coord) (Slot := E) enough
+  obtain ⟨read, _, fibres⟩ := FieldSlot.exists_read Coord Slot E
+  exact ⟨_, fair.comp read fibres⟩
+
+/-- `exists_fair_family` for the slot type `Slot`: a uniform family of elements of `E`. -/
+theorem exists_fair_field_family {Index : Type} [Fintype Index] [DecidableEq Index]
+    (enough : Fintype.card Index ≤ Fintype.card Coord) :
+    ∃ decode : (Coord → Slot) → Index → E, Fair decode := by
+  have := FieldSlot.nonempty Slot E
+  obtain ⟨decode, fair⟩ := exists_fair_family (Coord := Coord) (Slot := E) enough
+  obtain ⟨read, _, fibres⟩ := FieldSlot.exists_read Coord Slot E
+  exact ⟨_, fair.comp read fibres⟩
+
+omit [Nonempty Slot] [Fintype E] [FieldSlot Slot E] in
+/-- `exists_fair_base` for the slot type `Slot`: a uniform family of elements of the base
+field `F`. -/
+theorem exists_fair_field_base {F Index : Type} [Field F] [Fintype F] [Field E] [Fintype E]
+    [Algebra F E] [FieldSlot Slot E] [Fintype Index] [DecidableEq Index]
+    (enough : Fintype.card Index ≤ Fintype.card Coord) :
+    ∃ decode : (Coord → Slot) → Index → F, Fair decode := by
+  obtain ⟨decode, fair⟩ := exists_fair_base (F := F) (E := E) (Coord := Coord) enough
+  obtain ⟨read, _, fibres⟩ := FieldSlot.exists_read Coord Slot E
+  exact ⟨_, fair.comp read fibres⟩
+
+omit [Nonempty Slot] [Fintype E] [FieldSlot Slot E] in
+/-- `exists_fair_challenges` for the slot type `Slot`. -/
+theorem exists_fair_field_challenges {F : Type} [Field E] [Fintype E] [FieldSlot Slot E]
+    (P : Verifier.Params F E)
+    (enough : 4 + (P.lookups + (P.claims + P.claims + P.spanVars)) ≤ Fintype.card Coord) :
+    ∃ decode : (Coord → Slot) → Verifier.Challenges P, Fair decode := by
+  obtain ⟨decode, fair⟩ := exists_fair_challenges (Coord := Coord) P enough
+  obtain ⟨read, _, fibres⟩ := FieldSlot.exists_read Coord Slot E
+  exact ⟨_, fair.comp read fibres⟩
+
+end FieldSlots
+
 end NightstreamFPrime.Spec.Compression.Akita.Extract

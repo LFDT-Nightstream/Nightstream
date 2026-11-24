@@ -34,7 +34,7 @@ responses of the honest prover. This file has the hypotheses on the responses in
   (`crates/akita-prover/src/protocol/fold_grind.rs`).
 - `noteTower` is the data `Key20.Tower` for the wire messages `Wire`: the readers of `Note`, and
   the terminal `terminalOf` with the decoder of `Tower.Drawn`. `noteTower_accepts` is `accepts`
-  for the decoders `draw` of `Tower.accepts`: the proof of the honest prover is a prover with no
+  for the decoders of the code of `Tower.accepts`: the proof of the honest prover is a prover with no
   queries of the game of `Tower.extraction_le`, and `Tower.accepts` accepts its transcript.
   `noteTower_zero` and `noteTower_played` give such a prover for the zero tables, with no
   hypothesis on the fit. -/
@@ -93,7 +93,9 @@ instance Note.finite {E : Type} [CommRing E] [Algebra Zq E] [Finite E] : Finite 
 to `3029804899` for the messages of the checks, and the nonce of the response search. -/
 abbrev Wire (E : Type) [CommRing E] [Algebra Zq E] : Type := Page (Note E) E 4 8 3029804899
 
-variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree2 E]
+variable {E : Type} [Field E] [Fintype E]
+  {Slot : Type} [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E]
+  [DecidableEq E] [Algebra Zq E] [Degree2 E]
   {Coord : Type} [Fintype Coord] [DecidableEq Coord]
 
 /-- The terminal with the matrix `A_term`, the fold challenges at the stage `start`, and the
@@ -102,9 +104,9 @@ stage (Akita Section 8.2). -/
 def terminalOf (total : ℕ)
     (matrix : Matrix (Fin terminal.innerRank) (Fin terminal.blockLength × Fin terminal.sourceDigits)
       (Rq terminal.innerDegree))
-    (block : Fin terminal.blocks → Coord) (decode : E → Option (Rq terminal.innerDegree))
+    (block : Fin terminal.blocks → Coord) (decode : Slot → Option (Rq terminal.innerDegree))
     (start : ℕ) :
-    Terminal terminal E (Wire E) Coord E total
+    Terminal terminal E (Wire E) Coord Slot total
       (.euclidean normTerminal.operator normTerminal.limit) where
   matrix := matrix
   read point := (point.wire start).data.statement
@@ -117,27 +119,29 @@ def terminalOf (total : ℕ)
   bound := 0
   start := start
 
+section Generic
+
 variable (β : ∀ g, Module.Basis (Fin (root.planes g)) Zq E)
   (key : (g : Fin 3) → Key (root.shape g)) (openKey : root.OpenKey) (block : root.Block → Coord)
-  (decode : (g : Fin 3) → E → Option (Rq (root.carrierDegree g))) (mass : Fin 3 → ℕ)
+  (decode : (g : Fin 3) → Slot → Option (Rq (root.carrierDegree g))) (mass : Fin 3 → ℕ)
   (β₁ : Module.Basis (Fin level₁.opening.planes) Zq E) (key₁ : Key level₁.shape)
   (openKey₁ : OpeningKey level₁.opening) (block₁ : Fin level₁.shape.blocks → Coord)
-  (decode₁ : E → Option (Rq level₁.opening.carrierDegree)) (weight₁ : ℕ)
+  (decode₁ : Slot → Option (Rq level₁.opening.carrierDegree)) (weight₁ : ℕ)
   (key₂ : Key level₂.shape) (openKey₂ : OpeningKey level₂.opening)
   (block₂ : Fin level₂.shape.blocks → Coord)
-  (decode₂ : E → Option (Rq level₂.shape.innerDegree)) (weight₂ : ℕ)
+  (decode₂ : Slot → Option (Rq level₂.shape.innerDegree)) (weight₂ : ℕ)
   (key₃ : Key level₃.shape) (openKey₃ : OpeningKey level₃.opening)
   (block₃ : Fin level₃.shape.blocks → Coord)
-  (decode₃ : E → Option (Rq level₃.shape.innerDegree)) (weight₃ : ℕ)
+  (decode₃ : Slot → Option (Rq level₃.shape.innerDegree)) (weight₃ : ℕ)
   (key₄ : Key level₄.shape) (openKey₄ : OpeningKey level₄.opening)
   (block₄ : Fin level₄.shape.blocks → Coord)
-  (decode₄ : E → Option (Rq level₄.shape.innerDegree)) (weight₄ : ℕ)
+  (decode₄ : Slot → Option (Rq level₄.shape.innerDegree)) (weight₄ : ℕ)
   (key₅ : Key level₅.shape) (openKey₅ : OpeningKey level₅.opening)
   (block₅ : Fin level₅.shape.blocks → Coord)
-  (decode₅ : E → Option (Rq level₅.shape.innerDegree)) (weight₅ : ℕ)
+  (decode₅ : Slot → Option (Rq level₅.shape.innerDegree)) (weight₅ : ℕ)
   (matrix : Matrix (Fin terminal.innerRank) (Fin terminal.blockLength × Fin terminal.sourceDigits)
     (Rq terminal.innerDegree))
-  (blockL : Fin terminal.blocks → Coord) (decodeL : E → Option (Rq terminal.innerDegree))
+  (blockL : Fin terminal.blocks → Coord) (decodeL : Slot → Option (Rq terminal.innerDegree))
 
 local notation "zeroth" =>
   liftBatch β key openKey (Note.claim ∘ Page.data : Wire E → _) rootVars (And.left root_sized) 8
@@ -183,13 +187,13 @@ def Fit (tables : Fin 3 → Table) : Prop :=
   BatchFit β key openKey rootVars (And.left root_sized) 8 quotientDigits decode tables fun w₀ =>
   LiftFit β₁ key₁ openKey₁ level₁.fold level₁.vars (And.left level₁_sized) quotientDigits
     decode₁ (fun i => level₁.shape.embed (level₁.shape.pack w₀ i)) fun w₁ =>
-  TraceFit (And.left quarters) key₂ openKey₂ level₂.fold (fun _ => decode₂) (fun _ => True)
+  TraceFit (E := E) (And.left quarters) key₂ openKey₂ level₂.fold (fun _ => decode₂) (fun _ => True)
     (packed w₁) fun w₂ =>
-  TraceFit (And.left (And.right quarters)) key₃ openKey₃ level₃.fold (fun _ => decode₃)
+  TraceFit (E := E) (And.left (And.right quarters)) key₃ openKey₃ level₃.fold (fun _ => decode₃)
     (fun z => vecNormSq z ≤ norm₃.limit) (packed w₂) fun w₃ =>
-  TraceFit (And.left (And.right (And.right quarters))) key₄ openKey₄ level₄.fold
+  TraceFit (E := E) (And.left (And.right (And.right quarters))) key₄ openKey₄ level₄.fold
     (fun _ => decode₄) (fun z => vecNormSq z ≤ norm₄.limit) (packed w₃) fun w₄ =>
-  TraceFit (And.left (And.right (And.right (And.right quarters)))) key₅ openKey₅ level₅.fold
+  TraceFit (E := E) (And.left (And.right (And.right (And.right quarters)))) key₅ openKey₅ level₅.fold
     (fun _ => decode₅) (fun z => vecNormSq z ≤ norm₅.limit) (packed w₄) fun w₅ =>
   ∀ c : Fin terminal.blocks → Rq terminal.innerDegree,
     (∀ i, ∃ slot, decodeL slot = some (c i)) →
@@ -197,7 +201,8 @@ def Fit (tables : Fin 3 → Table) : Prop :=
       (And.right (And.right (And.right (And.right quarters)))) (packed w₅ : ℕ → E))) ≤
       normTerminal.limit
 
-omit [Fintype E] [DecidableEq E] [Fintype Coord] [DecidableEq Coord] in
+omit [Fintype E] [DecidableEq E] [Fintype Coord] [DecidableEq Coord] [Fintype Slot]
+  [Nonempty Slot] in
 /-- The fit conditions `Fit` hold for the zero tables, with each decoder: each response is 0
 (`Extract/ZeroFit.lean`). -/
 theorem fit_zero :
@@ -216,13 +221,14 @@ theorem fit_zero :
                 rw [packed_zero, traceSource_zero, traceResponse_zero, vecNormSq_zero]
                 exact Nat.zero_le _)))))
 
-omit [Fintype E] [DecidableEq E] [Fintype Coord] [DecidableEq Coord] in
+omit [Fintype E] [DecidableEq E] [Fintype Coord] [DecidableEq Coord] [Fintype Slot]
+  [Nonempty Slot] in
 /-- The fit conditions `Fit` hold for each family of tables when each decoder gives only the fold
 challenge 0: each response is 0. So the hypothesis `fit` of `accepts` holds for tables that are
 not 0. -/
 theorem fit_quiet (tables : Fin 3 → Table) :
-    Fit (E := E) β key openKey (fun _ _ => some 0) β₁ key₁ openKey₁ (fun _ => some 0) key₂
-      openKey₂ (fun _ => some 0) key₃ openKey₃ (fun _ => some 0) key₄ openKey₄ (fun _ => some 0)
+    Fit (E := E) (Slot := Slot) β key openKey (fun _ _ => some 0) β₁ key₁ openKey₁
+      (fun _ => some 0) key₂ openKey₂ (fun _ => some 0) key₃ openKey₃ (fun _ => some 0) key₄ openKey₄ (fun _ => some 0)
       key₅ openKey₅ (fun _ => some 0) (fun _ => some 0) tables :=
   batchFit_quiet (fun g => (root_folds g).1.two)
     (fun _ _ _ decoded => (Option.some.inj decoded).symm) fun _ _ =>
@@ -243,6 +249,7 @@ theorem fit_quiet (tables : Fin 3 → Table) :
       rw [traceResponse_quiet, vecNormSq_zero]
       exact Nat.zero_le _
 
+omit [FieldSlot Slot E] in
 /-- The verifier `towerLinks` of the opening of the schedule `key20.aks` accepts the proof of the
 honest prover (Akita Theorem 10.9) for each family of tables with the fit conditions `Fit`. The
 wire messages are `Wire`, the batching root is at the stage 0, and the terminal is `terminalOf`
@@ -259,8 +266,8 @@ the tables are 0 after `2^20`, `2^16` and `2^16` cells. `lengths`: the points ha
 coordinates. `fit`: the fit conditions `Fit`, which `fit_zero` and `fit_quiet` give in two
 cases. -/
 theorem accepts {total : ℕ} (inside : Tier.finish fifth < total)
-    (accept : Prefix (Wire E) (Option Coord → E) total → Prop)
-    (table : Address (Wire E) total → Option Coord → E)
+    (accept : Prefix (Wire E) (Option Coord → Slot) total → Prop)
+    (table : Address (Wire E) total → Option Coord → Slot)
     (decodes : ∀ input b, (decode b.1 (table input (some (block b)))).isSome)
     (decodes₁ : ∀ input i, (decode₁ (table input (some (block₁ i)))).isSome)
     (decodes₂ : ∀ input i, (decode₂ (table input (some (block₂ i)))).isSome)
@@ -268,7 +275,7 @@ theorem accepts {total : ℕ} (inside : Tier.finish fifth < total)
     (decodes₄ : ∀ input i, (decode₄ (table input (some (block₄ i)))).isSome)
     (decodes₅ : ∀ input i, (decode₅ (table input (some (block₅ i)))).isSome)
     (decodesL : ∀ input i, (decodeL (table input (some (blockL i)))).isSome)
-    (worked : ∀ input, table input none ∈ workZeros E 57) {tables : Fin 3 → Table}
+    (worked : ∀ input, table input none ∈ workZeros Slot 57) {tables : Fin 3 → Table}
     (live : ∀ g cell, 2 ^ ![20, 16, 16] g ≤ cell → tables g cell = 0)
     {places : Fin 3 → List E} (lengths : ∀ g, (places g).length = ![20, 16, 16] g)
     (fit : Fit β key openKey decode β₁ key₁ openKey₁ decode₁ key₂ openKey₂ decode₂ key₃ openKey₃ decode₃ key₄
@@ -292,7 +299,7 @@ theorem accepts {total : ℕ} (inside : Tier.finish fifth < total)
         (Note.commit₅ ∘ Page.data : Wire E → _) (Note.state ∘ Page.data : Wire E → _)
         ((transcript total accept).final (.done proof) table) := by
   simp only [final_done]
-  set table := fun input : Prefix (Wire E) (Option Coord → E) total => table input.address
+  set table := fun input : Prefix (Wire E) (Option Coord → Slot) total => table input.address
   replace decodes : ∀ input b, (decode b.1 (table input (some (block b)))).isSome :=
     fun input => decodes input.address
   replace decodes₁ : ∀ input i, (decode₁ (table input (some (block₁ i)))).isSome :=
@@ -307,7 +314,7 @@ theorem accepts {total : ℕ} (inside : Tier.finish fifth < total)
     fun input => decodes₅ input.address
   replace decodesL : ∀ input i, (decodeL (table input (some (blockL i)))).isSome :=
     fun input => decodesL input.address
-  replace worked : ∀ input, table input none ∈ workZeros E 57 := fun input => worked input.address
+  replace worked : ∀ input, table input none ∈ workZeros Slot 57 := fun input => worked input.address
   clear_value table
   obtain ⟨base, based⟩ : ∃ base : Note E, base = {
       commit := fun g => (commit (key g) (tables g)).1
@@ -377,37 +384,130 @@ theorem accepts {total : ℕ} (inside : Tier.finish fifth < total)
   obtain ⟨proof, head, holds⟩ := OnPath.accepts on whole each
   exact ⟨proof, by rw [head, based], by rw [head]; exact placed, by rw [head, based], holds⟩
 
-local notation "draw₁" =>
-  (draw (SparseFamily level₁.opening.carrierDegree 31 10) (fun _ => True) :
-    E → Option (Rq level₁.opening.carrierDegree))
+end Generic
 
-local notation "draw₂" =>
-  (draw (SparseFamily level₂.shape.innerDegree 31 0) (fun _ => True) :
-    E → Option (Rq level₂.shape.innerDegree))
+section Code
 
-local notation "draw₃" =>
-  (draw (SparseFamily level₃.shape.innerDegree 31 0)
-      (TrigTable.codeAccepts level₃.shape.innerDegree norm₃.operator) :
-    E → Option (Rq level₃.shape.innerDegree))
+variable (β : ∀ g, Module.Basis (Fin (root.planes g)) Zq E)
+  (key : (g : Fin 3) → Key (root.shape g)) (openKey : root.OpenKey) (block : root.Block → Coord)
+  (decode : (g : Fin 3) → Replay.CodeSlot E → Option (Rq (root.carrierDegree g))) (mass : Fin 3 → ℕ)
+  (β₁ : Module.Basis (Fin level₁.opening.planes) Zq E) (key₁ : Key level₁.shape)
+  (openKey₁ : OpeningKey level₁.opening) (block₁ : Fin level₁.shape.blocks → Coord)
+  (decode₁ : Replay.CodeSlot E → Option (Rq level₁.opening.carrierDegree)) (weight₁ : ℕ)
+  (key₂ : Key level₂.shape) (openKey₂ : OpeningKey level₂.opening)
+  (block₂ : Fin level₂.shape.blocks → Coord)
+  (decode₂ : Replay.CodeSlot E → Option (Rq level₂.shape.innerDegree)) (weight₂ : ℕ)
+  (key₃ : Key level₃.shape) (openKey₃ : OpeningKey level₃.opening)
+  (block₃ : Fin level₃.shape.blocks → Coord)
+  (decode₃ : Replay.CodeSlot E → Option (Rq level₃.shape.innerDegree)) (weight₃ : ℕ)
+  (key₄ : Key level₄.shape) (openKey₄ : OpeningKey level₄.opening)
+  (block₄ : Fin level₄.shape.blocks → Coord)
+  (decode₄ : Replay.CodeSlot E → Option (Rq level₄.shape.innerDegree)) (weight₄ : ℕ)
+  (key₅ : Key level₅.shape) (openKey₅ : OpeningKey level₅.opening)
+  (block₅ : Fin level₅.shape.blocks → Coord)
+  (decode₅ : Replay.CodeSlot E → Option (Rq level₅.shape.innerDegree)) (weight₅ : ℕ)
+  (matrix : Matrix (Fin terminal.innerRank) (Fin terminal.blockLength × Fin terminal.sourceDigits)
+    (Rq terminal.innerDegree))
+  (blockL : Fin terminal.blocks → Coord) (decodeL : Replay.CodeSlot E → Option (Rq terminal.innerDegree))
 
-local notation "draw₄" =>
-  (draw (SparseFamily level₄.shape.innerDegree 31 11)
-      (TrigTable.codeAccepts level₄.shape.innerDegree norm₄.operator) :
-    E → Option (Rq level₄.shape.innerDegree))
+local notation "zeroth" =>
+  liftBatch β key openKey (Note.claim ∘ Page.data : Wire E → _) rootVars (And.left root_sized) 8
+    quotientDigits root_room rootBatch (And.left (And.right root_sized)) block decode Page.read
+    mass (0 + 1)
 
-local notation "draw₅" =>
-  (draw (SparseFamily level₅.shape.innerDegree 31 11)
-      (TrigTable.codeAccepts level₅.shape.innerDegree norm₅.operator) :
-    E → Option (Rq level₅.shape.innerDegree))
+local notation "first" =>
+  Tier.tensored (liftFold β₁ key₁ openKey₁ (Note.claim₁ ∘ Page.data : Wire E → _) level₁.vars
+    (And.left level₁_sized) quotientDigits (And.left (And.right level₁_sized)) level₁.batch
+    (And.left (And.right (And.right level₁_sized))) block₁ decode₁ Page.read weight₁
+    (Tier.finish zeroth)) level₁.tail
 
-local notation "drawL" =>
-  (draw (SparseFamily terminal.innerDegree 31 11)
-      (TrigTable.codeAccepts terminal.innerDegree normTerminal.operator) :
-    E → Option (Rq terminal.innerDegree))
+local notation "second" =>
+  Tier.tensored (committedTrace (fold := level₂.fold) key₂ openKey₂
+    (Note.claim₂ ∘ Page.data : Wire E → _) level₂.vars (And.left sized₂) level₂.batch
+    (And.left (And.right sized₂)) block₂ decode₂ Page.read weight₂ (Tier.finish first))
+    level₂.tail
+
+local notation "third" =>
+  Tier.tensored (committedTraceSq (fold := level₃.fold) key₃ openKey₃
+    (Note.claim₃ ∘ Page.data : Wire E → _) level₃.vars (And.left sized₃) level₃.batch
+    (And.left (And.right sized₃)) block₃ decode₃ Page.read weight₃ norm₃.operator
+    norm₃.limit (Tier.finish second)) level₃.tail
+
+local notation "fourth" =>
+  Tier.tensored (committedTraceSq (fold := level₄.fold) key₄ openKey₄
+    (Note.claim₄ ∘ Page.data : Wire E → _) level₄.vars (And.left sized₄) level₄.batch
+    (And.left (And.right sized₄)) block₄ decode₄ Page.read weight₄ norm₄.operator
+    norm₄.limit (Tier.finish third)) level₄.tail
+
+local notation "fifth" =>
+  Tier.tensored (committedTraceSq (fold := level₅.fold) key₅ openKey₅
+    (Note.claim₅ ∘ Page.data : Wire E → _) level₅.vars (And.left sized₅) level₅.batch
+    (And.left (And.right sized₅)) block₅ decode₅ Page.read weight₅ norm₅.operator
+    norm₅.limit (Tier.finish fourth)) level₅.tail
+
+/-- `accepts` for the slots `Replay.CodeSlot E`, whose fold decoders are the decoders of the
+pinned Akita code. -/
+theorem accepts_code {total : ℕ} (inside : Tier.finish fifth < total)
+    (accept : Prefix (Wire E) (Option Coord → Replay.CodeSlot E) total → Prop)
+    (table : Address (Wire E) total → Option Coord → Replay.CodeSlot E)
+    (decodes : ∀ input b, (decode b.1 (table input (some (block b)))).isSome)
+    (decodes₁ : ∀ input i, (decode₁ (table input (some (block₁ i)))).isSome)
+    (decodes₂ : ∀ input i, (decode₂ (table input (some (block₂ i)))).isSome)
+    (decodes₃ : ∀ input i, (decode₃ (table input (some (block₃ i)))).isSome)
+    (decodes₄ : ∀ input i, (decode₄ (table input (some (block₄ i)))).isSome)
+    (decodes₅ : ∀ input i, (decode₅ (table input (some (block₅ i)))).isSome)
+    (decodesL : ∀ input i, (decodeL (table input (some (blockL i)))).isSome)
+    (worked : ∀ input, table input none ∈ workZeros (Replay.CodeSlot E) 57) {tables : Fin 3 → Table}
+    (live : ∀ g cell, 2 ^ ![20, 16, 16] g ≤ cell → tables g cell = 0)
+    {places : Fin 3 → List E} (lengths : ∀ g, (places g).length = ![20, 16, 16] g)
+    (fit : Fit β key openKey decode β₁ key₁ openKey₁ decode₁ key₂ openKey₂ decode₂ key₃ openKey₃ decode₃ key₄
+      openKey₄ decode₄ key₅ openKey₅ decode₅ decodeL tables) :
+    ∃ proof : ℕ → Wire E,
+      (proof 0).data.commit = (fun g => (commit (key g) (tables g)).1) ∧
+      (proof 0).data.place = places ∧
+      (proof 0).data.value = (fun g => mle (places g) (lifted E (tables g))) ∧
+      towerLinks (weight₃ := weight₃) (weight₄ := weight₄) (weight₅ := weight₅)
+        Route.coefficient (Route.euclidean norm₃.operator norm₃.limit)
+        (Route.euclidean norm₄.operator norm₄.limit) (Route.euclidean norm₅.operator norm₅.limit)
+        zeroth first second third fourth fifth
+        (terminalOf total matrix blockL decodeL (Tier.finish fifth)) 0 Page.read
+        (Note.commit ∘ Page.data : Wire E → _) (Note.value ∘ Page.data : Wire E → _)
+        (Note.place ∘ Page.data : Wire E → _) (And.left quarters) (And.left (And.right quarters))
+        (And.left (And.right (And.right quarters)))
+        (And.left (And.right (And.right (And.right quarters))))
+        (And.right (And.right (And.right (And.right quarters))))
+        (Note.commit₁ ∘ Page.data : Wire E → _) (Note.commit₂ ∘ Page.data : Wire E → _)
+        (Note.commit₃ ∘ Page.data : Wire E → _) (Note.commit₄ ∘ Page.data : Wire E → _)
+        (Note.commit₅ ∘ Page.data : Wire E → _) (Note.state ∘ Page.data : Wire E → _)
+        ((transcript total accept).final (.done proof) table) :=
+  accepts β key openKey block decode mass β₁ key₁ openKey₁ block₁ decode₁ weight₁ key₂
+    openKey₂ block₂ decode₂ weight₂ key₃ openKey₃ block₃ decode₃ weight₃ key₄ openKey₄ block₄
+    decode₄ weight₄ key₅ openKey₅ block₅ decode₅ weight₅ matrix blockL decodeL inside accept
+    table decodes decodes₁ decodes₂ decodes₃ decodes₄ decodes₅ decodesL worked live lengths fit
+
+local notation "code₁" =>
+  (Replay.CodeSlot.open open64 open64_fits :
+    Replay.CodeSlot E → Option (Rq level₁.opening.carrierDegree))
+
+local notation "code₂" =>
+  (Replay.CodeSlot.open open128 open128_fits :
+    Replay.CodeSlot E → Option (Rq level₂.shape.innerDegree))
+
+local notation "code₃" =>
+  (Replay.CodeSlot.kept128 : Replay.CodeSlot E → Option (Rq level₃.shape.innerDegree))
+
+local notation "code₄" =>
+  (Replay.CodeSlot.kept64 : Replay.CodeSlot E → Option (Rq level₄.shape.innerDegree))
+
+local notation "code₅" =>
+  (Replay.CodeSlot.kept64 : Replay.CodeSlot E → Option (Rq level₅.shape.innerDegree))
+
+local notation "codeL" =>
+  (Replay.CodeSlot.kept64 : Replay.CodeSlot E → Option (Rq terminal.innerDegree))
 
 /-- The data `Tower` of the opening for the wire messages `Wire`: the reader `Page.read`, the
-readers of `Note`, and the terminal `terminalOf` with the matrix `matrix` and the decoder `draw`
-of `Tower.Drawn` at the stage `stage`. The bases, the matrices and the coordinates of the slots
+readers of `Note`, and the terminal `terminalOf` with the matrix `matrix` and the decoder
+`Replay.CodeSlot.kept64` of `Tower.Drawn` at the stage `stage`. The bases, the matrices and the coordinates of the slots
 are free, and `Tower.Drawn` fixes `stage` (`Tower.Drawn.next`). -/
 noncomputable def noteTower (total stage : ℕ) : Tower E (Wire E) Coord total where
   read := Page.read
@@ -437,7 +537,7 @@ noncomputable def noteTower (total stage : ℕ) : Tower E (Wire E) Coord total w
   openKey₅ := openKey₅
   claim₅ := Note.claim₅ ∘ Page.data
   block₅ := block₅
-  terminal := terminalOf total matrix blockL drawL stage
+  terminal := terminalOf total matrix blockL codeL stage
   commit := Note.commit ∘ Page.data
   value := Note.value ∘ Page.data
   place := Note.place ∘ Page.data
@@ -456,21 +556,21 @@ local notation "notes" =>
 
 /-- `accepts` for the data `noteTower` with `Tower.Drawn` (Akita Theorem 10.9): the wire type
 `Wire E` is finite, and for each table of the oracle whose work slots have 57 zero work bits and
-each family of tables with the fit conditions `Fit` for the decoders `draw` of `Tower.accepts`, a
+each family of tables with the fit conditions `Fit` for the decoders of `Tower.accepts`, a
 proof exists whose first message has the commitments of the tables, the points and the values,
 and the verifier `Tower.accepts` accepts the transcript of the prover `.done proof`, which has no
 queries. So the proof of the honest prover is a prover of the game of `Tower.extraction_le`. The
 hypotheses `decodes` of `accepts` hold by `Tower.Drawn.decodes`. -/
 theorem noteTower_accepts [Nonempty Coord] (drawn : (notes).Drawn)
-    (table : Address (Wire E) total → Option Coord → E)
-    (worked : ∀ input, table input none ∈ workZeros E 57) {tables : Fin 3 → Table}
+    (table : Address (Wire E) total → Option Coord → Replay.CodeSlot E)
+    (worked : ∀ input, table input none ∈ workZeros (Replay.CodeSlot E) 57) {tables : Fin 3 → Table}
     (live : ∀ g cell, 2 ^ ![20, 16, 16] g ≤ cell → tables g cell = 0)
     {places : Fin 3 → List E} (lengths : ∀ g, (places g).length = ![20, 16, 16] g)
-    (fit : Fit β key openKey (rootDecode E) β₁ key₁ openKey₁ draw₁ key₂ openKey₂ draw₂ key₃
-      openKey₃ draw₃ key₄ openKey₄ draw₄ key₅ openKey₅ draw₅ drawL tables) :
+    (fit : Fit β key openKey (rootDecode E) β₁ key₁ openKey₁ code₁ key₂ openKey₂ code₂ key₃
+      openKey₃ code₃ key₄ openKey₄ code₄ key₅ openKey₅ code₅ codeL tables) :
     Finite (Wire E) ∧ ∃ proof : ℕ → Wire E,
       (OracleComp.done proof :
-        OracleComp (Address (Wire E) total) (Option Coord → E) (ℕ → Wire E)).QueryBound 0 ∧
+        OracleComp (Address (Wire E) total) (Option Coord → Replay.CodeSlot E) (ℕ → Wire E)).QueryBound 0 ∧
       (proof 0).data.commit = (fun g => (commit (key g) (tables g)).1) ∧
       (proof 0).data.place = places ∧
       (proof 0).data.value = (fun g => mle (places g) (lifted E (tables g))) ∧
@@ -480,8 +580,8 @@ theorem noteTower_accepts [Nonempty Coord] (drawn : (notes).Drawn)
   have inside := drawn.inside
   dsimp only [noteTower, terminalOf] at next inside
   obtain ⟨proof, committed, placed, valued, holds⟩ := accepts β key openKey block (rootDecode E)
-    rootMass β₁ key₁ openKey₁ block₁ draw₁ 51 key₂ openKey₂ block₂ draw₂ 31 key₃ openKey₃ block₃
-    draw₃ 31 key₄ openKey₄ block₄ draw₄ 53 key₅ openKey₅ block₅ draw₅ 53 matrix blockL drawL
+    rootMass β₁ key₁ openKey₁ block₁ code₁ 51 key₂ openKey₂ block₂ code₂ 31 key₃ openKey₃ block₃
+    code₃ 31 key₄ openKey₄ block₄ code₄ 53 key₅ openKey₅ block₅ code₅ 53 matrix blockL codeL
     (next.symm.trans_lt inside) (notes).accepts table (fun _ b => (decoded _).1 b.1)
     (fun _ _ => (decoded _).2.1) (fun _ _ => (decoded _).2.2.1) (fun _ _ => (decoded _).2.2.2.1)
     (fun _ _ => (decoded _).2.2.2.2.1) (fun _ _ => (decoded _).2.2.2.2.2.1)
@@ -494,31 +594,34 @@ theorem noteTower_accepts [Nonempty Coord] (drawn : (notes).Drawn)
 each table of the oracle whose work slots have 57 zero work bits, a prover with no queries exists
 whose transcript `Tower.accepts` accepts. -/
 theorem noteTower_zero [Nonempty Coord] (drawn : (notes).Drawn)
-    (table : Address (Wire E) total → Option Coord → E)
-    (worked : ∀ input, table input none ∈ workZeros E 57) :
-    ∃ prover : OracleComp (Address (Wire E) total) (Option Coord → E) (ℕ → Wire E),
+    (table : Address (Wire E) total → Option Coord → Replay.CodeSlot E)
+    (worked : ∀ input, table input none ∈ workZeros (Replay.CodeSlot E) 57) :
+    ∃ prover : OracleComp (Address (Wire E) total) (Option Coord → Replay.CodeSlot E) (ℕ → Wire E),
       prover.QueryBound 0 ∧ (notes).accepts ((notes).body.protocol.final prover table) := by
   obtain ⟨-, proof, bounded, -, -, -, holds⟩ := noteTower_accepts β key openKey block β₁ key₁
     openKey₁ block₁ key₂ openKey₂ block₂ key₃ openKey₃ block₃ key₄ openKey₄ block₄ key₅ openKey₅
     block₅ matrix blockL drawn table worked (tables := fun _ => 0) (fun _ _ _ => rfl)
     (places := fun g => List.replicate (![20, 16, 16] g) 0) (fun _ => List.length_replicate)
-    (fit_zero β key openKey (rootDecode E) β₁ key₁ openKey₁ draw₁ key₂ openKey₂ draw₂ key₃
-      openKey₃ draw₃ key₄ openKey₄ draw₄ key₅ openKey₅ draw₅ drawL)
+    (fit_zero β key openKey (rootDecode E) β₁ key₁ openKey₁ code₁ key₂ openKey₂ code₂ key₃
+      openKey₃ code₃ key₄ openKey₄ code₄ key₅ openKey₅ code₅ codeL)
   exact ⟨_, bounded, holds⟩
 
 /-- The accept event of `Tower.extraction_le` for the data `noteTower` with `Tower.Drawn` is not
 empty: a table of the oracle and a prover with no queries exist whose transcript `Tower.accepts`
-accepts (`noteTower_zero` for a table whose work slots are a slot with 57 zero work bits, which
-exists since `|E| = q²`, `card_field`). -/
+accepts (`noteTower_zero` for a table whose slots are a slot with 57 zero work bits, which exists
+since a slot has `2^131` values or more, `card_codeSlot`). -/
 theorem noteTower_played [Nonempty Coord] (drawn : (notes).Drawn) :
-    ∃ (table : Address (Wire E) total → Option Coord → E)
-      (prover : OracleComp (Address (Wire E) total) (Option Coord → E) (ℕ → Wire E)),
+    ∃ (table : Address (Wire E) total → Option Coord → Replay.CodeSlot E)
+      (prover : OracleComp (Address (Wire E) total) (Option Coord → Replay.CodeSlot E) (ℕ → Wire E)),
       prover.QueryBound 0 ∧ (notes).accepts ((notes).body.protocol.final prover table) := by
-  obtain ⟨slot, worked⟩ : (workZeros E 57).Nonempty := Finset.card_pos.mp (by
-    rw [workZeros_card, card_field]
-    decide)
-  exact ⟨fun _ reply => reply.elim slot fun _ => 0, noteTower_zero β key openKey block β₁ key₁
+  obtain ⟨slot, worked⟩ : (workZeros (Replay.CodeSlot E) 57).Nonempty := Finset.card_pos.mp (by
+    rw [workZeros_card]
+    exact Nat.div_pos ((Nat.pow_le_pow_right (by decide) (by decide)).trans card_codeSlot)
+      (Nat.two_pow_pos _))
+  exact ⟨fun _ _ => slot, noteTower_zero β key openKey block β₁ key₁
     openKey₁ block₁ key₂ openKey₂ block₂ key₃ openKey₃ block₃ key₄ openKey₄ block₄ key₅ openKey₅
     block₅ matrix blockL drawn _ fun _ => worked⟩
+
+end Code
 
 end NightstreamFPrime.Spec.Compression.Akita.Key20

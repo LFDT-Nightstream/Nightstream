@@ -50,14 +50,16 @@ theorem tower_counts : ∀ r ∈ rows,
       1467 + w26.blocks₁ + w26.blocks₂, 54400647168 * ((129 + w26.blocks₁) * (w26.blocks₂ + 1))] =
       [1678, 724616620277760, 1668, 686971372437504] := by decide
 
-variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree2 E]
+variable {E : Type} [Field E] [Fintype E]
+  {Slot : Type} [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E]
+  [DecidableEq E] [Algebra Zq E] [Degree2 E]
   {Wire Coord : Type} [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] {total : ℕ}
   {read : Reader Wire} {start : ℕ} {r : Row} {member : r ∈ rows}
-  {accept : Prefix Wire (Option Coord → E) total → Prop}
+  {accept : Prefix Wire (Option Coord → Slot) total → Prop}
   {β : ∀ g, Module.Basis (Fin ((root r).planes g)) Zq E}
   {key : (g : Fin 3) → Key ((root r).shape g)} {openKey : (root r).OpenKey}
   {claim : Wire → (root r).Claim E} {block : (root r).Block → Coord}
-  {decode : (g : Fin 3) → E → Option (Rq ((root r).carrierDegree g))} {mass : Fin 3 → ℕ}
+  {decode : (g : Fin 3) → Slot → Option (Rq ((root r).carrierDegree g))} {mass : Fin 3 → ℕ}
   {flat : Table}
   {scan : ∀ (wire : Wire) (challenge : (root r).Challenge),
     SetupScan (Batch.liftedReduction β ((claim wire).statement key openKey) challenge rootVars
@@ -66,26 +68,26 @@ variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree
   {β₁ : ∀ g, Module.Basis (Fin ((level₁ r).planes g)) Zq E}
   {key₁ : (g : Fin 2) → Key ((level₁ r).shape g)} {openKey₁ : (level₁ r).OpenKey}
   {claim₁ : Wire → (level₁ r).Claim E} {block₁ : (level₁ r).Block → Coord}
-  {decode₁ : (g : Fin 2) → E → Option (Rq ((level₁ r).carrierDegree g))} {mass₁ : Fin 2 → ℕ}
+  {decode₁ : (g : Fin 2) → Slot → Option (Rq ((level₁ r).carrierDegree g))} {mass₁ : Fin 2 → ℕ}
   {registry : ((level₁ r).shape 0).Payload} {reference : Decommitment ((level₁ r).shape 0)}
   {β₂ : Module.Basis (Fin (level₂ r).opening.planes) Zq E} {key₂ : Key (level₂ r).shape}
   {openKey₂ : OpeningKey (level₂ r).opening} {claim₂ : Wire → Claim (level₂ r).opening E}
   {block₂ : Fin (level₂ r).shape.blocks → Coord}
-  {decode₂ : E → Option (Rq (level₂ r).opening.carrierDegree)} {weight₂ : ℕ}
+  {decode₂ : Slot → Option (Rq (level₂ r).opening.carrierDegree)} {weight₂ : ℕ}
   {β₃ : Module.Basis (Fin level₃.opening.planes) Zq E} {key₃ : Key level₃.shape}
   {openKey₃ : OpeningKey level₃.opening} {claim₃ : Wire → Claim level₃.opening E}
   {block₃ : Fin level₃.shape.blocks → Coord}
-  {decode₃ : E → Option (Rq level₃.opening.carrierDegree)} {weight₃ : ℕ}
+  {decode₃ : Slot → Option (Rq level₃.opening.carrierDegree)} {weight₃ : ℕ}
   {key₄ : Key level₄.shape} {openKey₄ : OpeningKey level₄.opening}
   {claim₄ : Wire → TraceClaim level₄.opening E} {block₄ : Fin level₄.shape.blocks → Coord}
-  {decode₄ : E → Option (Rq level₄.shape.innerDegree)} {weight₄ : ℕ}
+  {decode₄ : Slot → Option (Rq level₄.shape.innerDegree)} {weight₄ : ℕ}
   {key₅ : Key level₅.shape} {openKey₅ : OpeningKey level₅.opening}
   {claim₅ : Wire → TraceClaim level₅.opening E} {block₅ : Fin level₅.shape.blocks → Coord}
-  {decode₅ : E → Option (Rq level₅.shape.innerDegree)} {weight₅ : ℕ}
+  {decode₅ : Slot → Option (Rq level₅.shape.innerDegree)} {weight₅ : ℕ}
   {key₆ : Key level₆.shape} {openKey₆ : OpeningKey level₆.opening}
   {claim₆ : Wire → TraceClaim level₆.opening E} {block₆ : Fin level₆.shape.blocks → Coord}
-  {decode₆ : E → Option (Rq level₆.shape.innerDegree)} {weight₆ : ℕ}
-  {L : Terminal terminal E Wire Coord E total
+  {decode₆ : Slot → Option (Rq level₆.shape.innerDegree)} {weight₆ : ℕ}
+  {L : Terminal terminal E Wire Coord Slot total
     (.euclidean normTerminal.operator normTerminal.limit)}
   {commit : Wire → (g : Fin 3) → ((root r).shape g).Payload} {value : Wire → Fin 3 → E}
   {place : Wire → Fin 3 → List E}
@@ -263,8 +265,8 @@ theorem tower_suffix {peak : Fin 3 → ℕ} {peak₁ : Fin 2 → ℕ} (slots : 2
     (LevelSized.traceSq ⟨injective₆, units₆, sparse₆, sized₆.2.2.1, sized₆.2.2.2,
       (by decide : level₆.vars ≤ 28).trans slots, (by decide : level₆.batch ≤ 28).trans slots⟩
       ⟨bounded₆, normed₆.1, normed₆.2⟩)
-    (exists_fair_slots ((by decide : 3 ≤ 28).trans slots))
-    (exists_fair_slots ((by decide : 2 ≤ 28).trans slots)) rfl rfl rfl rfl rfl rfl rfl rfl rfl
+    (exists_fair_fields ((by decide : 3 ≤ 28).trans slots))
+    (exists_fair_fields ((by decide : 2 ≤ 28).trans slots)) rfl rfl rfl rfl rfl rfl rfl rfl rfl
     rfl rfl rfl rfl rfl next inside quarters.1 quarters.2.1 quarters.2.2.1 quarters.2.2.2
     offBatch_uniform (fun _ r2 v ρ s opened setup => ⟨r2, v, ρ, s, rfl, opened, setup⟩)
     (fun _ _ table other => foldCheck_bare _ _ _ _ table other)
@@ -282,7 +284,7 @@ theorem tower_suffix {peak : Fin 3 → ℕ} {peak₁ : Fin 2 → ℕ} (slots : 2
   rw [(tower_counts r member).1, (tower_counts r member).2.1] at suffix
   exact suffix
 
-omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] in
+omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] [FieldSlot Slot E] in
 /-- The sum of the stage errors of `tower_suffix` (Akita (206)) is at most
 `1623435/(4096·|E|) + (1458 + B_1 + B_2)·p`, when each challenge family has the slot
 probability at most `p`. Each error of a check has the factor `2^{−g}` for the work bits `g` of

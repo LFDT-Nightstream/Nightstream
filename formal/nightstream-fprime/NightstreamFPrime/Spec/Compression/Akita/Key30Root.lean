@@ -28,14 +28,16 @@ local instance : Fact (Nat.Prime fieldModulus) := ⟨FieldPrime.fieldModulus_nat
 
 attribute [local instance low] Classical.propDecidable
 
-variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree2 E]
+variable {E : Type} [Field E] [Fintype E]
+  {Slot : Type} [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E]
+  [DecidableEq E] [Algebra Zq E] [Degree2 E]
   {Wire Coord : Type} [Fintype Coord] [DecidableEq Coord] {total : ℕ}
   {read : Reader Wire} {start : ℕ} {r : Row} {member : r ∈ rows}
-  {accept : Prefix Wire (Option Coord → E) total → Prop}
+  {accept : Prefix Wire (Option Coord → Slot) total → Prop}
   {β : ∀ g, Module.Basis (Fin ((root r).planes g)) Zq E}
   {key : (g : Fin 3) → Key ((root r).shape g)} {openKey : (root r).OpenKey}
   {claim : Wire → (root r).Claim E} {block : (root r).Block → Coord}
-  {decode : (g : Fin 3) → E → Option (Rq ((root r).carrierDegree g))} {mass : Fin 3 → ℕ}
+  {decode : (g : Fin 3) → Slot → Option (Rq ((root r).carrierDegree g))} {mass : Fin 3 → ℕ}
   {flat : Table}
   {scan : ∀ (wire : Wire) (challenge : (root r).Challenge),
     SetupScan (Batch.liftedReduction β ((claim wire).statement key openKey) challenge rootVars
@@ -44,26 +46,26 @@ variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree
   {β₁ : ∀ g, Module.Basis (Fin ((level₁ r).planes g)) Zq E}
   {key₁ : (g : Fin 2) → Key ((level₁ r).shape g)} {openKey₁ : (level₁ r).OpenKey}
   {claim₁ : Wire → (level₁ r).Claim E} {block₁ : (level₁ r).Block → Coord}
-  {decode₁ : (g : Fin 2) → E → Option (Rq ((level₁ r).carrierDegree g))} {mass₁ : Fin 2 → ℕ}
+  {decode₁ : (g : Fin 2) → Slot → Option (Rq ((level₁ r).carrierDegree g))} {mass₁ : Fin 2 → ℕ}
   {registry : ((level₁ r).shape 0).Payload} {reference : Decommitment ((level₁ r).shape 0)}
   {β₂ : Module.Basis (Fin (level₂ r).opening.planes) Zq E} {key₂ : Key (level₂ r).shape}
   {openKey₂ : OpeningKey (level₂ r).opening} {claim₂ : Wire → Claim (level₂ r).opening E}
   {block₂ : Fin (level₂ r).shape.blocks → Coord}
-  {decode₂ : E → Option (Rq (level₂ r).opening.carrierDegree)} {weight₂ : ℕ}
+  {decode₂ : Slot → Option (Rq (level₂ r).opening.carrierDegree)} {weight₂ : ℕ}
   {β₃ : Module.Basis (Fin level₃.opening.planes) Zq E} {key₃ : Key level₃.shape}
   {openKey₃ : OpeningKey level₃.opening} {claim₃ : Wire → Claim level₃.opening E}
   {block₃ : Fin level₃.shape.blocks → Coord}
-  {decode₃ : E → Option (Rq level₃.opening.carrierDegree)} {weight₃ : ℕ}
+  {decode₃ : Slot → Option (Rq level₃.opening.carrierDegree)} {weight₃ : ℕ}
   {key₄ : Key level₄.shape} {openKey₄ : OpeningKey level₄.opening}
   {claim₄ : Wire → TraceClaim level₄.opening E} {block₄ : Fin level₄.shape.blocks → Coord}
-  {decode₄ : E → Option (Rq level₄.shape.innerDegree)} {weight₄ : ℕ}
+  {decode₄ : Slot → Option (Rq level₄.shape.innerDegree)} {weight₄ : ℕ}
   {key₅ : Key level₅.shape} {openKey₅ : OpeningKey level₅.opening}
   {claim₅ : Wire → TraceClaim level₅.opening E} {block₅ : Fin level₅.shape.blocks → Coord}
-  {decode₅ : E → Option (Rq level₅.shape.innerDegree)} {weight₅ : ℕ}
+  {decode₅ : Slot → Option (Rq level₅.shape.innerDegree)} {weight₅ : ℕ}
   {key₆ : Key level₆.shape} {openKey₆ : OpeningKey level₆.opening}
   {claim₆ : Wire → TraceClaim level₆.opening E} {block₆ : Fin level₆.shape.blocks → Coord}
-  {decode₆ : E → Option (Rq level₆.shape.innerDegree)} {weight₆ : ℕ}
-  {L : Terminal terminal E Wire Coord E total
+  {decode₆ : Slot → Option (Rq level₆.shape.innerDegree)} {weight₆ : ℕ}
+  {L : Terminal terminal E Wire Coord Slot total
     (.euclidean normTerminal.operator normTerminal.limit)}
   {commit : Wire → (g : Fin 3) → ((root r).shape g).Payload} {value : Wire → Fin 3 → E}
   {place : Wire → Fin 3 → List E}
@@ -131,6 +133,7 @@ local notation "accepts" =>
     (And.left (And.right (And.right quarters))) (And.right (And.right (And.right quarters)))
     commit₄ commit₅ commit₆ stateOf
 
+omit [FieldSlot Slot E] in
 /-- Akita Theorem 10.9 for the opening of a row of the schedule `key30.aks`, without the
 probability that a response does not fit and without the term of (155) for a zero tensor factor
 (`Extract.offTower_complete`): the verifier `offLinks` of `Key30.tower_suffix` accepts the honest
@@ -178,7 +181,7 @@ theorem tower_complete {sendable : (M : Type) → M → Prop} {slots width cap :
     (reads : ∀ point, Terminal.read L point = statementOf (point.wire (Terminal.start L)))
     (clears : ∀ point, Terminal.partials L point = partialsOf (point.wire (Terminal.start L)))
     (counts : ∀ wire, Terminal.nonce L wire = read.nonce wire)
-    (table : Prefix Wire (Option Coord → E) total → Option Coord → E)
+    (table : Prefix Wire (Option Coord → Slot) total → Option Coord → Slot)
     (decodes : ∀ input b, (decode b.1 (table input (some (block b)))).isSome)
     (decodes₁ : ∀ input b, (decode₁ b.1 (table input (some (block₁ b)))).isSome)
     (decodes₂ : ∀ input i, (decode₂ (table input (some (block₂ i)))).isSome)
@@ -187,8 +190,8 @@ theorem tower_complete {sendable : (M : Type) → M → Prop} {slots width cap :
     (decodes₅ : ∀ input i, (decode₅ (table input (some (block₅ i)))).isSome)
     (decodes₆ : ∀ input i, (decode₆ (table input (some (block₆ i)))).isSome)
     (decodesL : ∀ input i, (Terminal.decode L (table input (some (Terminal.block L i)))).isSome)
-    (worked : ∀ input, table input none ∈ workZeros E 57)
-    {wire₀ : Wire} {early : List ((Option Coord → E) × Wire)} (on : OnPath accept table wire₀ early)
+    (worked : ∀ input, table input none ∈ workZeros Slot 57)
+    {wire₀ : Wire} {early : List ((Option Coord → Slot) × Wire)} (on : OnPath accept table wire₀ early)
     (starts : early.length = start) {tables : Fin 3 → Table}
     (live : ∀ g cell, 2 ^ ![30, r.vars, 28] g ≤ cell → tables g cell = 0)
     (committed : commit (lastWire wire₀ early) = fun g => (Akita.commit (key g) (tables g)).1)
@@ -204,18 +207,18 @@ theorem tower_complete {sendable : (M : Type) → M → Prop} {slots width cap :
         fun w₂ =>
       LiftFit β₃ key₃ openKey₃ level₃.fold level₃.vars (And.left level₃_sized) quotientDigits
         decode₃ (fun i => level₃.shape.embed (level₃.shape.pack w₂ i)) fun w₃ =>
-      TraceFit (And.left quarters) key₄ openKey₄ level₄.fold (fun _ => decode₄) (fun _ => True)
+      TraceFit (E := E) (And.left quarters) key₄ openKey₄ level₄.fold (fun _ => decode₄) (fun _ => True)
         (packed w₃) fun w₄ =>
-      TraceFit (And.left (And.right quarters)) key₅ openKey₅ level₅.fold (fun _ => decode₅)
+      TraceFit (E := E) (And.left (And.right quarters)) key₅ openKey₅ level₅.fold (fun _ => decode₅)
         (fun z => vecNormSq z ≤ norm₅.limit) (packed w₄) fun w₅ =>
-      TraceFit (And.left (And.right (And.right quarters))) key₆ openKey₆ level₆.fold
+      TraceFit (E := E) (And.left (And.right (And.right quarters))) key₆ openKey₆ level₆.fold
         (fun _ => decode₆) (fun z => vecNormSq z ≤ norm₆.limit) (packed w₅) fun w₆ =>
       ∀ c : Fin terminal.blocks → Rq terminal.innerDegree,
         (∀ i, ∃ slot, Terminal.decode L slot = some (c i)) →
         vecNormSq (traceResponse c (traceSource (And.right (And.right (And.right quarters)))
           (packed w₆ : ℕ → E))) ≤ normTerminal.limit) :
     ∃ later, OnPath accept table wire₀ (early ++ later) ∧ (early ++ later).length = total ∧
-      ∀ stage : Prefix Wire (Option Coord → E) total, stage.first = wire₀ →
+      ∀ stage : Prefix Wire (Option Coord → Slot) total, stage.first = wire₀ →
         stage.rest = early ++ later → accepts stage := by
   have pointed := root_points r member
   have segment : ∀ g, ![4, 4, 2] g ≤ (place (lastWire wire₀ early) g).length ∧

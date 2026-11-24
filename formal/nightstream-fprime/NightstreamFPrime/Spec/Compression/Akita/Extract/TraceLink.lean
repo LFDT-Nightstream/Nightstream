@@ -41,7 +41,9 @@ local instance : Fact (Nat.Prime fieldModulus) := ⟨FieldPrime.fieldModulus_nat
 
 attribute [local instance low] Classical.propDecidable
 
-variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree2 E]
+variable {E : Type} [Field E] [Fintype E]
+  {Slot : Type} [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E]
+  [DecidableEq E] [Algebra Zq E] [Degree2 E]
 
 section Reduction
 
@@ -94,8 +96,8 @@ theorem tensorCheck_bare (ν : ℕ) (w other : Table) (r : List E) (v : E) :
 slot. -/
 theorem tensorCheck_staged {Coord : Type} [Fintype Coord] [DecidableEq Coord] [Nonempty Coord]
     (ν : ℕ) (w : Table) (r : List E) (v : E) :
-    Staged (Coord → E) (tensorCheck ν w r v) (tensorCosts E ν) := by
-  have field : ∃ decode : (Coord → E) → E, Fair decode := exists_fair_slot
+    Staged (Coord → Slot) (tensorCheck ν w r v) (tensorCosts E ν) := by
+  have field : ∃ decode : (Coord → Slot) → E, Fair decode := exists_fair_field
   rcases r with _ | ⟨head, tail⟩
   · trivial
   change StagedTo _ (ite (tail.length = ν) _ _) _ _
@@ -109,9 +111,9 @@ theorem tensorCheck_staged {Coord : Type} [Fintype Coord] [DecidableEq Coord] [N
   · trivial
   refine stagedTo_draw field (density_le _ 1
     (zeros_card_le_of_natDegree_le (linePoly_natDegree _ _))) fun η => ?_
-  have rounds := sumcheck_staged (Reply := Coord → E) field 2 ν _
+  have rounds := sumcheck_staged (Reply := Coord → Slot) field 2 ν _
     (combRound_truth ν 2 (tensorTables w tail η) productComb productComb_degree).degree []
-    (fun result rest => StagedTo (Coord → E) (match result with
+    (fun result rest => StagedTo (Coord → Slot) (match result with
       | none => Game.pure none
       | some (ρ, final) => Game.recv E fun product =>
           if final = product then Game.pure (some (ρ, mle ρ (tensorWeight tail η), product))
@@ -135,9 +137,8 @@ after the draws of the checks. A final claim `(ρ, θ, ṽ)` is true for a table
 the point `r_2` has `ν + 1` coordinates. -/
 noncomputable def Tier.tensored
     (T : Tier (Fin S.blocks) (fun _ => Ring) Stmt Brk (Witness O fold) (Weak O) Wire Coord
-      E (Option (List E × E))
-      Table) (ν : ℕ) :
-    Tier (Fin S.blocks) (fun _ => Ring) Stmt Brk (Witness O fold) (Weak O) Wire Coord E
+      Slot (Option (List E × E)) Table) (ν : ℕ) :
+    Tier (Fin S.blocks) (fun _ => Ring) Stmt Brk (Witness O fold) (Weak O) Wire Coord Slot
       (Option (List E × E × E)) Table where
   method := T.method
   claim := T.claim
@@ -155,7 +156,7 @@ noncomputable def Tier.tensored
   start := T.start
 
 variable [Fintype Coord] [DecidableEq Coord] [Nonempty Coord]
-  {T : Tier (Fin S.blocks) (fun _ => Ring) Stmt Brk (Witness O fold) (Weak O) Wire Coord E
+  {T : Tier (Fin S.blocks) (fun _ => Ring) Stmt Brk (Witness O fold) (Weak O) Wire Coord Slot
     (Option (List E × E)) Table}
   {ν : ℕ}
 
@@ -169,7 +170,7 @@ theorem Tier.tensored_valid (valid : T.Valid)
     (staged : ∀ wire challenge table (rest : List ℝ)
       (tail : Option (List E × E) → List ℝ → Prop),
       (∀ costs, tail none costs) → (∀ final, tail (some final) rest) →
-      StagedTo (Coord → E) (T.check wire challenge table) (T.costs ++ rest) tail) :
+      StagedTo (Coord → Slot) (T.check wire challenge table) (T.costs ++ rest) tail) :
     (T.tensored ν).Valid where
   injective := valid.injective
   avoid := valid.avoid
@@ -193,7 +194,8 @@ theorem Tier.tensored_valid (valid : T.Valid)
     rw [List.length_append, List.length_append, List.length_map, valid.aligned,
       tensorLosses_length (E := E)]
 
-omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] in
+omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] [Fintype Slot] [Nonempty Slot]
+  [FieldSlot Slot E] in
 /-- The verifier of the checks of a level with the tensor reduction does not read the table. -/
 theorem Tier.tensored_uniform
     (uniform : ∀ wire challenge table other,

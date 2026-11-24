@@ -30,12 +30,13 @@ local instance : Fact (Nat.Prime fieldModulus) := ⟨FieldPrime.fieldModulus_nat
 
 attribute [local instance low] Classical.propDecidable
 
-variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E]
+variable {E : Type} [Field E] [Fintype E]
+  {Slot : Type} [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E] [DecidableEq E] [Algebra Zq E]
 
 namespace Compose
 
 variable {P : Verifier.Params Zq E} {B : Batch (Fin 3)} {Wire Coord Lead : Type} {total : ℕ}
-  [Fintype Coord] [DecidableEq Coord] {C : Compose P B Wire Coord Lead total}
+  [Fintype Coord] [DecidableEq Coord] {C : Compose P B Wire Coord Slot Lead total}
   {vf : Verifier.VerifierData P} {commit : Wire → (g : Fin 3) → (B.shape g).Payload}
   {value : Wire → Fin 3 → E} {place : Wire → Fin 3 → List E}
 
@@ -48,10 +49,11 @@ theorem keyBase_zero (rows : P.rows ≤ 2 ^ P.rowVars) {cell : ℕ}
       rwa [pow_add, pow_add, Nat.mul_comm] at large)
   exact ite_eq_right (not_lt.mpr (rows.trans high))
 
+omit [Nonempty Slot] [FieldSlot Slot E] in
 /-- The points of the opening claims at the end of the game of the checkpoint of `(W, V)` have
 `laneVars + keyBlockVars + rowVars`, `witnessVars` and `spanVars + columnVars + zeros`
 coordinates (`Verifier.back_ends`). -/
-theorem back_lengths {point : Prefix Wire (Option Coord → E) total} (wf : Verifier.WellFormed P)
+theorem back_lengths {point : Prefix Wire (Option Coord → Slot) total} (wf : Verifier.WellFormed P)
     {claims : Verifier.Finals E}
     (ended : (C.back vf).game (fun _ _ => 0) point = .pure (some claims)) :
     claims.key.1.length = P.laneVars + P.keyBlockVars + P.rowVars ∧
@@ -72,10 +74,11 @@ theorem back_lengths {point : Prefix Wire (Option Coord → E) total} (wf : Veri
   rw [ended] at at_end
   exact at_end claims rfl
 
+omit [Nonempty Slot] [FieldSlot Slot E] in
 /-- On a transcript with the conditions `Ran`, the points of the claims of the Akita opening
 have `laneVars + keyBlockVars + rowVars` coordinates for the key polynomial, `witnessVars` for
 `W` and `spanVars + columnVars + zeros` for `V` (`back_lengths`). -/
-theorem Ran.lengths {point : Prefix Wire (Option Coord → E) total} (wf : Verifier.WellFormed P)
+theorem Ran.lengths {point : Prefix Wire (Option Coord → Slot) total} (wf : Verifier.WellFormed P)
     (ran : C.Ran vf commit value place point) :
     (place (point.wire (C.root vf)) 0).length = P.laneVars + P.keyBlockVars + P.rowVars ∧
       (place (point.wire (C.root vf)) 1).length = P.witnessVars ∧
@@ -84,6 +87,7 @@ theorem Ran.lengths {point : Prefix Wire (Option Coord → E) total} (wf : Verif
   rw [places]
   exact back_lengths wf ended
 
+omit [FieldSlot Slot E] in
 /-- The transcript prefix of the honest prover of the compression argument, from the stage
 `start` to the first stage `root` of the Akita opening (SPEC.md Algorithm 9, steps 5 to 11).
 
@@ -103,7 +107,7 @@ response search below `responseTries`. For each
 transcript with this prefix, the message after `τ` has the data `mid τ`, and the games of the two
 checkpoints end in a value with `τ` and in the claims: the conditions `led` and `ended` of
 `Ran`. -/
-theorem run [Nonempty Coord] {accept : Prefix Wire (Option Coord → E) total → Prop}
+theorem run [Nonempty Coord] {accept : Prefix Wire (Option Coord → Slot) total → Prop}
     {sendable : (M : Type) → M → Prop} {slots width cap : ℕ} {Mid : Type} {middle : Wire → Mid}
     (wf : Verifier.WellFormed P) (matrix : Verifier.MatrixSpec vf)
     (columns : P.lookups ≤ 2 ^ vf.columnVars) (rows : P.rows ≤ 2 ^ P.rowVars)
@@ -115,10 +119,10 @@ theorem run [Nonempty Coord] {accept : Prefix Wire (Option Coord → E) total �
       sendable (Verifier.Values E) values)
     (carriesM : Carries sendable slots C.read middle)
     (carriesR : Carries sendable slots C.read fun wire => (commit wire, value wire, place wire))
-    (table : Prefix Wire (Option Coord → E) total → Option Coord → E)
+    (table : Prefix Wire (Option Coord → Slot) total → Option Coord → Slot)
     (dodges : ∀ input (T : Type) [Fintype T] [Nonempty T],
-      ¬ Verifier.Rejects P T (sample (Coord → E) T (Extract.view (table input))))
-    {first : Wire} {early : List ((Option Coord → E) × Wire)} (on : OnPath accept table first early)
+      ¬ Verifier.Rejects P T (sample (Coord → Slot) T (Extract.view (table input))))
+    {first : Wire} {early : List ((Option Coord → Slot) × Wire)} (on : OnPath accept table first early)
     (starts : early.length = C.start) (W : Table) (counts : Verifier.HonestCounts P W)
     (distinct : Verifier.TablesDistinct P) (settled : Settled (C.lead first W))
     (leads : WinsOff (Verifier.Rejects P) sendable slots (C.lead first W) C.leadCosts.length 0
@@ -126,7 +130,7 @@ theorem run [Nonempty Coord] {accept : Prefix Wire (Option Coord → E) total �
         Verifier.Shaped P (C.statement first lead) ∧ Verifier.Relation P (C.statement first lead) W)
     (mid : (Fin P.lookups → Zq) → Mid)
     (payload : (Fin P.lookups → Zq) → (g : Fin 3) → (B.shape g).Payload) :
-    ∃ (moves : List ((Option Coord → E) × Wire)) (τ : Fin P.lookups → Zq) (claims : Verifier.Finals
+    ∃ (moves : List ((Option Coord → Slot) × Wire)) (τ : Fin P.lookups → Zq) (claims : Verifier.Finals
       E),
       (early ++ moves).length = C.root vf ∧ OnPath accept table first (early ++ moves) ∧
       C.read.nonce (lastWire first (early ++ moves)) < responseTries ∧
@@ -136,7 +140,7 @@ theorem run [Nonempty Coord] {accept : Prefix Wire (Option Coord → E) total �
       commit (lastWire first (early ++ moves)) = payload τ ∧
       place (lastWire first (early ++ moves)) = (fun g => (claimOf claims g).1) ∧
       value (lastWire first (early ++ moves)) = (fun g => (claimOf claims g).2) ∧
-      ∀ stage : Prefix Wire (Option Coord → E) total, stage.first = first →
+      ∀ stage : Prefix Wire (Option Coord → Slot) total, stage.first = first →
         (∃ later, stage.rest = early ++ moves ++ later) →
         middle (stage.wire C.front.finish) = mid τ ∧
           stage.wire (C.root vf) = lastWire first (early ++ moves) ∧
@@ -224,6 +228,7 @@ theorem run [Nonempty Coord] {accept : Prefix Wire (Option Coord → E) total �
     · rw [← List.append_assoc]
       exact wire₂
 
+omit [FieldSlot Slot E] in
 /-- The verifier of the compression argument over an Akita opening accepts the honest prover
 (SPEC.md Algorithm 9 and Algorithm 10; Akita Theorem 10.9): `run` and then the honest prover
 `tower` of the Akita opening. `links` is the part of the verifier for the Akita opening.
@@ -238,7 +243,7 @@ each transcript with them satisfies `links`. The other hypotheses are those of `
 
 Then a proof with the first message `first` exists whose complete transcript satisfies `Ran` and
 `links`. -/
-theorem accepts [Nonempty Coord] {accept : Prefix Wire (Option Coord → E) total → Prop}
+theorem accepts [Nonempty Coord] {accept : Prefix Wire (Option Coord → Slot) total → Prop}
     {sendable : (M : Type) → M → Prop} {slots width cap : ℕ} (wf : Verifier.WellFormed P)
     (matrix : Verifier.MatrixSpec vf) (columns : P.lookups ≤ 2 ^ vf.columnVars)
     (rows : P.rows ≤ 2 ^ P.rowVars)
@@ -250,25 +255,25 @@ theorem accepts [Nonempty Coord] {accept : Prefix Wire (Option Coord → E) tota
       sendable (Verifier.Values E) values)
     (carriesM : Carries sendable slots C.read commit)
     (carriesR : Carries sendable slots C.read fun wire => (commit wire, value wire, place wire))
-    (table : Prefix Wire (Option Coord → E) total → Option Coord → E)
+    (table : Prefix Wire (Option Coord → Slot) total → Option Coord → Slot)
     (dodges : ∀ input (T : Type) [Fintype T] [Nonempty T],
-      ¬ Verifier.Rejects P T (sample (Coord → E) T (Extract.view (table input))))
-    {first : Wire} {early : List ((Option Coord → E) × Wire)} (on : OnPath accept table first early)
+      ¬ Verifier.Rejects P T (sample (Coord → Slot) T (Extract.view (table input))))
+    {first : Wire} {early : List ((Option Coord → Slot) × Wire)} (on : OnPath accept table first early)
     (starts : early.length = C.start) (W : Table) (counts : Verifier.HonestCounts P W)
     (distinct : Verifier.TablesDistinct P) (settled : Settled (C.lead first W))
     (leads : WinsOff (Verifier.Rejects P) sendable slots (C.lead first W) C.leadCosts.length 0
       fun result _ _ => ∃ lead, result = some lead ∧
         Verifier.Shaped P (C.statement first lead) ∧ Verifier.Relation P (C.statement first lead) W)
     (key : (g : Fin 3) → Key (B.shape g))
-    (bound₀ : ∀ anchor : Prefix Wire (Option Coord → E) total, anchor.first = first →
+    (bound₀ : ∀ anchor : Prefix Wire (Option Coord → Slot) total, anchor.first = first →
       C.bound anchor 0 = (Akita.commit (key 0) (keyBase P)).1)
-    (bound₁ : ∀ anchor : Prefix Wire (Option Coord → E) total, anchor.first = first →
+    (bound₁ : ∀ anchor : Prefix Wire (Option Coord → Slot) total, anchor.first = first →
       C.bound anchor 1 = (Akita.commit (key 1) W).1)
-    (bound₂ : ∀ anchor : Prefix Wire (Option Coord → E) total,
+    (bound₂ : ∀ anchor : Prefix Wire (Option Coord → Slot) total,
       C.bound anchor 2 = commit (anchor.wire C.front.finish) 2)
-    (links : Prefix Wire (Option Coord → E) total → Prop)
+    (links : Prefix Wire (Option Coord → Slot) total → Prop)
     (tower : ∀ τ : Fin P.lookups → Zq, Verifier.Apart P τ →
-      ∀ moves : List ((Option Coord → E) × Wire), OnPath accept table first moves →
+      ∀ moves : List ((Option Coord → Slot) × Wire), OnPath accept table first moves →
       moves.length = C.root vf → C.read.nonce (lastWire first moves) < responseTries →
       commit (lastWire first moves) = (fun g =>
         (Akita.commit (key g) (![keyBase P, W, Verifier.honestInverses P W τ] g)).1) →
@@ -278,7 +283,7 @@ theorem accepts [Nonempty Coord] {accept : Prefix Wire (Option Coord → E) tota
       value (lastWire first moves) = (fun g => mle (place (lastWire first moves) g)
         (lifted E (![keyBase P, W, Verifier.honestInverses P W τ] g))) →
       ∃ later, OnPath accept table first (moves ++ later) ∧ (moves ++ later).length = total ∧
-        ∀ stage : Prefix Wire (Option Coord → E) total, stage.first = first →
+        ∀ stage : Prefix Wire (Option Coord → Slot) total, stage.first = first →
           stage.rest = moves ++ later → links stage) :
     ∃ proof : ℕ → Wire, proof 0 = first ∧
       C.Ran vf commit value place (pointPath total accept proof table total) ∧

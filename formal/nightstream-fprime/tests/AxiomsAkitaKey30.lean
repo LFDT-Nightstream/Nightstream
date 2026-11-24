@@ -6,7 +6,7 @@ import NightstreamFPrime.Claims.AkitaKey30
 of the shared setup and the split (132) of the public weight (`SetupView`,
 `Extract/SetupWeight`), the group of the setup prefix and the offloaded step of the suffix
 (`Extract/Groups`), the suffix of the opening with an offloaded root (`Extract/OffTower`,
-`Key30Tower`), the opening with the decoders `draw` (`Key30Opening`), the instances of Module-SIS
+`Key30Tower`), the opening with the decoders of the code (`Key30Opening`), the instances of Module-SIS
 (`Key30Instances`), the final verifier over the opening (`Export/BoundedDepth/FinalKey30`), and
 the final verifier for each claim shape, against a false history and against a false memory
 statement (`Export/BoundedDepth/FinalShapes`, `FinalMemory`, `FinalKey30All`), and the claims
@@ -120,6 +120,9 @@ statement (`Export/BoundedDepth/FinalShapes`, `FinalMemory`, `FinalKey30All`), a
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey30.sound
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.Tower.onSetup_shared
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.Tower.scan
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.rootDecode_mem
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.decode₁_mem
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.families_code
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.Tower.Drawn.fits
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.Tower.Drawn.decodes
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.Tower.suffix

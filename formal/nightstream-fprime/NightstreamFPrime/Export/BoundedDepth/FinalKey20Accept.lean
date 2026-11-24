@@ -27,6 +27,8 @@ set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.BoundedDepth.FinalKey20
 
+open NightstreamFPrime.Spec.Compression.Akita.Replay (CodeSlot)
+
 open scoped BigOperators
 open NightstreamFPrime.Spec NightstreamFPrime.Spec.FieldExtensionRing
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
@@ -71,7 +73,7 @@ variable {logicalWidth : Nat}
 /-- The commitments that a stage input fixes: the commitments of the key polynomial and of `W`
 of the first message, and the commitment of `V` of the message after the lookup challenges. -/
 noncomputable def sheetBound (anchor : Prefix (Sheet logicalWidth publicFits slots width limit)
-  (Option Coord → K) total)
+  (Option Coord → CodeSlot K) total)
     (g : Fin 3) : (root.shape g).Payload :=
   if g = 2 then
     (anchor.wire
@@ -86,8 +88,8 @@ def sheetTerminal (total : ℕ)
       (Fin Key20.terminal.blockLength × Fin Key20.terminal.sourceDigits)
       (Rq Key20.terminal.innerDegree))
     (block : Fin Key20.terminal.blocks → Coord)
-    (decode : K → Option (Rq Key20.terminal.innerDegree)) (start : ℕ) :
-    Terminal Key20.terminal K (Sheet logicalWidth publicFits slots width limit) Coord K total
+    (decode : CodeSlot K → Option (Rq Key20.terminal.innerDegree)) (start : ℕ) :
+    Terminal Key20.terminal K (Sheet logicalWidth publicFits slots width limit) Coord (CodeSlot K) total
       (.euclidean normTerminal.operator normTerminal.limit) where
   matrix := matrix
   read point := (point.wire start).data.2.statement
@@ -102,27 +104,27 @@ def sheetTerminal (total : ℕ)
 
 variable (β : ∀ g, Module.Basis (Fin (root.planes g)) Zq K)
   (key : (g : Fin 3) → Key (root.shape g)) (openKey : root.OpenKey) (block : root.Block → Coord)
-  (decode : (g : Fin 3) → K → Option (Rq (root.carrierDegree g))) (mass : Fin 3 → ℕ)
+  (decode : (g : Fin 3) → CodeSlot K → Option (Rq (root.carrierDegree g))) (mass : Fin 3 → ℕ)
   (β₁ : Module.Basis (Fin level₁.opening.planes) Zq K) (key₁ : Key level₁.shape)
   (openKey₁ : OpeningKey level₁.opening) (block₁ : Fin level₁.shape.blocks → Coord)
-  (decode₁ : K → Option (Rq level₁.opening.carrierDegree)) (weight₁ : ℕ)
+  (decode₁ : CodeSlot K → Option (Rq level₁.opening.carrierDegree)) (weight₁ : ℕ)
   (key₂ : Key level₂.shape) (openKey₂ : OpeningKey level₂.opening)
   (block₂ : Fin level₂.shape.blocks → Coord)
-  (decode₂ : K → Option (Rq level₂.shape.innerDegree)) (weight₂ : ℕ)
+  (decode₂ : CodeSlot K → Option (Rq level₂.shape.innerDegree)) (weight₂ : ℕ)
   (key₃ : Key level₃.shape) (openKey₃ : OpeningKey level₃.opening)
   (block₃ : Fin level₃.shape.blocks → Coord)
-  (decode₃ : K → Option (Rq level₃.shape.innerDegree)) (weight₃ : ℕ)
+  (decode₃ : CodeSlot K → Option (Rq level₃.shape.innerDegree)) (weight₃ : ℕ)
   (key₄ : Key level₄.shape) (openKey₄ : OpeningKey level₄.opening)
   (block₄ : Fin level₄.shape.blocks → Coord)
-  (decode₄ : K → Option (Rq level₄.shape.innerDegree)) (weight₄ : ℕ)
+  (decode₄ : CodeSlot K → Option (Rq level₄.shape.innerDegree)) (weight₄ : ℕ)
   (key₅ : Key level₅.shape) (openKey₅ : OpeningKey level₅.opening)
   (block₅ : Fin level₅.shape.blocks → Coord)
-  (decode₅ : K → Option (Rq level₅.shape.innerDegree)) (weight₅ : ℕ)
+  (decode₅ : CodeSlot K → Option (Rq level₅.shape.innerDegree)) (weight₅ : ℕ)
   (matrix : Matrix (Fin Key20.terminal.innerRank)
     (Fin Key20.terminal.blockLength × Fin Key20.terminal.sourceDigits)
     (Rq Key20.terminal.innerDegree))
   (blockL : Fin Key20.terminal.blocks → Coord)
-  (decodeL : K → Option (Rq Key20.terminal.innerDegree))
+  (decodeL : CodeSlot K → Option (Rq Key20.terminal.innerDegree))
 
 local notation "Leaf" => Sheet logicalWidth publicFits slots width limit
 
@@ -193,12 +195,12 @@ ends in a probe whose claims satisfy `Shaped` and `Relation` for `W`. No Lean re
 polynomial, `W` and the honest inverses of each lookup challenges that are no table values. -/
 theorem accepts (use : Use setup shape) (wide : 8 ≤ width) (capped : 3029804899 ≤ limit)
     (room : 3 < slots) (inside : Tier.finish fifth < total)
-    (accept : Prefix Leaf (Option Coord → K) total → Prop)
-    (table : Address Leaf total → Option Coord → K)
-    (calm : ∀ input, sample (Coord → K) (Fin (setup.params shape).lookups → Zq)
+    (accept : Prefix Leaf (Option Coord → CodeSlot K) total → Prop)
+    (table : Address Leaf total → Option Coord → CodeSlot K)
+    (calm : ∀ input, sample (Coord → CodeSlot K) (Fin (setup.params shape).lookups → Zq)
       (view (table input)) ∉ Compression.Verifier.tableHit (setup.params shape))
     (regular : ∀ input,
-      sample (Coord → K) (Compression.Verifier.Challenges (setup.params shape))
+      sample (Coord → CodeSlot K) (Compression.Verifier.Challenges (setup.params shape))
         (view (table input)) ∉ Compression.Verifier.omegaBad (setup.params shape))
     (decodes : ∀ input b, (decode b.1 (table input (some (block b)))).isSome)
     (decodes₁ : ∀ input i, (decode₁ (table input (some (block₁ i)))).isSome)
@@ -207,7 +209,7 @@ theorem accepts (use : Use setup shape) (wide : 8 ≤ width) (capped : 302980489
     (decodes₄ : ∀ input i, (decode₄ (table input (some (block₄ i)))).isSome)
     (decodes₅ : ∀ input i, (decode₅ (table input (some (block₅ i)))).isSome)
     (decodesL : ∀ input i, (decodeL (table input (some (blockL i)))).isSome)
-    (worked : ∀ input, table input none ∈ workZeros K 57)
+    (worked : ∀ input, table input none ∈ workZeros (CodeSlot K) 57)
     (given : First logicalWidth publicFits)
     (checks : FinalVerifier.Checks mode given.statement (given.claims shape))
     (gate : setup.Gate (given.claims shape)) (W : Table)
@@ -227,13 +229,13 @@ theorem accepts (use : Use setup shape) (wide : 8 ≤ width) (capped : 302980489
           Compression.Verifier.honestInverses (setup.params shape) W τ] fun w₀ =>
       LiftFit β₁ key₁ openKey₁ level₁.fold level₁.vars (And.left level₁_sized) quotientDigits
         decode₁ (fun i => level₁.shape.embed (level₁.shape.pack w₀ i)) fun w₁ =>
-      TraceFit (And.left quarters) key₂ openKey₂ level₂.fold (fun _ => decode₂) (fun _ => True)
+      TraceFit (E := K) (And.left quarters) key₂ openKey₂ level₂.fold (fun _ => decode₂) (fun _ => True)
         (packed w₁) fun w₂ =>
-      TraceFit (And.left (And.right quarters)) key₃ openKey₃ level₃.fold (fun _ => decode₃)
+      TraceFit (E := K) (And.left (And.right quarters)) key₃ openKey₃ level₃.fold (fun _ => decode₃)
         (fun z => vecNormSq z ≤ norm₃.limit) (packed w₂) fun w₃ =>
-      TraceFit (And.left (And.right (And.right quarters))) key₄ openKey₄ level₄.fold
+      TraceFit (E := K) (And.left (And.right (And.right quarters))) key₄ openKey₄ level₄.fold
         (fun _ => decode₄) (fun z => vecNormSq z ≤ norm₄.limit) (packed w₃) fun w₄ =>
-      TraceFit (And.left (And.right (And.right (And.right quarters)))) key₅ openKey₅ level₅.fold
+      TraceFit (E := K) (And.left (And.right (And.right (And.right quarters)))) key₅ openKey₅ level₅.fold
         (fun _ => decode₅) (fun z => vecNormSq z ≤ norm₅.limit) (packed w₄) fun w₅ =>
       ∀ c : Fin Key20.terminal.blocks → Rq Key20.terminal.innerDegree,
         (∀ i, ∃ slot, decodeL slot = some (c i)) →

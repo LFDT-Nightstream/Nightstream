@@ -408,6 +408,7 @@ section Fits
 
 variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {E : Type} [Field E]
   [Algebra Zq E] {β : Module.Basis (Fin O.planes) Zq E} {key : Key S} {openKey : OpeningKey O}
+  {Slot : Type}
 
 /-- The table `liftNext` of a packing level for zero source blocks is the zero table. `shape`,
 `radix`, `certified`, `path`: the conditions of `sourceClaim_satisfies`. `two`: `2 ≤ b⋆`. -/
@@ -431,7 +432,7 @@ table, when `after` holds for the zero table. -/
 theorem liftFit_zero (shape : S.Bounded) (radix : Radix fold.responseBase)
     (certified : fold.responseBase ≤ S.certifiedBase)
     (path : PathFits O.openDegree (1 * O.openRank) O.chain) (two : 2 ≤ S.certifiedBase) {μ : ℕ}
-    {cells : O.cells fold ≤ 2 ^ μ} {digits : ℕ} {decode : E → Option (Rq O.carrierDegree)}
+    {cells : O.cells fold ≤ 2 ^ μ} {digits : ℕ} {decode : Slot → Option (Rq O.carrierDegree)}
     {after : Table → Prop} (holds : after 0) :
     LiftFit β key openKey fold μ cells digits decode (fun i => S.embed (S.pack 0 i)) after := by
   rw [Shape.embed_pack_zero]
@@ -458,10 +459,10 @@ theorem traceSource_zero (quarter : 4 * m = S.innerDegree) :
 /-- The fit conditions `TraceFit` of a trace level hold for the packed polynomial of the zero
 table, when the zero response is admissible and `after` holds for the zero table. -/
 theorem traceFit_zero (quarter : 4 * m = S.innerDegree) (opening : 2 ≤ S.openingBase)
-    (radix : 2 ≤ fold.responseBase) {decode : Fin S.blocks → E → Option (Rq S.innerDegree)}
+    (radix : 2 ≤ fold.responseBase) {decode : Fin S.blocks → Slot → Option (Rq S.innerDegree)}
     {admissible : S.Source → Prop} {after : Table → Prop} (admitted : admissible 0)
     (holds : after 0) :
-    TraceFit quarter key openKey fold decode admissible (packed 0) after := by
+    TraceFit (E := E) quarter key openKey fold decode admissible (packed 0) after := by
   intro position c _
   rw [packed_zero, traceSource_zero, traceResponse_zero]
   refine ⟨encodable_zero radix _, admitted, ?_⟩
@@ -476,7 +477,7 @@ omit [Degree2 E] in
 of the decoder is 0 (`quiet`) and `after` holds for the table of the zero challenges. The
 response is then 0. -/
 theorem liftFit_quiet (radix : 2 ≤ fold.responseBase) {μ : ℕ} {cells : O.cells fold ≤ 2 ^ μ}
-    {digits : ℕ} {decode : E → Option (Rq O.carrierDegree)}
+    {digits : ℕ} {decode : Slot → Option (Rq O.carrierDegree)}
     (quiet : ∀ slot c, decode slot = some c → c = 0) {source : Fin S.blocks → S.Source}
     {after : Table → Prop}
     (holds : ∀ point, after (liftNext β key openKey fold μ cells digits source point fun _ => 0)) :
@@ -491,11 +492,11 @@ theorem liftFit_quiet (radix : 2 ≤ fold.responseBase) {μ : ℕ} {cells : O.ce
 challenge of the decoder is 0 (`quiet`), the zero response is admissible and `after` holds for the
 table of the zero challenges. -/
 theorem traceFit_quiet (quarter : 4 * m = S.innerDegree)
-    (radix : 2 ≤ fold.responseBase) {decode : Fin S.blocks → E → Option (Rq S.innerDegree)}
+    (radix : 2 ≤ fold.responseBase) {decode : Fin S.blocks → Slot → Option (Rq S.innerDegree)}
     (quiet : ∀ i slot c, decode i slot = some c → c = 0) {admissible : S.Source → Prop}
     {g : ℕ → E} {after : Table → Prop} (admitted : admissible 0)
     (holds : ∀ position, after (traceNext quarter key openKey fold g position fun _ => 0)) :
-    TraceFit quarter key openKey fold decode admissible g after := by
+    TraceFit (E := E) quarter key openKey fold decode admissible g after := by
   intro position c decodable
   obtain rfl : c = fun _ => 0 := funext fun i => by
     obtain ⟨slot, decoded⟩ := decodable i
@@ -509,7 +510,7 @@ section Groups
 
 variable {n : ℕ} {B : Batch (Fin n)} {E : Type} [Field E] [Algebra Zq E]
   {β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E} {key : (g : Fin n) → Key (B.shape g)}
-  {openKey : B.OpenKey}
+  {openKey : B.OpenKey} {Slot : Type}
 
 /-- The fit conditions `BatchFit` of a fold with opening groups hold for the zero tables, when
 `after` holds for the zero table. `shape`, `radix`, `certified`, `path`: the conditions of
@@ -519,7 +520,7 @@ theorem batchFit_zero (shape : ∀ g, (B.shape g).Honest)
     (certified : ∀ g, (B.fold g).responseBase ≤ (B.shape g).certifiedBase)
     (path : PathFits B.openDegree (1 * B.openRank) B.chain) {base : ℕ} (two : 2 ≤ base) {μ : ℕ}
     {cells : B.cells ≤ 2 ^ μ} {digits : ℕ}
-    {decode : (g : Fin n) → E → Option (Rq (B.carrierDegree g))} {after : Table → Prop}
+    {decode : (g : Fin n) → Slot → Option (Rq (B.carrierDegree g))} {after : Table → Prop}
     (holds : after 0) :
     BatchFit β key openKey μ cells base digits decode (fun _ => 0) after := by
   intro point weight c _
@@ -543,7 +544,7 @@ when each fold challenge of the decoders is 0 (`quiet`) and `after` holds for th
 zero challenges. Each response is then 0. -/
 theorem batchFit_quiet (radix : ∀ g, 2 ≤ (B.fold g).responseBase) {base μ : ℕ}
     {cells : B.cells ≤ 2 ^ μ} {digits : ℕ}
-    {decode : (g : Fin n) → E → Option (Rq (B.carrierDegree g))}
+    {decode : (g : Fin n) → Slot → Option (Rq (B.carrierDegree g))}
     (quiet : ∀ g slot c, decode g slot = some c → c = 0) {table : Fin n → Table}
     {after : Table → Prop}
     (holds : ∀ point weight,

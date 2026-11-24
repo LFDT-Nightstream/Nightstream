@@ -30,7 +30,9 @@ local instance : Fact (Nat.Prime fieldModulus) := ⟨FieldPrime.fieldModulus_nat
 
 attribute [local instance low] Classical.propDecidable
 
-variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree2 E]
+variable {E : Type} [Field E] [Fintype E]
+  {Slot : Type} [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E]
+  [DecidableEq E] [Algebra Zq E] [Degree2 E]
 
 section Triple
 
@@ -145,11 +147,11 @@ variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {S' : Shape} {O' :
   {β : Module.Basis (Fin O.planes) Zq E} {key : Key S} {openKey : OpeningKey O}
   {claim : Wire → Claim O E} {μ : ℕ} {fits : O.cells fold ≤ 2 ^ μ} {batch : ℕ}
   {rowsFit : O.rowCount + 1 ≤ 2 ^ batch} {block : Fin S.blocks → Coord}
-  {decode : E → Option (Rq O.carrierDegree)} {read : Reader Wire} {weight ν : ℕ}
+  {decode : Slot → Option (Rq O.carrierDegree)} {read : Reader Wire} {weight ν : ℕ}
   {key' : Key S'} {openKey' : OpeningKey O'} {claim' : Wire → TraceClaim O' E} {μ' : ℕ}
   {fits' : O'.cells fold' ≤ 2 ^ μ'} {batch' : ℕ}
   {rowsFit' : O'.traceRowCount + 1 ≤ 2 ^ batch'} {block' : Fin S'.blocks → Coord}
-  {decode' : E → Option (Rq S'.innerDegree)} {weight' ν' m' m'' : ℕ}
+  {decode' : Slot → Option (Rq S'.innerDegree)} {weight' ν' m' m'' : ℕ}
   {quarter' : 4 * m' = S'.innerDegree} {quarter'' : 4 * m'' = S''.innerDegree}
   {commit : Wire → S'.Payload}
   {stateOf : Wire → Fin S''.blocks → Fin S''.innerRank → Rq S''.innerDegree}
@@ -163,7 +165,7 @@ local notation "second" =>
     (committedTrace key' openKey' claim' μ' fits' batch' rowsFit' block' decode' read weight'
       (Tier.finish first)) ν'
 
-variable {total : ℕ} {L : Terminal S'' E Wire Coord E total}
+variable {total : ℕ} {L : Terminal S'' E Wire Coord Slot total}
 
 local notation "chain" => triple first second L quarter' quarter'' commit stateOf
 
@@ -230,12 +232,12 @@ theorem traceTriple_extract_sound {peak peak' peak'' : ℕ} (injective : Functio
     (units'' : UnitDifferences L.family)
     (sparse'' : ∀ challenge ∈ L.family, Sparse L.weight peak'' challenge)
     (prover : OracleComp (Address Wire total)
-      (Option Coord → E) (ℕ → Wire))
+      (Option Coord → Slot) (ℕ → Wire))
     (budget : ℕ)
-    (table : Address Wire total → Option Coord → E)
-    (tape : Tape (Address Wire total) (Option Coord) E
+    (table : Address Wire total → Option Coord → Slot)
+    (tape : Tape (Address Wire total) (Option Coord) Slot
       budget (Structure.protocol chain).stages)
-    (out : Opened (Weak O) (Opened (Weak O') (Prefix Wire (Option Coord → E) total ×
+    (out : Opened (Weak O) (Opened (Weak O') (Prefix Wire (Option Coord → Slot) total ×
         Option (TerminalFork S''))) ⊕
       (LevelBreak key openKey (2 * (2 * weight) * fold.sourceBound S) ⊕
         (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S') ⊕
@@ -288,10 +290,10 @@ theorem traceTriple_extraction_le {peak peak' peak'' : ℕ} (injective : Functio
     (units'' : UnitDifferences L.family)
     (sparse'' : ∀ challenge ∈ L.family, Sparse L.weight peak'' challenge)
     (prover : OracleComp (Address Wire total)
-      (Option Coord → E) (ℕ → Wire))
+      (Option Coord → Slot) (ℕ → Wire))
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
     𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord)
-          E budget (Structure.protocol chain).stages,
+          Slot budget (Structure.protocol chain).stages,
         (if tripleAccepts first second L quarter' quarter'' commit stateOf
             ((Structure.protocol chain).final prover table) ∧
           Checkpoint.extract chain prover budget table tape = none then (1 : ℝ) else 0) ≤
@@ -321,10 +323,10 @@ theorem traceTriple_runs_le {peak peak' peak'' : ℕ} (injective : Function.Inje
     (units'' : UnitDifferences L.family)
     (sparse'' : ∀ challenge ∈ L.family, Sparse L.weight peak'' challenge)
     (prover : OracleComp (Address Wire total)
-      (Option Coord → E) (ℕ → Wire))
+      (Option Coord → Slot) (ℕ → Wire))
     {queries : ℕ} (bounded : prover.QueryBound queries) (budget : ℕ) :
     𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord)
-          E budget (Structure.protocol chain).stages,
+          Slot budget (Structure.protocol chain).stages,
         (extractRuns chain prover budget table tape : ℝ) ≤
       (2 * (S.blocks + 1) * (2 * (S'.blocks + 1) * (S''.blocks + 1)) : ℕ) +
         (queries + 1) * ((2 * (S.blocks + 1) * (2 * (S'.blocks + 1) * (S''.blocks + 1)) : ℕ) - 1) :=

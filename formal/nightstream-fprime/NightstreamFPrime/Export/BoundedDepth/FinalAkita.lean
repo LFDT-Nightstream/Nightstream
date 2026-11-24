@@ -2,6 +2,7 @@ import NightstreamFPrime.Export.BoundedDepth.FinalSplit
 import NightstreamFPrime.Spec.Compression.Akita.Extract.ComposeRoot
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Decoders
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Tower
+import NightstreamFPrime.Spec.Compression.Akita.Replay.CodeSlot
 
 /-! The final verifier over the Akita opening of the key polynomial, `W` and `V` (SPEC.md,
 Algorithm 10; Akita, ePrint 2026/1983, revision of 2026-11-23, Theorem 10.17, Proposition 10.44
@@ -42,6 +43,8 @@ the transcript are a function of the layout. So the result is for the final proo
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.BoundedDepth.FinalAkita
+
+open NightstreamFPrime.Spec.Compression.Akita.Replay (CodeSlot)
 
 open scoped BigOperators
 open NightstreamFPrime.Spec NightstreamFPrime.Spec.FieldExtensionRing
@@ -88,7 +91,7 @@ variable (setup : FinalVerifier.Setup mode logicalWidth publicFits) (packageWidt
   (step : AppState → AppWitness → AppState) (cap : ℕ) (control : AppState → AppWitness → Fin 2)
   (shape : Claims logicalWidth publicFits) {B : Batch (Fin 3)} {Wire Coord : Type} {total : ℕ}
   (read : Reader Wire) (head : Wire → First logicalWidth publicFits)
-  (bound : Prefix Wire (Option Coord → K) total → (g : Fin 3) → (B.shape g).Payload)
+  (bound : Prefix Wire (Option Coord → CodeSlot K) total → (g : Fin 3) → (B.shape g).Payload)
 
 /-- The first message has a statement for which a proof with witnesses satisfies `Verifies`. -/
 def Proved (wire : Wire) : Prop :=
@@ -100,7 +103,7 @@ with `pc` and the depths of `shape`. The stages from 0 are Π_CCS on the fresh i
 lookup challenges and the argument. `head` decodes the first message, and `bound anchor g` is
 the commitment of the group `g` that a stage input fixes. -/
 noncomputable def compose :
-    Compose (E := K) (setup.params shape) B Wire Coord (Probe K CompressionFresh.oneShape)
+    Compose (E := K) (setup.params shape) B Wire Coord (CodeSlot K) (Probe K CompressionFresh.oneShape)
       total where
   start := 0
   read := read
@@ -116,7 +119,7 @@ variable [Fintype Coord] [DecidableEq Coord] [Nonempty Coord]
 /-- The conditions `Compose.Sized` of the final verifier. `premises`: the premises of
 `FinalVerifier.soundness`. `laid`: the shape passes the layout of step 5. `lookupsFit` and
 `challengesFit`: an answer of the oracle has a slot for each lookup challenge and for each
-challenge after `V` (`exists_fair_base`, `exists_fair_challenges`). `cube` and `groupsFit`: an
+challenge after `V` (`exists_fair_field_base`, `exists_fair_field_challenges`). `cube` and `groupsFit`: an
 answer has a slot for each coordinate of `α` and three slots. `early`: the commitments of the key
 polynomial and of `W` are fixed by the first message. `fits`: the stages before the Akita opening
 are stages of the transcript. -/
@@ -134,22 +137,22 @@ theorem compose_sized (premises : Premises setup packageWidths) (laid : setup.La
   obtain ⟨wf, counts, matrix, columns, rows, key_fits⟩ := FinalVerifier.laid_facts setup laid
   exact
     { wf, counts, matrix, columns, rows, key_fits
-      lookups := exists_fair_base (by simpa using lookupsFit)
-      challenges := exists_fair_challenges _ challengesFit
+      lookups := exists_fair_field_base (E := K) (by simpa using lookupsFit)
+      challenges := exists_fair_field_challenges (E := K) _ challengesFit
       column := (le_of_eq (rfl : (setup.verifier shape).columnVars = 2)).trans
         ((Nat.le_succ 2).trans groupsFit)
       lead_sound := fun _ _ refuted =>
         FinalVerifier.lead_sound setup step cap control premises refuted
       lead_staged := fun _ W =>
-        FinalVerifier.lead_staged setup (exists_fair_slots cube) exists_fair_slot _ _ W _
+        FinalVerifier.lead_staged setup (exists_fair_fields cube) exists_fair_field _ _ W _
       lead_bare := fun _ W other => FinalVerifier.lead_bare setup _ _ W other
       lead_nonnegative := Compression.Fresh.costs_nonnegative _ _
       early, fits }
 
 section Chain
 
-variable {Inner BreakT CandT KeyT : Type} {accept : Prefix Wire (Option Coord → K) total → Prop}
-  {body : Structure (Address Wire total) (Prefix Wire (Option Coord → K) total) (Option Coord) K (ℕ → Wire) Inner BreakT
+variable {Inner BreakT CandT KeyT : Type} {accept : Prefix Wire (Option Coord → CodeSlot K) total → Prop}
+  {body : Structure (Address Wire total) (Prefix Wire (Option Coord → CodeSlot K) total) (Option Coord) (CodeSlot K) (ℕ → Wire) Inner BreakT
     CandT KeyT
     (Option B.Weak)}
   {key : (g : Fin 3) → Key (B.shape g)} {openKey : B.OpenKey} {mass : Fin 3 → ℕ}
@@ -190,7 +193,7 @@ theorem final_suffix (sized : Compose.Sized C vf)
   have chain := Compose.suffix sized ran embed embedded later
   exact chain
 
-variable (prover : OracleComp (Address Wire total) (Option Coord → K) (ℕ → Wire))
+variable (prover : OracleComp (Address Wire total) (Option Coord → CodeSlot K) (ℕ → Wire))
 
 /-- An output of the extractor for the final verifier over an Akita opening (Akita
 Theorem 10.17). The verifier accepts the transcript of the prover. The output gives a proof with
@@ -209,8 +212,8 @@ theorem final_extract_sound (sized : Compose.Sized C vf)
       (keyBase (setup.params shape)))
     (covers : factorBound * (B.fold 0).sourceBound (B.shape 0) + 2 * mass 0 * sourceBound ≤
       innerBound)
-    (budget : ℕ) (table : Address Wire total → Option Coord → K)
-    (tape : Tape (Address Wire total) (Option Coord) K budget (Structure.protocol
+    (budget : ℕ) (table : Address Wire total → Option Coord → CodeSlot K)
+    (tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget (Structure.protocol
       whole).stages)
     (out : Inner ⊕ BreakT)
     (result : Checkpoint.extract whole prover budget table tape = some out) :
@@ -243,7 +246,7 @@ theorem final_extraction_le (sized : Compose.Sized C vf)
       (OpensAt (Compose.root C vf) commit value place key mass) body error loops tree)
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ}
     (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) K budget
+    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget
           (Structure.protocol whole).stages,
         (if accept ((Structure.protocol whole).final prover table) ∧
           Checkpoint.extract whole prover budget table tape = none then (1 : ℝ) else 0) ≤
@@ -260,7 +263,7 @@ theorem final_runs_le (sized : Compose.Sized C vf)
     (later : Tier.Suffix accept (Compose.root C vf)
       (OpensAt (Compose.root C vf) commit value place key mass) body error loops tree)
     {queries : ℕ} (bounded : prover.QueryBound queries) (budget : ℕ) :
-    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) K budget
+    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget
           (Structure.protocol whole).stages,
         (extractRuns whole prover budget table tape : ℝ) ≤
       (4 * tree : ℕ) + (queries + 1) * ((4 * tree : ℕ) - 1) :=
@@ -271,7 +274,7 @@ variable (accept body key openKey mass) in
 /-- The probability that the extractor returns a solution of Module-SIS (`Solved`): the term of
 the Module-SIS assumption in the soundness of the final verifier. The extractor is the solver. -/
 noncomputable def breakChance (honest : Certified (B.shape 0)) (innerBound budget : ℕ) : ℝ :=
-  𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) K budget
+  𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget
       (Structure.protocol whole).stages,
     if ∃ out, Checkpoint.extract whole prover budget table tape = some out ∧
       Solved body key honest innerBound out then (1 : ℝ) else 0
@@ -293,7 +296,7 @@ theorem final_sound (sized : Compose.Sized C vf)
     (covers : factorBound * (B.fold 0).sourceBound (B.shape 0) + 2 * mass 0 * sourceBound ≤
       innerBound)
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 _tape : Tape (Address Wire total) (Option Coord) K budget
+    𝔼 table, 𝔼 _tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget
           (Structure.protocol whole).stages,
         (if accept ((Structure.protocol whole).final prover table) ∧
             ¬ Proved setup packageWidths step cap control head
@@ -339,11 +342,11 @@ variable {S' : Compression.Akita.Shape} {O' : OpeningShape S'} {fold' : Descript
   {β : ∀ g, Module.Basis (Fin (B.planes g)) Zq K} {key : (g : Fin 3) → Key (B.shape g)}
   {openKey : B.OpenKey} {claim : Wire → B.Claim K} {μ : ℕ} {fits : B.cells ≤ 2 ^ μ} {batch : ℕ}
   {rowsFit : B.rowCount + 1 ≤ 2 ^ batch} {block : B.Block → Coord}
-  {decode : (g : Fin 3) → K → Option (Rq (B.carrierDegree g))} {mass : Fin 3 → ℕ} {base : ℕ}
+  {decode : (g : Fin 3) → CodeSlot K → Option (Rq (B.carrierDegree g))} {mass : Fin 3 → ℕ} {base : ℕ}
   {β' : Module.Basis (Fin O'.planes) Zq K} {key' : Key S'} {openKey' : OpeningKey O'}
   {claim' : Wire → Claim O' K} {μ' : ℕ} {fits' : O'.cells fold' ≤ 2 ^ μ'} {batch' : ℕ}
   {rowsFit' : O'.rowCount + 1 ≤ 2 ^ batch'} {block' : Fin S'.blocks → Coord}
-  {decode' : K → Option (Rq O'.carrierDegree)} {weight' : ℕ}
+  {decode' : CodeSlot K → Option (Rq O'.carrierDegree)} {weight' : ℕ}
   {commit : Wire → (g : Fin 3) → (B.shape g).Payload} {value : Wire → Fin 3 → K}
   {place : Wire → Fin 3 → List K} {next : Wire → S'.Payload} {witnessOf : Wire → Witness O' fold'}
 
@@ -391,14 +394,14 @@ theorem three_sound [Finite Wire] {peak : Fin 3 → ℕ} {peak' : ℕ}
     (base' : 2 ≤ fold'.responseBase) (small' : S'.certifiedBase < fieldModulus)
     (varsFit' : μ' ≤ Fintype.card Coord) (batchFit' : batch' ≤ Fintype.card Coord)
     (inside : Tier.finish second ≤ total)
-    (prover : OracleComp (Address Wire total) (Option Coord → K) (ℕ → Wire))
+    (prover : OracleComp (Address Wire total) (Option Coord → CodeSlot K) (ℕ → Wire))
     {honest : Certified (B.shape 0)} {factorBound sourceBound innerBound : ℕ}
     (registered : ∀ anchor, honest.Opens factorBound sourceBound (key 0) (bound anchor 0)
       (keyBase (setup.params shape)))
     (covers : factorBound * (B.fold 0).sourceBound (B.shape 0) + 2 * mass 0 * sourceBound ≤
       innerBound)
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 _tape : Tape (Address Wire total) (Option Coord) K budget
+    𝔼 table, 𝔼 _tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget
           (Structure.protocol whole).stages,
         (if accepts ((Structure.protocol whole).final prover table) ∧
             ¬ Proved setup packageWidths step cap control head
@@ -437,29 +440,29 @@ variable {S₁ : Compression.Akita.Shape} {O₁ : OpeningShape S₁} {fold₁ : 
   {openKey : B.OpenKey} {claim : Wire → B.Claim K} {μ : ℕ} {fits : B.cells ≤ 2 ^ μ}
   {base digits : ℕ} {room : B.quotientRoom digits ≤ 2 ^ μ} {batch : ℕ}
   {rowsFit : B.rowCount + 1 ≤ 2 ^ batch} {block : B.Block → Coord}
-  {decode : (g : Fin 3) → K → Option (Rq (B.carrierDegree g))} {mass : Fin 3 → ℕ}
+  {decode : (g : Fin 3) → CodeSlot K → Option (Rq (B.carrierDegree g))} {mass : Fin 3 → ℕ}
   {β₁ : Module.Basis (Fin O₁.planes) Zq K} {key₁ : Key S₁} {openKey₁ : OpeningKey O₁}
   {claim₁ : Wire → Claim O₁ K} {μ₁ : ℕ} {fits₁ : O₁.cells fold₁ ≤ 2 ^ μ₁} {digits₁ : ℕ}
   {room₁ : O₁.quotientRoom fold₁ digits₁ ≤ 2 ^ μ₁} {batch₁ : ℕ}
   {rowsFit₁ : O₁.rowCount + 1 ≤ 2 ^ batch₁} {block₁ : Fin S₁.blocks → Coord}
-  {decode₁ : K → Option (Rq O₁.carrierDegree)} {weight₁ ν₁ : ℕ}
+  {decode₁ : CodeSlot K → Option (Rq O₁.carrierDegree)} {weight₁ ν₁ : ℕ}
   {key₂ : Key S₂} {openKey₂ : OpeningKey O₂} {claim₂ : Wire → TraceClaim O₂ K} {μ₂ : ℕ}
   {fits₂ : O₂.cells fold₂ ≤ 2 ^ μ₂} {batch₂ : ℕ}
   {rowsFit₂ : O₂.traceRowCount + 1 ≤ 2 ^ batch₂} {block₂ : Fin S₂.blocks → Coord}
-  {decode₂ : K → Option (Rq S₂.innerDegree)} {weight₂ ν₂ m₂ : ℕ}
+  {decode₂ : CodeSlot K → Option (Rq S₂.innerDegree)} {weight₂ ν₂ m₂ : ℕ}
   {key₃ : Key S₃} {openKey₃ : OpeningKey O₃} {claim₃ : Wire → TraceClaim O₃ K} {μ₃ : ℕ}
   {fits₃ : O₃.cells fold₃ ≤ 2 ^ μ₃} {batch₃ : ℕ}
   {rowsFit₃ : O₃.traceRowCount + 1 ≤ 2 ^ batch₃} {block₃ : Fin S₃.blocks → Coord}
-  {decode₃ : K → Option (Rq S₃.innerDegree)} {weight₃ ν₃ m₃ : ℕ}
+  {decode₃ : CodeSlot K → Option (Rq S₃.innerDegree)} {weight₃ ν₃ m₃ : ℕ}
   {key₄ : Key S₄} {openKey₄ : OpeningKey O₄} {claim₄ : Wire → TraceClaim O₄ K} {μ₄ : ℕ}
   {fits₄ : O₄.cells fold₄ ≤ 2 ^ μ₄} {batch₄ : ℕ}
   {rowsFit₄ : O₄.traceRowCount + 1 ≤ 2 ^ batch₄} {block₄ : Fin S₄.blocks → Coord}
-  {decode₄ : K → Option (Rq S₄.innerDegree)} {weight₄ ν₄ m₄ : ℕ}
+  {decode₄ : CodeSlot K → Option (Rq S₄.innerDegree)} {weight₄ ν₄ m₄ : ℕ}
   {key₅ : Key S₅} {openKey₅ : OpeningKey O₅} {claim₅ : Wire → TraceClaim O₅ K} {μ₅ : ℕ}
   {fits₅ : O₅.cells fold₅ ≤ 2 ^ μ₅} {batch₅ : ℕ}
   {rowsFit₅ : O₅.traceRowCount + 1 ≤ 2 ^ batch₅} {block₅ : Fin S₅.blocks → Coord}
-  {decode₅ : K → Option (Rq S₅.innerDegree)} {weight₅ ν₅ m₅ : ℕ}
-  {L : Terminal S₆ K Wire Coord K total} {m₆ : ℕ}
+  {decode₅ : CodeSlot K → Option (Rq S₅.innerDegree)} {weight₅ ν₅ m₅ : ℕ}
+  {L : Terminal S₆ K Wire Coord (CodeSlot K) total} {m₆ : ℕ}
   {commit : Wire → (g : Fin 3) → (B.shape g).Payload} {value : Wire → Fin 3 → K}
   {place : Wire → Fin 3 → List K} {quarter₂ : 4 * m₂ = S₂.innerDegree}
   {quarter₃ : 4 * m₃ = S₃.innerDegree} {quarter₄ : 4 * m₄ = S₄.innerDegree}
@@ -606,7 +609,7 @@ local notation "ready" next:max =>
     units sparse response uniform small varsFit batchFit groupsFit sized₁ sized₂ sized₃ sized₄
     sized₅ inside injectiveL unitsL sparseL next
 
-variable (prover : OracleComp (Address Wire total) (Option Coord → K) (ℕ → Wire))
+variable (prover : OracleComp (Address Wire total) (Option Coord → CodeSlot K) (ℕ → Wire))
 
 /-- `final_extract_sound` for the opening with the tower of `tower_ready` (Akita Theorem 10.17):
 an output of the extractor gives a proof with witnesses that `Verifies` accepts for the statement
@@ -619,8 +622,8 @@ theorem tower_extract_sound (next : Terminal.start L = Tier.finish fifth)
       (keyBase (setup.params shape)))
     (covers : factorBound * (B.fold 0).sourceBound (B.shape 0) + 2 * mass 0 * sourceBound ≤
       innerBound)
-    (budget : ℕ) (table : Address Wire total → Option Coord → K)
-    (tape : Tape (Address Wire total) (Option Coord) K budget (Structure.protocol
+    (budget : ℕ) (table : Address Wire total → Option Coord → CodeSlot K)
+    (tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget (Structure.protocol
       whole).stages)
     (out : _) (result : Checkpoint.extract whole prover budget table tape = some out) :
     accepts ((Structure.protocol whole).final prover table) ∧
@@ -640,7 +643,7 @@ batching root, `Σ_b p_b + Σ_j ε_j` for each level and `B_term·p_term` for th
 `loops` is one for the root, `B_ℓ + 1` for each level and `B_term` for the terminal. -/
 theorem tower_extraction_le (next : Terminal.start L = Tier.finish fifth) {queries : ℕ}
     (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) K budget
+    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget
           (Structure.protocol whole).stages,
         (if accepts ((Structure.protocol whole).final prover table) ∧
           Checkpoint.extract whole prover budget table tape = none then (1 : ℝ) else 0) ≤
@@ -656,7 +659,7 @@ is the product of 2 for the root, `2·(B_ℓ + 1)` for each level and `B_term + 
 terminal (Akita Theorem 10.17, the cost). -/
 theorem tower_runs_le (next : Terminal.start L = Tier.finish fifth) {queries : ℕ}
     (bounded : prover.QueryBound queries) (budget : ℕ) :
-    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) K budget
+    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget
           (Structure.protocol whole).stages,
         (extractRuns whole prover budget table tape : ℝ) ≤
       (4 * towerTree : ℕ) + (queries + 1) * ((4 * towerTree : ℕ) - 1) :=
@@ -678,7 +681,7 @@ theorem tower_sound (next : Terminal.start L = Tier.finish fifth)
     (covers : factorBound * (B.fold 0).sourceBound (B.shape 0) + 2 * mass 0 * sourceBound ≤
       innerBound)
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 _tape : Tape (Address Wire total) (Option Coord) K budget
+    𝔼 table, 𝔼 _tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget
           (Structure.protocol whole).stages,
         (if accepts ((Structure.protocol whole).final prover table) ∧
             ¬ Proved setup packageWidths step cap control head
@@ -705,30 +708,30 @@ variable {S₁ : Compression.Akita.Shape} {O₁ : OpeningShape S₁} {fold₁ : 
   {openKey : B.OpenKey} {claim : Wire → B.Claim K} {μ : ℕ} {fits : B.cells ≤ 2 ^ μ}
   {base digits : ℕ} {room : B.quotientRoom digits ≤ 2 ^ μ} {batch : ℕ}
   {rowsFit : B.rowCount + 1 ≤ 2 ^ batch} {block : B.Block → Coord}
-  {decode : (g : Fin 3) → K → Option (Rq (B.carrierDegree g))} {mass : Fin 3 → ℕ}
+  {decode : (g : Fin 3) → CodeSlot K → Option (Rq (B.carrierDegree g))} {mass : Fin 3 → ℕ}
   {β₁ : Module.Basis (Fin O₁.planes) Zq K} {key₁ : Key S₁} {openKey₁ : OpeningKey O₁}
   {claim₁ : Wire → Claim O₁ K} {μ₁ : ℕ} {fits₁ : O₁.cells fold₁ ≤ 2 ^ μ₁} {digits₁ : ℕ}
   {room₁ : O₁.quotientRoom fold₁ digits₁ ≤ 2 ^ μ₁} {batch₁ : ℕ}
   {rowsFit₁ : O₁.rowCount + 1 ≤ 2 ^ batch₁} {block₁ : Fin S₁.blocks → Coord}
-  {decode₁ : K → Option (Rq O₁.carrierDegree)} {weight₁ ν₁ : ℕ}
+  {decode₁ : CodeSlot K → Option (Rq O₁.carrierDegree)} {weight₁ ν₁ : ℕ}
   {key₂ : Key S₂} {openKey₂ : OpeningKey O₂} {claim₂ : Wire → TraceClaim O₂ K} {μ₂ : ℕ}
   {fits₂ : O₂.cells fold₂ ≤ 2 ^ μ₂} {batch₂ : ℕ}
   {rowsFit₂ : O₂.traceRowCount + 1 ≤ 2 ^ batch₂} {block₂ : Fin S₂.blocks → Coord}
-  {decode₂ : K → Option (Rq S₂.innerDegree)} {weight₂ ν₂ m₂ : ℕ}
+  {decode₂ : CodeSlot K → Option (Rq S₂.innerDegree)} {weight₂ ν₂ m₂ : ℕ}
   {key₃ : Key S₃} {openKey₃ : OpeningKey O₃} {claim₃ : Wire → TraceClaim O₃ K} {μ₃ : ℕ}
   {fits₃ : O₃.cells fold₃ ≤ 2 ^ μ₃} {batch₃ : ℕ}
   {rowsFit₃ : O₃.traceRowCount + 1 ≤ 2 ^ batch₃} {block₃ : Fin S₃.blocks → Coord}
-  {decode₃ : K → Option (Rq S₃.innerDegree)} {weight₃ ν₃ m₃ : ℕ}
+  {decode₃ : CodeSlot K → Option (Rq S₃.innerDegree)} {weight₃ ν₃ m₃ : ℕ}
   {key₄ : Key S₄} {openKey₄ : OpeningKey O₄} {claim₄ : Wire → TraceClaim O₄ K} {μ₄ : ℕ}
   {fits₄ : O₄.cells fold₄ ≤ 2 ^ μ₄} {batch₄ : ℕ}
   {rowsFit₄ : O₄.traceRowCount + 1 ≤ 2 ^ batch₄} {block₄ : Fin S₄.blocks → Coord}
-  {decode₄ : K → Option (Rq S₄.innerDegree)} {weight₄ ν₄ m₄ : ℕ}
+  {decode₄ : CodeSlot K → Option (Rq S₄.innerDegree)} {weight₄ ν₄ m₄ : ℕ}
   {key₅ : Key S₅} {openKey₅ : OpeningKey O₅} {claim₅ : Wire → TraceClaim O₅ K} {μ₅ : ℕ}
   {fits₅ : O₅.cells fold₅ ≤ 2 ^ μ₅} {batch₅ : ℕ}
   {rowsFit₅ : O₅.traceRowCount + 1 ≤ 2 ^ batch₅} {block₅ : Fin S₅.blocks → Coord}
-  {decode₅ : K → Option (Rq S₅.innerDegree)} {weight₅ ν₅ m₅ : ℕ}
+  {decode₅ : CodeSlot K → Option (Rq S₅.innerDegree)} {weight₅ ν₅ m₅ : ℕ}
   {operator₃ limit₃ operator₄ limit₄ operator₅ limit₅ operatorL limitL : ℕ}
-  {L : Terminal S₆ K Wire Coord K total (.euclidean operatorL limitL)} {m₆ : ℕ}
+  {L : Terminal S₆ K Wire Coord (CodeSlot K) total (.euclidean operatorL limitL)} {m₆ : ℕ}
   {commit : Wire → (g : Fin 3) → (B.shape g).Payload} {value : Wire → Fin 3 → K}
   {place : Wire → Fin 3 → List K} {quarter₂ : 4 * m₂ = S₂.innerDegree}
   {quarter₃ : 4 * m₃ = S₃.innerDegree} {quarter₄ : 4 * m₄ = S₄.innerDegree}
@@ -881,7 +884,7 @@ local notation "ready" next:max =>
     units sparse response uniform small varsFit batchFit groupsFit sized₁ sized₂ sized₃ sized₄
     sized₅ normed₃ normed₄ normed₅ inside injectiveL unitsL boundedL next
 
-variable (prover : OracleComp (Address Wire total) (Option Coord → K) (ℕ → Wire))
+variable (prover : OracleComp (Address Wire total) (Option Coord → CodeSlot K) (ℕ → Wire))
 
 /-- `final_extract_sound` for the opening with the tower of `mixed_ready` (Akita Theorem 10.17):
 an output of the extractor gives a proof with witnesses that `Verifies` accepts for the statement
@@ -895,8 +898,8 @@ theorem mixed_extract_sound (next : Terminal.start L = Tier.finish fifth)
       (keyBase (setup.params shape)))
     (covers : factorBound * (B.fold 0).sourceBound (B.shape 0) + 2 * mass 0 * sourceBound ≤
       innerBound)
-    (budget : ℕ) (table : Address Wire total → Option Coord → K)
-    (tape : Tape (Address Wire total) (Option Coord) K budget (Structure.protocol
+    (budget : ℕ) (table : Address Wire total → Option Coord → CodeSlot K)
+    (tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget (Structure.protocol
       whole).stages)
     (out : _) (result : Checkpoint.extract whole prover budget table tape = some out) :
     accepts ((Structure.protocol whole).final prover table) ∧
@@ -917,7 +920,7 @@ batching root, `Σ_b p_b + Σ_j ε_j` for each level and `B_term·p_term` for th
 the levels 3 to 5 are the bounds `foldCostsSq` of the checks with the direct norm check. -/
 theorem mixed_extraction_le (next : Terminal.start L = Tier.finish fifth) {queries : ℕ}
     (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) K budget
+    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget
           (Structure.protocol whole).stages,
         (if accepts ((Structure.protocol whole).final prover table) ∧
           Checkpoint.extract whole prover budget table tape = none then (1 : ℝ) else 0) ≤
@@ -933,7 +936,7 @@ is the product of 2 for the root, `2·(B_ℓ + 1)` for each level and `B_term + 
 terminal (Akita Theorem 10.17, the cost). -/
 theorem mixed_runs_le (next : Terminal.start L = Tier.finish fifth) {queries : ℕ}
     (bounded : prover.QueryBound queries) (budget : ℕ) :
-    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) K budget
+    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget
           (Structure.protocol whole).stages,
         (extractRuns whole prover budget table tape : ℝ) ≤
       (4 * towerTree : ℕ) + (queries + 1) * ((4 * towerTree : ℕ) - 1) :=
@@ -955,7 +958,7 @@ theorem mixed_sound (next : Terminal.start L = Tier.finish fifth)
     (covers : factorBound * (B.fold 0).sourceBound (B.shape 0) + 2 * mass 0 * sourceBound ≤
       innerBound)
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 _tape : Tape (Address Wire total) (Option Coord) K budget
+    𝔼 table, 𝔼 _tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget
           (Structure.protocol whole).stages,
         (if accepts ((Structure.protocol whole).final prover table) ∧
             ¬ Proved setup packageWidths step cap control head

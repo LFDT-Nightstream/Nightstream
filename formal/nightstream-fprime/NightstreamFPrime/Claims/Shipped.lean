@@ -112,7 +112,7 @@ theorem verify_final_sound
     (kind : Wire → Option ι)
     (family : ι → FinalKey30.Opening StepRelation.keyWidth StepRelation.keyPublicFits Wire Coord total)
     (shared : ∀ (index : ι), (family index).tower.Shared)
-    (prover : RandomOracle.OracleComp (Compression.Akita.Extract.Address Wire total) (Option Coord → K)
+    (prover : RandomOracle.OracleComp (Compression.Akita.Extract.Address Wire total) (Option Coord → Compression.Akita.Replay.CodeSlot K)
       (ℕ → Wire))
     [finiteWire : Finite Wire]
     (budget : ℕ)
@@ -156,7 +156,7 @@ theorem verify_final_sound
               (Shipped.complete facts identity relations lightKey refreshKey).packageWidth
               Shipped.program.step cap control read head kind family shared prover budget))))
     (depth : ℕ)
-    (depthBound : ∀ (table : Compression.Akita.Extract.Address Wire total → Option Coord → K),
+    (depthBound : ∀ (table : Compression.Akita.Extract.Address Wire total → Option Coord → Compression.Akita.Replay.CodeSlot K),
         FinalKey30.finalAccepts
             (Shipped.setup mode ajtai identity relations setupRows zeros minimum)
             (Shipped.complete facts identity relations lightKey refreshKey).packageWidth

@@ -1,5 +1,5 @@
 import NightstreamFPrime.Spec.Compression.Akita.FlatFold
-import NightstreamFPrime.Spec.Compression.Akita.Extract.Staged
+import NightstreamFPrime.Spec.Compression.Akita.Extract.Decoders
 
 /-! The bounds of the draws of the checks `foldCheck` of one packing fold of Akita
 (ePrint 2026/1983, revision of 2026-11-23, the terms of (189) after the fold challenge).
@@ -106,7 +106,8 @@ end Rounds
 
 section Costs
 
-variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E]
+variable {E : Type} [Field E] [Fintype E]
+  {Slot : Type} [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E] [DecidableEq E] [Algebra Zq E]
   {Coord : Type} [Fintype Coord] [DecidableEq Coord]
 
 /-- The bounds of the draws of the range tree before its last stage, in the order of the draws:
@@ -281,11 +282,11 @@ omit [DecidableEq E] [Algebra Zq E] in
 /-- The draw of `drawBin` has its bound of `binCosts`. -/
 theorem drawBin_stagedTo {β : Type} (bin : Bool) {bad : Finset E} {next : E → Game β}
     {costs : List ℝ} {tail : β → List ℝ → Prop} (card : bad.card ≤ 1)
-    (nexts : ∀ ζ, StagedTo (Coord → E) (next ζ) costs tail) :
-    StagedTo (Coord → E) (drawBin bin bad next) (binCosts E bin ++ costs) tail := by
+    (nexts : ∀ ζ, StagedTo (Coord → Slot) (next ζ) costs tail) :
+    StagedTo (Coord → Slot) (drawBin bin bad next) (binCosts E bin ++ costs) tail := by
   cases bin
   · exact nexts 0
-  · exact stagedTo_draw exists_fair_slot (density_le _ 1 card) nexts
+  · exact stagedTo_draw exists_fair_field (density_le _ 1 card) nexts
 
 /-- Each draw of `fusedCheck` has the bound `3/|E|`, and an accepted end has the entries `rest`
 after the bounds of its rounds. -/
@@ -293,9 +294,9 @@ theorem fusedCheck_stagedTo (μ : ℕ) (support : ℕ → Prop) [DecidablePred s
     (weight : ℕ → E) (target : E) (r : List E) (sClaim ζ γ : E) (rest : List ℝ)
     (tail : Option (List E × E) → List ℝ → Prop) (rejected : ∀ costs, tail none costs)
     (ended : ∀ final, tail (some final) rest) :
-    StagedTo (Coord → E) (fusedCheck μ support w weight target r sClaim ζ γ)
+    StagedTo (Coord → Slot) (fusedCheck μ support w weight target r sClaim ζ γ)
       (List.replicate μ (((3 : ℕ) : ℝ) / Fintype.card E) ++ rest) tail := by
-  refine (stagedTo_bind _ _ _ _).mpr (sumcheck_staged (Reply := Coord → E) exists_fair_slot 3 μ _
+  refine (stagedTo_bind _ _ _ _).mpr (sumcheck_staged (Reply := Coord → Slot) exists_fair_field 3 μ _
     (fused_roundTruth μ w weight (virtWeight support r γ ζ)).degree rest _ ?_ ?_ μ []
     (target + γ * sClaim) (by simp))
   · exact fun _ => rejected _
@@ -311,11 +312,11 @@ theorem rangeTree_stagedTo {β : Type} (leaf μ : ℕ) (w : Table)
     (last : ℕ → (ℕ → E) → List E → E → Game (Option β)) (rest : List ℝ)
     (tail : Option β → List ℝ → Prop) (rejected : ∀ costs, tail none costs)
     (lastStaged : ∀ nodes weights point claim,
-      StagedTo (Coord → E) (last nodes weights point claim) rest tail) :
+      StagedTo (Coord → Slot) (last nodes weights point claim) rest tail) :
     ∀ (arities : List ℕ) (nodes : ℕ) (weights : ℕ → E) (point : List E) (claim : E),
-      StagedTo (Coord → E) (rangeTree leaf μ w last arities nodes weights point claim)
+      StagedTo (Coord → Slot) (rangeTree leaf μ w last arities nodes weights point claim)
         (treeCosts E μ arities nodes ++ rest) tail := by
-  have field : ∃ decode : (Coord → E) → E, Fair decode := exists_fair_slot
+  have field : ∃ decode : (Coord → Slot) → E, Fair decode := exists_fair_field
   intro arities
   induction arities with
   | nil =>
@@ -324,7 +325,7 @@ theorem rangeTree_stagedTo {β : Type} (leaf μ : ℕ) (w : Table)
   | cons a others step =>
       intro nodes weights point claim
       rw [treeCosts, List.append_assoc, List.cons_append]
-      refine (stagedTo_bind _ _ _ _).mpr (eqSumcheck_staged (Reply := Coord → E) field a μ 0 _
+      refine (stagedTo_bind _ _ _ _).mpr (eqSumcheck_staged (Reply := Coord → Slot) field a μ 0 _
         (stage_roundTruth a (others.prod * leaf) nodes μ weights point w).degree (fun _ => ∅)
         (fun _ => (Finset.card_empty).le) point _ _ ?_ μ [] claim (by simp))
       rintro ⟨r, value⟩ child
@@ -340,10 +341,10 @@ theorem rangeTree_stagedTo {β : Type} (leaf μ : ℕ) (w : Table)
 theorem rangeCheck_stagedTo (b μ : ℕ) (support : ℕ → Prop) [DecidablePred support] (w : Table)
     (τ0 : List E) (rest : List ℝ) (tail : Option (List E × E) → List ℝ → Prop)
     (rejected : ∀ costs, tail none costs) (ended : ∀ final, tail (some final) rest) :
-    StagedTo (Coord → E) (rangeCheck b μ support w τ0) (rangeCosts E μ b ++ rest) tail := by
+    StagedTo (Coord → Slot) (rangeCheck b μ support w τ0) (rangeCosts E μ b ++ rest) tail := by
   rw [rangeCosts, List.append_assoc]
   refine rangeTree_stagedTo (rangeLeaf b) μ w _ _ tail rejected (fun nodes weights point claim =>
-    (stagedTo_bind _ _ _ _).mpr (eqSumcheck_staged (Reply := Coord → E) exists_fair_slot
+    (stagedTo_bind _ _ _ _).mpr (eqSumcheck_staged (Reply := Coord → Slot) exists_fair_field
       (rangeLeaf b) μ 1 _ (leaf_roundTruth (rangeLeaf b) nodes μ weights point w).degree _
       (fun _ => bindBad_card_le _ _) point rest _ ?_ μ [] claim (by simp))) (rangeArities b) 1
     (fun _ => 1) τ0 0
@@ -361,15 +362,15 @@ theorem foldCheck_stagedTo (R : Reduction E) (base : ℕ) (support : ℕ → Pro
     (batchFit : R.batch ≤ Fintype.card Coord) (rest : List ℝ)
     (tail : Option (List E × E) → List ℝ → Prop) (rejected : ∀ costs, tail none costs)
     (ended : ∀ final, tail (some final) rest) :
-    StagedTo (Coord → E) (foldCheck R base support bin w)
+    StagedTo (Coord → Slot) (foldCheck R base support bin w)
       (foldCosts E R.badBound R.vars R.batch base bin ++ rest) tail := by
-  have field : ∃ decode : (Coord → E) → E, Fair decode := exists_fair_slot
+  have field : ∃ decode : (Coord → Slot) → E, Fair decode := exists_fair_field
   unfold foldCheck foldCosts
   simp only [List.cons_append, List.append_assoc]
   refine stagedTo_draw field (density_le (C := E) (R.bad w) _ (R.bad_card w)) fun α => ?_
-  refine stagedTo_draw (exists_fair_slots varsFit) (density_rangeBad_le (E := E) R.low base R.vars w)
+  refine stagedTo_draw (exists_fair_fields varsFit) (density_rangeBad_le (E := E) R.low base R.vars w)
     fun τ0 => ?_
-  refine stagedTo_draw (exists_fair_slots batchFit)
+  refine stagedTo_draw (exists_fair_fields batchFit)
     ((R.rows α).density_batchBad_le R.vars (R.fits α) w) fun τ1 => ?_
   refine (stagedTo_bind _ _ _ _).mpr (rangeCheck_stagedTo base R.vars support w _ _ _ ?_ ?_)
   · exact fun _ => rejected _
@@ -384,9 +385,10 @@ slots or more and `s_rel` slots or more. -/
 theorem foldCheck_staged (R : Reduction E) (base : ℕ) (support : ℕ → Prop)
     [DecidablePred support] (bin : Bool) (w : Table) (varsFit : R.vars ≤ Fintype.card Coord)
     (batchFit : R.batch ≤ Fintype.card Coord) :
-    Staged (Coord → E) (foldCheck R base support bin w)
+    Staged (Coord → Slot) (foldCheck R base support bin w)
       (foldCosts E R.badBound R.vars R.batch base bin) := by
-  have staged := foldCheck_stagedTo R base support bin w varsFit batchFit [] (fun _ _ => True)
+  have staged := foldCheck_stagedTo (Slot := Slot) R base support bin w varsFit batchFit []
+    (fun _ _ => True)
     (fun _ => trivial) (fun _ => trivial)
   rwa [List.append_nil] at staged
 

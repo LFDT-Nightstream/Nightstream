@@ -23,6 +23,8 @@ set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.BoundedDepth.FinalMemory
 
+open NightstreamFPrime.Spec.Compression.Akita.Replay (CodeSlot)
+
 open scoped BigOperators
 open NightstreamFPrime.Spec NightstreamFPrime.Spec.FieldExtensionRing
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
@@ -58,11 +60,11 @@ variable {logicalWidth : Nat}
   (control : AppState → AppWitness → Fin 2) {Wire Coord : Type} {total : ℕ}
   (head : Wire → First logicalWidth publicFits)
   [Fintype Coord] [DecidableEq Coord] {ι : Type} [Fintype ι]
-  (kind : Wire → Option ι) (accepts : ι → Prefix Wire (Option Coord → K) total → Prop)
-  (proofs : ι → (budget : ℕ) → (Address Wire total → Option Coord → K) →
-    Tape (Address Wire total) (Option Coord) K budget total →
+  (kind : Wire → Option ι) (accepts : ι → Prefix Wire (Option Coord → CodeSlot K) total → Prop)
+  (proofs : ι → (budget : ℕ) → (Address Wire total → Option Coord → CodeSlot K) →
+    Tape (Address Wire total) (Option Coord) (CodeSlot K) budget total →
       Terminal.ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits))
-  (prover : OracleComp (Address Wire total) (Option Coord → K) (ℕ → Wire))
+  (prover : OracleComp (Address Wire total) (Option Coord → CodeSlot K) (ℕ → Wire))
   [Finite Wire] (budget : ℕ) {p : Plan} (app : PortApp p.toGeometry)
 
 local notation "shapes" => FinalShapes.adversary head kind accepts proofs prover budget
@@ -71,7 +73,7 @@ local notation "shapes" => FinalShapes.adversary head kind accepts proofs prover
 table of the oracle, as an IVC adversary. Its tape is the tape of `FinalShapes.adversary` and the
 memory statement. Its output is the output of `FinalShapes.adversary` for the first part. -/
 noncomputable def adversary
-    (claim : (Address Wire total → Option Coord → K) →
+    (claim : (Address Wire total → Option Coord → CodeSlot K) →
       PMF (MemoryStatement app.width)) :
     IvcAdversary (Output logicalWidth publicFits) where
   Tape := (shapes).Tape × MemoryStatement app.width
@@ -86,7 +88,7 @@ variable {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
 Algorithm 8 hold for it and the sample's memory statement, and the history that the walk decodes
 from the sample is not a history of `(i, z0, zi)` that attests the memory statement. On the law
 of `memory_sound` the sample's statement is `(i, z0, zi)`. -/
-def FalseMemory (table : Address Wire total → Option Coord → K)
+def FalseMemory (table : Address Wire total → Option Coord → CodeSlot K)
     (sample : Sample app.width logicalWidth publicFits) : Prop :=
   FinalShapes.finalAccepts head kind accepts (played prover table) ∧
     VerifierChecks p (head (played prover table).first).statement sample.1 ∧
@@ -104,7 +106,7 @@ variable {Admitted : NifsAdversary (WalkAttempt logicalWidth publicFits) → Pro
     Efficient error)
   (closed : Closed (attemptOf setup.ajtai setup.circuitKeys exports)
     (back setup.ajtai setup.circuitKeys exports) Admitted StageAdmitted Efficient)
-  (claim : (Address Wire total → Option Coord → K) →
+  (claim : (Address Wire total → Option Coord → CodeSlot K) →
     PMF (MemoryStatement app.width))
   (admitted : StageAdmitted
     (Stage.start (walkAdversary (adversary head kind accepts proofs prover budget app claim))))
@@ -156,7 +158,7 @@ the iteration by `S_max · N` (`EndToEnd.VerifierChecks.iteration_le`), so the a
 stage cover the iteration of each statement in the event. -/
 theorem memory_sound (complete : StepExtend.Complete exports) {bounds : ι → ℝ}
     (each : ∀ index,
-      𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) K budget total,
+      𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget total,
         (if accepts index (played prover table) ∧
             ¬ Verifies setup.ajtai setup.circuitKeys step complete.packageWidth cap control
               (head (played prover table).first).statement (proofs index budget table tape)

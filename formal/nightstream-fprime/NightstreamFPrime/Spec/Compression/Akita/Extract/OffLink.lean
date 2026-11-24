@@ -32,18 +32,20 @@ attribute [local instance low] Classical.propDecidable
 
 section Groups
 
-variable {n : ℕ} {B : Batch (Fin n)} {E : Type} [Field E] [Fintype E] [DecidableEq E]
+variable {n : ℕ} {B : Batch (Fin n)} {E : Type} [Field E] [Fintype E]
+  {Slot : Type} [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E] [DecidableEq E]
   [Algebra Zq E] {Wire Coord : Type}
   {β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E} {key : (g : Fin n) → Key (B.shape g)}
   {openKey : B.OpenKey} {claim : Wire → B.Claim E} {μ : ℕ} {cells : B.cells ≤ 2 ^ μ}
   {base digits : ℕ} {room : B.quotientRoom digits ≤ 2 ^ μ} {batch : ℕ}
   {rowsFit : B.rowCount + 1 ≤ 2 ^ batch} {block : B.Block → Coord}
-  {decode : (g : Fin n) → E → Option (Rq (B.carrierDegree g))} {read : Reader Wire}
+  {decode : (g : Fin n) → Slot → Option (Rq (B.carrierDegree g))} {read : Reader Wire}
   {mass : Fin n → ℕ} {start ν : ℕ} {flat : Table}
   {scan : ∀ (wire : Wire) (challenge : B.Challenge),
     SetupScan (Batch.liftedReduction β ((claim wire).statement key openKey) challenge μ cells base
       digits room batch rowsFit) ν flat}
 
+omit [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E] in
 /-- The honest prover of the checks of an offloaded root fold with opening groups (Akita
 Lemma 10.7, Lemma 7.1, item 1, Section 9 and Theorem 10.9). The message `wire` has the claim
 `Batch.honestClaim`, and `fit` has the fit conditions. Then for each fold challenge vector of the
@@ -95,17 +97,19 @@ end Groups
 
 section Link
 
-variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] {Block : Type}
+variable {E : Type} [Field E] [Fintype E]
+  {Slot : Type} [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E]
+  [DecidableEq E] [Algebra Zq E] {Block : Type}
   {Ring : Block → Type} {Stmt Brk Wit Wk Wire Coord : Type} [∀ b, Zero (Ring b)]
   [Fintype Coord] [DecidableEq Coord] {total : ℕ}
-  {accept : Prefix Wire (Option Coord → E) total → Prop}
-  {table : Prefix Wire (Option Coord → E) total → Option Coord → E}
-  {T : Tier Block Ring Stmt Brk Wit Wk Wire Coord E (Option ((List E × E) × (List E × E))) Table}
+  {accept : Prefix Wire (Option Coord → Slot) total → Prop}
+  {table : Prefix Wire (Option Coord → Slot) total → Option Coord → Slot}
+  {T : Tier Block Ring Stmt Brk Wit Wk Wire Coord Slot (Option ((List E × E) × (List E × E))) Table}
   {B : Batch (Fin 2)} {commits : Wire → (g : Fin 2) → (B.shape g).Payload}
   {values : Wire → Fin 2 → E} {places : Wire → Fin 2 → List E}
   {commit : Wire → (B.shape 1).Payload} {sendable : (M : Type) → M → Prop} {slots : ℕ}
 
-omit [DecidableEq E] in
+omit [DecidableEq E] [Fintype E] [FieldSlot Slot E] in
 /-- The transcript prefix of the honest prover through the stages of an offloaded level `T`
 (Akita Section 9 with (136), and Figure 4, steps 1, 3 and 5). `wins`: the prover has a message
 for each draw sequence of the checks of `T` for the table `source`, which end in the true claims
@@ -121,10 +125,10 @@ theorem offLink {μ ν : ℕ} {spots : Wire → (g : Fin 2) → Fin (![ν, μ] g
     (spotted : ∀ wire, places wire = fun g => List.ofFn (spots wire g))
     (carries : Carries sendable slots T.read fun wire =>
       (commit wire, commits wire, values wire, spots wire))
-    {first : Wire} {early : List ((Option Coord → E) × Wire)} (on : OnPath accept table first early)
+    {first : Wire} {early : List ((Option Coord → Slot) × Wire)} (on : OnPath accept table first early)
     (starts : early.length = T.start) (fits : T.finish ≤ total)
     (decodes : ∀ input b, (T.decode b (table input (T.block b))).isSome)
-    (worked : ∀ input, table input none ∈ workZeros E 57) (capped : T.Capped)
+    (worked : ∀ input, table input none ∈ workZeros Slot 57) (capped : T.Capped)
     (tried : T.read.nonce (lastWire first early) < responseTries)
     (uniform : ∀ wire challenge table other,
       bare (T.check wire challenge table) = bare (T.check wire challenge other))
@@ -134,7 +138,7 @@ theorem offLink {μ ν : ℕ} {spots : Wire → (g : Fin 2) → Fin (![ν, μ] g
       fun result _ _ => ∃ r2 ρ : List E, r2.length = μ ∧ ρ.length = ν ∧
         result = some ((r2, mle r2 (lifted E source)), (ρ, mle ρ (lifted E flat))))
     (registry : (B.shape 0).Payload) (payload : (B.shape 1).Payload) :
-    ∃ (later : List ((Option Coord → E) × Wire)) (r2 ρ : List E), r2.length = μ ∧
+    ∃ (later : List ((Option Coord → Slot) × Wire)) (r2 ρ : List E), r2.length = μ ∧
       ρ.length = ν ∧ OnPath accept table first (early ++ later) ∧
       (early ++ later).length = T.finish ∧
       T.read.nonce (lastWire first (early ++ later)) < responseTries ∧
@@ -143,7 +147,7 @@ theorem offLink {μ ν : ℕ} {spots : Wire → (g : Fin 2) → Fin (![ν, μ] g
       values (lastWire first (early ++ later)) =
         ![mle ρ (lifted E flat), mle r2 (lifted E source)] ∧
       places (lastWire first (early ++ later)) = ![ρ, r2] ∧
-      ∀ stage : Prefix Wire (Option Coord → E) total, stage.first = first →
+      ∀ stage : Prefix Wire (Option Coord → Slot) total, stage.first = first →
         (∃ rest, stage.rest = (early ++ later) ++ rest) →
         T.Offloaded commits values places registry commit stage := by
   subst count

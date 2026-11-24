@@ -30,6 +30,8 @@ set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.BoundedDepth.FinalKey20
 
+open NightstreamFPrime.Spec.Compression.Akita.Replay (CodeSlot)
+
 open scoped BigOperators
 open NightstreamFPrime.Spec NightstreamFPrime.Spec.FieldExtensionRing
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
@@ -128,13 +130,13 @@ structure Opening (logicalWidth : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth) (Wire Coord : Type) (total : ℕ) where
   shape : Claims logicalWidth publicFits
-  bound : Prefix Wire (Option Coord → K) total → (g : Fin 3) → (root.shape g).Payload
+  bound : Prefix Wire (Option Coord → CodeSlot K) total → (g : Fin 3) → (root.shape g).Payload
   β : ∀ g, Module.Basis (Fin (root.planes g)) Zq K
   key : (g : Fin 3) → Key (root.shape g)
   openKey : root.OpenKey
   claim : Wire → root.Claim K
   block : root.Block → Coord
-  decode : (g : Fin 3) → K → Option (Rq (root.carrierDegree g))
+  decode : (g : Fin 3) → CodeSlot K → Option (Rq (root.carrierDegree g))
   mass : Fin 3 → ℕ
   peak : Fin 3 → ℕ
   β₁ : Module.Basis (Fin level₁.opening.planes) Zq K
@@ -142,33 +144,33 @@ structure Opening (logicalWidth : Nat)
   openKey₁ : OpeningKey level₁.opening
   claim₁ : Wire → Claim level₁.opening K
   block₁ : Fin level₁.shape.blocks → Coord
-  decode₁ : K → Option (Rq level₁.opening.carrierDegree)
+  decode₁ : CodeSlot K → Option (Rq level₁.opening.carrierDegree)
   weight₁ : ℕ
   key₂ : Key level₂.shape
   openKey₂ : OpeningKey level₂.opening
   claim₂ : Wire → TraceClaim level₂.opening K
   block₂ : Fin level₂.shape.blocks → Coord
-  decode₂ : K → Option (Rq level₂.shape.innerDegree)
+  decode₂ : CodeSlot K → Option (Rq level₂.shape.innerDegree)
   weight₂ : ℕ
   key₃ : Key level₃.shape
   openKey₃ : OpeningKey level₃.opening
   claim₃ : Wire → TraceClaim level₃.opening K
   block₃ : Fin level₃.shape.blocks → Coord
-  decode₃ : K → Option (Rq level₃.shape.innerDegree)
+  decode₃ : CodeSlot K → Option (Rq level₃.shape.innerDegree)
   weight₃ : ℕ
   key₄ : Key level₄.shape
   openKey₄ : OpeningKey level₄.opening
   claim₄ : Wire → TraceClaim level₄.opening K
   block₄ : Fin level₄.shape.blocks → Coord
-  decode₄ : K → Option (Rq level₄.shape.innerDegree)
+  decode₄ : CodeSlot K → Option (Rq level₄.shape.innerDegree)
   weight₄ : ℕ
   key₅ : Key level₅.shape
   openKey₅ : OpeningKey level₅.opening
   claim₅ : Wire → TraceClaim level₅.opening K
   block₅ : Fin level₅.shape.blocks → Coord
-  decode₅ : K → Option (Rq level₅.shape.innerDegree)
+  decode₅ : CodeSlot K → Option (Rq level₅.shape.innerDegree)
   weight₅ : ℕ
-  terminal : Terminal Key20.terminal K Wire Coord K total
+  terminal : Terminal Key20.terminal K Wire Coord (CodeSlot K) total
     (.euclidean normTerminal.operator normTerminal.limit)
   commit : Wire → (g : Fin 3) → (root.shape g).Payload
   value : Wire → Fin 3 → K
@@ -233,7 +235,7 @@ local notation "fifth" =>
 
 /-- The final verifier for the proofs with steps of the shape of `o`: the verifier
 `towerAccepts` of `FinalKey20.sound` under the setup `laidSetup`. -/
-def Opening.accepts : Prefix Wire (Option Coord → K) total → Prop :=
+def Opening.accepts : Prefix Wire (Option Coord → CodeSlot K) total → Prop :=
   towerAccepts (weight₃ := o.weight₃) (weight₄ := o.weight₄) (weight₅ := o.weight₅) C vf
     Route.coefficient (Route.euclidean norm₃.operator norm₃.limit)
     (Route.euclidean norm₄.operator norm₄.limit) (Route.euclidean norm₅.operator norm₅.limit)
@@ -380,14 +382,14 @@ theorem Opening.ready {p : ℝ} (premises : Premises setup packageWidths)
       (start := Compose.root C vf) sized.chance sized.chance₁ sized.chance₂ sized.chance₃
       sized.chance₄ sized.chance₅ sized.chanceL, by decide⟩
 
-variable (prover : OracleComp (Address Wire total) (Option Coord → K) (ℕ → Wire))
+variable (prover : OracleComp (Address Wire total) (Option Coord → CodeSlot K) (ℕ → Wire))
 
 /-- The proof with witnesses that the extractor gives for the shape of `o`: the proof
 `Setup.envelope` of the table `W` of a certificate, for the statement and the claims of the first
 message of the prover. It is the bottom proof when the extractor returns no certificate. -/
 noncomputable def Opening.proof (budget : ℕ) (table : Address Wire total → Option
-  Coord → K)
-    (tape : Tape (Address Wire total) (Option Coord) K budget total) :
+  Coord → CodeSlot K)
+    (tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget total) :
     Terminal.ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits) :=
   match Checkpoint.extract whole prover budget table tape with
   | some (.inl certificate) =>
@@ -418,7 +420,7 @@ theorem Opening.knowledge {p : ℝ} (premises : Premises setup packageWidths)
     (blocks : setup.keyBlocks = 512) (coords : 28 ≤ Fintype.card Coord)
     (sized : o.Sized setup packageWidths step cap control read head p) {queries : ℕ}
     (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) K budget total,
+    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget total,
         (if o.accepts setup packageWidths step cap control read head (played prover table) ∧
             ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths cap control
               (head (played prover table).first).statement
@@ -485,20 +487,20 @@ a transcript when the statement of the first message is a statement of zero step
 when the first message names the shape `kind` of the family and the verifier `Opening.accepts`
 of this shape accepts. A first message with a shape outside the family has `kind` equal to
 `none`. -/
-def finalAccepts (point : Prefix Wire (Option Coord → K) total) : Prop :=
+def finalAccepts (point : Prefix Wire (Option Coord → CodeSlot K) total) : Prop :=
   (Terminal.StatementValid (head point.first).statement ∧
       (head point.first).statement.iteration = 0 ∧
       (head point.first).statement.zi = (head point.first).statement.z0) ∨
     ∃ index, kind point.first = some index ∧
       (family index).accepts setup packageWidths step cap control read head point
 
-variable (prover : OracleComp (Address Wire total) (Option Coord → K) (ℕ → Wire))
+variable (prover : OracleComp (Address Wire total) (Option Coord → CodeSlot K) (ℕ → Wire))
 
 /-- The proof with witnesses of the extractor for the final verifier: the bottom proof for a
 statement of zero steps, and `Opening.proof` of the shape that the first message names. -/
 noncomputable def finalProof (budget : ℕ) (table : Address Wire total → Option
-  Coord → K)
-    (tape : Tape (Address Wire total) (Option Coord) K budget total) :
+  Coord → CodeSlot K)
+    (tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget total) :
     Terminal.ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits) :=
   if Terminal.StatementValid (head (prover.run table 0)).statement ∧
       (head (prover.run table 0)).statement.iteration = 0 ∧
@@ -535,7 +537,7 @@ theorem knowledge_all {p : ℝ} (premises : Premises setup packageWidths)
     (sized : ∀ index,
       (family index).Sized setup packageWidths step cap control read head p) {queries : ℕ}
     (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) K budget total,
+    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget total,
         (if finalAccepts setup packageWidths step cap control read head kind family
               (played prover table) ∧
             ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths cap control
@@ -605,7 +607,7 @@ theorem sound_all {p : ℝ} (premises : Premises setup packageWidths)
       shapesBound setup packageWidths step cap control read head family prover p queries
         budget := by
   have flat (value : ℝ) : value =
-      𝔼 _tape : Tape (Address Wire total) (Option Coord) K budget total, value :=
+      𝔼 _tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget total, value :=
     (Finset.expect_const Finset.univ_nonempty value).symm
   refine le_trans (Finset.expect_le_expect fun table _ => ?_)
     (knowledge_all setup packageWidths step cap control read head kind family prover premises

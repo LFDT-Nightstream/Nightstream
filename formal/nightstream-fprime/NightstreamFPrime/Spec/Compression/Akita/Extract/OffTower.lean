@@ -35,7 +35,9 @@ local instance : Fact (Nat.Prime fieldModulus) := ⟨FieldPrime.fieldModulus_nat
 
 attribute [local instance low] Classical.propDecidable
 
-variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree2 E]
+variable {E : Type} [Field E] [Fintype E]
+  {Slot : Type} [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E]
+  [DecidableEq E] [Algebra Zq E] [Degree2 E]
   {count : ℕ} {B : Batch (Fin count)} {B₁ : Batch (Fin 2)} {S₂ : Shape} {O₂ : OpeningShape S₂}
   {fold₂ : Descriptor} {S₃ : Shape} {O₃ : OpeningShape S₃} {fold₃ : Descriptor} {S₄ : Shape}
   {O₄ : OpeningShape S₄} {fold₄ : Descriptor} {S₅ : Shape} {O₅ : OpeningShape S₅}
@@ -50,30 +52,30 @@ variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree
   {openKey₃ : OpeningKey O₃} {weight₃ : ℕ} {key₄ : Key S₄} {openKey₄ : OpeningKey O₄}
   {weight₄ : ℕ} {key₅ : Key S₅} {openKey₅ : OpeningKey O₅} {weight₅ : ℕ} {key₆ : Key S₆}
   {openKey₆ : OpeningKey O₆} {weight₆ : ℕ} {route₄ route₅ route₆ routeL : Route}
-  (accept : Prefix Wire (Option Coord → E) total → Prop)
+  (accept : Prefix Wire (Option Coord → Slot) total → Prop)
   (T₀ : Tier B.Block (fun b => Rq (B.carrierDegree b.1)) (B.Claim E)
     (B.LevelBreak key openKey fun g => 2 * (2 * mass g) * (B.fold g).sourceBound (B.shape g))
-    B.Witness B.Weak Wire Coord E (Option ((List E × E) × (List E × E))) Table)
+    B.Witness B.Weak Wire Coord Slot (Option ((List E × E) × (List E × E))) Table)
   (T₁ : Tier B₁.Block (fun b => Rq (B₁.carrierDegree b.1)) (B₁.Claim E)
     (B₁.LevelBreak key₁ openKey₁
       fun g => 2 * (2 * mass₁ g) * (B₁.fold g).sourceBound (B₁.shape g))
-    B₁.Witness B₁.Weak Wire Coord E (Option (List E × E)) Table)
+    B₁.Witness B₁.Weak Wire Coord Slot (Option (List E × E)) Table)
   (T₂ : Tier (Fin S₂.blocks) (fun _ => Rq O₂.carrierDegree) (Claim O₂ E)
     (LevelBreak key₂ openKey₂ (2 * (2 * weight₂) * fold₂.sourceBound S₂)) (Witness O₂ fold₂)
-    (Weak O₂) Wire Coord E (Option (List E × E)) Table)
+    (Weak O₂) Wire Coord Slot (Option (List E × E)) Table)
   (T₃ : Tier (Fin S₃.blocks) (fun _ => Rq O₃.carrierDegree) (Claim O₃ E)
     (LevelBreak key₃ openKey₃ (2 * (2 * weight₃) * fold₃.sourceBound S₃)) (Witness O₃ fold₃)
-    (Weak O₃) Wire Coord E (Option (List E × E × E)) Table)
+    (Weak O₃) Wire Coord Slot (Option (List E × E × E)) Table)
   (T₄ : Tier (Fin S₄.blocks) (fun _ => Rq S₄.innerDegree) (TraceClaim O₄ E)
     (route₄.Break key₄ openKey₄ weight₄ (fold₄.sourceBound S₄)) (Witness O₄ fold₄)
-    (Weak O₄) Wire Coord E (Option (List E × E × E)) Table)
+    (Weak O₄) Wire Coord Slot (Option (List E × E × E)) Table)
   (T₅ : Tier (Fin S₅.blocks) (fun _ => Rq S₅.innerDegree) (TraceClaim O₅ E)
     (route₅.Break key₅ openKey₅ weight₅ (fold₅.sourceBound S₅)) (Witness O₅ fold₅)
-    (Weak O₅) Wire Coord E (Option (List E × E × E)) Table)
+    (Weak O₅) Wire Coord Slot (Option (List E × E × E)) Table)
   (T₆ : Tier (Fin S₆.blocks) (fun _ => Rq S₆.innerDegree) (TraceClaim O₆ E)
     (route₆.Break key₆ openKey₆ weight₆ (fold₆.sourceBound S₆)) (Witness O₆ fold₆)
-    (Weak O₆) Wire Coord E (Option (List E × E × E)) Table)
-  (L : Terminal S₇ E Wire Coord E total routeL) (m₄ m₅ m₆ m₇ start : ℕ)
+    (Weak O₆) Wire Coord Slot (Option (List E × E × E)) Table)
+  (L : Terminal S₇ E Wire Coord Slot total routeL) (m₄ m₅ m₆ m₇ start : ℕ)
   (read : Reader Wire) (commit : Wire → (g : Fin count) → (B.shape g).Payload)
   (value : Wire → Fin count → E) (place : Wire → Fin count → List E)
   (commits : Wire → (g : Fin 2) → (B₁.shape g).Payload) (values : Wire → Fin 2 → E)
@@ -135,7 +137,7 @@ after the checks of the root fold, over the level 1. A first certificate has a c
 decommitment of the commitment of each group, the table `flat` for the group of the setup prefix,
 and the claim of each group for its table. -/
 noncomputable def offBoundary :=
-  (claimsRoot (Coord := Coord) (Slot := E) (total := total) T₀.finish read values
+  (claimsRoot (Coord := Coord) (Slot := Slot) (total := total) T₀.finish read values
       places).segment.over accept (off₁ accept T₁ T₂ T₃ T₄ T₅ T₆ L m₄ m₅ m₆ m₇)
     (fun inner => Batch.tablesOf ((off₁ accept T₁ T₂ T₃ T₄ T₅ T₆ L m₄ m₅ m₆ m₇).witness inner))
     (fun inner other => Sum.inl (Batch.collide key₁ openKey₁
@@ -169,7 +171,7 @@ stage `start` over the offloaded root fold, the level 1 with two groups, the pac
 3, the trace levels 4 to 6 and the terminal. A witness of `R_bind` is a solution of Module-SIS
 for a matrix of a group, of a level, or for `A_term`. -/
 noncomputable def offRoot :=
-  (claimsRoot (Coord := Coord) (Slot := E) (total := total) start read value
+  (claimsRoot (Coord := Coord) (Slot := Slot) (total := total) start read value
       place).segment.over accept
     (off₀ accept T₀ T₁ T₂ T₃ T₄ T₅ T₆ L m₄ m₅ m₆ m₇ read commits values places flat)
     (fun inner => Batch.tablesOf ((off₀ accept T₀ T₁ T₂ T₃ T₄ T₅ T₆ L m₄ m₅ m₆ m₇ read commits
@@ -198,21 +200,22 @@ def offLinks (registry : (B₁.shape 0).Payload) (commit₁ : Wire → (B₁.sha
     (quarter₆ : 4 * m₆ = S₆.innerDegree) (quarter₇ : 4 * m₇ = S₇.innerDegree)
     (commit₄ : Wire → S₄.Payload) (commit₅ : Wire → S₅.Payload) (commit₆ : Wire → S₆.Payload)
     (stateOf : Wire → Fin S₇.blocks → Fin S₇.innerRank → Rq S₇.innerDegree)
-    (point : Prefix Wire (Option Coord → E) total) : Prop :=
+    (point : Prefix Wire (Option Coord → Slot) total) : Prop :=
   (start < point.rest.length ∧
     RootLinked T₀ start commit value place
-      ((claimsRoot (Coord := Coord) (Slot := E) (total := total) start read value
+      ((claimsRoot (Coord := Coord) (Slot := Slot) (total := total) start read value
         place).weights point) point) ∧
     T₀.Offloaded commits values places registry commit₁ point ∧
     (T₀.finish < point.rest.length ∧
       RootLinked T₁ T₀.finish commits values places
-        ((claimsRoot (Coord := Coord) (Slot := E) (total := total) T₀.finish read values
+        ((claimsRoot (Coord := Coord) (Slot := Slot) (total := total) T₀.finish read values
           places).weights point) point) ∧
     T₁.Linked T₂ commit₂ point ∧ T₂.Linked T₃ commit₃ point ∧
     T₃.TraceLinked T₄ quarter₄ commit₄ point ∧ T₄.TraceLinked T₅ quarter₅ commit₅ point ∧
     T₅.TraceLinked T₆ quarter₆ commit₆ point ∧ Terminal.Linked T₆ L quarter₇ stateOf point ∧
     L.Passed point
 
+omit [FieldSlot Slot E] in
 /-- The batching root over an offloaded root fold, the level 1 with the group of the setup prefix
 and the group of the witness, two packing levels, three trace levels and the terminal is a suffix
 from the stage `start` (Akita Proposition 10.44, Theorem 10.46 and Lemma 9.1). The stage errors
@@ -226,8 +229,8 @@ theorem offTower_suffix {blocks blocks₁ : ℕ} (card : Fintype.card B.Block = 
     (card₁ : Fintype.card B₁.Block = blocks₁)
     (valid₀ : T₀.Valid) (valid₁ : T₁.Valid) (valid₂ : T₂.Valid) (valid₃ : T₃.Valid)
     (valid₄ : T₄.Valid) (valid₅ : T₅.Valid) (valid₆ : T₆.Valid)
-    (fair : ∃ decode : (Coord → E) → Fin count → E, Fair decode)
-    (fair₁ : ∃ decode : (Coord → E) → Fin 2 → E, Fair decode)
+    (fair : ∃ decode : (Coord → Slot) → Fin count → E, Fair decode)
+    (fair₁ : ∃ decode : (Coord → Slot) → Fin 2 → E, Fair decode)
     (packed₀ : T₀.method = Batch.method β key openKey mass)
     {registry : (B₁.shape 0).Payload}
     {fix : B₁.Weak → B₁.Claim E → B₁.LevelBreak key₁ openKey₁
@@ -366,10 +369,10 @@ section Composed
 
 variable {Lead : Type} {P : Verifier.Params Zq E} {B : Batch (Fin 3)}
   {key : (g : Fin 3) → Key (B.shape g)} {openKey : B.OpenKey} {mass : Fin 3 → ℕ}
-  (C : Compose P B Wire Coord Lead total) (vf : Verifier.VerifierData P)
+  (C : Compose P B Wire Coord Slot Lead total) (vf : Verifier.VerifierData P)
   (T₀ : Tier B.Block (fun b => Rq (B.carrierDegree b.1)) (B.Claim E)
     (B.LevelBreak key openKey fun g => 2 * (2 * mass g) * (B.fold g).sourceBound (B.shape g))
-    B.Witness B.Weak Wire Coord E (Option ((List E × E) × (List E × E))) Table)
+    B.Witness B.Weak Wire Coord Slot (Option ((List E × E) × (List E × E))) Table)
   (commit : Wire → (g : Fin 3) → (B.shape g).Payload) (value : Wire → Fin 3 → E)
   (place : Wire → Fin 3 → List E)
 
@@ -383,7 +386,7 @@ def offAccepts (registry : (B₁.shape 0).Payload) (commit₁ : Wire → (B₁.s
     (quarter₆ : 4 * m₆ = S₆.innerDegree) (quarter₇ : 4 * m₇ = S₇.innerDegree)
     (commit₄ : Wire → S₄.Payload) (commit₅ : Wire → S₅.Payload) (commit₆ : Wire → S₆.Payload)
     (stateOf : Wire → Fin S₇.blocks → Fin S₇.innerRank → Rq S₇.innerDegree)
-    (point : Prefix Wire (Option Coord → E) total) : Prop :=
+    (point : Prefix Wire (Option Coord → Slot) total) : Prop :=
   C.Ran vf commit value place point ∧
     offLinks T₀ T₁ T₂ T₃ T₄ T₅ T₆ L (C.root vf) C.read commit value place commits values places
       registry commit₁ commit₂ commit₃ quarter₄ quarter₅ quarter₆ quarter₇ commit₄ commit₅ commit₆

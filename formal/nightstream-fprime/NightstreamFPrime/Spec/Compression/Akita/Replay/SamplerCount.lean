@@ -16,7 +16,7 @@ shell `S`"), and the slots of an unfiltered group.
 - `kept_slots`: with `Key20.Kept`, `2^128` slots or more of each filtered family of the code
   decode.
 - `slotChance_le_field`: for `K ≥ 128` the slot probability of the decoder of the code is at
-  most `1/q²`, the bound of the decoders `draw` of the game (`Key20.slotChance_draw`).
+  most `1/q²`.
 - `sample_unfiltered`: at an unfiltered group the challenge `j` is the decoded candidate `j` of
   the message. -/
 

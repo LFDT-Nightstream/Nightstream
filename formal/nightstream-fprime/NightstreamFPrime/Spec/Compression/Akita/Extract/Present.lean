@@ -1,6 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Game.Path
 import NightstreamFPrime.Spec.Compression.Game.SumCheck
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Tier
+import NightstreamFPrime.Spec.Compression.Akita.Extract.Decoders
 
 /-! A run of a game on a path of challenges and messages (`Game.Runs`,
 `docs/akita-work/match-design.md` section 5.1) and the transcript form of the soundness claims
@@ -23,7 +24,7 @@ Section 10.3).
   `exists_presents`: each path on which such a game runs has a transcript segment that presents it.
 - `listChunk_onto`: the lists of `E` map onto `E`, `E × E`, `ℕ` and `Fin n → E`, the message
   types of the checks. `presentable_sumcheck`: `Game.sumcheck` is presentable for the answers
-  `Coord → K` and the chunks `List K`. -/
+  `Coord → Slot` with `FieldSlot Slot K` and the chunks `List K`. -/
 
 set_option autoImplicit false
 
@@ -329,19 +330,20 @@ theorem listChunk_onto {E : Type} [Zero E] (n : ℕ) :
       simp [List.getD_eq_getElem?_getD]⟩⟩⟩
 
 variable {K : Type} [Field K] [Fintype K] [DecidableEq K] {Coord : Type} [Fintype Coord]
-  [DecidableEq Coord] [Nonempty Coord]
+  [DecidableEq Coord] [Nonempty Coord] {Slot : Type} [Fintype Slot] [Nonempty Slot]
+  [FieldSlot Slot K]
 
-/-- `Game.sumcheck` is presentable for the answers `Coord → K` and the chunks `List K`: each draw
-reads one slot (`exists_fair_slot`), and each message is a vector of coefficients. -/
+/-- `Game.sumcheck` is presentable for the answers `Coord → Slot` and the chunks `List K`: each
+draw reads one slot (`exists_fair_field`), and each message is a vector of coefficients. -/
 theorem presentable_sumcheck (d : ℕ) (round : List K → Polynomial K) :
     ∀ (rounds : ℕ) (point : List K) (claim : K),
-      Presentable (Coord → K) (List K) (Game.sumcheck d round rounds point claim) := by
+      Presentable (Coord → Slot) (List K) (Game.sumcheck d round rounds point claim) := by
   intro rounds
   induction rounds with
   | zero => exact fun _ _ => trivial
   | succ rounds induction =>
       exact fun _ _ => ⟨(listChunk_onto (d + 1)).2.2.2, fun _ =>
-        Presentable.ite ⟨exists_fair_slot, fun _ => induction _ _⟩ trivial⟩
+        Presentable.ite ⟨exists_fair_field, fun _ => induction _ _⟩ trivial⟩
 
 end Instances
 

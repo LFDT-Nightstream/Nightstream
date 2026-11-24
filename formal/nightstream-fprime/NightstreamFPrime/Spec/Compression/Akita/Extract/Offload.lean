@@ -250,13 +250,14 @@ theorem offloadCheck_bare (R : Reduction E) (b : ℕ) (support : ℕ → Prop) [
       bare_bind_congr (sumcheck_bare 3 _ _ R.vars [] _) fun _ => rfl
 
 variable {Coord : Type} [Fintype Coord] [DecidableEq Coord] [Nonempty Coord]
+  {Slot : Type} [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E]
 
 /-- Each draw of `setupCheck` has the bound `2/|E|`. -/
 theorem setupCheck_staged (ν : ℕ) (flat : Table) (weight : ℕ → E) (σ : E) :
-    Staged (Coord → E) (setupCheck ν flat weight σ) (setupCosts E ν) := by
-  have rounds := sumcheck_staged (Reply := Coord → E) exists_fair_slot 2 ν _
+    Staged (Coord → Slot) (setupCheck ν flat weight σ) (setupCosts E ν) := by
+  have rounds := sumcheck_staged (Reply := Coord → Slot) exists_fair_field 2 ν _
     (combRound_truth ν 2 ![lifted E flat, weight] productComb productComb_degree).degree []
-    (fun result rest => StagedTo (Coord → E) (match result with
+    (fun result rest => StagedTo (Coord → Slot) (match result with
       | none => Game.pure none
       | some (ρ, final) => Game.recv E fun s =>
           if final = s * mle ρ weight then Game.pure (some (ρ, s)) else Game.pure none) rest
@@ -274,15 +275,15 @@ theorem offloadCheck_staged (R : Reduction E) (base : ℕ) (support : ℕ → Pr
     [DecidablePred support] (bin : Bool) (w : Table) (ν : ℕ) (flat : Table) (scan : SetupScan R ν
       flat)
     (varsFit : R.vars ≤ Fintype.card Coord) (batchFit : R.batch ≤ Fintype.card Coord) :
-    Staged (Coord → E) (offloadCheck R base support bin w ν flat scan)
+    Staged (Coord → Slot) (offloadCheck R base support bin w ν flat scan)
       (foldCosts E R.badBound R.vars R.batch base bin ++ setupCosts E ν) := by
-  have field : ∃ decode : (Coord → E) → E, Fair decode := exists_fair_slot
+  have field : ∃ decode : (Coord → Slot) → E, Fair decode := exists_fair_field
   unfold offloadCheck foldCosts Staged
   simp only [List.cons_append, List.append_assoc]
   refine stagedTo_draw field (density_le (C := E) (R.bad w) _ (R.bad_card w)) fun α => ?_
-  refine stagedTo_draw (exists_fair_slots varsFit) (density_rangeBad_le (E := E) R.low base R.vars w)
+  refine stagedTo_draw (exists_fair_fields varsFit) (density_rangeBad_le (E := E) R.low base R.vars w)
     fun τ0 => ?_
-  refine stagedTo_draw (exists_fair_slots batchFit)
+  refine stagedTo_draw (exists_fair_fields batchFit)
     ((R.rows α).density_batchBad_le R.vars (R.fits α) w) fun τ1 => ?_
   refine (stagedTo_bind _ _ _ _).mpr (rangeCheck_stagedTo base R.vars support w _ _ _ ?_ ?_)
   · exact fun _ => trivial
@@ -290,7 +291,7 @@ theorem offloadCheck_staged (R : Reduction E) (base : ℕ) (support : ℕ → Pr
   refine drawBin_stagedTo bin (zeros_card_le_of_natDegree_le (linePoly_natDegree _ _)) fun ζ =>
       stagedTo_draw field (density_le _ 1
         (zeros_card_le_of_natDegree_le (linePoly_natDegree _ _))) fun γ => ?_
-  refine (stagedTo_bind _ _ _ _).mpr (sumcheck_staged (Reply := Coord → E) field 3 R.vars _
+  refine (stagedTo_bind _ _ _ _).mpr (sumcheck_staged (Reply := Coord → Slot) field 3 R.vars _
     (fused_roundTruth R.vars w _ (virtWeight support r γ ζ)).degree (setupCosts E ν) _ ?_ ?_
     R.vars [] _ (by simp))
   · exact fun _ => trivial
@@ -313,14 +314,14 @@ noncomputable def offBatch (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E)
     (key : (g : Fin n) → Key (B.shape g)) (openKey : B.OpenKey) (claim : Wire → B.Claim E)
     (μ : ℕ) (fits : B.cells ≤ 2 ^ μ) (base digits : ℕ) (room : B.quotientRoom digits ≤ 2 ^ μ)
     (batch : ℕ) (rowsFit : B.rowCount + 1 ≤ 2 ^ batch) (block : B.Block → Coord)
-    (decode : (g : Fin n) → E → Option (Rq (B.carrierDegree g))) (read : Reader Wire)
+    (decode : (g : Fin n) → Slot → Option (Rq (B.carrierDegree g))) (read : Reader Wire)
     (mass : Fin n → ℕ) (start ν : ℕ) (flat : Table)
     (scan : ∀ (wire : Wire) (challenge : B.Challenge),
       SetupScan (Batch.liftedReduction β ((claim wire).statement key openKey) challenge μ fits base
         digits room batch rowsFit) ν flat) :
     Tier B.Block (fun b => Rq (B.carrierDegree b.1)) (B.Claim E)
       (B.LevelBreak key openKey fun g => 2 * (2 * mass g) * (B.fold g).sourceBound (B.shape g))
-      B.Witness B.Weak Wire Coord E (Option ((List E × E) × (List E × E))) Table where
+      B.Witness B.Weak Wire Coord Slot (Option ((List E × E) × (List E × E))) Table where
   method := Batch.method β key openKey mass
   claim := claim
   block b := some (block b)
@@ -342,7 +343,7 @@ variable {β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E} {key : (g : Fin n) �
   {openKey : B.OpenKey} {claim : Wire → B.Claim E} {μ : ℕ} {fits : B.cells ≤ 2 ^ μ}
   {base digits : ℕ} {room : B.quotientRoom digits ≤ 2 ^ μ} {batch : ℕ}
   {rowsFit : B.rowCount + 1 ≤ 2 ^ batch} {block : B.Block → Coord}
-  {decode : (g : Fin n) → E → Option (Rq (B.carrierDegree g))} {read : Reader Wire}
+  {decode : (g : Fin n) → Slot → Option (Rq (B.carrierDegree g))} {read : Reader Wire}
   {mass : Fin n → ℕ} {start ν : ℕ} {flat : Table}
   {scan : ∀ (wire : Wire) (challenge : B.Challenge),
     SetupScan (Batch.liftedReduction β ((claim wire).statement key openKey) challenge μ fits base
@@ -387,7 +388,8 @@ theorem offBatch_valid {peak : Fin n → ℕ} (injective : Function.Injective bl
     rw [List.length_map, List.length_append, List.length_append, foldLosses_length (E := E),
       setupLosses_length (E := E)]
 
-omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] in
+omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] [Fintype Slot] [Nonempty Slot]
+  [FieldSlot Slot E] in
 /-- The verifier of the checks of an offloaded level does not read the table. -/
 theorem offBatch_uniform (wire : Wire) (challenge : (b : B.Block) → Rq (B.carrierDegree b.1))
     (table other : Table) :

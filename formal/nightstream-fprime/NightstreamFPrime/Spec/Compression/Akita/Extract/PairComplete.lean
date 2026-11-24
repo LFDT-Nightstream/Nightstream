@@ -106,7 +106,8 @@ end Claim
 section Pair
 
 variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {S' : Shape} {O' : OpeningShape S'}
-  {fold' : Descriptor} {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E]
+  {fold' : Descriptor} {E : Type} [Field E] [Fintype E]
+  {Slot : Type} [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E] [DecidableEq E] [Algebra Zq E]
   {Wire Coord : Type} [Fintype Coord] [DecidableEq Coord]
 
 /-- A wire message can have each claim of the first level, and with each message of the checks
@@ -130,11 +131,11 @@ structure Full (fits : Type → Prop) (claim : Wire → Claim O E) (claim' : Wir
 variable {β : Module.Basis (Fin O.planes) Zq E} {key : Key S} {openKey : OpeningKey O}
   {claim : Wire → Claim O E} {μ : ℕ} {cells : O.cells fold ≤ 2 ^ μ} {batch : ℕ}
   {rowsFit : O.rowCount + 1 ≤ 2 ^ batch} {block : Fin S.blocks → Coord}
-  {decode : E → Option (Rq O.carrierDegree)} {read : Reader Wire} {weight : ℕ}
+  {decode : Slot → Option (Rq O.carrierDegree)} {read : Reader Wire} {weight : ℕ}
   {β' : Module.Basis (Fin O'.planes) Zq E} {key' : Key S'} {openKey' : OpeningKey O'}
   {claim' : Wire → Claim O' E} {μ' : ℕ} {cells' : O'.cells fold' ≤ 2 ^ μ'} {batch' : ℕ}
   {rowsFit' : O'.rowCount + 1 ≤ 2 ^ batch'} {block' : Fin S'.blocks → Coord}
-  {decode' : E → Option (Rq O'.carrierDegree)} {weight' : ℕ} {payloadOf : Wire → S'.Payload}
+  {decode' : Slot → Option (Rq O'.carrierDegree)} {weight' : ℕ} {payloadOf : Wire → S'.Payload}
   {witnessOf : Wire → Witness O' fold'}
 
 local notation "first" =>
@@ -146,6 +147,7 @@ local notation "second" =>
 
 local notation "chain" => pair first second payloadOf witnessOf
 
+omit [FieldSlot Slot E] in
 /-- Akita Theorem 10.9 for a committed packing fold over a last packing fold, without the
 probability that a response is not admissible: the verifier `pairAccepts` of
 `packingPair_extraction_le` accepts the honest prover. For each table `source`, each opening
@@ -184,20 +186,20 @@ theorem packingPair_complete (fits : Type → Prop)
       Encodable fold'.responseBase fold'.responseDigits
         (response O' challenge' (commit key'
           (honest β openKey point fold challenge (commit key source).2).flat).2.source))
-    (table : Address Wire (Tier.finish second) → Option Coord → E)
+    (table : Address Wire (Tier.finish second) → Option Coord → Slot)
     (decodes : ∀ input i, (decode (table input (some (block i)))).isSome)
     (decodes' : ∀ input i, (decode' (table input (some (block' i)))).isSome)
-    (worked : ∀ input, table input none ∈ workZeros E 57) :
+    (worked : ∀ input, table input none ∈ workZeros Slot 57) :
     ∃ proof : ℕ → Wire, claim (proof 0) = honestClaim β key openKey source point ∧
       pairAccepts first second payloadOf witnessOf
         ((Structure.protocol chain).final (.done proof) table) := by
-  set table := fun input : Prefix Wire (Option Coord → E) (Tier.finish second) =>
+  set table := fun input : Prefix Wire (Option Coord → Slot) (Tier.finish second) =>
     table input.address with keyed
   replace decodes : ∀ input i, (decode (table input (some (block i)))).isSome :=
     fun input => decodes input.address
   replace decodes' : ∀ input i, (decode' (table input (some (block' i)))).isSome :=
     fun input => decodes' input.address
-  replace worked : ∀ input, table input none ∈ workZeros E 57 := fun input => worked input.address
+  replace worked : ∀ input, table input none ∈ workZeros Slot 57 := fun input => worked input.address
   clear_value table
   have stages : Tier.finish second =
       foldDraws μ S.certifiedBase (O.compressed fold) + 1 + (foldDraws μ' S'.certifiedBase
@@ -274,7 +276,7 @@ theorem packingPair_complete (fits : Type → Prop)
     rintro rfl
     exact absurd counted.symm (Nat.succ_ne_zero _)) ended
   rw [List.length_append, List.length_singleton] at counted
-  obtain ⟨early, earlier⟩ : ∃ early : List ((Option Coord → E) × Wire),
+  obtain ⟨early, earlier⟩ : ∃ early : List ((Option Coord → Slot) × Wire),
       early = (reply0, wire1) :: (init ++ [final]) := ⟨_, rfl⟩
   rw [← earlier] at on
   have long : early.length = foldDraws μ S.certifiedBase (O.compressed fold) + 1 := by
@@ -329,7 +331,7 @@ theorem packingPair_complete (fits : Type → Prop)
     ((transcript (Tier.finish second) (pairAccepts first second payloadOf witnessOf)).final
       (.done proof) _)
   rw [final_done, ← keyed, ← accepts, complete]
-  obtain ⟨stage, staged⟩ : ∃ stage : Prefix Wire (Option Coord → E) (Tier.finish second),
+  obtain ⟨stage, staged⟩ : ∃ stage : Prefix Wire (Option Coord → Slot) (Tier.finish second),
       stage = ⟨wire0, early ++ (reply1, wire2) :: moves', bounded⟩ := ⟨_, rfl⟩
   rw [← staged]
   have rest : stage.rest = early ++ (reply1, wire2) :: moves' := by rw [staged]
@@ -388,7 +390,7 @@ theorem packingPair_complete (fits : Type → Prop)
   have starts₂ : Tier.start second = Tier.finish first := rfl
   have capped : (Tier.Capped first) ∧ Tier.Capped second :=
     ⟨⟨foldWorkBits_le _ _, map_workBits_le _⟩, ⟨foldWorkBits_le _ _, map_workBits_le _⟩⟩
-  have zero0 : reply0 none ∈ workZeros E (Tier.foldBits first) :=
+  have zero0 : reply0 none ∈ workZeros Slot (Tier.foldBits first) :=
     Tier.path_worked on' path worked (index := 0) (by rw [whole]; omega) capped.1.1 reply0
       (stage.reply_of (index := 0) head rfl)
   rw [accepts]
@@ -422,7 +424,7 @@ theorem packingPair_complete (fits : Type → Prop)
         moves' := by
       rw [List.take_of_length_le (by rw [rest, whole]), rest, List.append_cons]
       exact List.drop_left' (by rw [List.length_append, List.length_singleton, finished])
-    have zero1 : reply1 none ∈ workZeros E (Tier.foldBits second) :=
+    have zero1 : reply1 none ∈ workZeros Slot (Tier.foldBits second) :=
       Tier.path_worked on' path worked (index := Tier.finish first) (by rw [whole]; omega)
         capped.2.1 reply1 answered
     refine ⟨by rw [rest, whole], ⟨⟨reply1, answered, zero1, fun i =>

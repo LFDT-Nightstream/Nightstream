@@ -173,7 +173,7 @@ attribute [local instance low] Classical.propDecidable
 
 section Groups
 
-variable {n : ℕ} {B : Batch (Fin n)} {E : Type} [Field E] [Algebra Zq E]
+variable {n : ℕ} {B : Batch (Fin n)} {E : Type} [Field E] [Algebra Zq E] {Slot : Type}
 
 /-- The table that the next level commits to after a fold with opening groups and a commitment
 state of each group on the quotient-lift route: the flat witness of the honest prover with the
@@ -193,7 +193,7 @@ fold challenge vector of the families, the response `z_g = Σ_i ι(c_{g,i})·s_{
 satisfies `Enc`, and `after` holds for the table `stateNext`. -/
 def StateFit (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E)
     (key : (g : Fin n) → Key (B.shape g)) (openKey : B.OpenKey) (μ : ℕ) (cells : B.cells ≤ 2 ^ μ)
-    (base digits : ℕ) (decode : (g : Fin n) → E → Option (Rq (B.carrierDegree g)))
+    (base digits : ℕ) (decode : (g : Fin n) → Slot → Option (Rq (B.carrierDegree g)))
     (state : (g : Fin n) → (B.shape g).Payload × Decommitment (B.shape g))
     (after : Table → Prop) : Prop :=
   ∀ (point : (g : Fin n) → Point (B.opening g) E) (weight : Fin n → E) (challenge : B.Challenge),
@@ -219,7 +219,7 @@ theorem stateFit_zero (opening : ∀ g, Base (B.shape g).openingBase (B.shape g)
       PathDigits.firstTable (B.shape g).chain (state g).2.chain = 0 ∧
       PathDigits.secondTable (B.shape g).chain (state g).2.chain = 0)
     {base : ℕ} (two : 2 ≤ base) {μ : ℕ} {cells : B.cells ≤ 2 ^ μ} {digits : ℕ}
-    {decode : (g : Fin n) → E → Option (Rq (B.carrierDegree g))} {after : Table → Prop}
+    {decode : (g : Fin n) → Slot → Option (Rq (B.carrierDegree g))} {after : Table → Prop}
     (holds : after 0) :
     StateFit β key openKey μ cells base digits decode state after := by
   intro point weight c _
@@ -242,7 +242,7 @@ theorem stateFit_zero (opening : ∀ g, Base (B.shape g).openingBase (B.shape g)
 decoders is 0 (`quiet`) and `after` holds for the table of the zero challenges. -/
 theorem stateFit_quiet (radix : ∀ g, 2 ≤ (B.fold g).responseBase) {base μ : ℕ}
     {cells : B.cells ≤ 2 ^ μ} {digits : ℕ}
-    {decode : (g : Fin n) → E → Option (Rq (B.carrierDegree g))}
+    {decode : (g : Fin n) → Slot → Option (Rq (B.carrierDegree g))}
     (quiet : ∀ g slot c, decode g slot = some c → c = 0)
     {state : (g : Fin n) → (B.shape g).Payload × Decommitment (B.shape g)} {after : Table → Prop}
     (holds : ∀ point weight,
@@ -254,12 +254,14 @@ theorem stateFit_quiet (radix : ∀ g, 2 ≤ (B.fold g).responseBase) {base μ :
     exact quiet g slot _ decoded
   exact ⟨fun g => by rw [response_quiet]; exact encodable_zero (radix g) _, holds point weight⟩
 
-variable [Fintype E] [DecidableEq E] {Wire Coord : Type} {claim : Wire → B.Claim E} {μ : ℕ}
+variable [Fintype E] [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E] [DecidableEq E]
+  {Wire Coord : Type} {claim : Wire → B.Claim E} {μ : ℕ}
   {cells : B.cells ≤ 2 ^ μ} {base digits : ℕ} {room : B.quotientRoom digits ≤ 2 ^ μ} {batch : ℕ}
   {rowsFit : B.rowCount + 1 ≤ 2 ^ batch} {block : B.Block → Coord}
-  {decode : (g : Fin n) → E → Option (Rq (B.carrierDegree g))} {read : Reader Wire}
+  {decode : (g : Fin n) → Slot → Option (Rq (B.carrierDegree g))} {read : Reader Wire}
   {mass : Fin n → ℕ} {start : ℕ}
 
+omit [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E] in
 /-- The honest prover of the checks of a fold with opening groups and a commitment state of each
 group on the quotient-lift route (Akita Lemma 10.7 and Lemma 7.1, item 1, with Theorem 10.9). The
 message `wire` has the claim `Batch.stateClaim`, and `fit` has the fit conditions. Then for each
@@ -314,19 +316,20 @@ end Groups
 
 section Root
 
-variable {count : ℕ} {B : Batch (Fin count)} {E : Type} [Field E] [Fintype E] [DecidableEq E]
+variable {count : ℕ} {B : Batch (Fin count)} {E : Type} [Field E] [Fintype E]
+  {Slot : Type} [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E] [DecidableEq E]
   [Algebra Zq E] {Wire Coord : Type} [Fintype Coord] [DecidableEq Coord] {total : ℕ}
-  {accept : Prefix Wire (Option Coord → E) total → Prop}
+  {accept : Prefix Wire (Option Coord → Slot) total → Prop}
   {key : (g : Fin count) → Key (B.shape g)} {openKey : B.OpenKey} {mass : Fin count → ℕ}
   {Result Source : Type}
   {T : Tier B.Block (fun b => Rq (B.carrierDegree b.1)) (B.Claim E)
     (B.LevelBreak key openKey fun g => 2 * (2 * mass g) * (B.fold g).sourceBound (B.shape g))
-    B.Witness B.Weak Wire Coord E Result Source}
+    B.Witness B.Weak Wire Coord Slot Result Source}
   {sendable : (M : Type) → M → Prop} {slots : ℕ} {read : Reader Wire}
   {commit : Wire → (g : Fin count) → (B.shape g).Payload} {value : Wire → Fin count → E}
   {place : Wire → Fin count → List E}
 
-omit [DecidableEq E] in
+omit [DecidableEq E] [FieldSlot Slot E] in
 /-- The batching root of the honest prover (Akita Section 5.4, "Combining the scalar claims", and
 Theorem 10.46, "Batching root"). `early` is a transcript prefix of `start` moves on the path of
 the table of the oracle, and its last message has the commitments `commit`, the values `value` and
@@ -339,9 +342,9 @@ each group whose concatenation is the point of the message. Then each transcript
 message has the stage `start` and the link `RootLinked` for its weights. -/
 theorem rootLink (carries : Carries sendable slots read T.claim) {start : ℕ}
     (begins : T.start = start + 1)
-    (table : Prefix Wire (Option Coord → E) total → Option Coord → E)
-    (worked : ∀ input, table input none ∈ workZeros E 57)
-    {first : Wire} {early : List ((Option Coord → E) × Wire)} (on : OnPath accept table first early)
+    (table : Prefix Wire (Option Coord → Slot) total → Option Coord → Slot)
+    (worked : ∀ input, table input none ∈ workZeros Slot 57)
+    {first : Wire} {early : List ((Option Coord → Slot) × Wire)} (on : OnPath accept table first early)
     (starts : early.length = start) (rooted : start + 1 ≤ total)
     (target : (Fin count → E) → B.Claim E)
     (paid : ∀ ϑ, (target ϑ).payload = commit (lastWire first early))
@@ -355,13 +358,13 @@ theorem rootLink (carries : Carries sendable slots read T.claim) {start : ℕ}
     ∃ (ϑ : Fin count → E) (wire : Wire), T.claim wire = target ϑ ∧
       read.nonce wire < responseTries ∧
       OnPath accept table first (early ++ [(answer table first early, wire)]) ∧
-      ∀ stage : Prefix Wire (Option Coord → E) total, stage.first = first →
+      ∀ stage : Prefix Wire (Option Coord → Slot) total, stage.first = first →
         (∃ rest, stage.rest = early ++ (answer table first early, wire) :: rest) →
         start < stage.rest.length ∧
           RootLinked T start commit value place
-            ((claimsRoot (Coord := Coord) (Slot := E) (total := total) start read value
+            ((claimsRoot (Coord := Coord) (Slot := Slot) (total := total) start read value
               place).weights stage) stage := by
-  obtain ⟨wire, claimed, tried, _⟩ := carries (target (sample (Coord → E) (Fin count → E)
+  obtain ⟨wire, claimed, tried, _⟩ := carries (target (sample (Coord → Slot) (Fin count → E)
     (view (answer table first early)))) [] (Nat.zero_le _) (by simp)
   refine ⟨_, wire, claimed, tried, on.snoc (by rw [starts]; exact rooted) wire,
     fun stage rooted' ⟨rest, shape⟩ => ?_⟩
@@ -371,23 +374,23 @@ theorem rootLink (carries : Carries sendable slots read T.claim) {start : ℕ}
   have after : stage.wire T.start = wire := by
     rw [begins]
     exact stage.wire_of shape (congrArg (· + 1) starts.symm)
-  have drawn : (claimsRoot (Coord := Coord) (Slot := E) (total := total) start read value
+  have drawn : (claimsRoot (Coord := Coord) (Slot := Slot) (total := total) start read value
       place).weights stage =
-        sample (Coord → E) (Fin count → E) (view (answer table first early)) := by
+        sample (Coord → Slot) (Fin count → E) (view (answer table first early)) := by
     show ((stage.reply start).map fun reply =>
-      sample (Coord → E) (Fin count → E) (view reply)).getD 0 = _
+      sample (Coord → Slot) (Fin count → E) (view reply)).getD 0 = _
     rw [stage.reply_of shape starts.symm]
     rfl
-  have zeroRoot : answer table first early none ∈ workZeros E (Root.rootBits count) := by
+  have zeroRoot : answer table first early none ∈ workZeros Slot (Root.rootBits count) := by
     rw [answer_eq table first (by omega)]
-    exact workZeros_anti E (Root.rootBits_le count) (worked _)
+    exact workZeros_anti Slot (Root.rootBits_le count) (worked _)
   refine ⟨by rw [shape, List.length_append, List.length_cons, starts]; omega, ?_, ?_, ?_,
     fun g => ?_, answer table first early, stage.reply_of shape starts.symm, zeroRoot⟩
   · rw [after, claimed, before, paid]
   · rw [after, claimed, drawn, weighed]
   · rw [after, claimed, drawn, before, valued]
   · obtain ⟨block, position, pack, tail, blocks, length, stride, degree, point, joined⟩ :=
-      pointed (sample (Coord → E) (Fin count → E) (view (answer table first early))) g
+      pointed (sample (Coord → Slot) (Fin count → E) (view (answer table first early))) g
     exact ⟨block, position, pack, tail, blocks, length, stride, degree,
       by rw [after, claimed]; exact point, by rw [before]; exact joined⟩
 

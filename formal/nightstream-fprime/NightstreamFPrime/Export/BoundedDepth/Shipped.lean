@@ -20,6 +20,8 @@ set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.BoundedDepth.Shipped
 
+open NightstreamFPrime.Spec.Compression.Akita.Replay (CodeSlot)
+
 open scoped ENNReal
 open scoped NightstreamFPrime.Spec.Compression.Production
 open NightstreamFPrime.Spec
@@ -170,7 +172,7 @@ theorem verify_final_sound {mode : Mode} (facts : Facts program ajtai) (identity
       total)
     (shared : ∀ index, (family index).tower.Shared)
     (prover : RandomOracle.OracleComp (Compression.Akita.Extract.Address Wire total)
-      (Option Coord → K) (ℕ → Wire))
+      (Option Coord → CodeSlot K) (ℕ → Wire))
     [Finite Wire] (budget : ℕ)
     {Admitted : NifsAdversary (WalkAttempt StepRelation.keyWidth StepRelation.keyPublicFits) → Prop}
     {StageAdmitted : Stage (Visit StepRelation.keyWidth StepRelation.keyPublicFits)

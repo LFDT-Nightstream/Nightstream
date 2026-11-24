@@ -23,6 +23,8 @@ set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.BoundedDepth.FinalKey20
 
+open NightstreamFPrime.Spec.Compression.Akita.Replay (CodeSlot)
+
 open scoped BigOperators
 open NightstreamFPrime.Spec NightstreamFPrime.Spec.FieldExtensionRing
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
@@ -64,7 +66,7 @@ variable {logicalWidth : Nat}
   (head : Wire → First logicalWidth publicFits)
   [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] {ι : Type} [Fintype ι]
   (kind : Wire → Option ι) (family : ι → Opening logicalWidth publicFits Wire Coord total)
-  (prover : OracleComp (Address Wire total) (Option Coord → K) (ℕ → Wire))
+  (prover : OracleComp (Address Wire total) (Option Coord → CodeSlot K) (ℕ → Wire))
     [Finite Wire]
   (budget : ℕ)
 
@@ -74,8 +76,8 @@ oracle and the tape of the extractor, with the uniform law. Its output is the ac
 with the proof `finalProof` of the extractor, and otherwise the bottom proof of `(0, [], [])`. -/
 noncomputable def adversary :
     HyperNova.ReverseStages.IvcAdversary (IvcSecurity.Output logicalWidth publicFits) where
-  Tape := (Address Wire total → Option Coord → K) ×
-    Tape (Address Wire total) (Option Coord) K budget total
+  Tape := (Address Wire total → Option Coord → CodeSlot K) ×
+    Tape (Address Wire total) (Option Coord) (CodeSlot K) budget total
   tape := Compression.Game.uniform _
   output sample :=
     if finalAccepts setup packageWidths step cap control read head kind family
@@ -88,7 +90,7 @@ noncomputable def adversary :
 /-- The final verifier accepts `(i, z0, zi)` for the table of the oracle, and no `i` valid steps
 of `program`, each with a witness of the word count of the program, lead from `z0` to `zi`. -/
 def FalseHistory (program : Stage1.Application.Program)
-    (table : Address Wire total → Option Coord → K) : Prop :=
+    (table : Address Wire total → Option Coord → CodeSlot K) : Prop :=
   finalAccepts setup packageWidths step cap control read head kind family (played prover table) ∧
     ¬ IvcWalk.Reaches program (head (played prover table).first).statement
 
@@ -99,8 +101,8 @@ local notation "ivc" =>
 
 /-- The final verifier accepts for the table of the oracle, and `Verifies` rejects the proof
 `finalProof` of the extractor for the tape: the event of `knowledge_all`. -/
-def Rejected (sample : (Address Wire total → Option Coord → K) ×
-    Tape (Address Wire total) (Option Coord) K budget total) : Prop :=
+def Rejected (sample : (Address Wire total → Option Coord → CodeSlot K) ×
+    Tape (Address Wire total) (Option Coord) (CodeSlot K) budget total) : Prop :=
   finalAccepts setup packageWidths step cap control read head kind family
       (played prover sample.1) ∧
     ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths cap control
@@ -121,8 +123,8 @@ theorem rejected_le {p : ℝ} (premises : Premises setup packageWidths)
     ((ivc).tape.toOuterMeasure {sample | rejects sample}).toReal ≤
       shapesBound setup packageWidths step cap control read head family prover p queries
         budget := by
-  refine (uniform_event (Sample := (Address Wire total → Option Coord → K) ×
-    Tape (Address Wire total) (Option Coord) K budget total) _).trans_le
+  refine (uniform_event (Sample := (Address Wire total → Option Coord → CodeSlot K) ×
+    Tape (Address Wire total) (Option Coord) (CodeSlot K) budget total) _).trans_le
     (le_trans (le_of_eq ?_) (knowledge_all setup packageWidths step cap control read head kind
       family prover premises blocks coords sized bounded positive))
   rw [← Finset.univ_product_univ, Finset.expect_product]

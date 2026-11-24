@@ -204,7 +204,7 @@ at most
 `(Q + 1) · (runCost + 317479/(1024·|K|) + 135 · p) + (Q + 1) · 144/budget +
 breakChance`. `runCost` is the sum of the error bounds of one run of Π_CCS and
 of the argument. `p` is the largest probability of one fold challenge, and the
-claim has `p = 1/q²` for the Lean decoders. Each error of a check of the
+claim has `p = 1/q²` for the decoders of the code (difference (q)). Each error of a check of the
 opening has the factor `2^−g` for the work bits `g` of its site in the code,
 and the fold term has no work credit (difference (d)). `budget` is the limit of each retry loop
 of the extractor. `breakChance` is the `[MSIS]` term: the probability that the
@@ -319,9 +319,54 @@ decision.
   group root" (Akita Appendix I). After the paper, the pinned code replaced
   this sampler with one stream for a fold group, with no absorb between the
   coordinates (`specs/sparse-challenge-stream.md` of the Akita code). So the
-  paper has no proof for the stream of the pinned code. This is the reason for
+  paper has no proof for the stream of the pinned code. The exact place is
+  this (revision 4). The paper gives each fold coordinate its own stream and
+  the draw limit 4096 (Section 10.1, "Coordinate streams" and "Programming",
+  pages 69 and 70), and an indexed stage has one independent table entry for
+  each coordinate (Section 10.3, page 76). With the filter, the code has one
+  pool of `pool_len(W, rates)` words for the `W` coordinates of a group, and
+  the challenge `j` is the `j`-th accepted word, so its position depends on
+  the words before it. The extractor of an indexed stage needs entries that
+  differ only in one coordinate (Appendix E.2, "Indexed extraction stages",
+  pages 144 and 145), and the "Representatives" of Appendix E.1 (page 142)
+  draw the later coordinates again. For a shared pool this is the nested form
+  of Lemma 10.14, not the indexed form that `Comb_r` of Definition 10.16 (iv)
+  takes. The decoder of the paper (a partial Fisher–Yates shuffle, page 70)
+  is not the decoder of the code, and (145) is not the abort probability of
+  the code. This is not an error of the paper for its own sampler. It is a
+  gap between the paper and the pinned code. Lean proves the step that
+  covers the code (the join to the code stays open, below). The slot of an
+  answer is `Spec.Compression.Akita.Replay.CodeSlot E`: a
+  field element, a word of 131 bits, and an accepted word of each filtered
+  family of the code. A field challenge reads the field component through a
+  fair decoder (`Spec.Compression.Akita.Extract.FieldSlot`). A fold challenge
+  without a filter is `Spec.Compression.Akita.Replay.slotDecode` of the low
+  `K` bits of the word (`Spec.Compression.Akita.Replay.CodeSlot.open`): each
+  slot decodes (`Spec.Compression.Akita.Replay.open_isSome`), and the slot
+  probability is at most `2^−K`
+  (`Spec.Compression.Akita.Replay.slotChance_open`). A fold challenge with
+  the filter is `slotDecode` of the accepted word of the slot
+  (`Spec.Compression.Akita.Replay.CodeSlot.kept64`,
+  `Spec.Compression.Akita.Replay.CodeSlot.kept128`): the challenges are
+  exactly the members of the family that pass the filter of the code
+  (`Spec.Compression.Akita.Replay.kept64_mem`,
+  `Spec.Compression.Akita.Replay.kept64_surjective`), and the slot
+  probability is at most `1/|Kept G|`
+  (`Spec.Compression.Akita.Replay.slotChance_kept64`). The pool of the code
+  is a function of such slots. For independent uniform words `u` and
+  accepted words `a`, the pool `pool u a` is uniform
+  (`Spec.Compression.Akita.Replay.expect_pool`), the challenge `j` of the
+  sampler of the code on `pool u a` is the decoded slot `a j`
+  (`Spec.Compression.Akita.Replay.sample_slots`), and the sampler gives
+  challenges exactly when the pool has `W` accepted words
+  (`Spec.Compression.Akita.Replay.sample_isSome_iff`). So a uniform pool is
+  `pool u a` in law, and a re-draw of the coordinate `j` replaces `a j` and
+  keeps each other word: this is the indexed form. This is the reason for
   the slot reading of `[KECCAK]` (security model, section Assumptions): the
-  model of `Spec.Checkpoint` is one uniform table on message keys, the answer
+  squeezed message of a fold group is uniform and independent of each other
+  answer, the words `u` that no check of the verifier reads are a part of
+  the random tape of the prover, and the model of `Spec.Checkpoint` is one
+  uniform table on message keys, the answer
   at the key of a stage input is one output of independent slots, and the
   extractor draws one slot again and keeps the others
   (`Spec.Checkpoint.Protocol`). This is the model of the revision of
@@ -344,8 +389,7 @@ decision.
   absorbs public values that it computes from earlier challenges, for example
   the input claim of a sum-check (`akita-sumcheck/src/proof_stream.rs`), and
   the Lean model has no encoding of the messages of the code, so no Lean
-  statement shows that the absorbed bytes of the code are an injective key. For the filtered challenge
-  families of the ℓ2 levels, a slot is the j-th accepted candidate.
+  statement shows that the absorbed bytes of the code are an injective key.
   Lean has the sampler of the code as a function of the squeezed message of
   a group (`Spec.Compression.Akita.Replay.sample`, from
   `crates/akita-challenges/src/sampler/stream.rs` of the Akita code), and it
@@ -369,17 +413,28 @@ decision.
   (`Spec.Compression.Akita.Replay.signFair_slotDecode`), so the search bound
   of level 1 of `key20.aks` holds for the decoder of the code
   (`Spec.Compression.Akita.Replay.level₁_search_code`, the statement of
-  `Spec.Compression.Akita.Key20.level₁_search_total`). What stays open: the
-  decoders of the claims are `Spec.Compression.Akita.Extract.draw` from one
-  slot of `E`, not `slotDecode`, and no claim is restated with the decoder of
-  the code; the three groups of the root have words of two lengths, and
-  `Spec.Compression.Akita.Key20.root_search_total` has one slot type for
-  them; that the words of one squeezed message are independent uniform slots
-  is the slot reading of `[KECCAK]`; and the event that the pool of a
-  filtered group runs out (the code rejects, and the prover tries the next
-  response nonce) has no Lean bound: the code sizes the pool from an
-  estimated acceptance rate (`operator_norm_rates`) and bounds the event only
-  at that rate. In
+  `Spec.Compression.Akita.Key20.level₁_search_total`). The three groups of
+  the root read words of 129, 128 and 128 bits from one slot type
+  (`Spec.Compression.Akita.Key20.rootDecode`), each slot decodes
+  (`Spec.Compression.Akita.Key20.rootDecode_isSome`), and the sign flips act
+  on the slots (`Spec.Compression.Akita.Key20.rootDecode_signFair`). What
+  stays open: no Lean theorem joins the verifier of the code
+  (`Spec.Compression.Akita.Replay.verifyProof`) to the verifier of the claims
+  (`Spec.Compression.Akita.Key20.Tower.accepts`,
+  `Spec.Compression.Akita.Extract.towerLinks` with the links between the
+  levels); that the squeezed message of a fold group is uniform and
+  independent of each other answer is the slot reading of `[KECCAK]`; and the
+  event that the pool of a filtered group runs out (the code rejects, and the
+  prover tries the next response nonce) has no Lean bound: the code sizes the
+  pool from an estimated acceptance rate (`operator_norm_rates`) and bounds
+  the event only at that rate. Soundness needs no term for this event. The
+  verifier of the code rejects on it
+  (`Spec.Compression.Akita.Replay.Replayer.draw_filtered`), and when the pool
+  has `W` accepted words its challenges are the decoded slots `a`
+  (`Spec.Compression.Akita.Replay.sample_slots`), so with the join above the
+  accepting event of the code is in the accepting event of the claims. The
+  completeness claims are about the Lean verifier, and Lean has no bound for
+  the event. In
   `Export.BoundedDepth.FinalKey20.sound`, the Poseidon2 transcript of the
   argument and the Keccak transcript of Akita are one table. No Lean statement
   joins the two hash functions of the code to it. Such a statement would have
@@ -595,10 +650,11 @@ decision.
   coefficient for independent signs (`Spec.Compression.Akita.rademacher_tail`,
   `Spec.Compression.Akita.decoded_tail`), for a decoder on whose slots the
   sign flips of a challenge act (`Spec.Compression.Akita.SignFair`). The
-  sampler of the code has independent sign bits. The Lean decoders `draw` of
-  the soundness claims are injections of `q²` slots into a family of more
-  than `q²` members, so they have no uniform law on the family, and no Lean
-  result gives them this property. The sizing rule of the code,
+  sampler of the code has independent sign bits. The decoders of the claims
+  at the root and at level 1 are the decoders of the code without a filter,
+  and they have this property
+  (`Spec.Compression.Akita.Key20.rootDecode_signFair`,
+  `Spec.Compression.Akita.Replay.signFair_open`). The sizing rule of the code,
   `t*² = 2·B·‖c‖_2²·‖s‖_∞²·⌈ln(2N/(1 − 1/8))⌉`
   (`crates/akita-params/src/sis/fold_linf_cap.rs`), gives the probability
   `7/8` or less that one group does not fit
@@ -612,10 +668,10 @@ decision.
   (`Claims.AkitaKey20.key20_root_search`, `Claims.AkitaKey20.key20_level1_search`).
   For decoders that decode each slot, `ε = 0`
   (`Claims.AkitaKey20.key20_root_search_total`,
-  `Claims.AkitaKey20.key20_level1_search_total`). The decoders `draw` of the
-  root and of level 1 decode each slot, because these levels have no filter
+  `Claims.AkitaKey20.key20_level1_search_total`). The decoders of the root
+  and of level 1 decode each slot, because these levels have no filter
   (`Spec.Compression.Akita.Key20.rootDecode_isSome`,
-  `Spec.Compression.Akita.Key20.draw_all`).
+  `Spec.Compression.Akita.Replay.open_isSome`).
   This proof gives no bound at the other levels. The limit of `Enc` is below
   the limit of Akita (313) at level 2 of `key20.aks` and at the group of the
   setup prefix of level 1 and at levels 2 and 4 of `key30.aks`: the planner
@@ -777,17 +833,18 @@ decision.
   the weights of the relation, of the opening row, of the norm and of the
   binary support (`crates/akita-verifier/src/stages/stage2.rs` of the Akita
   code; `Spec.Compression.Akita.fusedCheck`).
-- (q) The decoder `Spec.Compression.Akita.Extract.draw` of a filtered family
-  is an injection of the slots into the members that pass the filter of the
-  code. The decoder of the code from one word of the message gives exactly
-  these members: each accepted word gives a member of `SparseFamily d n₁ n₂`
+- (q) The decoder of a filtered family is the decoder of the code on the
+  accepted word of the slot (`Spec.Compression.Akita.Replay.CodeSlot.kept64`,
+  `Spec.Compression.Akita.Replay.CodeSlot.kept128`). The decoder of the code
+  from one word of the message gives exactly the members that pass the
+  filter of the code: each accepted word gives a member of `SparseFamily d n₁ n₂`
   that passes `TrigTable.codeAccepts d Γ`, and each such member comes from
   exactly one word (`Spec.Compression.Akita.Replay.slotDecode_mem`,
   `slotDecode_injective`, `slotDecode_surjective`, `card_accepted`). So
   `Kept` is the statement that `2^128` or more of the `2^K` words of a
   candidate are accepted by the code
-  (`Spec.Compression.Akita.Replay.kept_slots`). Lean does not prove that
-  `q²` members or more pass. Akita Table 12
+  (`Spec.Compression.Akita.Replay.kept_slots`). Lean does not prove this
+  count. Akita Table 12
   certifies `2^128` members or more for the family `(31, 11)` of the degree 64
   at `Γ = 18` and for the family `(31, 0)` of the degree 128 at `Γ = 13`, from
   exact moments and a rational tail polynomial, with a margin of 0.06 bits at
@@ -796,9 +853,19 @@ decision.
   `Drawn` (security model, premise row `AkitaKey20/drawn.kept`). With it, each
   slot gives a fold challenge at each level
   (`Spec.Compression.Akita.Key20.Tower.Drawn.decodes`,
-  `Spec.Compression.Akita.Key30.Tower.Drawn.decodes`). If fewer than `q²`
-  members pass, `draw` gives no challenge, and the verifier of each soundness
-  claim accepts no transcript.
+  `Spec.Compression.Akita.Key30.Tower.Drawn.decodes`). The claims use `Kept`
+  for two facts only: each slot decodes at a filtered level
+  (`Spec.Compression.Akita.Replay.kept64_isSome`,
+  `Spec.Compression.Akita.Replay.kept128_isSome`), and a filtered fold
+  coordinate has the price `1/|Kept G| ≤ 1/2^128 ≤ 1/q²`
+  (`Spec.Compression.Akita.Replay.slotChance_kept64_le`,
+  `Spec.Compression.Akita.Replay.slotChance_kept64_field`). The stated fold
+  terms do not change: `135/q²` for `key20.aks` and
+  `(1458 + B_1 + B_2)/q²` for a row of `key30.aks`. The exact term of the
+  decoders of the code is the sum over the fold coordinates of `1/2^K`
+  without a filter (`K` = 128 for `(64, 31, 10)` and 129 for `(128, 31, 0)`)
+  or `1/|Kept G|` with the filter, which is at most `135/2^128` for
+  `key20.aks` with `Kept`. The fold term has no work credit.
   Lean proves one step of the certificate: the union bound and the
   equal-marginal step of Akita Theorem H.2 for the integer predicate of the
   code. So `Kept` follows from a count at the frequency 0
@@ -1089,14 +1156,14 @@ decision.
 
   These theorems are not a statement about the verifier of the claims
   (`Key20.Tower.accepts`, `towerLinks`). Three parts are open. First, the
-  claims decode a fold challenge from one slot of `E` with the decoder
-  `Spec.Compression.Akita.Extract.draw`, and the code decodes it from a word
-  of 128 to 131 bits. `|E| = q² < 2^128`, so no injection of the words into a
-  slot exists and a challenge of the code need not be a value of `draw`
-  (`Spec.Compression.Akita.Extract.not_injective_words`,
-  `Spec.Compression.Akita.Extract.draw_misses_field`). The claims need a slot
-  type that holds a word before the decoder of the code can be their
-  decoder. Second, no theorem joins the game of one level to the claim of
+  claims decode a fold challenge with the decoder of the code on the slots
+  `Spec.Compression.Akita.Replay.CodeSlot E`, and the pool of the code is a
+  function of these slots (difference (a)), but no Lean theorem joins
+  `Spec.Compression.Akita.Replay.verifyProof` to
+  `Spec.Compression.Akita.Key20.Tower.accepts`: that the code accepts
+  exactly when each filtered group has its `W` challenges and
+  `Tower.accepts` accepts the transcript with the slots of these
+  challenges. Second, no theorem joins the game of one level to the claim of
   the next level (the statement of each level is built from the recorded
   values of the level before). Third, a run of a game on a path is the
   transcript form of the claims only for a transcript whose oracle answers
@@ -1169,13 +1236,13 @@ term `breakChance` under `[MSIS]`.
   a uniform `S` as the sum over the 54 views
   (`Spec.Compression.Akita.Key30.shared_setup`).
 
-- The challenge families. The decoders are
-`Spec.Compression.Akita.Extract.draw` of the families of the code: `(31, 0)`
-for each group of the root and of level 1 and for level 4, `(31, 10)` for
-levels 2 and 3, and `(31, 11)` with a filter for levels 5 and 6 and for the
-terminal. The filter is the predicate of the code, so the unit differences,
-the norms `ω`, the operator bound `Γ` and the slot probability `1/q²` are
-theorems.
+- The challenge families. The decoders are those of the code on the slots
+`Spec.Compression.Akita.Replay.CodeSlot E` (`Spec.Compression.Akita.Key30.families_code`):
+`(31, 0)` for each group of the root and of level 1 and for level 4,
+`(31, 10)` for levels 2 and 3, and `(31, 11)` with a filter for levels 5
+and 6 and for the terminal. The filter is the predicate of the code, so the
+unit differences, the norms `ω`, the operator bound `Γ` and the slot
+probability `1/q²` (with `Kept`) are theorems.
 
 The limits are these. The matrices of the root are the views of the setup
 prefix by the hypothesis `shared`, and from it Lean proves the split of the
@@ -1191,7 +1258,8 @@ and for each setup prefix with decoders that give the fold challenge 0
 `Spec.Compression.Akita.Key30.fit_quiet`). The final
 verifier of this file has no acceptance result. The memory result is in this
 game (`Claims.AkitaKey30.key30_memory_sound`). The Lean
-verifier and the Lean decoders have no comparison with the code. The
+verifier has no comparison with the verifier of the code, and its fold
+decoders are those of the code (difference (a)). The
 differences (k) to (p) of the section above apply.
 
 The owner decided to remove the claims that end in `_with_akita`
@@ -1231,7 +1299,7 @@ the facts).
   extraction and the composition as theorems under their hypotheses. For `key30.aks`, the
   rows `AkitaKey30/drawn.registered` and `AkitaKey30/drawn` are open. For `key20.aks`, one premise row is open: the
   conditions `Export.BoundedDepth.FinalKey20.Opening.Drawn` of the final
-  verifier, which hold the Lean decoders and the certified decommitment `registered` of
+  verifier, which hold the fold decoders of the code and the certified decommitment `registered` of
   the key commitment. The 512 blocks of the key polynomial are of the class
   link. The term `breakChance` is `[MSIS]`. The uniform table on message keys
   is `[KECCAK]`. The memory claims are `Claims.AkitaKey20.key20_memory_sound` and
@@ -1375,10 +1443,10 @@ trust item 7, gives the facts).
 - The proof of work and the probability `p`.
   `Export.BoundedDepth.FinalKey20.sound` takes the largest probability `p` of
   one fold challenge as a hypothesis, and the claims have `p = 1/q²`. Its
-  bound on the stage errors of the opening is `455719/(1024·q²)` for a decoder
-  that is an injection of one slot of `K` into the challenge family, where
-  `p = 1/q²`. No decoder from one slot has `p` at most `2^−128`, because `q²`
-  is below `2^128`. The Akita code has a target of 128 bits for each query,
+  bound on the stage errors of the opening is `455719/(1024·q²)`. The
+  decoders of the code on the slots `Spec.Compression.Akita.Replay.CodeSlot K`
+  have `p` at most `2^−128` (with `Kept`), and the claims state the larger
+  `1/q²` (difference (q)). The Akita code has a target of 128 bits for each query,
   and the Lean model has its proof of work (difference (d)). One point stays
   open: the comparison of the work bits of Lean with the grinding plan of the
   code, which the code does not store for the two files.

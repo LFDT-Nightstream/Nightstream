@@ -41,20 +41,21 @@ attribute [local instance low] Classical.propDecidable
 section Folds
 
 variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {E : Type} [Field E] [Fintype E]
+  {Slot : Type} [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E]
   [DecidableEq E] [Algebra Zq E] {Wire Coord : Type} [Fintype Coord] [DecidableEq Coord]
 
 /-- A packing fold for one claim whose flat witness the next level commits to, as a `Tier` with
-the first stage `start`. A slot of an answer of the oracle is one uniform element of `E`. The
+the first stage `start`. A slot of an answer of the oracle is one uniform element of `Slot`. The
 successor source is a table, `OpeningShape.ofFlat` gives its digit vectors, and the checks are
 `foldCheck` for the quotient-free reduction of `flatRelation`. A final claim `(r_2, v_W)` is
 true for a table `w` when `v_W = w̃(r_2)`. -/
 noncomputable def committedFold (β : Module.Basis (Fin O.planes) Zq E) (key : Key S)
     (openKey : OpeningKey O) (claim : Wire → Claim O E) (μ : ℕ) (fits : O.cells fold ≤ 2 ^ μ)
     (batch : ℕ) (rowsFit : O.rowCount + 1 ≤ 2 ^ batch) (block : Fin S.blocks → Coord)
-    (decode : E → Option (Rq O.carrierDegree)) (read : Reader Wire) (weight start : ℕ) :
+    (decode : Slot → Option (Rq O.carrierDegree)) (read : Reader Wire) (weight start : ℕ) :
     Tier (Fin S.blocks) (fun _ => Rq O.carrierDegree) (Claim O E)
       (LevelBreak key openKey (2 * (2 * weight) * fold.sourceBound S)) (Witness O fold) (Weak O)
-        Wire Coord E
+        Wire Coord Slot
       (Option (List E × E)) Table where
   method := packing β key openKey weight
   claim := claim
@@ -79,10 +80,10 @@ vectors. A final claim `(r_2, v_W)` is true when `v_W = w̃(r_2)` for this flat 
 noncomputable def clearFold (β : Module.Basis (Fin O.planes) Zq E) (key : Key S)
     (openKey : OpeningKey O) (claim : Wire → Claim O E) (μ : ℕ) (fits : O.cells fold ≤ 2 ^ μ)
     (batch : ℕ) (rowsFit : O.rowCount + 1 ≤ 2 ^ batch) (block : Fin S.blocks → Coord)
-    (decode : E → Option (Rq O.carrierDegree)) (read : Reader Wire) (weight start : ℕ) :
+    (decode : Slot → Option (Rq O.carrierDegree)) (read : Reader Wire) (weight start : ℕ) :
     Tier (Fin S.blocks) (fun _ => Rq O.carrierDegree) (Claim O E)
       (LevelBreak key openKey (2 * (2 * weight) * fold.sourceBound S)) (Witness O fold) (Weak O)
-        Wire Coord E
+        Wire Coord Slot
       (Option (List E × E)) (Witness O fold) where
   method := packing β key openKey weight
   claim := claim
@@ -103,7 +104,7 @@ noncomputable def clearFold (β : Module.Basis (Fin O.planes) Zq E) (key : Key S
 
 variable {β : Module.Basis (Fin O.planes) Zq E} {key : Key S} {openKey : OpeningKey O}
   {claim : Wire → Claim O E} {μ : ℕ} {fits : O.cells fold ≤ 2 ^ μ} {batch : ℕ}
-  {block : Fin S.blocks → Coord} {decode : E → Option (Rq O.carrierDegree)} {read : Reader Wire}
+  {block : Fin S.blocks → Coord} {decode : Slot → Option (Rq O.carrierDegree)} {read : Reader Wire}
   {weight start : ℕ}
 
 /-- A committed packing fold satisfies the conditions of `Tier.Valid`. The hypotheses are: the
@@ -160,7 +161,7 @@ theorem clearFold_valid [Nonempty Coord] {rowsFit : O.rowCount + 1 ≤ 2 ^ batch
   draws := by simp [clearFold, foldCosts]
   aligned := (List.length_map ..).trans (foldLosses_length ..)
 
-omit [Fintype Coord] [DecidableEq Coord] in
+omit [Fintype Coord] [DecidableEq Coord] [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E] in
 /-- The verifier of the checks of a committed packing fold does not read the table. -/
 theorem committedFold_uniform {rowsFit : O.rowCount + 1 ≤ 2 ^ batch} (wire : Wire)
     (challenge : Fin S.blocks → Rq O.carrierDegree) (table other : Table) :
@@ -172,7 +173,7 @@ theorem committedFold_uniform {rowsFit : O.rowCount + 1 ≤ 2 ^ batch} (wire : W
 
 section Suffixes
 
-variable [Nonempty Coord] {total : ℕ} {accept : Prefix Wire (Option Coord → E) total → Prop}
+variable [Nonempty Coord] {total : ℕ} {accept : Prefix Wire (Option Coord → Slot) total → Prop}
   {Inner BreakT CandT KeyT : Type}
 
 /-- Akita Proposition 10.44 for one more level: a committed packing fold over the suffix of the
@@ -188,9 +189,9 @@ theorem committedFold_suffix {S' : Shape} {O' : OpeningShape S'} {fold' : Descri
     {openKey' : OpeningKey O'} {weight' : ℕ}
     {N : Tier (Fin S'.blocks) (fun _ => Rq O'.carrierDegree) (Claim O' E)
       (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S')) (Witness O' fold')
-        (Weak O') Wire Coord E Result'
+        (Weak O') Wire Coord Slot Result'
       Source'}
-    {tail : Structure (Address Wire total) (Prefix Wire (Option Coord → E) total) (Option Coord) E (ℕ → Wire) Inner
+    {tail : Structure (Address Wire total) (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
       BreakT CandT KeyT
       (Option (Weak O'))}
     {error : ℝ} {loops tree : ℕ}
@@ -337,16 +338,17 @@ end Pair
 section Packing
 
 variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {S' : Shape} {O' : OpeningShape S'}
-  {fold' : Descriptor} {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E]
+  {fold' : Descriptor} {E : Type} [Field E] [Fintype E]
+  {Slot : Type} [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E] [DecidableEq E] [Algebra Zq E]
   {Wire Coord : Type} [Fintype Coord] [DecidableEq Coord] [Nonempty Coord]
   {β : Module.Basis (Fin O.planes) Zq E} {key : Key S} {openKey : OpeningKey O}
   {claim : Wire → Claim O E} {μ : ℕ} {fits : O.cells fold ≤ 2 ^ μ} {batch : ℕ}
   {rowsFit : O.rowCount + 1 ≤ 2 ^ batch} {block : Fin S.blocks → Coord}
-  {decode : E → Option (Rq O.carrierDegree)} {read : Reader Wire} {weight : ℕ}
+  {decode : Slot → Option (Rq O.carrierDegree)} {read : Reader Wire} {weight : ℕ}
   {β' : Module.Basis (Fin O'.planes) Zq E} {key' : Key S'} {openKey' : OpeningKey O'}
   {claim' : Wire → Claim O' E} {μ' : ℕ} {fits' : O'.cells fold' ≤ 2 ^ μ'} {batch' : ℕ}
   {rowsFit' : O'.rowCount + 1 ≤ 2 ^ batch'} {block' : Fin S'.blocks → Coord}
-  {decode' : E → Option (Rq O'.carrierDegree)} {weight' : ℕ} {commit : Wire → S'.Payload}
+  {decode' : Slot → Option (Rq O'.carrierDegree)} {weight' : ℕ} {commit : Wire → S'.Payload}
   {witnessOf : Wire → Witness O' fold'}
 
 local notation "first" =>
@@ -395,12 +397,12 @@ theorem packingPair_extract_sound {peak peak' : ℕ} (injective : Function.Injec
       Sparse weight' peak' challenge)
     (base' : 2 ≤ fold'.responseBase) (small' : S'.certifiedBase < fieldModulus)
     (varsFit' : μ' ≤ Fintype.card Coord) (batchFit' : batch' ≤ Fintype.card Coord)
-    (prover : OracleComp (Address Wire (Tier.finish second)) (Option Coord → E)
+    (prover : OracleComp (Address Wire (Tier.finish second)) (Option Coord → Slot)
       (ℕ → Wire))
-    (budget : ℕ) (table : Address Wire (Tier.finish second) → Option Coord → E)
-    (tape : Tape (Address Wire (Tier.finish second)) (Option Coord) E budget
+    (budget : ℕ) (table : Address Wire (Tier.finish second) → Option Coord → Slot)
+    (tape : Tape (Address Wire (Tier.finish second)) (Option Coord) Slot budget
       (Structure.protocol chain).stages)
-    (out : Opened (Weak O) (Opened (Weak O') (Prefix Wire (Option Coord → E) (Tier.finish second)))
+    (out : Opened (Weak O) (Opened (Weak O') (Prefix Wire (Option Coord → Slot) (Tier.finish second)))
       ⊕
       (LevelBreak key openKey (2 * (2 * weight) * fold.sourceBound S) ⊕
         (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S') ⊕ Unit)))
@@ -443,10 +445,10 @@ theorem packingPair_extraction_le {peak peak' : ℕ} (injective : Function.Injec
     (varsFit' : μ' ≤ Fintype.card Coord) (batchFit' : batch' ≤ Fintype.card Coord)
 
 
-    (prover : OracleComp (Address Wire (Tier.finish second)) (Option Coord → E)
+    (prover : OracleComp (Address Wire (Tier.finish second)) (Option Coord → Slot)
       (ℕ → Wire))
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Address Wire (Tier.finish second)) (Option Coord) E
+    𝔼 table, 𝔼 tape : Tape (Address Wire (Tier.finish second)) (Option Coord) Slot
       budget
           (Structure.protocol chain).stages,
         (if pairAccepts first second commit witnessOf
@@ -472,10 +474,10 @@ theorem packingPair_runs_le {peak peak' : ℕ} (injective : Function.Injective b
       Sparse weight' peak' challenge)
     (base' : 2 ≤ fold'.responseBase) (small' : S'.certifiedBase < fieldModulus)
     (varsFit' : μ' ≤ Fintype.card Coord) (batchFit' : batch' ≤ Fintype.card Coord)
-    (prover : OracleComp (Address Wire (Tier.finish second)) (Option Coord → E)
+    (prover : OracleComp (Address Wire (Tier.finish second)) (Option Coord → Slot)
       (ℕ → Wire))
     {queries : ℕ} (bounded : prover.QueryBound queries) (budget : ℕ) :
-    𝔼 table, 𝔼 tape : Tape (Address Wire (Tier.finish second)) (Option Coord) E
+    𝔼 table, 𝔼 tape : Tape (Address Wire (Tier.finish second)) (Option Coord) Slot
       budget
           (Structure.protocol chain).stages,
         (extractRuns chain prover budget table tape : ℝ) ≤

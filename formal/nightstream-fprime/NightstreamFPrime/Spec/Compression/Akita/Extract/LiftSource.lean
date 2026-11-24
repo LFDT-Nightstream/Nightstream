@@ -352,6 +352,7 @@ attribute [local instance low] Classical.propDecidable
 section Folds
 
 variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {E : Type} [Field E] [Fintype E]
+  {Slot : Type} [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E]
   [DecidableEq E] [Algebra Zq E] {Wire Coord : Type} [Fintype Coord] [DecidableEq Coord]
 
 /-- The level `committedFold` on the quotient-lift route: the checks are `foldCheck` for
@@ -361,10 +362,10 @@ noncomputable def liftFold (β : Module.Basis (Fin O.planes) Zq E) (key : Key S)
     (openKey : OpeningKey O) (claim : Wire → Claim O E) (μ : ℕ) (fits : O.cells fold ≤ 2 ^ μ)
     (digits : ℕ) (room : O.quotientRoom fold digits ≤ 2 ^ μ) (batch : ℕ)
     (rowsFit : O.rowCount + 1 ≤ 2 ^ batch) (block : Fin S.blocks → Coord)
-    (decode : E → Option (Rq O.carrierDegree)) (read : Reader Wire) (weight start : ℕ) :
+    (decode : Slot → Option (Rq O.carrierDegree)) (read : Reader Wire) (weight start : ℕ) :
     Tier (Fin S.blocks) (fun _ => Rq O.carrierDegree) (Claim O E)
       (LevelBreak key openKey (2 * (2 * weight) * fold.sourceBound S)) (Witness O fold) (Weak O)
-      Wire Coord E (Option (List E × E)) Table where
+      Wire Coord Slot (Option (List E × E)) Table where
   method := packing β key openKey weight
   claim := claim
   block b := some (block b)
@@ -385,7 +386,7 @@ variable {β : Module.Basis (Fin O.planes) Zq E} {key : Key S} {openKey : Openin
   {claim : Wire → Claim O E} {μ : ℕ} {fits : O.cells fold ≤ 2 ^ μ} {digits : ℕ}
   {room : O.quotientRoom fold digits ≤ 2 ^ μ} {batch : ℕ}
   {rowsFit : O.rowCount + 1 ≤ 2 ^ batch} {block : Fin S.blocks → Coord}
-  {decode : E → Option (Rq O.carrierDegree)} {read : Reader Wire} {weight start : ℕ}
+  {decode : Slot → Option (Rq O.carrierDegree)} {read : Reader Wire} {weight start : ℕ}
 
 /-- A level on the quotient-lift route satisfies the conditions of `Tier.Valid`, with the
 hypotheses of `committedFold_valid`. -/
@@ -417,14 +418,14 @@ theorem liftFold_valid [Nonempty Coord] {peak : ℕ} (injective : Function.Injec
 with the checks for `liftedReduction`. The stage errors add `r·p + ε_fold` with `foldError` of
 the quotient-lift reduction, which has `2·d_max − 1` in the place of `d_max − 1`. -/
 theorem liftFold_suffix [Nonempty Coord] {total : ℕ}
-    {accept : Prefix Wire (Option Coord → E) total → Prop} {Inner BreakT CandT KeyT : Type}
+    {accept : Prefix Wire (Option Coord → Slot) total → Prop} {Inner BreakT CandT KeyT : Type}
     {S' : Shape} {O' : OpeningShape S'} {fold' : Descriptor}
     {Result' Source' : Type} {β' : Module.Basis (Fin O'.planes) Zq E} {key' : Key S'}
     {openKey' : OpeningKey O'} {weight' : ℕ}
     {N : Tier (Fin S'.blocks) (fun _ => Rq O'.carrierDegree) (Claim O' E)
       (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S')) (Witness O' fold')
-      (Weak O') Wire Coord E Result' Source'}
-    {tail : Structure (Address Wire total) (Prefix Wire (Option Coord → E) total) (Option Coord) E (ℕ → Wire) Inner
+      (Weak O') Wire Coord Slot Result' Source'}
+    {tail : Structure (Address Wire total) (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
       BreakT CandT KeyT
       (Option (Weak O'))}
     {error : ℝ} {loops tree : ℕ} {peak : ℕ} (injective : Function.Injective block)
@@ -464,7 +465,8 @@ end Folds
 
 section Groups
 
-variable {n : ℕ} {B : Batch (Fin n)} {E : Type} [Field E] [Fintype E] [DecidableEq E]
+variable {n : ℕ} {B : Batch (Fin n)} {E : Type} [Field E] [Fintype E]
+  {Slot : Type} [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E] [DecidableEq E]
   [Algebra Zq E] {Wire Coord : Type} [Fintype Coord] [DecidableEq Coord]
 
 /-- The level `committedBatch` on the quotient-lift route: the checks are `foldCheck` for
@@ -474,11 +476,11 @@ noncomputable def liftBatch (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E)
     (key : (g : Fin n) → Key (B.shape g)) (openKey : B.OpenKey) (claim : Wire → B.Claim E)
     (μ : ℕ) (fits : B.cells ≤ 2 ^ μ) (base digits : ℕ) (room : B.quotientRoom digits ≤ 2 ^ μ)
     (batch : ℕ) (rowsFit : B.rowCount + 1 ≤ 2 ^ batch) (block : B.Block → Coord)
-    (decode : (g : Fin n) → E → Option (Rq (B.carrierDegree g))) (read : Reader Wire)
+    (decode : (g : Fin n) → Slot → Option (Rq (B.carrierDegree g))) (read : Reader Wire)
     (mass : Fin n → ℕ) (start : ℕ) :
     Tier B.Block (fun b => Rq (B.carrierDegree b.1)) (B.Claim E)
       (B.LevelBreak key openKey fun g => 2 * (2 * mass g) * (B.fold g).sourceBound (B.shape g))
-      B.Witness B.Weak Wire Coord E (Option (List E × E)) Table where
+      B.Witness B.Weak Wire Coord Slot (Option (List E × E)) Table where
   method := Batch.method β key openKey mass
   claim := claim
   block b := some (block b)
@@ -499,7 +501,7 @@ variable {β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E} {key : (g : Fin n) �
   {openKey : B.OpenKey} {claim : Wire → B.Claim E} {μ : ℕ} {fits : B.cells ≤ 2 ^ μ}
   {base digits : ℕ} {room : B.quotientRoom digits ≤ 2 ^ μ} {batch : ℕ}
   {rowsFit : B.rowCount + 1 ≤ 2 ^ batch} {block : B.Block → Coord}
-  {decode : (g : Fin n) → E → Option (Rq (B.carrierDegree g))} {read : Reader Wire}
+  {decode : (g : Fin n) → Slot → Option (Rq (B.carrierDegree g))} {read : Reader Wire}
   {mass : Fin n → ℕ} {start : ℕ}
 
 /-- A level with opening groups on the quotient-lift route satisfies the conditions of
@@ -534,14 +536,14 @@ theorem liftBatch_valid [Nonempty Coord] {peak : Fin n → ℕ}
 /-- Akita Proposition 10.44 for one more level with opening groups on the quotient-lift route:
 `committedBatch_suffix` with the checks for `Batch.liftedReduction`. -/
 theorem liftBatch_suffix [Nonempty Coord] {total : ℕ}
-    {accept : Prefix Wire (Option Coord → E) total → Prop} {Inner BreakT CandT KeyT : Type}
+    {accept : Prefix Wire (Option Coord → Slot) total → Prop} {Inner BreakT CandT KeyT : Type}
     {S' : Shape} {O' : OpeningShape S'} {fold' : Descriptor}
     {Result' Source' : Type} {β' : Module.Basis (Fin O'.planes) Zq E} {key' : Key S'}
     {openKey' : OpeningKey O'} {weight' : ℕ}
     {N : Tier (Fin S'.blocks) (fun _ => Rq O'.carrierDegree) (Claim O' E)
       (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S')) (Witness O' fold')
-      (Weak O') Wire Coord E Result' Source'}
-    {tail : Structure (Address Wire total) (Prefix Wire (Option Coord → E) total) (Option Coord) E (ℕ → Wire) Inner
+      (Weak O') Wire Coord Slot Result' Source'}
+    {tail : Structure (Address Wire total) (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
       BreakT CandT KeyT
       (Option (Weak O'))}
     {error : ℝ} {loops tree : ℕ} {peak : Fin n → ℕ} (injective : Function.Injective block)
@@ -587,7 +589,7 @@ theorem liftRoot_suffix [Nonempty Coord] {S' : Shape} {O' : OpeningShape S'}
     {fold' : Descriptor} {β' : Module.Basis (Fin O'.planes) Zq E} {key' : Key S'}
     {openKey' : OpeningKey O'} {claim' : Wire → Claim O' E} {μ' : ℕ}
     {fits' : O'.cells fold' ≤ 2 ^ μ'} {batch' : ℕ} {rowsFit' : O'.rowCount + 1 ≤ 2 ^ batch'}
-    {block' : Fin S'.blocks → Coord} {decode' : E → Option (Rq O'.carrierDegree)} {weight' : ℕ}
+    {block' : Fin S'.blocks → Coord} {decode' : Slot → Option (Rq O'.carrierDegree)} {weight' : ℕ}
     {commit : Wire → (g : Fin n) → (B.shape g).Payload} {value : Wire → Fin n → E}
     {place : Wire → Fin n → List E} {next : Wire → S'.Payload}
     {witnessOf : Wire → Witness O' fold'} {peak : Fin n → ℕ} {peak' : ℕ}
@@ -629,7 +631,7 @@ theorem liftRoot_suffix [Nonempty Coord] {S' : Shape} {O' : OpeningShape S'}
   batchRoot_suffix B.card_block
     (liftBatch_valid injective units sparse response uniform small varsFit batchFit)
     (clearFold_valid injective' units' sparse' base' small' varsFit' batchFit')
-    (exists_fair_slots groupsFit) rfl rfl rfl rfl
+    (exists_fair_fields groupsFit) rfl rfl rfl rfl
     (fun _ _ table other => foldCheck_bare _ _ _ _ table other)
     (fun _ r2 v opened => ⟨r2, v, rfl, opened⟩)
 

@@ -23,7 +23,7 @@ of a matrix of the file. The two rows of `key30.aks` have the same comparison wi
 `Key30.instances` (`Spec/Compression/Akita/Key30Instances.lean`). A file does not hold the
 compression maps. The counts `count_pm1` and `count_pm2` of each group of each level and of the
 terminal are the pair of `Key20.families` and `Key30.families`, the families of the decoders of
-the Lean verifier (`Key20.families_drawn`, `Key30.families_drawn`, `Tower.Drawn.family`). Lake does not track the files, so
+the Lean verifier (`Key20.families_code`, `Key30.families_code`). Lake does not track the files, so
 `scripts/validate.sh` runs this file again. -/
 
 namespace AkitaSchedules

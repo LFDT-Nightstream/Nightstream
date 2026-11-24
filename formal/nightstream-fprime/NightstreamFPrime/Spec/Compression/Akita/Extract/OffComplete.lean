@@ -56,18 +56,20 @@ noncomputable def offState {B : Batch (Fin 2)} (key : Key (B.shape 1))
   Batch.pairOf (F := fun g => (B.shape g).Payload × Decommitment (B.shape g)) (registry, reference)
     (commitSource key fun i => (B.shape 1).embed ((B.shape 1).pack witness i))
 
-variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree2 E]
+variable {E : Type} [Field E] [Fintype E]
+  {Slot : Type} [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E]
+  [DecidableEq E] [Algebra Zq E] [Degree2 E]
   {B₁ : Batch (Fin 2)} {S₂ : Shape} {O₂ : OpeningShape S₂} {fold₂ : Descriptor} {S₃ : Shape}
   {O₃ : OpeningShape S₃} {fold₃ : Descriptor} {S₄ : Shape} {O₄ : OpeningShape S₄}
   {fold₄ : Descriptor} {S₅ : Shape} {O₅ : OpeningShape S₅} {fold₅ : Descriptor} {S₆ : Shape}
   {O₆ : OpeningShape S₆} {fold₆ : Descriptor} {S₇ : Shape}
   {Wire Coord : Type} [Fintype Coord] [DecidableEq Coord] {total : ℕ}
-  {accept : Prefix Wire (Option Coord → E) total → Prop} {read : Reader Wire}
+  {accept : Prefix Wire (Option Coord → Slot) total → Prop} {read : Reader Wire}
   {β₁ : ∀ g, Module.Basis (Fin (B₁.planes g)) Zq E} {key₁ : (g : Fin 2) → Key (B₁.shape g)}
   {openKey₁ : B₁.OpenKey} {claim₁ : Wire → B₁.Claim E} {μ₁ : ℕ} {fits₁ : B₁.cells ≤ 2 ^ μ₁}
   {base₁ digits₁ : ℕ} {room₁ : B₁.quotientRoom digits₁ ≤ 2 ^ μ₁} {batch₁ : ℕ}
   {rowsFit₁ : B₁.rowCount + 1 ≤ 2 ^ batch₁} {block₁ : B₁.Block → Coord}
-  {decode₁ : (g : Fin 2) → E → Option (Rq (B₁.carrierDegree g))} {mass₁ : Fin 2 → ℕ}
+  {decode₁ : (g : Fin 2) → Slot → Option (Rq (B₁.carrierDegree g))} {mass₁ : Fin 2 → ℕ}
   {registry : (B₁.shape 0).Payload} {reference : Decommitment (B₁.shape 0)} {flat : Table}
   {fix : B₁.Weak → B₁.Claim E → B₁.LevelBreak key₁ openKey₁
     fun g => 2 * (2 * mass₁ g) * (B₁.fold g).sourceBound (B₁.shape g)}
@@ -75,26 +77,26 @@ variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree
   {claim₂ : Wire → Claim O₂ E} {μ₂ : ℕ} {fits₂ : O₂.cells fold₂ ≤ 2 ^ μ₂} {digits₂ : ℕ}
   {room₂ : O₂.quotientRoom fold₂ digits₂ ≤ 2 ^ μ₂} {batch₂ : ℕ}
   {rowsFit₂ : O₂.rowCount + 1 ≤ 2 ^ batch₂} {block₂ : Fin S₂.blocks → Coord}
-  {decode₂ : E → Option (Rq O₂.carrierDegree)} {weight₂ : ℕ}
+  {decode₂ : Slot → Option (Rq O₂.carrierDegree)} {weight₂ : ℕ}
   {β₃ : Module.Basis (Fin O₃.planes) Zq E} {key₃ : Key S₃} {openKey₃ : OpeningKey O₃}
   {claim₃ : Wire → Claim O₃ E} {μ₃ : ℕ} {fits₃ : O₃.cells fold₃ ≤ 2 ^ μ₃} {digits₃ : ℕ}
   {room₃ : O₃.quotientRoom fold₃ digits₃ ≤ 2 ^ μ₃} {batch₃ : ℕ}
   {rowsFit₃ : O₃.rowCount + 1 ≤ 2 ^ batch₃} {block₃ : Fin S₃.blocks → Coord}
-  {decode₃ : E → Option (Rq O₃.carrierDegree)} {weight₃ ν₃ : ℕ}
+  {decode₃ : Slot → Option (Rq O₃.carrierDegree)} {weight₃ ν₃ : ℕ}
   {key₄ : Key S₄} {openKey₄ : OpeningKey O₄} {claim₄ : Wire → TraceClaim O₄ E}
   {μ₄ : ℕ} {fits₄ : O₄.cells fold₄ ≤ 2 ^ μ₄} {batch₄ : ℕ}
   {rowsFit₄ : O₄.traceRowCount + 1 ≤ 2 ^ batch₄} {block₄ : Fin S₄.blocks → Coord}
-  {decode₄ : E → Option (Rq S₄.innerDegree)} {weight₄ ν₄ m₄ : ℕ}
+  {decode₄ : Slot → Option (Rq S₄.innerDegree)} {weight₄ ν₄ m₄ : ℕ}
   {key₅ : Key S₅} {openKey₅ : OpeningKey O₅} {claim₅ : Wire → TraceClaim O₅ E}
   {μ₅ : ℕ} {fits₅ : O₅.cells fold₅ ≤ 2 ^ μ₅} {batch₅ : ℕ}
   {rowsFit₅ : O₅.traceRowCount + 1 ≤ 2 ^ batch₅} {block₅ : Fin S₅.blocks → Coord}
-  {decode₅ : E → Option (Rq S₅.innerDegree)} {weight₅ ν₅ m₅ : ℕ}
+  {decode₅ : Slot → Option (Rq S₅.innerDegree)} {weight₅ ν₅ m₅ : ℕ}
   {key₆ : Key S₆} {openKey₆ : OpeningKey O₆} {claim₆ : Wire → TraceClaim O₆ E}
   {μ₆ : ℕ} {fits₆ : O₆.cells fold₆ ≤ 2 ^ μ₆} {batch₆ : ℕ}
   {rowsFit₆ : O₆.traceRowCount + 1 ≤ 2 ^ batch₆} {block₆ : Fin S₆.blocks → Coord}
-  {decode₆ : E → Option (Rq S₆.innerDegree)} {weight₆ ν₆ m₆ : ℕ}
+  {decode₆ : Slot → Option (Rq S₆.innerDegree)} {weight₆ ν₆ m₆ : ℕ}
   {operator₅ limit₅ operator₆ limit₆ operatorL limitL : ℕ}
-  {L : Terminal S₇ E Wire Coord E total (.euclidean operatorL limitL)} {m₇ : ℕ}
+  {L : Terminal S₇ E Wire Coord Slot total (.euclidean operatorL limitL)} {m₇ : ℕ}
   {commits : Wire → (g : Fin 2) → (B₁.shape g).Payload} {values : Wire → Fin 2 → E}
   {places : Wire → Fin 2 → List E} {commit₁ : Wire → (B₁.shape 1).Payload}
   {commit₂ : Wire → S₂.Payload} {commit₃ : Wire → S₃.Payload} {commit₄ : Wire → S₄.Payload}
@@ -131,6 +133,7 @@ local notation "sixth" =>
   Tier.tensored (committedTraceSq (fold := fold₆) key₆ openKey₆ claim₆ μ₆ fits₆ batch₆ rowsFit₆
     block₆ decode₆ read weight₆ operator₆ limit₆ (Tier.finish fifth)) ν₆
 
+omit [FieldSlot Slot E] in
 /-- Akita Theorem 10.9 for the opening from the batching stage of the two claims of Akita (136),
 without the probability that a response does not fit and without the term of (155) for a zero
 tensor factor. `early` is a transcript prefix of `start₁` moves on the path of the table of the
@@ -217,7 +220,7 @@ theorem stateTower_complete {sendable : (M : Type) → M → Prop} {slots width 
     (reads : ∀ point, L.read point = statementOf (point.wire L.start))
     (clears : ∀ point, L.partials point = partialsOf (point.wire L.start))
     (counts : ∀ wire, L.nonce wire = read.nonce wire)
-    (table : Prefix Wire (Option Coord → E) total → Option Coord → E)
+    (table : Prefix Wire (Option Coord → Slot) total → Option Coord → Slot)
     (decodes₁ : ∀ input b, (decode₁ b.1 (table input (some (block₁ b)))).isSome)
     (decodes₂ : ∀ input i, (decode₂ (table input (some (block₂ i)))).isSome)
     (decodes₃ : ∀ input i, (decode₃ (table input (some (block₃ i)))).isSome)
@@ -225,8 +228,8 @@ theorem stateTower_complete {sendable : (M : Type) → M → Prop} {slots width 
     (decodes₅ : ∀ input i, (decode₅ (table input (some (block₅ i)))).isSome)
     (decodes₆ : ∀ input i, (decode₆ (table input (some (block₆ i)))).isSome)
     (decodesL : ∀ input i, (L.decode (table input (L.slot i))).isSome)
-    (worked : ∀ input, table input none ∈ workZeros E 57)
-    {wire₀ : Wire} {early : List ((Option Coord → E) × Wire)} (on : OnPath accept table wire₀ early)
+    (worked : ∀ input, table input none ∈ workZeros Slot 57)
+    {wire₀ : Wire} {early : List ((Option Coord → Slot) × Wire)} (on : OnPath accept table wire₀ early)
     (starts : early.length = start₁) {witness : Table} {r2 ρ : List E}
     (committed : commits (lastWire wire₀ early) =
       Batch.pairOf (F := fun g => (B₁.shape g).Payload) registry
@@ -242,20 +245,20 @@ theorem stateTower_complete {sendable : (M : Type) → M → Prop} {slots width 
         fun w₂ =>
       LiftFit β₃ key₃ openKey₃ fold₃ μ₃ fits₃ digits₃ decode₃ (fun i => S₃.embed (S₃.pack w₂ i))
         fun w₃ =>
-      TraceFit quarter₄ key₄ openKey₄ fold₄ (fun _ => decode₄) (fun _ => True) (packed w₃)
+      TraceFit (E := E) quarter₄ key₄ openKey₄ fold₄ (fun _ => decode₄) (fun _ => True) (packed w₃)
         fun w₄ =>
-      TraceFit quarter₅ key₅ openKey₅ fold₅ (fun _ => decode₅) (fun z => vecNormSq z ≤ limit₅)
+      TraceFit (E := E) quarter₅ key₅ openKey₅ fold₅ (fun _ => decode₅) (fun z => vecNormSq z ≤ limit₅)
         (packed w₄) fun w₅ =>
-      TraceFit quarter₆ key₆ openKey₆ fold₆ (fun _ => decode₆) (fun z => vecNormSq z ≤ limit₆)
+      TraceFit (E := E) quarter₆ key₆ openKey₆ fold₆ (fun _ => decode₆) (fun z => vecNormSq z ≤ limit₆)
         (packed w₅) fun w₆ =>
       ∀ c : Fin S₇.blocks → Rq S₇.innerDegree, (∀ i, ∃ slot, L.decode slot = some (c i)) →
         vecNormSq (traceResponse c (traceSource quarter₇ (packed w₆ : ℕ → E))) ≤ limitL) :
     ∃ later, OnPath accept table wire₀ (early ++ later) ∧ (early ++ later).length = total ∧
-      ∀ stage : Prefix Wire (Option Coord → E) total, stage.first = wire₀ →
+      ∀ stage : Prefix Wire (Option Coord → Slot) total, stage.first = wire₀ →
         stage.rest = early ++ later →
         (start₁ < stage.rest.length ∧
           RootLinked first start₁ commits values places
-            ((claimsRoot (Coord := Coord) (Slot := E) (total := total) start₁ read values
+            ((claimsRoot (Coord := Coord) (Slot := Slot) (total := total) start₁ read values
               places).weights stage) stage) ∧
         Tier.Linked first second commit₂ stage ∧ Tier.Linked second third commit₃ stage ∧
         Tier.TraceLinked third fourth quarter₄ commit₄ stage ∧
@@ -391,7 +394,7 @@ variable {count : ℕ} {B : Batch (Fin count)} {start : ℕ}
   {openKey : B.OpenKey} {claim : Wire → B.Claim E} {μ : ℕ} {fits : B.cells ≤ 2 ^ μ}
   {base digits : ℕ} {room₀ : B.quotientRoom digits ≤ 2 ^ μ} {batch : ℕ}
   {rowsFit : B.rowCount + 1 ≤ 2 ^ batch} {block : B.Block → Coord}
-  {decode : (g : Fin count) → E → Option (Rq (B.carrierDegree g))} {mass : Fin count → ℕ} {ν : ℕ}
+  {decode : (g : Fin count) → Slot → Option (Rq (B.carrierDegree g))} {mass : Fin count → ℕ} {ν : ℕ}
   {scan : ∀ (wire : Wire) (challenge : B.Challenge),
     SetupScan (Batch.liftedReduction β ((claim wire).statement key openKey) challenge μ fits base
       digits room₀ batch rowsFit) ν flat}
@@ -426,6 +429,7 @@ local notation "sixth" =>
   Tier.tensored (committedTraceSq (fold := fold₆) key₆ openKey₆ claim₆ μ₆ fits₆ batch₆ rowsFit₆
     block₆ decode₆ read weight₆ operator₆ limit₆ (Tier.finish fifth)) ν₆
 
+omit [FieldSlot Slot E] in
 /-- Akita Theorem 10.9 for the opening with a batching root, an offloaded root fold with opening
 groups, the level 1 with the group of the setup prefix and the group of the witness, two packing
 levels, three trace levels and the terminal, without the probability that a response does not fit
@@ -525,7 +529,7 @@ theorem offTower_complete {sendable : (M : Type) → M → Prop} {slots width ca
     (reads : ∀ point, L.read point = statementOf (point.wire L.start))
     (clears : ∀ point, L.partials point = partialsOf (point.wire L.start))
     (counts : ∀ wire, L.nonce wire = read.nonce wire)
-    (table : Prefix Wire (Option Coord → E) total → Option Coord → E)
+    (table : Prefix Wire (Option Coord → Slot) total → Option Coord → Slot)
     (decodes₀ : ∀ input b, (decode b.1 (table input (some (block b)))).isSome)
     (decodes₁ : ∀ input b, (decode₁ b.1 (table input (some (block₁ b)))).isSome)
     (decodes₂ : ∀ input i, (decode₂ (table input (some (block₂ i)))).isSome)
@@ -534,8 +538,8 @@ theorem offTower_complete {sendable : (M : Type) → M → Prop} {slots width ca
     (decodes₅ : ∀ input i, (decode₅ (table input (some (block₅ i)))).isSome)
     (decodes₆ : ∀ input i, (decode₆ (table input (some (block₆ i)))).isSome)
     (decodesL : ∀ input i, (L.decode (table input (L.slot i))).isSome)
-    (worked : ∀ input, table input none ∈ workZeros E 57)
-    {wire₀ : Wire} {early : List ((Option Coord → E) × Wire)} (on : OnPath accept table wire₀ early)
+    (worked : ∀ input, table input none ∈ workZeros Slot 57)
+    {wire₀ : Wire} {early : List ((Option Coord → Slot) × Wire)} (on : OnPath accept table wire₀ early)
     (starts : early.length = start) {tables : Fin count → Table}
     {blockOf positionOf packOf tailOf : Fin count → List E}
     (blocks₀ : ∀ g, (B.shape g).blocks ≤ 2 ^ (blockOf g).length)
@@ -556,16 +560,16 @@ theorem offTower_complete {sendable : (M : Type) → M → Prop} {slots width ca
         fun w₂ =>
       LiftFit β₃ key₃ openKey₃ fold₃ μ₃ fits₃ digits₃ decode₃ (fun i => S₃.embed (S₃.pack w₂ i))
         fun w₃ =>
-      TraceFit quarter₄ key₄ openKey₄ fold₄ (fun _ => decode₄) (fun _ => True) (packed w₃)
+      TraceFit (E := E) quarter₄ key₄ openKey₄ fold₄ (fun _ => decode₄) (fun _ => True) (packed w₃)
         fun w₄ =>
-      TraceFit quarter₅ key₅ openKey₅ fold₅ (fun _ => decode₅) (fun z => vecNormSq z ≤ limit₅)
+      TraceFit (E := E) quarter₅ key₅ openKey₅ fold₅ (fun _ => decode₅) (fun z => vecNormSq z ≤ limit₅)
         (packed w₄) fun w₅ =>
-      TraceFit quarter₆ key₆ openKey₆ fold₆ (fun _ => decode₆) (fun z => vecNormSq z ≤ limit₆)
+      TraceFit (E := E) quarter₆ key₆ openKey₆ fold₆ (fun _ => decode₆) (fun z => vecNormSq z ≤ limit₆)
         (packed w₅) fun w₆ =>
       ∀ c : Fin S₇.blocks → Rq S₇.innerDegree, (∀ i, ∃ slot, L.decode slot = some (c i)) →
         vecNormSq (traceResponse c (traceSource quarter₇ (packed w₆ : ℕ → E))) ≤ limitL) :
     ∃ later, OnPath accept table wire₀ (early ++ later) ∧ (early ++ later).length = total ∧
-      ∀ stage : Prefix Wire (Option Coord → E) total, stage.first = wire₀ →
+      ∀ stage : Prefix Wire (Option Coord → Slot) total, stage.first = wire₀ →
         stage.rest = early ++ later →
         offLinks (weight₅ := weight₅) (weight₆ := weight₆) (route₄ := Route.coefficient)
           (route₅ := Route.euclidean operator₅ limit₅)

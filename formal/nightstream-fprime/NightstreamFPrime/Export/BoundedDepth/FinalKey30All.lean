@@ -5,7 +5,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Key30Instances
 
 /-! The final verifier over the Akita opening of the schedule file
 `crates/ns-compress/artifacts/key30.aks` for each claim shape and for the proof of zero steps,
-with the decoders `draw` of the sparse challenge families (SPEC.md, Algorithm 10;
+with the fold decoders of the pinned Akita code on the slots `Replay.CodeSlot K` (SPEC.md, Algorithm 10;
 `SECURITY_MODEL.md`, adversaries 4 and 6; Akita, ePrint 2026/1983, revision of 2026-11-23,
 Section 3.2, (23), Section 9 with Lemma 9.1, Definition 9.2 E1 and Theorem 10.17).
 
@@ -18,8 +18,8 @@ the shape. The bound is the sum of the bounds of the shapes.
   `Key30.Tower.Shared`: the matrices of the root are the views of the setup prefix (Akita (35)),
   and then Lean proves the split (132) of the public weight of the root. `Opening.accepts` is
   the verifier for it: the conditions `Compose.Ran` and the verifier `Key30.Tower.links` at the
-  stage `Compose.root`, which is `Extract.offAccepts` of `FinalKey30.sound` for the decoders
-  `draw`. `Opening.body` is its checkpoint structure.
+  stage `Compose.root`, which is `Extract.offAccepts` of `FinalKey30.sound` for the decoders of
+  the code. `Opening.body` is its checkpoint structure.
 - `Opening.Drawn` has the hypotheses on an opening. It has no hypothesis on units, on `‖c‖_1`,
   on the operator bound or on the slot probability: the filter `TrigTable.codeAccepts` of the
   code accepts only elements with `‖c‖_mul,2 ≤ Γ` (`TrigTable.filtered_code`; Akita Appendix H,
@@ -42,6 +42,8 @@ the shape. The bound is the sum of the bounds of the shapes.
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.BoundedDepth.FinalKey30
+
+open NightstreamFPrime.Spec.Compression.Akita.Replay (CodeSlot)
 
 open scoped BigOperators
 open NightstreamFPrime.Spec NightstreamFPrime.Spec.FieldExtensionRing
@@ -84,7 +86,7 @@ structure Opening (logicalWidth : Nat)
   row : Key30.Row
   member : row ∈ Key30.rows
   shape : Claims logicalWidth publicFits
-  bound : Prefix Wire (Option Coord → K) total → (g : Fin 3) → ((Key30.root row).shape g).Payload
+  bound : Prefix Wire (Option Coord → CodeSlot K) total → (g : Fin 3) → ((Key30.root row).shape g).Payload
   tower : Key30.Tower row member K Wire Coord total
   honest : Certified ((Key30.root row).shape 0)
   factorBound : ℕ
@@ -110,7 +112,7 @@ local notation "vf" => FinalVerifier.Setup.verifier S₀ o.shape
 under the setup `laidSetup`: the conditions `Compose.Ran` of the stages before the opening, and
 the verifier `Key30.Tower.links` of the opening with the batching root at the stage
 `Compose.root`. -/
-def Opening.accepts (point : Prefix Wire (Option Coord → K) total) : Prop :=
+def Opening.accepts (point : Prefix Wire (Option Coord → CodeSlot K) total) : Prop :=
   Compose.Ran C vf o.tower.commit o.tower.value o.tower.place point ∧
     o.tower.links shared (Compose.read C) (Compose.root C vf) point
 
@@ -125,8 +127,8 @@ local notation "whole" =>
     (Opening.body setup packageWidths step cap control read head o shared) o.tower.key
     o.tower.openKey Key30.mass Sum.inl
 
-/-- The hypotheses on the Akita opening of `o`, whose decoders are the decoders `draw` of the
-sparse challenge families of the Akita code. `laid`: the shape passes the layout of step 5
+/-- The hypotheses on the Akita opening of `o`, whose decoders are the decoders of the code of
+the sparse challenge families of the Akita code. `laid`: the shape passes the layout of step 5
 (SPEC.md Algorithm 10). `row`: `W` has the count of variables of the row of `o`. `early`: the
 commitments of the key polynomial and of `W` are fixed by the first message. `opening`: the
 hypotheses `Key30.Tower.Drawn` of the opening at the stage `Compose.root`. `registered` and
@@ -152,14 +154,14 @@ theorem covers_one (r : Key30.Row) :
   rw [Nat.one_mul]
   exact Descriptor.key30_covers
 
-variable (prover : OracleComp (Address Wire total) (Option Coord → K) (ℕ → Wire))
+variable (prover : OracleComp (Address Wire total) (Option Coord → CodeSlot K) (ℕ → Wire))
 
 /-- The proof with witnesses that the extractor gives for the shape of `o`: the proof
 `Setup.envelope` of the table `W` of a certificate, for the statement and the claims of the first
 message of the prover. It is the bottom proof when the extractor returns no certificate. -/
 noncomputable def Opening.proof (budget : ℕ) (table : Address Wire total → Option
-  Coord → K)
-    (tape : Tape (Address Wire total) (Option Coord) K budget total) :
+  Coord → CodeSlot K)
+    (tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget total) :
     Terminal.ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits) :=
   match Checkpoint.extract whole prover budget table tape with
   | some (.inl certificate) =>
@@ -205,7 +207,7 @@ theorem Opening.knowledge (premises : Premises setup packageWidths)
     (blocks : setup.keyBlocks = 524288) (coords : 40 ≤ Fintype.card Coord)
     (drawn : o.Drawn setup packageWidths step cap control read head shared) {queries : ℕ}
     (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) K budget total,
+    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget total,
         (if o.accepts setup packageWidths step cap control read head shared
               (played prover table) ∧
             ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths cap control
@@ -335,14 +337,14 @@ section All
 variable {ι : Type} [Fintype ι] (kind : Wire → Option ι)
   (family : ι → Opening logicalWidth publicFits Wire Coord total)
   (shared : ∀ index, (family index).tower.Shared)
-  (prover : OracleComp (Address Wire total) (Option Coord → K) (ℕ → Wire))
+  (prover : OracleComp (Address Wire total) (Option Coord → CodeSlot K) (ℕ → Wire))
 
 /-- The final verifier over the Akita openings of `key30.aks` (SPEC.md Algorithm 10):
 `FinalShapes.finalAccepts` for the verifiers `Opening.accepts` of the family. It accepts a
 transcript when the statement of the first message is a statement of zero steps (step 1), or
 when the first message names the shape `kind` of the family and the verifier of this shape
 accepts. -/
-def finalAccepts : Prefix Wire (Option Coord → K) total → Prop :=
+def finalAccepts : Prefix Wire (Option Coord → CodeSlot K) total → Prop :=
   FinalShapes.finalAccepts head kind fun index =>
     (family index).accepts setup packageWidths step cap control read head (shared index)
 
@@ -422,7 +424,7 @@ noncomputable def adversary :
 /-- The final verifier accepts `(i, z0, zi)` for the table of the oracle, and no `i` valid steps
 of `program` lead from `z0` to `zi` (`FinalShapes.FalseHistory`). -/
 def FalseHistory (program : Stage1.Application.Program)
-    (table : Address Wire total → Option Coord → K) : Prop :=
+    (table : Address Wire total → Option Coord → CodeSlot K) : Prop :=
   FinalShapes.FalseHistory head kind
     (fun index => (family index).accepts setup packageWidths step cap control read head
       (shared index))
@@ -517,7 +519,7 @@ theorem history_knowledge_drawn
     keysShaped admitted depth depthBound
 
 variable {p : Nebula.Plan} (app : Nebula.PortApp p.toGeometry)
-  (claim : (Address Wire total → Option Coord → K) →
+  (claim : (Address Wire total → Option Coord → CodeSlot K) →
     PMF (Lifecycle.Nebula.EndToEnd.MemoryStatement app.width))
 
 local notation "verifiers" => fun index =>

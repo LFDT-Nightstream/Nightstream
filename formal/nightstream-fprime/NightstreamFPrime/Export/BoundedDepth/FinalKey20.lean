@@ -27,6 +27,8 @@ set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.BoundedDepth.FinalKey20
 
+open NightstreamFPrime.Spec.Compression.Akita.Replay (CodeSlot)
+
 open scoped BigOperators
 open NightstreamFPrime.Spec NightstreamFPrime.Spec.FieldExtensionRing
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
@@ -60,28 +62,28 @@ variable {logicalWidth : Nat}
   (control : AppState → AppWitness → Fin 2) (shape : Claims logicalWidth publicFits)
   {Wire Coord : Type} {total : ℕ} (read : Reader Wire)
   (head : Wire → First logicalWidth publicFits)
-  (bound : Prefix Wire (Option Coord → K) total → (g : Fin 3) → (root.shape g).Payload)
+  (bound : Prefix Wire (Option Coord → CodeSlot K) total → (g : Fin 3) → (root.shape g).Payload)
   [Fintype Coord] [DecidableEq Coord] [Nonempty Coord]
   {β : ∀ g, Module.Basis (Fin (root.planes g)) Zq K} {key : (g : Fin 3) → Key (root.shape g)}
   {openKey : root.OpenKey} {claim : Wire → root.Claim K} {block : root.Block → Coord}
-  {decode : (g : Fin 3) → K → Option (Rq (root.carrierDegree g))} {mass : Fin 3 → ℕ}
+  {decode : (g : Fin 3) → CodeSlot K → Option (Rq (root.carrierDegree g))} {mass : Fin 3 → ℕ}
   {β₁ : Module.Basis (Fin level₁.opening.planes) Zq K} {key₁ : Key level₁.shape}
   {openKey₁ : OpeningKey level₁.opening} {claim₁ : Wire → Claim level₁.opening K}
   {block₁ : Fin level₁.shape.blocks → Coord}
-  {decode₁ : K → Option (Rq level₁.opening.carrierDegree)} {weight₁ : ℕ}
+  {decode₁ : CodeSlot K → Option (Rq level₁.opening.carrierDegree)} {weight₁ : ℕ}
   {key₂ : Key level₂.shape} {openKey₂ : OpeningKey level₂.opening}
   {claim₂ : Wire → TraceClaim level₂.opening K} {block₂ : Fin level₂.shape.blocks → Coord}
-  {decode₂ : K → Option (Rq level₂.shape.innerDegree)} {weight₂ : ℕ}
+  {decode₂ : CodeSlot K → Option (Rq level₂.shape.innerDegree)} {weight₂ : ℕ}
   {key₃ : Key level₃.shape} {openKey₃ : OpeningKey level₃.opening}
   {claim₃ : Wire → TraceClaim level₃.opening K} {block₃ : Fin level₃.shape.blocks → Coord}
-  {decode₃ : K → Option (Rq level₃.shape.innerDegree)} {weight₃ : ℕ}
+  {decode₃ : CodeSlot K → Option (Rq level₃.shape.innerDegree)} {weight₃ : ℕ}
   {key₄ : Key level₄.shape} {openKey₄ : OpeningKey level₄.opening}
   {claim₄ : Wire → TraceClaim level₄.opening K} {block₄ : Fin level₄.shape.blocks → Coord}
-  {decode₄ : K → Option (Rq level₄.shape.innerDegree)} {weight₄ : ℕ}
+  {decode₄ : CodeSlot K → Option (Rq level₄.shape.innerDegree)} {weight₄ : ℕ}
   {key₅ : Key level₅.shape} {openKey₅ : OpeningKey level₅.opening}
   {claim₅ : Wire → TraceClaim level₅.opening K} {block₅ : Fin level₅.shape.blocks → Coord}
-  {decode₅ : K → Option (Rq level₅.shape.innerDegree)} {weight₅ : ℕ}
-  {L : Terminal Key20.terminal K Wire Coord K total
+  {decode₅ : CodeSlot K → Option (Rq level₅.shape.innerDegree)} {weight₅ : ℕ}
+  {L : Terminal Key20.terminal K Wire Coord (CodeSlot K) total
     (.euclidean normTerminal.operator normTerminal.limit)}
   {commit : Wire → (g : Fin 3) → (root.shape g).Payload} {value : Wire → Fin 3 → K}
   {place : Wire → Fin 3 → List K} {commit₁ : Wire → level₁.shape.Payload}
@@ -216,7 +218,7 @@ omit [Nonempty Coord] in
 /-- On a transcript with the conditions `Compose.Ran` of the final verifier with `Use`, the points
 of the three claims of the Akita opening have 20, 16 and 16 coordinates
 (`Compose.Ran.lengths`, `key20_points`). -/
-theorem Use.points (use : Use setup shape) {point : Prefix Wire (Option Coord → K) total}
+theorem Use.points (use : Use setup shape) {point : Prefix Wire (Option Coord → CodeSlot K) total}
     (ran : Compose.Ran C vf commit value place point) :
     ∀ g, (place (point.wire (Compose.root C vf)) g).length = ![20, 16, 16] g := by
   obtain ⟨key, w, v, -⟩ := key20_points setup shape use
@@ -285,14 +287,14 @@ theorem sound [Finite Wire] {peak : Fin 3 → ℕ} (premises : Premises setup pa
     (chance₂ : slotChance decode₂ ≤ p) (chance₃ : slotChance decode₃ ≤ p)
     (chance₄ : slotChance decode₄ ≤ p) (chance₅ : slotChance decode₅ ≤ p)
     (chanceL : slotChance (Terminal.decode L) ≤ p)
-    (prover : OracleComp (Address Wire total) (Option Coord → K) (ℕ → Wire))
+    (prover : OracleComp (Address Wire total) (Option Coord → CodeSlot K) (ℕ → Wire))
     {honest : Certified (root.shape 0)} {factorBound sourceBound innerBound : ℕ}
     (registered : ∀ anchor, honest.Opens factorBound sourceBound (key 0) (bound anchor 0)
       (keyBase (setup.params shape)))
     (covers : factorBound * (root.fold 0).sourceBound (root.shape 0) + 2 * mass 0 * sourceBound ≤
       innerBound)
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 _tape : Tape (Address Wire total) (Option Coord) K budget
+    𝔼 table, 𝔼 _tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget
           (Structure.protocol whole).stages,
         (if accepts ((Structure.protocol whole).final prover table) ∧
             ¬ Proved setup packageWidths step cap control head
@@ -377,7 +379,7 @@ its messages. `nonces`: the terminal reads the nonce of the response search with
 the fit conditions of `Key20.tower_complete` for the tables of the key polynomial, `W` and the
 honest inverses of each lookup challenges that are no table values. -/
 theorem complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
-    {accept : Prefix Wire (Option Coord → K) total → Prop}
+    {accept : Prefix Wire (Option Coord → CodeSlot K) total → Prop}
     {statementOf : Wire → TerminalStatement Key20.terminal K}
     {partialsOf : Wire → Fin Key20.terminal.blocks → Rq Key20.terminal.innerDegree}
     (use : Use setup shape) (sends : Sends sendable K width cap) (wide : 8 ≤ width)
@@ -399,11 +401,11 @@ theorem complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
     (reads : ∀ point, Terminal.read L point = statementOf (point.wire (Terminal.start L)))
     (clears : ∀ point, Terminal.partials L point = partialsOf (point.wire (Terminal.start L)))
     (nonces : ∀ wire, Terminal.nonce L wire = read.nonce wire)
-    (table : Address Wire total → Option Coord → K)
-    (calm : ∀ input, sample (Coord → K) (Fin (setup.params shape).lookups → Zq)
+    (table : Address Wire total → Option Coord → CodeSlot K)
+    (calm : ∀ input, sample (Coord → CodeSlot K) (Fin (setup.params shape).lookups → Zq)
       (view (table input)) ∉ Compression.Verifier.tableHit (setup.params shape))
     (regular : ∀ input,
-      sample (Coord → K) (Compression.Verifier.Challenges (setup.params shape))
+      sample (Coord → CodeSlot K) (Compression.Verifier.Challenges (setup.params shape))
         (view (table input)) ∉ Compression.Verifier.omegaBad (setup.params shape))
     (decodes : ∀ input b, (decode b.1 (table input (some (block b)))).isSome)
     (decodes₁ : ∀ input i, (decode₁ (table input (some (block₁ i)))).isSome)
@@ -412,7 +414,7 @@ theorem complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
     (decodes₄ : ∀ input i, (decode₄ (table input (some (block₄ i)))).isSome)
     (decodes₅ : ∀ input i, (decode₅ (table input (some (block₅ i)))).isSome)
     (decodesL : ∀ input i, (Terminal.decode L (table input (some (Terminal.block L i)))).isSome)
-    (worked : ∀ input, table input none ∈ workZeros K 57)
+    (worked : ∀ input, table input none ∈ workZeros (CodeSlot K) 57)
     (given : Wire)
     (checks : FinalVerifier.Checks mode (head given).statement ((head given).claims shape))
     (gate : setup.Gate ((head given).claims shape)) (W : Table)
@@ -426,11 +428,11 @@ theorem complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
             (setup.claimsOf (head given).statement ((head given).claims shape) probe) ∧
           Compression.Verifier.Relation (setup.params shape)
             (setup.claimsOf (head given).statement ((head given).claims shape) probe) W)
-    (bound₀ : ∀ anchor : Prefix Wire (Option Coord → K) total, anchor.first = given →
+    (bound₀ : ∀ anchor : Prefix Wire (Option Coord → CodeSlot K) total, anchor.first = given →
       bound anchor 0 = (Compression.Akita.commit (key 0) (keyBase (setup.params shape))).1)
-    (bound₁ : ∀ anchor : Prefix Wire (Option Coord → K) total, anchor.first = given →
+    (bound₁ : ∀ anchor : Prefix Wire (Option Coord → CodeSlot K) total, anchor.first = given →
       bound anchor 1 = (Compression.Akita.commit (key 1) W).1)
-    (bound₂ : ∀ anchor : Prefix Wire (Option Coord → K) total,
+    (bound₂ : ∀ anchor : Prefix Wire (Option Coord → CodeSlot K) total,
       bound anchor 2 = commit (anchor.wire (Compose.front C).finish) 2)
     (fit : ∀ τ, Compression.Verifier.Apart (setup.params shape) τ →
       BatchFit β key openKey rootVars (And.left root_sized) 8 quotientDigits decode
@@ -438,13 +440,13 @@ theorem complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
           Compression.Verifier.honestInverses (setup.params shape) W τ] fun w₀ =>
       LiftFit β₁ key₁ openKey₁ level₁.fold level₁.vars (And.left level₁_sized) quotientDigits
         decode₁ (fun i => level₁.shape.embed (level₁.shape.pack w₀ i)) fun w₁ =>
-      TraceFit (And.left quarters) key₂ openKey₂ level₂.fold (fun _ => decode₂) (fun _ => True)
+      TraceFit (E := K) (And.left quarters) key₂ openKey₂ level₂.fold (fun _ => decode₂) (fun _ => True)
         (packed w₁) fun w₂ =>
-      TraceFit (And.left (And.right quarters)) key₃ openKey₃ level₃.fold (fun _ => decode₃)
+      TraceFit (E := K) (And.left (And.right quarters)) key₃ openKey₃ level₃.fold (fun _ => decode₃)
         (fun z => vecNormSq z ≤ norm₃.limit) (packed w₂) fun w₃ =>
-      TraceFit (And.left (And.right (And.right quarters))) key₄ openKey₄ level₄.fold
+      TraceFit (E := K) (And.left (And.right (And.right quarters))) key₄ openKey₄ level₄.fold
         (fun _ => decode₄) (fun z => vecNormSq z ≤ norm₄.limit) (packed w₃) fun w₄ =>
-      TraceFit (And.left (And.right (And.right (And.right quarters)))) key₅ openKey₅ level₅.fold
+      TraceFit (E := K) (And.left (And.right (And.right (And.right quarters)))) key₅ openKey₅ level₅.fold
         (fun _ => decode₅) (fun z => vecNormSq z ≤ norm₅.limit) (packed w₄) fun w₅ =>
       ∀ c : Fin Key20.terminal.blocks → Rq Key20.terminal.innerDegree,
         (∀ i, ∃ slot, Terminal.decode L slot = some (c i)) →
@@ -454,10 +456,10 @@ theorem complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
     ∃ proof : ℕ → Wire, proof 0 = given ∧
       accepts ((transcript total accept).final (.done proof) table) := by
   simp only [final_done]
-  set table := fun input : Prefix Wire (Option Coord → K) total => table input.address
-  replace calm : ∀ input, sample (Coord → K) (Fin (setup.params shape).lookups → Zq) (view (table input)) ∉ Compression.Verifier.tableHit (setup.params shape) :=
+  set table := fun input : Prefix Wire (Option Coord → CodeSlot K) total => table input.address
+  replace calm : ∀ input, sample (Coord → CodeSlot K) (Fin (setup.params shape).lookups → Zq) (view (table input)) ∉ Compression.Verifier.tableHit (setup.params shape) :=
     fun input => calm input.address
-  replace regular : ∀ input, sample (Coord → K) (Compression.Verifier.Challenges (setup.params shape)) (view (table input)) ∉ Compression.Verifier.omegaBad (setup.params shape) :=
+  replace regular : ∀ input, sample (Coord → CodeSlot K) (Compression.Verifier.Challenges (setup.params shape)) (view (table input)) ∉ Compression.Verifier.omegaBad (setup.params shape) :=
     fun input => regular input.address
   replace decodes : ∀ input b, (decode b.1 (table input (some (block b)))).isSome :=
     fun input => decodes input.address
@@ -473,7 +475,7 @@ theorem complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
     fun input => decodes₅ input.address
   replace decodesL : ∀ input i, (Terminal.decode L (table input (some (Terminal.block L i)))).isSome :=
     fun input => decodesL input.address
-  replace worked : ∀ input, table input none ∈ workZeros K 57 := fun input => worked input.address
+  replace worked : ∀ input, table input none ∈ workZeros (CodeSlot K) 57 := fun input => worked input.address
   clear_value table
   obtain ⟨wf, -, matrix, columns, rows, key_fits⟩ := FinalVerifier.laid_facts setup use.laid
   obtain ⟨keyLength, wLength, vLength, -⟩ := key20_points setup shape use

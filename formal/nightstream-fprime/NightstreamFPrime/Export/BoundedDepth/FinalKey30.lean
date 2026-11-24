@@ -20,6 +20,8 @@ set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.BoundedDepth.FinalKey30
 
+open NightstreamFPrime.Spec.Compression.Akita.Replay (CodeSlot)
+
 open scoped BigOperators
 open NightstreamFPrime.Spec NightstreamFPrime.Spec.FieldExtensionRing
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
@@ -54,12 +56,12 @@ variable {logicalWidth : Nat}
   (control : AppState → AppWitness → Fin 2) (shape : Claims logicalWidth publicFits)
   {Wire Coord : Type} {total : ℕ} (read : Reader Wire)
   (head : Wire → First logicalWidth publicFits) {r : Key30.Row} {member : r ∈ rows}
-  (bound : Prefix Wire (Option Coord → K) total → (g : Fin 3) → ((root r).shape g).Payload)
+  (bound : Prefix Wire (Option Coord → CodeSlot K) total → (g : Fin 3) → ((root r).shape g).Payload)
   [Fintype Coord] [DecidableEq Coord] [Nonempty Coord]
   {β : ∀ g, Module.Basis (Fin ((root r).planes g)) Zq K}
   {key : (g : Fin 3) → Key ((root r).shape g)} {openKey : (root r).OpenKey}
   {claim : Wire → (root r).Claim K} {block : (root r).Block → Coord}
-  {decode : (g : Fin 3) → K → Option (Rq ((root r).carrierDegree g))} {mass : Fin 3 → ℕ}
+  {decode : (g : Fin 3) → CodeSlot K → Option (Rq ((root r).carrierDegree g))} {mass : Fin 3 → ℕ}
   {flat : Table}
   {scan : ∀ (wire : Wire) (challenge : (root r).Challenge),
     SetupScan (Batch.liftedReduction β ((claim wire).statement key openKey) challenge rootVars
@@ -68,26 +70,26 @@ variable {logicalWidth : Nat}
   {β₁ : ∀ g, Module.Basis (Fin ((level₁ r).planes g)) Zq K}
   {key₁ : (g : Fin 2) → Key ((level₁ r).shape g)} {openKey₁ : (level₁ r).OpenKey}
   {claim₁ : Wire → (level₁ r).Claim K} {block₁ : (level₁ r).Block → Coord}
-  {decode₁ : (g : Fin 2) → K → Option (Rq ((level₁ r).carrierDegree g))} {mass₁ : Fin 2 → ℕ}
+  {decode₁ : (g : Fin 2) → CodeSlot K → Option (Rq ((level₁ r).carrierDegree g))} {mass₁ : Fin 2 → ℕ}
   {registry : ((level₁ r).shape 0).Payload} {reference : Decommitment ((level₁ r).shape 0)}
   {β₂ : Module.Basis (Fin (level₂ r).opening.planes) Zq K} {key₂ : Key (level₂ r).shape}
   {openKey₂ : OpeningKey (level₂ r).opening} {claim₂ : Wire → Claim (level₂ r).opening K}
   {block₂ : Fin (level₂ r).shape.blocks → Coord}
-  {decode₂ : K → Option (Rq (level₂ r).opening.carrierDegree)} {weight₂ : ℕ}
+  {decode₂ : CodeSlot K → Option (Rq (level₂ r).opening.carrierDegree)} {weight₂ : ℕ}
   {β₃ : Module.Basis (Fin level₃.opening.planes) Zq K} {key₃ : Key level₃.shape}
   {openKey₃ : OpeningKey level₃.opening} {claim₃ : Wire → Claim level₃.opening K}
   {block₃ : Fin level₃.shape.blocks → Coord}
-  {decode₃ : K → Option (Rq level₃.opening.carrierDegree)} {weight₃ : ℕ}
+  {decode₃ : CodeSlot K → Option (Rq level₃.opening.carrierDegree)} {weight₃ : ℕ}
   {key₄ : Key level₄.shape} {openKey₄ : OpeningKey level₄.opening}
   {claim₄ : Wire → TraceClaim level₄.opening K} {block₄ : Fin level₄.shape.blocks → Coord}
-  {decode₄ : K → Option (Rq level₄.shape.innerDegree)} {weight₄ : ℕ}
+  {decode₄ : CodeSlot K → Option (Rq level₄.shape.innerDegree)} {weight₄ : ℕ}
   {key₅ : Key level₅.shape} {openKey₅ : OpeningKey level₅.opening}
   {claim₅ : Wire → TraceClaim level₅.opening K} {block₅ : Fin level₅.shape.blocks → Coord}
-  {decode₅ : K → Option (Rq level₅.shape.innerDegree)} {weight₅ : ℕ}
+  {decode₅ : CodeSlot K → Option (Rq level₅.shape.innerDegree)} {weight₅ : ℕ}
   {key₆ : Key level₆.shape} {openKey₆ : OpeningKey level₆.opening}
   {claim₆ : Wire → TraceClaim level₆.opening K} {block₆ : Fin level₆.shape.blocks → Coord}
-  {decode₆ : K → Option (Rq level₆.shape.innerDegree)} {weight₆ : ℕ}
-  {L : Terminal Key30.terminal K Wire Coord K total
+  {decode₆ : CodeSlot K → Option (Rq level₆.shape.innerDegree)} {weight₆ : ℕ}
+  {L : Terminal Key30.terminal K Wire Coord (CodeSlot K) total
     (.euclidean normTerminal.operator normTerminal.limit)}
   {commit : Wire → (g : Fin 3) → ((root r).shape g).Payload} {value : Wire → Fin 3 → K}
   {place : Wire → Fin 3 → List K}
@@ -222,7 +224,7 @@ omit [Nonempty Coord] in
 /-- On a transcript with the conditions `Compose.Ran` of the final verifier with `Use`, the points
 of the three claims of the Akita opening have 30, 27 or 26, and 28 coordinates
 (`Compose.Ran.lengths`, `key30_points`). -/
-theorem Use.points (use : Use setup shape r) {point : Prefix Wire (Option Coord → K) total}
+theorem Use.points (use : Use setup shape r) {point : Prefix Wire (Option Coord → CodeSlot K) total}
     (ran : Compose.Ran C vf commit value place point) :
     ∀ g, (place (point.wire (Compose.root C vf)) g).length = ![30, r.vars, 28] g := by
   obtain ⟨key, v, -, w⟩ := key30_points setup shape use
@@ -300,14 +302,14 @@ theorem sound [Finite Wire] {peak : Fin 3 → ℕ} {peak₁ : Fin 2 → ℕ}
     (chance₃ : slotChance decode₃ ≤ p) (chance₄ : slotChance decode₄ ≤ p)
     (chance₅ : slotChance decode₅ ≤ p) (chance₆ : slotChance decode₆ ≤ p)
     (chanceL : slotChance (Terminal.decode L) ≤ p)
-    (prover : OracleComp (Address Wire total) (Option Coord → K) (ℕ → Wire))
+    (prover : OracleComp (Address Wire total) (Option Coord → CodeSlot K) (ℕ → Wire))
     {honest : Certified ((root r).shape 0)} {factorBound sourceBound innerBound : ℕ}
     (registered : ∀ anchor, honest.Opens factorBound sourceBound (key 0) (bound anchor 0)
       (keyBase (setup.params shape)))
     (covers : factorBound * ((root r).fold 0).sourceBound ((root r).shape 0) +
       2 * mass 0 * sourceBound ≤ innerBound)
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 _tape : Tape (Address Wire total) (Option Coord) K budget
+    𝔼 table, 𝔼 _tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget
           (Structure.protocol whole).stages,
         (if accepts ((Structure.protocol whole).final prover table) ∧
             ¬ Proved setup packageWidths step cap control head

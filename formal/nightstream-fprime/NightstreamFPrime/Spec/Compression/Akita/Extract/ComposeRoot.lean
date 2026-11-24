@@ -29,18 +29,19 @@ attribute [local instance low] Classical.propDecidable
 section Root
 
 variable {B : Batch (Fin 3)} {S' : Shape} {O' : OpeningShape S'} {fold' : Descriptor}
-  {E Wire Coord Lead Result' Source' : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E]
+  {E Wire Coord Lead Result' Source' : Type} [Field E] [Fintype E]
+  {Slot : Type} [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E] [DecidableEq E] [Algebra Zq E]
   [Fintype Coord] [DecidableEq Coord] {total : ℕ} {P : Verifier.Params Zq E}
   {β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E} {key : (g : Fin 3) → Key (B.shape g)}
   {openKey : B.OpenKey} {mass : Fin 3 → ℕ} {β' : Module.Basis (Fin O'.planes) Zq E}
   {key' : Key S'} {openKey' : OpeningKey O'} {weight' : ℕ}
-  (C : Compose P B Wire Coord Lead total) (vf : Verifier.VerifierData P)
+  (C : Compose P B Wire Coord Slot Lead total) (vf : Verifier.VerifierData P)
   (T : Tier B.Block (fun b => Rq (B.carrierDegree b.1)) (B.Claim E)
     (B.LevelBreak key openKey fun g => 2 * (2 * mass g) * (B.fold g).sourceBound (B.shape g))
-    B.Witness B.Weak Wire Coord E (Option (List E × E)) Table)
+    B.Witness B.Weak Wire Coord Slot (Option (List E × E)) Table)
   (N : Tier (Fin S'.blocks) (fun _ => Rq O'.carrierDegree) (Claim O' E)
     (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S')) (Witness O' fold')
-    (Weak O') Wire Coord E Result' Source')
+    (Weak O') Wire Coord Slot Result' Source')
   (commit : Wire → (g : Fin 3) → (B.shape g).Payload) (value : Wire → Fin 3 → E)
   (place : Wire → Fin 3 → List E) (next : Wire → S'.Payload) (sourceOf : Wire → Source')
 
@@ -49,10 +50,10 @@ accepts with the conditions `Compose.Ran` of the stages before the opening, and 
 conditions of `rootAccepts` for the batching root at the stage `Compose.root`: the transcript has
 this stage, the link `RootLinked` to the claim of `T` with the weights of the transcript, the
 link `Tier.Linked` from `T` to `N`, and a true final claim of the checks of `N`. -/
-def composeAccepts (point : Prefix Wire (Option Coord → E) total) : Prop :=
+def composeAccepts (point : Prefix Wire (Option Coord → Slot) total) : Prop :=
   C.Ran vf commit value place point ∧ C.root vf < point.rest.length ∧
     RootLinked T (C.root vf) commit value place
-      ((claimsRoot (Coord := Coord) (Slot := E) (total := total) (C.root vf) C.read value
+      ((claimsRoot (Coord := Coord) (Slot := Slot) (total := total) (C.root vf) C.read value
         place).weights point) point ∧
     T.Linked N next point ∧ N.Passed (sourceOf (point.wire (N.start + 1))) point
 
@@ -75,7 +76,7 @@ noncomputable def composeFold :=
 /-- The checkpoint structure of the Akita opening: the batching root at the stage `Compose.root`
 over the fold `T` with opening groups and the last level `N`. -/
 noncomputable def composeRoot :=
-  (claimsRoot (Coord := Coord) (Slot := E) (total := total) (C.root vf) C.read value
+  (claimsRoot (Coord := Coord) (Slot := Slot) (total := total) (C.root vf) C.read value
       place).segment.over
     (composeAccepts C vf T N commit value place next sourceOf)
     (composeFold C vf T N commit value place next sourceOf)
@@ -89,10 +90,11 @@ noncomputable def composeRoot :=
 
 variable {C vf T N commit value place next sourceOf}
 
+omit [FieldSlot Slot E] in
 /-- The Akita opening is a suffix from the stage `Compose.root` (`batchRoot_suffix` for a batching
 root at this stage). -/
 theorem composeRoot_suffix {blocks : ℕ} (card : Fintype.card B.Block = blocks) (valid : T.Valid)
-    (valid' : N.Valid) (fair : ∃ decode : (Coord → E) → Fin 3 → E, Fair decode)
+    (valid' : N.Valid) (fair : ∃ decode : (Coord → Slot) → Fin 3 → E, Fair decode)
     (packed : T.method = Batch.method β key openKey mass)
     (packed' : N.method = packing β' key' openKey' weight') (first : T.start = C.root vf + 1)
     (second : N.start = T.finish) (fits : N.finish ≤ total)
@@ -131,17 +133,18 @@ end Root
 section Instance
 
 variable {B : Batch (Fin 3)} {S' : Shape} {O' : OpeningShape S'} {fold' : Descriptor} {E : Type}
-  [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] {Wire Coord Lead : Type} [Fintype Coord]
+  [Field E] [Fintype E] {Slot : Type} [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E]
+  [DecidableEq E] [Algebra Zq E] {Wire Coord Lead : Type} [Fintype Coord]
   [DecidableEq Coord] [Nonempty Coord] {total : ℕ} {P : Verifier.Params Zq E}
-  {C : Compose P B Wire Coord Lead total} {vf : Verifier.VerifierData P}
+  {C : Compose P B Wire Coord Slot Lead total} {vf : Verifier.VerifierData P}
   {β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E} {key : (g : Fin 3) → Key (B.shape g)}
   {openKey : B.OpenKey} {claim : Wire → B.Claim E} {μ : ℕ} {fits : B.cells ≤ 2 ^ μ} {batch : ℕ}
   {rowsFit : B.rowCount + 1 ≤ 2 ^ batch} {block : B.Block → Coord}
-  {decode : (g : Fin 3) → E → Option (Rq (B.carrierDegree g))} {mass : Fin 3 → ℕ} {base : ℕ}
+  {decode : (g : Fin 3) → Slot → Option (Rq (B.carrierDegree g))} {mass : Fin 3 → ℕ} {base : ℕ}
   {β' : Module.Basis (Fin O'.planes) Zq E} {key' : Key S'} {openKey' : OpeningKey O'}
   {claim' : Wire → Claim O' E} {μ' : ℕ} {fits' : O'.cells fold' ≤ 2 ^ μ'} {batch' : ℕ}
   {rowsFit' : O'.rowCount + 1 ≤ 2 ^ batch'} {block' : Fin S'.blocks → Coord}
-  {decode' : E → Option (Rq O'.carrierDegree)} {weight' : ℕ}
+  {decode' : Slot → Option (Rq O'.carrierDegree)} {weight' : ℕ}
   {commit : Wire → (g : Fin 3) → (B.shape g).Payload} {value : Wire → Fin 3 → E}
   {place : Wire → Fin 3 → List E} {next : Wire → S'.Payload} {witnessOf : Wire → Witness O' fold'}
 
@@ -183,7 +186,7 @@ theorem composeRootChain_suffix (injective : Function.Injective block)
   composeRoot_suffix B.card_block
     (committedBatch_valid injective units sparse response uniform small varsFit batchFit)
     (clearFold_valid injective' units' sparse' base' small' varsFit' batchFit')
-    (exists_fair_slots groupsFit) rfl rfl rfl rfl inside committedBatch_uniform
+    (exists_fair_fields groupsFit) rfl rfl rfl rfl inside committedBatch_uniform
     (fun _ r2 v opened => ⟨r2, v, rfl, opened⟩)
 
 end Instance

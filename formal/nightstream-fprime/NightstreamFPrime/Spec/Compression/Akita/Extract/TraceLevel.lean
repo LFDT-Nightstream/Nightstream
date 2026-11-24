@@ -108,20 +108,21 @@ end Method
 section Levels
 
 variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {E : Type} [Field E] [Fintype E]
+  {Slot : Type} [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E]
   [DecidableEq E] [Algebra Zq E] {Wire Coord : Type} [Fintype Coord] [DecidableEq Coord]
 
 /-- A trace fold for one claim whose flat witness the next level commits to, as a `Tier` with
-the first stage `start`. A slot of an answer of the oracle is one uniform element of `E`. The
+the first stage `start`. A slot of an answer of the oracle is one uniform element of `Slot`. The
 successor source is a table, `OpeningShape.ofFlat` gives its digit vectors, and the checks are
 `foldCheck` for the quotient-free reduction of `traceRelation`. A final claim `(r_2, v_W)`
 is true for a table `w` when `v_W = w̃(r_2)`. -/
 noncomputable def committedTrace (key : Key S) (openKey : OpeningKey O)
     (claim : Wire → TraceClaim O E) (μ : ℕ) (fits : O.cells fold ≤ 2 ^ μ) (batch : ℕ)
     (rowsFit : O.traceRowCount + 1 ≤ 2 ^ batch) (block : Fin S.blocks → Coord)
-    (decode : E → Option (Rq S.innerDegree)) (read : Reader Wire) (weight start : ℕ) :
+    (decode : Slot → Option (Rq S.innerDegree)) (read : Reader Wire) (weight start : ℕ) :
     Tier (Fin S.blocks) (fun _ => Rq S.innerDegree) (TraceClaim O E)
       (LevelBreak key openKey (2 * (2 * weight) * fold.sourceBound S)) (Witness O fold) (Weak O)
-        Wire Coord E
+        Wire Coord Slot
       (Option (List E × E)) Table where
   method := trace key openKey weight
   claim := claim
@@ -146,10 +147,10 @@ vectors. A final claim `(r_2, v_W)` is true when `v_W = w̃(r_2)` for this flat 
 noncomputable def clearTrace (key : Key S) (openKey : OpeningKey O)
     (claim : Wire → TraceClaim O E) (μ : ℕ) (fits : O.cells fold ≤ 2 ^ μ) (batch : ℕ)
     (rowsFit : O.traceRowCount + 1 ≤ 2 ^ batch) (block : Fin S.blocks → Coord)
-    (decode : E → Option (Rq S.innerDegree)) (read : Reader Wire) (weight start : ℕ) :
+    (decode : Slot → Option (Rq S.innerDegree)) (read : Reader Wire) (weight start : ℕ) :
     Tier (Fin S.blocks) (fun _ => Rq S.innerDegree) (TraceClaim O E)
       (LevelBreak key openKey (2 * (2 * weight) * fold.sourceBound S)) (Witness O fold) (Weak O)
-        Wire Coord E
+        Wire Coord Slot
       (Option (List E × E)) (Witness O fold) where
   method := trace key openKey weight
   claim := claim
@@ -170,7 +171,7 @@ noncomputable def clearTrace (key : Key S) (openKey : OpeningKey O)
 
 variable {key : Key S} {openKey : OpeningKey O} {claim : Wire → TraceClaim O E} {μ : ℕ}
   {fits : O.cells fold ≤ 2 ^ μ} {batch : ℕ} {block : Fin S.blocks → Coord}
-  {decode : E → Option (Rq S.innerDegree)} {read : Reader Wire} {weight start : ℕ}
+  {decode : Slot → Option (Rq S.innerDegree)} {read : Reader Wire} {weight start : ℕ}
 
 /-- A committed trace fold satisfies the conditions of `Tier.Valid`. The hypotheses are: the
 blocks have different coordinates, the challenge family of `R_{q,d_A}` has units as differences
@@ -225,7 +226,7 @@ theorem clearTrace_valid [Nonempty Coord] {rowsFit : O.traceRowCount + 1 ≤ 2 ^
   draws := by simp [clearTrace, foldCosts]
   aligned := (List.length_map ..).trans (foldLosses_length ..)
 
-omit [Fintype Coord] [DecidableEq Coord] in
+omit [Fintype Coord] [DecidableEq Coord] [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E] in
 /-- The verifier of the checks of a committed trace fold does not read the table. -/
 theorem committedTrace_uniform {rowsFit : O.traceRowCount + 1 ≤ 2 ^ batch} (wire : Wire)
     (challenge : Fin S.blocks → Rq S.innerDegree) (table other : Table) :
@@ -235,7 +236,7 @@ theorem committedTrace_uniform {rowsFit : O.traceRowCount + 1 ≤ 2 ^ batch} (wi
         start).check wire challenge other) :=
   foldCheck_bare _ _ _ _ table other
 
-variable [Nonempty Coord] {total : ℕ} {accept : Prefix Wire (Option Coord → E) total → Prop}
+variable [Nonempty Coord] {total : ℕ} {accept : Prefix Wire (Option Coord → Slot) total → Prop}
   {Inner BreakT CandT KeyT : Type}
 
 /-- Akita Proposition 10.44 for one more level: a committed trace fold over a suffix of the
@@ -249,8 +250,8 @@ maps the witness of a first certificate of the later stages to the table of the 
 a solution of Module-SIS for `B`, `D` or a compression map of the level
 (`traceExtract_opens_or_collision`), or a witness of `R_bind` of the later stages. -/
 theorem committedTrace_suffix {Wit' : Type}
-    {Opens' : Prefix Wire (Option Coord → E) total → Wit' → Prop}
-    {tail : Structure (Address Wire total) (Prefix Wire (Option Coord → E) total) (Option Coord) E (ℕ → Wire) Inner
+    {Opens' : Prefix Wire (Option Coord → Slot) total → Wit' → Prop}
+    {tail : Structure (Address Wire total) (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
       BreakT CandT KeyT
       Wit'}
     {error : ℝ} {loops tree : ℕ} {rowsFit : O.traceRowCount + 1 ≤ 2 ^ batch} {peak : ℕ}

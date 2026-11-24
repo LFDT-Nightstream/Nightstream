@@ -27,8 +27,8 @@ attribute [local instance low] Classical.propDecidable
 
 /-- The conditions `LevelSized` of a level from the conditions on its coordinates and on its
 challenge family, with the numbers `base` and `small` of the schedule. -/
-theorem levelSized {E Coord : Type} [Fintype Coord] {d blocks : ℕ} [NeZero d]
-    {block : Fin blocks → Coord} {decode : E → Option (Rq d)}
+theorem levelSized {Slot Coord : Type} [Fintype Coord] {d blocks : ℕ} [NeZero d]
+    {block : Fin blocks → Coord} {decode : Slot → Option (Rq d)}
     {weight responseBase certifiedBase μ batch : ℕ}
     (slots : 22 ≤ Fintype.card Coord) (vars : μ ≤ 22) (rows : batch ≤ 22)
     (base : 2 ≤ responseBase) (small : certifiedBase < fieldModulus)
@@ -39,29 +39,31 @@ theorem levelSized {E Coord : Type} [Fintype Coord] {d blocks : ℕ} [NeZero d]
     LevelSized block decode weight responseBase certifiedBase μ batch :=
   ⟨injective, units, sparse, base, small, vars.trans slots, rows.trans slots⟩
 
-variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree2 E]
+variable {E : Type} [Field E] [Fintype E]
+  {Slot : Type} [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E]
+  [DecidableEq E] [Algebra Zq E] [Degree2 E]
   {Wire Coord : Type} [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] {total : ℕ}
   {read : Reader Wire} {start : ℕ}
   {β : ∀ g, Module.Basis (Fin (root.planes g)) Zq E} {key : (g : Fin 3) → Key (root.shape g)}
   {openKey : root.OpenKey} {claim : Wire → root.Claim E} {block : root.Block → Coord}
-  {decode : (g : Fin 3) → E → Option (Rq (root.carrierDegree g))} {mass : Fin 3 → ℕ}
+  {decode : (g : Fin 3) → Slot → Option (Rq (root.carrierDegree g))} {mass : Fin 3 → ℕ}
   {β₁ : Module.Basis (Fin level₁.opening.planes) Zq E} {key₁ : Key level₁.shape}
   {openKey₁ : OpeningKey level₁.opening} {claim₁ : Wire → Claim level₁.opening E}
   {block₁ : Fin level₁.shape.blocks → Coord}
-  {decode₁ : E → Option (Rq level₁.opening.carrierDegree)} {weight₁ : ℕ}
+  {decode₁ : Slot → Option (Rq level₁.opening.carrierDegree)} {weight₁ : ℕ}
   {key₂ : Key level₂.shape} {openKey₂ : OpeningKey level₂.opening}
   {claim₂ : Wire → TraceClaim level₂.opening E} {block₂ : Fin level₂.shape.blocks → Coord}
-  {decode₂ : E → Option (Rq level₂.shape.innerDegree)} {weight₂ : ℕ}
+  {decode₂ : Slot → Option (Rq level₂.shape.innerDegree)} {weight₂ : ℕ}
   {key₃ : Key level₃.shape} {openKey₃ : OpeningKey level₃.opening}
   {claim₃ : Wire → TraceClaim level₃.opening E} {block₃ : Fin level₃.shape.blocks → Coord}
-  {decode₃ : E → Option (Rq level₃.shape.innerDegree)} {weight₃ : ℕ}
+  {decode₃ : Slot → Option (Rq level₃.shape.innerDegree)} {weight₃ : ℕ}
   {key₄ : Key level₄.shape} {openKey₄ : OpeningKey level₄.opening}
   {claim₄ : Wire → TraceClaim level₄.opening E} {block₄ : Fin level₄.shape.blocks → Coord}
-  {decode₄ : E → Option (Rq level₄.shape.innerDegree)} {weight₄ : ℕ}
+  {decode₄ : Slot → Option (Rq level₄.shape.innerDegree)} {weight₄ : ℕ}
   {key₅ : Key level₅.shape} {openKey₅ : OpeningKey level₅.opening}
   {claim₅ : Wire → TraceClaim level₅.opening E} {block₅ : Fin level₅.shape.blocks → Coord}
-  {decode₅ : E → Option (Rq level₅.shape.innerDegree)} {weight₅ : ℕ}
-  {L : Terminal terminal E Wire Coord E total
+  {decode₅ : Slot → Option (Rq level₅.shape.innerDegree)} {weight₅ : ℕ}
+  {L : Terminal terminal E Wire Coord Slot total
     (.euclidean normTerminal.operator normTerminal.limit)}
   {commit : Wire → (g : Fin 3) → (root.shape g).Payload} {value : Wire → Fin 3 → E}
   {place : Wire → Fin 3 → List E} {commit₁ : Wire → level₁.shape.Payload}
@@ -255,7 +257,7 @@ theorem tower_suffix {peak : Fin 3 → ℕ} (slots : 22 ≤ Fintype.card Coord)
   rw [loops, tree] at suffix
   exact suffix
 
-omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] in
+omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] [FieldSlot Slot E] in
 /-- The sum of the stage errors of `tower_suffix` (Akita (206)) is at most
 `317479/(1024·|E|) + 135·p`, when each challenge family has the slot probability at most `p`.
 Each error of a check has the factor `2^{−g}` for the work bits `g` of its site in the Akita code

@@ -77,7 +77,8 @@ theorem offloadDraws_eq (μ b : ℕ) (bin : Bool) (ν : ℕ) :
 
 section Checks
 
-variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E]
+variable {E : Type} [Field E] [Fintype E]
+  {Slot : Type} [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E] [DecidableEq E] [Algebra Zq E]
   {sendable : (M : Type) → M → Prop} {slots : ℕ}
 
 /-- A game with `WinsTo` from a fresh start has `WinsAt` from no message, for an end condition
@@ -197,18 +198,20 @@ end Checks
 
 section Groups
 
-variable {n : ℕ} {B : Batch (Fin n)} {E : Type} [Field E] [Fintype E] [DecidableEq E]
+variable {n : ℕ} {B : Batch (Fin n)} {E : Type} [Field E] [Fintype E]
+  {Slot : Type} [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E] [DecidableEq E]
   [Algebra Zq E] {Wire Coord : Type} {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
   {β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E} {key : (g : Fin n) → Key (B.shape g)}
   {openKey : B.OpenKey} {claim : Wire → B.Claim E} {μ : ℕ} {fits : B.cells ≤ 2 ^ μ}
   {base digits : ℕ} {room : B.quotientRoom digits ≤ 2 ^ μ} {batch : ℕ}
   {rowsFit : B.rowCount + 1 ≤ 2 ^ batch} {block : B.Block → Coord}
-  {decode : (g : Fin n) → E → Option (Rq (B.carrierDegree g))} {read : Reader Wire}
+  {decode : (g : Fin n) → Slot → Option (Rq (B.carrierDegree g))} {read : Reader Wire}
   {mass : Fin n → ℕ} {start ν : ℕ} {flat : Table}
   {scan : ∀ (wire : Wire) (challenge : B.Challenge),
     SetupScan (Batch.liftedReduction β ((claim wire).statement key openKey) challenge μ fits base
       digits room batch rowsFit) ν flat}
 
+omit [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E] in
 /-- The completeness of the checks of the level `offBatch` (Akita Lemma 7.1, item 1, with
 Section 9 and Theorem 10.9): for digit vectors with the exact branch relation of the claim of a
 wire message, the checks end in the claim `(r_2, w̃(r_2))` for the flat witness with the digits of
@@ -235,6 +238,7 @@ theorem offBatch_winsAt (sends : Sends sendable E width cap) (wide : rangeWidth 
   offloadCheck_winsAt sends _ base wide four space _ holds.1 holds.2.1 holds.2.2 ν flat
     (scan wire fun g i => challenge ⟨g, i⟩)
 
+omit [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E] in
 theorem offBatch_costs_length :
     (offBatch β key openKey claim μ fits base digits room batch rowsFit block decode read mass
       start ν flat scan).costs.length = offloadDraws μ base B.compressed ν := by

@@ -26,7 +26,9 @@ local instance : Fact (Nat.Prime fieldModulus) := ⟨FieldPrime.fieldModulus_nat
 
 attribute [local instance low] Classical.propDecidable
 
-variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree2 E]
+variable {E : Type} [Field E] [Fintype E]
+  {Slot : Type} [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E]
+  [DecidableEq E] [Algebra Zq E] [Degree2 E]
 
 section Trace
 
@@ -34,21 +36,21 @@ variable {S₂ : Shape} {O₂ : OpeningShape S₂} {fold₂ : Descriptor} {S₃ 
   {O₃ : OpeningShape S₃} {fold₃ : Descriptor} {S₄ : Shape} {O₄ : OpeningShape S₄}
   {fold₄ : Descriptor} {S₅ : Shape}
   {Wire Coord : Type} [Fintype Coord] [DecidableEq Coord] {total : ℕ}
-  {accept : Prefix Wire (Option Coord → E) total → Prop} {read : Reader Wire} {start : ℕ}
+  {accept : Prefix Wire (Option Coord → Slot) total → Prop} {read : Reader Wire} {start : ℕ}
   {key₂ : Key S₂} {openKey₂ : OpeningKey O₂} {claim₂ : Wire → TraceClaim O₂ E}
   {μ₂ : ℕ} {fits₂ : O₂.cells fold₂ ≤ 2 ^ μ₂} {batch₂ : ℕ}
   {rowsFit₂ : O₂.traceRowCount + 1 ≤ 2 ^ batch₂} {block₂ : Fin S₂.blocks → Coord}
-  {decode₂ : E → Option (Rq S₂.innerDegree)} {weight₂ ν₂ m₂ : ℕ}
+  {decode₂ : Slot → Option (Rq S₂.innerDegree)} {weight₂ ν₂ m₂ : ℕ}
   {key₃ : Key S₃} {openKey₃ : OpeningKey O₃} {claim₃ : Wire → TraceClaim O₃ E}
   {μ₃ : ℕ} {fits₃ : O₃.cells fold₃ ≤ 2 ^ μ₃} {batch₃ : ℕ}
   {rowsFit₃ : O₃.traceRowCount + 1 ≤ 2 ^ batch₃} {block₃ : Fin S₃.blocks → Coord}
-  {decode₃ : E → Option (Rq S₃.innerDegree)} {weight₃ ν₃ m₃ : ℕ}
+  {decode₃ : Slot → Option (Rq S₃.innerDegree)} {weight₃ ν₃ m₃ : ℕ}
   {key₄ : Key S₄} {openKey₄ : OpeningKey O₄} {claim₄ : Wire → TraceClaim O₄ E}
   {μ₄ : ℕ} {fits₄ : O₄.cells fold₄ ≤ 2 ^ μ₄} {batch₄ : ℕ}
   {rowsFit₄ : O₄.traceRowCount + 1 ≤ 2 ^ batch₄} {block₄ : Fin S₄.blocks → Coord}
-  {decode₄ : E → Option (Rq S₄.innerDegree)} {weight₄ ν₄ m₄ : ℕ}
+  {decode₄ : Slot → Option (Rq S₄.innerDegree)} {weight₄ ν₄ m₄ : ℕ}
   {operator₃ limit₃ operator₄ limit₄ operatorL limitL : ℕ}
-  {L : Terminal S₅ E Wire Coord E total (.euclidean operatorL limitL)} {m₅ : ℕ}
+  {L : Terminal S₅ E Wire Coord Slot total (.euclidean operatorL limitL)} {m₅ : ℕ}
   {commit₃ : Wire → S₃.Payload} {commit₄ : Wire → S₄.Payload}
   {stateOf : Wire → Fin S₅.blocks → Fin S₅.innerRank → Rq S₅.innerDegree}
   {statementOf : Wire → TerminalStatement S₅ E}
@@ -72,6 +74,7 @@ local notation "base₄" =>
 
 local notation "fourth" => Tier.tensored base₄ ν₄
 
+omit [FieldSlot Slot E] in
 /-- `traceTower_complete` for a level `committedTrace`, two levels `committedTraceSq` and the
 terminal (Akita Theorem 10.9, without the probability that a response does not fit and without the
 term of (155) for a zero tensor factor). `early` is a transcript prefix on the path of the table
@@ -108,28 +111,28 @@ theorem traceTower₂_complete {sendable : (M : Type) → M → Prop} {slots wid
     (reads : ∀ point, L.read point = statementOf (point.wire L.start))
     (clears : ∀ point, L.partials point = partialsOf (point.wire L.start))
     (counts : ∀ wire, L.nonce wire = read.nonce wire)
-    (table : Prefix Wire (Option Coord → E) total → Option Coord → E)
+    (table : Prefix Wire (Option Coord → Slot) total → Option Coord → Slot)
     (decodes₂ : ∀ input i, (decode₂ (table input (some (block₂ i)))).isSome)
     (decodes₃ : ∀ input i, (decode₃ (table input (some (block₃ i)))).isSome)
     (decodes₄ : ∀ input i, (decode₄ (table input (some (block₄ i)))).isSome)
     (decodesL : ∀ input i, (L.decode (table input (L.slot i))).isSome)
-    (worked : ∀ input, table input none ∈ workZeros E 57)
-    {first : Wire} {early : List ((Option Coord → E) × Wire)} (on : OnPath accept table first early)
+    (worked : ∀ input, table input none ∈ workZeros Slot 57)
+    {first : Wire} {early : List ((Option Coord → Slot) × Wire)} (on : OnPath accept table first early)
     (starts : early.length = start) {g : ℕ → E} {block position pack : List E} {θ : E}
     (packs : pack.length = p₂) (positions : position.length = s₂) (blocks : k₂ ≤ block.length)
     (live : ∀ cell, S₂.blocks * (S₂.blockLength * (2 * m₂)) ≤ cell → g cell = 0)
     (ready : claim₂ (lastWire first early) =
       honestTraceClaim quarter₂ key₂ openKey₂ g block position pack θ)
     (tried : read.nonce (lastWire first early) < responseTries)
-    (fit : TraceFit quarter₂ key₂ openKey₂ fold₂ (fun _ => decode₂) (fun _ => True) g fun w₂ =>
-      TraceFit quarter₃ key₃ openKey₃ fold₃ (fun _ => decode₃) (fun z => vecNormSq z ≤ limit₃)
+    (fit : TraceFit (E := E) quarter₂ key₂ openKey₂ fold₂ (fun _ => decode₂) (fun _ => True) g fun w₂ =>
+      TraceFit (E := E) quarter₃ key₃ openKey₃ fold₃ (fun _ => decode₃) (fun z => vecNormSq z ≤ limit₃)
         (packed w₂) fun w₃ =>
-      TraceFit quarter₄ key₄ openKey₄ fold₄ (fun _ => decode₄) (fun z => vecNormSq z ≤ limit₄)
+      TraceFit (E := E) quarter₄ key₄ openKey₄ fold₄ (fun _ => decode₄) (fun z => vecNormSq z ≤ limit₄)
         (packed w₃) fun w₄ =>
       ∀ c : Fin S₅.blocks → Rq S₅.innerDegree, (∀ i, ∃ slot, L.decode slot = some (c i)) →
         vecNormSq (traceResponse c (traceSource quarter₅ (packed w₄ : ℕ → E))) ≤ limitL) :
     ∃ later, OnPath accept table first (early ++ later) ∧ (early ++ later).length = total ∧
-      ∀ stage : Prefix Wire (Option Coord → E) total, stage.first = first →
+      ∀ stage : Prefix Wire (Option Coord → Slot) total, stage.first = first →
         stage.rest = early ++ later →
         Tier.TraceLinked second third quarter₃ commit₃ stage ∧
         Tier.TraceLinked third fourth quarter₄ commit₄ stage ∧
@@ -233,26 +236,26 @@ variable {S₁ : Shape} {O₁ : OpeningShape S₁} {fold₁ : Descriptor} {S₂ 
   {O₂ : OpeningShape S₂} {fold₂ : Descriptor} {S₃ : Shape} {O₃ : OpeningShape S₃}
   {fold₃ : Descriptor} {S₄ : Shape} {O₄ : OpeningShape S₄} {fold₄ : Descriptor} {S₅ : Shape}
   {Wire Coord : Type} [Fintype Coord] [DecidableEq Coord] {total : ℕ}
-  {accept : Prefix Wire (Option Coord → E) total → Prop} {read : Reader Wire} {start : ℕ}
+  {accept : Prefix Wire (Option Coord → Slot) total → Prop} {read : Reader Wire} {start : ℕ}
   {β₁ : Module.Basis (Fin O₁.planes) Zq E} {key₁ : Key S₁} {openKey₁ : OpeningKey O₁}
   {claim₁ : Wire → Claim O₁ E} {μ₁ : ℕ} {fits₁ : O₁.cells fold₁ ≤ 2 ^ μ₁} {digits₁ : ℕ}
   {room₁ : O₁.quotientRoom fold₁ digits₁ ≤ 2 ^ μ₁} {batch₁ : ℕ}
   {rowsFit₁ : O₁.rowCount + 1 ≤ 2 ^ batch₁} {block₁ : Fin S₁.blocks → Coord}
-  {decode₁ : E → Option (Rq O₁.carrierDegree)} {weight₁ ν₁ : ℕ}
+  {decode₁ : Slot → Option (Rq O₁.carrierDegree)} {weight₁ ν₁ : ℕ}
   {key₂ : Key S₂} {openKey₂ : OpeningKey O₂} {claim₂ : Wire → TraceClaim O₂ E}
   {μ₂ : ℕ} {fits₂ : O₂.cells fold₂ ≤ 2 ^ μ₂} {batch₂ : ℕ}
   {rowsFit₂ : O₂.traceRowCount + 1 ≤ 2 ^ batch₂} {block₂ : Fin S₂.blocks → Coord}
-  {decode₂ : E → Option (Rq S₂.innerDegree)} {weight₂ ν₂ m₂ : ℕ}
+  {decode₂ : Slot → Option (Rq S₂.innerDegree)} {weight₂ ν₂ m₂ : ℕ}
   {key₃ : Key S₃} {openKey₃ : OpeningKey O₃} {claim₃ : Wire → TraceClaim O₃ E}
   {μ₃ : ℕ} {fits₃ : O₃.cells fold₃ ≤ 2 ^ μ₃} {batch₃ : ℕ}
   {rowsFit₃ : O₃.traceRowCount + 1 ≤ 2 ^ batch₃} {block₃ : Fin S₃.blocks → Coord}
-  {decode₃ : E → Option (Rq S₃.innerDegree)} {weight₃ ν₃ m₃ : ℕ}
+  {decode₃ : Slot → Option (Rq S₃.innerDegree)} {weight₃ ν₃ m₃ : ℕ}
   {key₄ : Key S₄} {openKey₄ : OpeningKey O₄} {claim₄ : Wire → TraceClaim O₄ E}
   {μ₄ : ℕ} {fits₄ : O₄.cells fold₄ ≤ 2 ^ μ₄} {batch₄ : ℕ}
   {rowsFit₄ : O₄.traceRowCount + 1 ≤ 2 ^ batch₄} {block₄ : Fin S₄.blocks → Coord}
-  {decode₄ : E → Option (Rq S₄.innerDegree)} {weight₄ ν₄ m₄ : ℕ}
+  {decode₄ : Slot → Option (Rq S₄.innerDegree)} {weight₄ ν₄ m₄ : ℕ}
   {operator₃ limit₃ operator₄ limit₄ operatorL limitL : ℕ}
-  {L : Terminal S₅ E Wire Coord E total (.euclidean operatorL limitL)} {m₅ : ℕ}
+  {L : Terminal S₅ E Wire Coord Slot total (.euclidean operatorL limitL)} {m₅ : ℕ}
   {commit₂ : Wire → S₂.Payload} {commit₃ : Wire → S₃.Payload} {commit₄ : Wire → S₄.Payload}
   {stateOf : Wire → Fin S₅.blocks → Fin S₅.innerRank → Rq S₅.innerDegree}
   {statementOf : Wire → TerminalStatement S₅ E}
@@ -276,6 +279,7 @@ local notation "fourth" =>
   Tier.tensored (committedTraceSq (fold := fold₄) key₄ openKey₄ claim₄ μ₄ fits₄ batch₄ rowsFit₄
     block₄ decode₄ read weight₄ operator₄ limit₄ (Tier.finish third)) ν₄
 
+omit [FieldSlot Slot E] in
 /-- `packTower_complete` over the levels of `traceTower₂_complete` (Akita Theorem 10.9, without
 the probability that a response does not fit and without the term of (155) for a zero tensor
 factor). `early` is a transcript prefix on the path of the table of the oracle whose last message
@@ -320,28 +324,28 @@ theorem packTower₂_complete {sendable : (M : Type) → M → Prop} {slots widt
     (reads : ∀ point, L.read point = statementOf (point.wire L.start))
     (clears : ∀ point, L.partials point = partialsOf (point.wire L.start))
     (counts : ∀ wire, L.nonce wire = read.nonce wire)
-    (table : Prefix Wire (Option Coord → E) total → Option Coord → E)
+    (table : Prefix Wire (Option Coord → Slot) total → Option Coord → Slot)
     (decodes₁ : ∀ input i, (decode₁ (table input (some (block₁ i)))).isSome)
     (decodes₂ : ∀ input i, (decode₂ (table input (some (block₂ i)))).isSome)
     (decodes₃ : ∀ input i, (decode₃ (table input (some (block₃ i)))).isSome)
     (decodes₄ : ∀ input i, (decode₄ (table input (some (block₄ i)))).isSome)
     (decodesL : ∀ input i, (L.decode (table input (L.slot i))).isSome)
-    (worked : ∀ input, table input none ∈ workZeros E 57)
-    {wire₀ : Wire} {early : List ((Option Coord → E) × Wire)} (on : OnPath accept table wire₀ early)
+    (worked : ∀ input, table input none ∈ workZeros Slot 57)
+    {wire₀ : Wire} {early : List ((Option Coord → Slot) × Wire)} (on : OnPath accept table wire₀ early)
     (starts : early.length = start) {source : Fin S₁.blocks → S₁.Source} {point : Point O₁ E}
     (ready : claim₁ (lastWire wire₀ early) = sourceClaim β₁ key₁ openKey₁ source point)
     (tried : read.nonce (lastWire wire₀ early) < responseTries)
     (fit : LiftFit β₁ key₁ openKey₁ fold₁ μ₁ fits₁ digits₁ decode₁ source fun w₁ =>
-      TraceFit quarter₂ key₂ openKey₂ fold₂ (fun _ => decode₂) (fun _ => True) (packed w₁)
+      TraceFit (E := E) quarter₂ key₂ openKey₂ fold₂ (fun _ => decode₂) (fun _ => True) (packed w₁)
         fun w₂ =>
-      TraceFit quarter₃ key₃ openKey₃ fold₃ (fun _ => decode₃) (fun z => vecNormSq z ≤ limit₃)
+      TraceFit (E := E) quarter₃ key₃ openKey₃ fold₃ (fun _ => decode₃) (fun z => vecNormSq z ≤ limit₃)
         (packed w₂) fun w₃ =>
-      TraceFit quarter₄ key₄ openKey₄ fold₄ (fun _ => decode₄) (fun z => vecNormSq z ≤ limit₄)
+      TraceFit (E := E) quarter₄ key₄ openKey₄ fold₄ (fun _ => decode₄) (fun z => vecNormSq z ≤ limit₄)
         (packed w₃) fun w₄ =>
       ∀ c : Fin S₅.blocks → Rq S₅.innerDegree, (∀ i, ∃ slot, L.decode slot = some (c i)) →
         vecNormSq (traceResponse c (traceSource quarter₅ (packed w₄ : ℕ → E))) ≤ limitL) :
     ∃ later, OnPath accept table wire₀ (early ++ later) ∧ (early ++ later).length = total ∧
-      ∀ stage : Prefix Wire (Option Coord → E) total, stage.first = wire₀ →
+      ∀ stage : Prefix Wire (Option Coord → Slot) total, stage.first = wire₀ →
         stage.rest = early ++ later →
         Tier.TraceLinked first second quarter₂ commit₂ stage ∧
         Tier.TraceLinked second third quarter₃ commit₃ stage ∧

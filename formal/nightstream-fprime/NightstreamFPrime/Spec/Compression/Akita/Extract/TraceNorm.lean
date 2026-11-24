@@ -106,7 +106,8 @@ namespace Extract
 
 section Check
 
-variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E]
+variable {E : Type} [Field E] [Fintype E]
+  {Slot : Type} [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E] [DecidableEq E] [Algebra Zq E]
 
 /-- The bounds of the draws of the range tree on the Euclidean route: `treeCosts`, the merge
 coefficient `ζ_norm`, and the `μ'` rounds of the last stage with the binary-support point
@@ -187,18 +188,18 @@ theorem foldCheckSq_stagedTo {Coord : Type} [Fintype Coord] [DecidableEq Coord] 
     (batchFit : R.batch ≤ Fintype.card Coord) (rest : List ℝ)
     (tail : Option (List E × E) → List ℝ → Prop) (rejected : ∀ costs, tail none costs)
     (ended : ∀ final, tail (some final) rest) :
-    StagedTo (Coord → E) (foldCheckSq R base support bin limit kernel w)
+    StagedTo (Coord → Slot) (foldCheckSq R base support bin limit kernel w)
       (foldCostsSq E R.badBound R.vars R.batch base bin ++ rest) tail := by
-  have field : ∃ decode : (Coord → E) → E, Fair decode := exists_fair_slot
+  have field : ∃ decode : (Coord → Slot) → E, Fair decode := exists_fair_field
   have line (a b : E) : ((zeros (linePoly a b)).card : ℝ) / Fintype.card E ≤
       ((1 : ℕ) : ℝ) / Fintype.card E :=
     density_le _ 1 (zeros_card_le_of_natDegree_le (linePoly_natDegree _ _))
   unfold foldCheckSq foldCostsSq rangeCostsSq
   simp only [List.cons_append, List.append_assoc]
   refine stagedTo_draw field (density_le (C := E) (R.bad w) _ (R.bad_card w)) fun α => ?_
-  refine stagedTo_draw (exists_fair_slots varsFit) (density_rangeBad_le (E := E) R.low base R.vars w)
+  refine stagedTo_draw (exists_fair_fields varsFit) (density_rangeBad_le (E := E) R.low base R.vars w)
     fun τ0 => ?_
-  refine stagedTo_draw (exists_fair_slots batchFit)
+  refine stagedTo_draw (exists_fair_fields batchFit)
     ((R.rows α).density_batchBad_le R.vars (R.fits α) w) fun τ1 => ?_
   refine (stagedTo_bind _ _ _ _).mpr (rangeTree_stagedTo (rangeLeaf base) R.vars w
     (normLeafStage (rangeLeaf base) R.vars limit kernel support w) _ _
@@ -209,7 +210,7 @@ theorem foldCheckSq_stagedTo {Coord : Type} [Fintype Coord] [DecidableEq Coord] 
   swap
   · exact rejected _
   refine stagedTo_draw field (line _ _) fun ζn => ?_
-  refine (stagedTo_bind _ _ _ _).mpr (sumcheckWith_staged (Reply := Coord → E) field
+  refine (stagedTo_bind _ _ _ _).mpr (sumcheckWith_staged (Reply := Coord → Slot) field
     (max (rangeLeaf base + 1) 2) R.vars 1 _
     (normLeaf_roundTruth (rangeLeaf base) nodes R.vars weights ζn kernel point w).degree _
     (fun _ => bindBad_card_le _ _) _ _ ?_ ?_ R.vars [] _ (by simp))
@@ -260,6 +261,7 @@ end Check
 section Level
 
 variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {E : Type} [Field E] [Fintype E]
+  {Slot : Type} [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E]
   [DecidableEq E] [Algebra Zq E] {Wire Coord : Type} [Fintype Coord] [DecidableEq Coord]
 
 /-- A trace fold for one claim on the Euclidean route whose flat witness the next level commits
@@ -270,11 +272,11 @@ response. A final claim `(r_2, v_W)` is true for a table `w` when `v_W = w̃(r_2
 noncomputable def committedTraceSq (key : Key S) (openKey : OpeningKey O)
     (claim : Wire → TraceClaim O E) (μ : ℕ) (fits : O.cells fold ≤ 2 ^ μ) (batch : ℕ)
     (rowsFit : O.traceRowCount + 1 ≤ 2 ^ batch) (block : Fin S.blocks → Coord)
-    (decode : E → Option (Rq S.innerDegree)) (read : Reader Wire)
+    (decode : Slot → Option (Rq S.innerDegree)) (read : Reader Wire)
     (weight operator limit start : ℕ) :
     Tier (Fin S.blocks) (fun _ => Rq S.innerDegree) (TraceClaim O E)
       (LevelBreakSq key openKey (64 * operator ^ 2 * limit)) (Witness O fold) (Weak O)
-        Wire Coord E
+        Wire Coord Slot
       (Option (List E × E)) Table where
   method := traceSq key openKey weight operator limit
   claim := claim
@@ -295,10 +297,10 @@ noncomputable def committedTraceSq (key : Key S) (openKey : OpeningKey O)
 
 variable {key : Key S} {openKey : OpeningKey O} {claim : Wire → TraceClaim O E} {μ : ℕ}
   {fits : O.cells fold ≤ 2 ^ μ} {batch : ℕ} {rowsFit : O.traceRowCount + 1 ≤ 2 ^ batch}
-  {block : Fin S.blocks → Coord} {decode : E → Option (Rq S.innerDegree)}
+  {block : Fin S.blocks → Coord} {decode : Slot → Option (Rq S.innerDegree)}
   {read : Reader Wire} {weight operator limit start : ℕ}
 
-omit [Fintype Coord] [DecidableEq Coord] in
+omit [Fintype Coord] [DecidableEq Coord] [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E] in
 /-- Akita Lemma 10.42 (i) on the Euclidean route: on a path of the checks of a committed trace
 fold that avoids the bad sets, a final claim that is true for the table gives the exact branch
 relation of `traceSq` for the digit vectors `ofFlat` of the table: `Witness.TraceSatisfies`, and
@@ -340,7 +342,7 @@ theorem committedTraceSq_stagedTo (varsFit : μ ≤ Fintype.card Coord)
     (challenge : Fin S.blocks → Rq S.innerDegree) (table : Table) (rest : List ℝ)
     (tail : Option (List E × E) → List ℝ → Prop) (rejected : ∀ costs, tail none costs)
     (ended : ∀ final, tail (some final) rest) :
-    StagedTo (Coord → E) ((committedTraceSq key openKey claim μ fits batch rowsFit block decode
+    StagedTo (Coord → Slot) ((committedTraceSq key openKey claim μ fits batch rowsFit block decode
       read weight operator limit start).check wire challenge table)
       ((committedTraceSq key openKey claim μ fits batch rowsFit block decode read weight
         operator limit start).costs ++ rest) tail :=
@@ -376,7 +378,8 @@ theorem committedTraceSq_valid {peak : ℕ} (injective : Function.Injective bloc
   draws := by simp [committedTraceSq, foldCostsSq]
   aligned := (List.length_map ..).trans (foldLossesSq_length ..)
 
-omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] in
+omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] [Fintype Slot] [Nonempty Slot]
+  [FieldSlot Slot E] in
 /-- The verifier of the checks of a committed trace fold on the Euclidean route does not read the
 table. -/
 theorem committedTraceSq_uniform (wire : Wire) (challenge : Fin S.blocks → Rq S.innerDegree)

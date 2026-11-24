@@ -48,7 +48,8 @@ attribute [local instance low] Classical.propDecidable
 
 section Folds
 
-variable {n : ℕ} {B : Batch (Fin n)} {E : Type} [Field E] [Fintype E] [DecidableEq E]
+variable {n : ℕ} {B : Batch (Fin n)} {E : Type} [Field E] [Fintype E]
+  {Slot : Type} [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E] [DecidableEq E]
   [Algebra Zq E] {Wire Coord : Type} [Fintype Coord] [DecidableEq Coord]
 
 /-- The largest ring degree `d_A` of the matrices `A` of the groups: the Akita code takes the
@@ -66,7 +67,7 @@ def _root_.NightstreamFPrime.Spec.Compression.Akita.Batch.familyBits {n : ℕ}
 
 /-- A fold with opening groups and coefficient packing whose flat witness the next level commits
 to, as a `Tier` with the first stage `start` (Akita Sections 5.4 and 5.5). Its method is
-`Batch.method`. A slot of an answer of the oracle is one uniform element of `E`, and `decode g`
+`Batch.method`. A slot of an answer of the oracle is one uniform element of `Slot`, and `decode g`
 gives the fold challenge of a coordinate of the group `g`. The successor source is a table,
 `Batch.ofFlat` gives its digit vectors, and the checks are `foldCheck` for the quotient-free
 reduction of `Batch.flatRelation`, with the range base `base`. A final claim `(r_2, v_W)` is
@@ -74,11 +75,11 @@ true for a table `w` when `v_W = w̃(r_2)`. -/
 noncomputable def committedBatch (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E)
     (key : (g : Fin n) → Key (B.shape g)) (openKey : B.OpenKey) (claim : Wire → B.Claim E)
     (μ : ℕ) (fits : B.cells ≤ 2 ^ μ) (batch : ℕ) (rowsFit : B.rowCount + 1 ≤ 2 ^ batch)
-    (block : B.Block → Coord) (decode : (g : Fin n) → E → Option (Rq (B.carrierDegree g)))
+    (block : B.Block → Coord) (decode : (g : Fin n) → Slot → Option (Rq (B.carrierDegree g)))
     (read : Reader Wire) (mass : Fin n → ℕ) (base start : ℕ) :
     Tier B.Block (fun b => Rq (B.carrierDegree b.1)) (B.Claim E)
       (B.LevelBreak key openKey fun g => 2 * (2 * mass g) * (B.fold g).sourceBound (B.shape g))
-      B.Witness B.Weak Wire Coord E (Option (List E × E)) Table where
+      B.Witness B.Weak Wire Coord Slot (Option (List E × E)) Table where
   method := Batch.method β key openKey mass
   claim := claim
   block b := some (block b)
@@ -101,11 +102,11 @@ the flat witness of the digit vectors. -/
 noncomputable def clearBatch (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E)
     (key : (g : Fin n) → Key (B.shape g)) (openKey : B.OpenKey) (claim : Wire → B.Claim E)
     (μ : ℕ) (fits : B.cells ≤ 2 ^ μ) (batch : ℕ) (rowsFit : B.rowCount + 1 ≤ 2 ^ batch)
-    (block : B.Block → Coord) (decode : (g : Fin n) → E → Option (Rq (B.carrierDegree g)))
+    (block : B.Block → Coord) (decode : (g : Fin n) → Slot → Option (Rq (B.carrierDegree g)))
     (read : Reader Wire) (mass : Fin n → ℕ) (base start : ℕ) :
     Tier B.Block (fun b => Rq (B.carrierDegree b.1)) (B.Claim E)
       (B.LevelBreak key openKey fun g => 2 * (2 * mass g) * (B.fold g).sourceBound (B.shape g))
-      B.Witness B.Weak Wire Coord E (Option (List E × E)) B.Witness where
+      B.Witness B.Weak Wire Coord Slot (Option (List E × E)) B.Witness where
   method := Batch.method β key openKey mass
   claim := claim
   block b := some (block b)
@@ -125,7 +126,7 @@ noncomputable def clearBatch (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E)
 
 variable {β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E} {key : (g : Fin n) → Key (B.shape g)}
   {openKey : B.OpenKey} {claim : Wire → B.Claim E} {μ : ℕ} {fits : B.cells ≤ 2 ^ μ} {batch : ℕ}
-  {block : B.Block → Coord} {decode : (g : Fin n) → E → Option (Rq (B.carrierDegree g))}
+  {block : B.Block → Coord} {decode : (g : Fin n) → Slot → Option (Rq (B.carrierDegree g))}
   {read : Reader Wire} {mass : Fin n → ℕ} {base start : ℕ}
 
 /-- A committed fold with opening groups satisfies the conditions of `Tier.Valid`. The hypotheses
@@ -191,7 +192,7 @@ theorem clearBatch_valid [Nonempty Coord] {rowsFit : B.rowCount + 1 ≤ 2 ^ batc
   draws := by simp [clearBatch, foldCosts]
   aligned := (List.length_map ..).trans (foldLosses_length ..)
 
-omit [Fintype Coord] [DecidableEq Coord] in
+omit [Fintype Coord] [DecidableEq Coord] [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E] in
 /-- The verifier of the checks of a committed fold with opening groups does not read the
 table. -/
 theorem committedBatch_uniform {rowsFit : B.rowCount + 1 ≤ 2 ^ batch} (wire : Wire)
@@ -204,7 +205,7 @@ theorem committedBatch_uniform {rowsFit : B.rowCount + 1 ≤ 2 ^ batch} (wire : 
 
 section Suffixes
 
-variable [Nonempty Coord] {total : ℕ} {accept : Prefix Wire (Option Coord → E) total → Prop}
+variable [Nonempty Coord] {total : ℕ} {accept : Prefix Wire (Option Coord → Slot) total → Prop}
   {Inner BreakT CandT KeyT : Type}
 
 /-- Akita Proposition 10.44 for one more level, whose fold has opening groups: a committed fold
@@ -223,8 +224,8 @@ theorem committedBatch_suffix {S' : Shape} {O' : OpeningShape S'} {fold' : Descr
     {openKey' : OpeningKey O'} {weight' : ℕ}
     {N : Tier (Fin S'.blocks) (fun _ => Rq O'.carrierDegree) (Claim O' E)
       (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S')) (Witness O' fold')
-      (Weak O') Wire Coord E Result' Source'}
-    {tail : Structure (Address Wire total) (Prefix Wire (Option Coord → E) total) (Option Coord) E (ℕ → Wire) Inner
+      (Weak O') Wire Coord Slot Result' Source'}
+    {tail : Structure (Address Wire total) (Prefix Wire (Option Coord → Slot) total) (Option Coord) Slot (ℕ → Wire) Inner
       BreakT CandT KeyT
       (Option (Weak O'))}
     {error : ℝ} {loops tree : ℕ} {rowsFit : B.rowCount + 1 ≤ 2 ^ batch} {peak : Fin n → ℕ}
@@ -449,17 +450,18 @@ end Root
 section Instance
 
 variable {count : ℕ} {B : Batch (Fin count)} {S' : Shape} {O' : OpeningShape S'}
-  {fold' : Descriptor} {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E]
+  {fold' : Descriptor} {E : Type} [Field E] [Fintype E]
+  {Slot : Type} [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E] [DecidableEq E] [Algebra Zq E]
   {Wire Coord : Type} [Fintype Coord] [DecidableEq Coord] [Nonempty Coord]
   {β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E} {key : (g : Fin count) → Key (B.shape g)}
   {openKey : B.OpenKey} {claim : Wire → B.Claim E} {μ : ℕ} {fits : B.cells ≤ 2 ^ μ} {batch : ℕ}
   {rowsFit : B.rowCount + 1 ≤ 2 ^ batch} {block : B.Block → Coord}
-  {decode : (g : Fin count) → E → Option (Rq (B.carrierDegree g))} {read : Reader Wire}
+  {decode : (g : Fin count) → Slot → Option (Rq (B.carrierDegree g))} {read : Reader Wire}
   {mass : Fin count → ℕ} {base : ℕ}
   {β' : Module.Basis (Fin O'.planes) Zq E} {key' : Key S'} {openKey' : OpeningKey O'}
   {claim' : Wire → Claim O' E} {μ' : ℕ} {fits' : O'.cells fold' ≤ 2 ^ μ'} {batch' : ℕ}
   {rowsFit' : O'.rowCount + 1 ≤ 2 ^ batch'} {block' : Fin S'.blocks → Coord}
-  {decode' : E → Option (Rq O'.carrierDegree)} {weight' : ℕ}
+  {decode' : Slot → Option (Rq O'.carrierDegree)} {weight' : ℕ}
   {commit : Wire → (g : Fin count) → (B.shape g).Payload} {value : Wire → Fin count → E}
   {place : Wire → Fin count → List E} {next : Wire → S'.Payload}
   {witnessOf : Wire → Witness O' fold'}
@@ -500,7 +502,7 @@ theorem batchRootChain_suffix {peak : Fin count → ℕ} {peak' : ℕ}
   batchRoot_suffix B.card_block
     (committedBatch_valid injective units sparse response uniform small varsFit batchFit)
     (clearFold_valid injective' units' sparse' base' small' varsFit' batchFit')
-    (exists_fair_slots groupsFit) rfl rfl rfl rfl committedBatch_uniform
+    (exists_fair_fields groupsFit) rfl rfl rfl rfl committedBatch_uniform
     (fun _ r2 v opened => ⟨r2, v, rfl, opened⟩)
 
 /-- An output of the extractor for the batching root over a committed fold with opening groups
@@ -524,13 +526,13 @@ theorem batchRoot_extract_sound {peak : Fin count → ℕ} {peak' : ℕ}
       Sparse weight' peak' challenge)
     (base' : 2 ≤ fold'.responseBase) (small' : S'.certifiedBase < fieldModulus)
     (varsFit' : μ' ≤ Fintype.card Coord) (batchFit' : batch' ≤ Fintype.card Coord)
-    (prover : OracleComp (Address Wire (Tier.finish second)) (Option Coord → E)
+    (prover : OracleComp (Address Wire (Tier.finish second)) (Option Coord → Slot)
       (ℕ → Wire))
-    (budget : ℕ) (table : Address Wire (Tier.finish second) → Option Coord → E)
-    (tape : Tape (Address Wire (Tier.finish second)) (Option Coord) E budget
+    (budget : ℕ) (table : Address Wire (Tier.finish second) → Option Coord → Slot)
+    (tape : Tape (Address Wire (Tier.finish second)) (Option Coord) Slot budget
       (Structure.protocol chain).stages)
     (out : Opened B.Weak
-        (Opened (Weak O') (Prefix Wire (Option Coord → E) (Tier.finish second))) ⊕
+        (Opened (Weak O') (Prefix Wire (Option Coord → Slot) (Tier.finish second))) ⊕
       (B.LevelBreak key openKey
           (fun g => 2 * (2 * mass g) * (B.fold g).sourceBound (B.shape g)) ⊕
         (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S') ⊕ Unit)))
@@ -583,10 +585,10 @@ theorem batchRoot_extraction_le {peak : Fin count → ℕ} {peak' : ℕ}
       Sparse weight' peak' challenge)
     (base' : 2 ≤ fold'.responseBase) (small' : S'.certifiedBase < fieldModulus)
     (varsFit' : μ' ≤ Fintype.card Coord) (batchFit' : batch' ≤ Fintype.card Coord)
-    (prover : OracleComp (Address Wire (Tier.finish second)) (Option Coord → E)
+    (prover : OracleComp (Address Wire (Tier.finish second)) (Option Coord → Slot)
       (ℕ → Wire))
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Address Wire (Tier.finish second)) (Option Coord) E
+    𝔼 table, 𝔼 tape : Tape (Address Wire (Tier.finish second)) (Option Coord) Slot
       budget
           (Structure.protocol chain).stages,
         (if accepts ((Structure.protocol chain).final prover table) ∧
@@ -617,10 +619,10 @@ theorem batchRoot_runs_le {peak : Fin count → ℕ} {peak' : ℕ}
       Sparse weight' peak' challenge)
     (base' : 2 ≤ fold'.responseBase) (small' : S'.certifiedBase < fieldModulus)
     (varsFit' : μ' ≤ Fintype.card Coord) (batchFit' : batch' ≤ Fintype.card Coord)
-    (prover : OracleComp (Address Wire (Tier.finish second)) (Option Coord → E)
+    (prover : OracleComp (Address Wire (Tier.finish second)) (Option Coord → Slot)
       (ℕ → Wire))
     {queries : ℕ} (bounded : prover.QueryBound queries) (budget : ℕ) :
-    𝔼 table, 𝔼 tape : Tape (Address Wire (Tier.finish second)) (Option Coord) E
+    𝔼 table, 𝔼 tape : Tape (Address Wire (Tier.finish second)) (Option Coord) Slot
       budget
           (Structure.protocol chain).stages,
         (extractRuns chain prover budget table tape : ℝ) ≤

@@ -100,7 +100,8 @@ theorem foldCostsSq_length (E : Type) [Fintype E] (badBound vars batch base : �
 
 section Checks
 
-variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E]
+variable {E : Type} [Field E] [Fintype E]
+  {Slot : Type} [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E] [DecidableEq E] [Algebra Zq E]
   {sendable : (M : Type) → M → Prop} {slots : ℕ}
 
 omit [Algebra Zq E] in
@@ -391,15 +392,17 @@ end Trace
 section Levels
 
 variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {E : Type} [Field E] [Fintype E]
+  {Slot : Type} [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E]
   [DecidableEq E] [Algebra Zq E] {Wire Coord : Type} {sendable : (M : Type) → M → Prop}
   {slots width cap : ℕ}
 
+omit [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E] in
 /-- The completeness of the checks of a level with the tensor reduction (Akita Theorem 5.1,
 item 1): when the checks of the level end in a true claim `(r_2, w̃(r_2))` of `ν + 1` coordinates
 with at most `bound` messages after the last draw, the checks with the tensor reduction end in a
 claim `(ρ, θ, θ·f̄_w(ρ))` with `ν` coordinates. -/
 theorem Tier.tensored_winsAt [Degree2 E] {Ring Stmt Brk : Type}
-    {T : Tier (Fin S.blocks) (fun _ => Ring) Stmt Brk (Witness O fold) (Weak O) Wire Coord E
+    {T : Tier (Fin S.blocks) (fun _ => Ring) Stmt Brk (Witness O fold) (Weak O) Wire Coord Slot
       (Option (List E × E)) Table}
     {ν : ℕ} (sends : Sends sendable E width cap) (wide : 3 ≤ width) {wire : Wire}
     {challenge : Fin S.blocks → Ring} {table : Table} {draws bound : ℕ}
@@ -427,9 +430,10 @@ theorem Tier.tensored_winsAt [Degree2 E] {Ring Stmt Brk : Type}
 
 variable {key : Key S} {openKey : OpeningKey O} {claim : Wire → TraceClaim O E} {μ : ℕ}
   {cells : O.cells fold ≤ 2 ^ μ} {batch : ℕ} {rowsFit : O.traceRowCount + 1 ≤ 2 ^ batch}
-  {block : Fin S.blocks → Coord} {decode : E → Option (Rq S.innerDegree)} {read : Reader Wire}
+  {block : Fin S.blocks → Coord} {decode : Slot → Option (Rq S.innerDegree)} {read : Reader Wire}
   {weight start : ℕ}
 
+omit [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E] in
 /-- The completeness of the checks of the level `committedTrace` (Akita Theorem 10.9 for the
 checks of Figure 6): for digit vectors with the exact branch relation of the claim of a wire
 message, the checks end in the claim `(r_2, w̃(r_2))` for the flat witness. -/
@@ -450,6 +454,7 @@ theorem committedTrace_winsAt (sends : Sends sendable E width cap)
       (fun _ small message => sends.vector _ message (small.trans wide))
       (fun message => sends.vector _ message four) two small batch rowsFit satisfies) room
 
+omit [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E] in
 /-- The completeness of the checks of the level `committedTraceSq` on the Euclidean route (Akita
 Theorem 10.9 with Sections 6.2 and 6.3): for digit vectors with the exact branch relation of the
 claim of a wire message and a response with `‖G_{b_z,m_A}·ẑ‖_2² ≤ S_max`, the checks end in the
@@ -478,6 +483,7 @@ theorem committedTraceSq_winsAt (sends : Sends sendable E width cap)
     (energy_response w ((O.responseCells_le_cells fold).trans cells)
       normRoom)
 
+omit [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E] in
 theorem committedTraceSq_costs_length {operator limit : ℕ} :
     (committedTraceSq (fold := fold) key openKey claim μ cells batch rowsFit block decode read
       weight operator limit start).costs.length = foldDrawsSq μ S.certifiedBase (O.compressed fold)
@@ -489,13 +495,15 @@ end Levels
 section Lift
 
 variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {E : Type} [Field E] [Fintype E]
+  {Slot : Type} [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E]
   [DecidableEq E] [Algebra Zq E] {Wire Coord : Type} {sendable : (M : Type) → M → Prop}
   {slots width cap : ℕ} {β : Module.Basis (Fin O.planes) Zq E} {key : Key S}
   {openKey : OpeningKey O} {claim : Wire → Claim O E} {μ : ℕ} {cells : O.cells fold ≤ 2 ^ μ}
   {digits : ℕ} {room : O.quotientRoom fold digits ≤ 2 ^ μ} {batch : ℕ}
   {rowsFit : O.rowCount + 1 ≤ 2 ^ batch} {block : Fin S.blocks → Coord}
-  {decode : E → Option (Rq O.carrierDegree)} {read : Reader Wire} {weight start : ℕ}
+  {decode : Slot → Option (Rq O.carrierDegree)} {read : Reader Wire} {weight start : ℕ}
 
+omit [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E] in
 /-- The completeness of the checks of the level `liftFold` (Akita Lemma 7.1, item 1, with
 Theorem 10.9): for digit vectors with the exact branch relation of the claim of a wire message,
 the checks end in the claim `(r_2, w̃(r_2))` for the flat witness with the digits of the
@@ -527,15 +535,17 @@ end Lift
 
 section Groups
 
-variable {n : ℕ} {B : Batch (Fin n)} {E : Type} [Field E] [Fintype E] [DecidableEq E]
+variable {n : ℕ} {B : Batch (Fin n)} {E : Type} [Field E] [Fintype E]
+  {Slot : Type} [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E] [DecidableEq E]
   [Algebra Zq E] {Wire Coord : Type} {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
   {β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E} {key : (g : Fin n) → Key (B.shape g)}
   {openKey : B.OpenKey} {claim : Wire → B.Claim E} {μ : ℕ} {cells : B.cells ≤ 2 ^ μ}
   {base digits : ℕ} {room : B.quotientRoom digits ≤ 2 ^ μ} {batch : ℕ}
   {rowsFit : B.rowCount + 1 ≤ 2 ^ batch} {block : B.Block → Coord}
-  {decode : (g : Fin n) → E → Option (Rq (B.carrierDegree g))} {read : Reader Wire}
+  {decode : (g : Fin n) → Slot → Option (Rq (B.carrierDegree g))} {read : Reader Wire}
   {mass : Fin n → ℕ} {start : ℕ}
 
+omit [Fintype Slot] [Nonempty Slot] [FieldSlot Slot E] in
 /-- The completeness of the checks of the level `liftBatch` with opening groups (Akita
 Lemma 7.1, item 1, with Theorem 10.9): for digit vectors with the exact branch relation
 `Batch.Witness.Satisfies` of the claim of a wire message, the checks end in the claim

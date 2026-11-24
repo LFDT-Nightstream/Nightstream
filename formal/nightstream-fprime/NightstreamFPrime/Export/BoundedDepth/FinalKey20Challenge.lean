@@ -1,19 +1,21 @@
 import NightstreamFPrime.Export.BoundedDepth.FinalKey20History
 import NightstreamFPrime.Export.BoundedDepth.FinalMemory
-import NightstreamFPrime.Spec.Compression.Akita.Key20Challenge
+import NightstreamFPrime.Spec.Compression.Akita.Key20Opening
 
-/-! The final verifier over the Akita opening of `key20.aks` with the decoders `draw` of the
-sparse challenge families (SPEC.md, Algorithm 10; Akita, ePrint 2026/1983, revision of
-2026-11-23, Section 3.2, (23), Definition 9.2 E1 and Theorem 10.17).
+/-! The final verifier over the Akita opening of `key20.aks` with the fold decoders of the pinned
+Akita code on the slots `Replay.CodeSlot K` (SPEC.md, Algorithm 10; Akita, ePrint 2026/1983,
+revision of 2026-11-23, Section 3.2, (23), Definition 9.2 E1 and Theorem 10.17).
 
-- `Opening.Drawn` has the hypotheses of `FinalKey20.sound` on an opening whose decoders are
-  `draw` of the families of the Akita code: `(31, 10)` for the groups of `W` and `V` and for the
-  level 1, `(31, 0)` for the key group and for the level 2, and the base families `(31, 0)` of
-  the level 3 and `(31, 11)` of the levels 4 and 5 and of the terminal with the filter
-  `TrigTable.codeAccepts` of the code. It has no hypothesis on units, on `‖c‖_1`, on the
+- `Opening.Drawn` has the hypotheses of `FinalKey20.sound` on an opening whose decoders are the
+  decoders of the code of the families of the Akita code: `Replay.CodeSlot.open` of `(31, 10)`
+  for the groups of `W` and `V` and for the level 1 and of `(31, 0)` for the key group and for
+  the level 2, and `Replay.CodeSlot.kept128` of the base family `(31, 0)` of the level 3 and
+  `Replay.CodeSlot.kept64` of `(31, 11)` of the levels 4 and 5 and of the terminal with the
+  filter `TrigTable.codeAccepts` of the code. It has no hypothesis on units, on `‖c‖_1`, on the
   operator bound or on the slot probability: the filter of the code accepts only elements with
   `‖c‖_mul,2 ≤ Γ` (`TrigTable.filtered_code`; Akita Appendix H, Theorem H.1).
-- `Opening.Drawn.sized` gives `Opening.Sized` with the slot probability `p = 1/q²`, and
+- `Opening.Drawn.sized` gives `Opening.Sized` with the slot probability `p = 1/q²`, an upper
+  bound of the probability `2^-K` or `1/|Kept G|` of each decoder of the code, and
   `Opening.Drawn.decodes` gives a fold challenge for each slot at each level.
 - `verifier_sound_drawn` is `verifier_sound` for a family of openings with `Opening.Drawn`.
 - `history_sound_drawn` and `history_knowledge_drawn` are `history_sound` and
@@ -24,6 +26,8 @@ sparse challenge families (SPEC.md, Algorithm 10; Akita, ePrint 2026/1983, revis
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.BoundedDepth.FinalKey20
+
+open NightstreamFPrime.Spec.Compression.Akita.Replay (CodeSlot)
 
 open scoped BigOperators
 open NightstreamFPrime.Spec NightstreamFPrime.Spec.FieldExtensionRing
@@ -100,7 +104,7 @@ local notation "fifth" =>
     (And.left sized₅) level₅.batch (And.left (And.right sized₅)) o.block₅ o.decode₅
     (Compose.read C) o.weight₅ norm₅.operator norm₅.limit (Tier.finish fourth)) level₅.tail
 /-- The hypotheses of `FinalKey20.sound` on the Akita opening of `o`, when its decoders are the
-decoders `draw` of the sparse challenge families of the Akita code. `decode` to `decodeL`,
+decoders of the code of the sparse challenge families of the Akita code. `decode` to `decodeL`,
 `mass`, `peak` and `weight₁` to `weight₅`: the decoders and the numbers `ω` and `c_max` of `o`
 are those of the families, with the filter `TrigTable.codeAccepts` of the code for `Γ` = 13,
 18, 18 and 18 at the levels 3 to 5 and at the terminal (Akita (23)). `kept`: `2^128` members or
@@ -114,28 +118,24 @@ structure Opening.Drawn : Prop where
   mass : o.mass = Key20.rootMass
   peak : o.peak = Key20.rootPeak
   injective₁ : Function.Injective o.block₁
-  decode₁ : o.decode₁ = draw (SparseFamily _ 31 10) fun _ => True
+  decode₁ : o.decode₁ = Replay.CodeSlot.open Key20.open64 Key20.open64_fits
   weight₁ : o.weight₁ = 51
   injective₂ : Function.Injective o.block₂
-  decode₂ : o.decode₂ = draw (SparseFamily _ 31 0) fun _ => True
+  decode₂ : o.decode₂ = Replay.CodeSlot.open Key20.open128 Key20.open128_fits
   weight₂ : o.weight₂ = 31
   injective₃ : Function.Injective o.block₃
-  decode₃ : o.decode₃ = draw (SparseFamily _ 31 0)
-    (TrigTable.codeAccepts level₃.shape.innerDegree norm₃.operator)
+  decode₃ : o.decode₃ = Replay.CodeSlot.kept128
   weight₃ : o.weight₃ = 31
   injective₄ : Function.Injective o.block₄
-  decode₄ : o.decode₄ = draw (SparseFamily _ 31 11)
-    (TrigTable.codeAccepts level₄.shape.innerDegree norm₄.operator)
+  decode₄ : o.decode₄ = Replay.CodeSlot.kept64
   weight₄ : o.weight₄ = 53
   injective₅ : Function.Injective o.block₅
-  decode₅ : o.decode₅ = draw (SparseFamily _ 31 11)
-    (TrigTable.codeAccepts level₅.shape.innerDegree norm₅.operator)
+  decode₅ : o.decode₅ = Replay.CodeSlot.kept64
   weight₅ : o.weight₅ = 53
   next : Terminal.start o.terminal = Tier.finish fifth
   inside : Terminal.start o.terminal < total
   injectiveL : Function.Injective (Terminal.block o.terminal)
-  decodeL : Terminal.decode o.terminal = draw (SparseFamily _ 31 11)
-    (TrigTable.codeAccepts Key20.terminal.innerDegree normTerminal.operator)
+  decodeL : Terminal.decode o.terminal = Replay.CodeSlot.kept64
   registered : ∀ anchor, o.honest.Opens o.factorBound o.sourceBound (o.key 0) (o.bound anchor 0)
     (keyBase (FinalVerifier.Setup.params S₀ o.shape))
   covers : o.factorBound * (root.fold 0).sourceBound (root.shape 0) + 2 * o.mass 0 * o.sourceBound ≤
@@ -154,26 +154,27 @@ theorem covers_one : 1 * (root.fold 0).sourceBound (root.shape 0) +
   exact Descriptor.key20_covers
 
 omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] in
-/-- With `Opening.Drawn`, each slot of `K` gives a fold challenge of each group of the root, of
+/-- With `Opening.Drawn`, each slot gives a fold challenge of each group of the root, of
 the levels 1 to 5 and of the terminal, so the conditions `decodes` of the verifier hold for each
 table of the oracle on keys. -/
 theorem Opening.Drawn.decodes
-    (drawn : o.Drawn setup packageWidths step cap control read head) (slot : K) :
+    (drawn : o.Drawn setup packageWidths step cap control read head) (slot : CodeSlot K) :
     (∀ g, (o.decode g slot).isSome) ∧ (o.decode₁ slot).isSome ∧ (o.decode₂ slot).isSome ∧
       (o.decode₃ slot).isSome ∧ (o.decode₄ slot).isSome ∧ (o.decode₅ slot).isSome ∧
       (Terminal.decode o.terminal slot).isSome := by
   rw [drawn.decode, drawn.decode₁, drawn.decode₂, drawn.decode₃, drawn.decode₄, drawn.decode₅,
     drawn.decodeL]
-  exact ⟨fun g => Key20.rootDecode_isSome g slot, Key20.draw_all Key20.families_large.1 slot,
-    Key20.draw_all ((by decide : 2 ^ 128 ≤ 2 ^ 129).trans Key20.families_large.2.2) slot,
-    Key20.draw_kept drawn.kept.2 slot, Key20.draw_kept drawn.kept.1 slot,
-    Key20.draw_kept drawn.kept.1 slot, Key20.draw_kept drawn.kept.1 slot⟩
+  exact ⟨fun g => Key20.rootDecode_isSome g slot, Replay.open_isSome _ rfl (by decide) slot,
+    Replay.open_isSome _ rfl (by decide) slot, Replay.kept128_isSome drawn.kept slot,
+    Replay.kept64_isSome drawn.kept slot, Replay.kept64_isSome drawn.kept slot,
+    Replay.kept64_isSome drawn.kept slot⟩
 
 omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] in
 /-- An opening with `Opening.Drawn` has `Opening.Sized` with the slot probability `p = 1/q²`:
-the families have units as differences (`Key20.draw_units`), their members have the norms `ω`
-and `c_max` (`Key20.draw_sparse`), and a decoder `draw` gives each challenge for at most one of
-the `q²` slots (`Key20.slotChance_draw`), and the filter of the code gives the operator bound
+the families have units as differences (`Key20.units_of_mem`), their members have the norms `ω`
+and `c_max` (`Key20.sparse_of_mem`), the slot probability of each decoder of the code is at most
+`2^-128 ≤ 1/q²` (`Replay.slotChance_open_field`, `Replay.slotChance_kept64_field`,
+`Replay.slotChance_kept128_field`), and the filter of the code gives the operator bound
 (`TrigTable.filtered_code`). -/
 theorem Opening.Drawn.sized
     (drawn : o.Drawn setup packageWidths step cap control read head) :
@@ -191,83 +192,89 @@ theorem Opening.Drawn.sized
   injective₁ := drawn.injective₁
   units₁ := by
     rw [drawn.decode₁]
-    exact Key20.draw_units 5 (by decide)
+    exact Key20.units_of_mem 5 (by decide) fun decoded => (Replay.open_mem decoded).1
   sparse₁ := ⟨2, by
     rw [drawn.decode₁, drawn.weight₁]
-    exact Key20.draw_sparse⟩
+    exact Key20.sparse_of_mem (ones := 31) (twos := 10)
+      fun decoded => (Replay.open_mem decoded).1⟩
   injective₂ := drawn.injective₂
   units₂ := by
     rw [drawn.decode₂]
-    exact Key20.draw_units 6 (by decide)
+    exact Key20.units_of_mem 6 (by decide) fun decoded => (Replay.open_mem decoded).1
   sparse₂ := ⟨1, by
     rw [drawn.decode₂, drawn.weight₂]
-    exact Key20.draw_sparse⟩
+    exact Key20.sparse_of_mem (ones := 31) (twos := 0)
+      fun decoded => (Replay.open_mem decoded).1⟩
   injective₃ := drawn.injective₃
   units₃ := by
     rw [drawn.decode₃]
-    exact Key20.draw_units 6 (by decide)
+    exact Key20.units_of_mem 6 (by decide) fun decoded => (Replay.kept128_mem decoded).1
   sparse₃ := ⟨1, by
     rw [drawn.decode₃, drawn.weight₃]
-    exact Key20.draw_sparse⟩
+    exact Key20.sparse_of_mem (ones := 31) (twos := 0)
+      fun decoded => (Replay.kept128_mem decoded).1⟩
   bounded₃ challenge decoded := by
     rw [drawn.decode₃] at decoded
     exact (TrigTable.filtered_code (by decide) _).mulBound (by decide)
-      (draw_mem decoded.choose_spec).2
+      (Replay.kept128_mem decoded.choose_spec).2
   injective₄ := drawn.injective₄
   units₄ := by
     rw [drawn.decode₄]
-    exact Key20.draw_units 5 (by decide)
+    exact Key20.units_of_mem 5 (by decide) fun decoded => (Replay.kept64_mem decoded).1
   sparse₄ := ⟨2, by
     rw [drawn.decode₄, drawn.weight₄]
-    exact Key20.draw_sparse⟩
+    exact Key20.sparse_of_mem (ones := 31) (twos := 11)
+      fun decoded => (Replay.kept64_mem decoded).1⟩
   bounded₄ challenge decoded := by
     rw [drawn.decode₄] at decoded
     exact (TrigTable.filtered_code (by decide) _).mulBound (by decide)
-      (draw_mem decoded.choose_spec).2
+      (Replay.kept64_mem decoded.choose_spec).2
   injective₅ := drawn.injective₅
   units₅ := by
     rw [drawn.decode₅]
-    exact Key20.draw_units 5 (by decide)
+    exact Key20.units_of_mem 5 (by decide) fun decoded => (Replay.kept64_mem decoded).1
   sparse₅ := ⟨2, by
     rw [drawn.decode₅, drawn.weight₅]
-    exact Key20.draw_sparse⟩
+    exact Key20.sparse_of_mem (ones := 31) (twos := 11)
+      fun decoded => (Replay.kept64_mem decoded).1⟩
   bounded₅ challenge decoded := by
     rw [drawn.decode₅] at decoded
     exact (TrigTable.filtered_code (by decide) _).mulBound (by decide)
-      (draw_mem decoded.choose_spec).2
+      (Replay.kept64_mem decoded.choose_spec).2
   next := drawn.next
   inside := drawn.inside
   injectiveL := drawn.injectiveL
   unitsL := by
     unfold Terminal.family
     rw [drawn.decodeL]
-    exact Key20.draw_units 5 (by decide)
+    exact Key20.units_of_mem 5 (by decide) fun decoded => (Replay.kept64_mem decoded).1
   boundedL challenge decoded := by
     unfold Terminal.family at decoded
     rw [drawn.decodeL] at decoded
     exact (TrigTable.filtered_code (by decide) _).mulBound (by decide)
-      (draw_mem decoded.choose_spec).2
+      (Replay.kept64_mem decoded.choose_spec).2
   chance g := by
     rw [drawn.decode]
-    exact Key20.slotChance_draw _ _
+    unfold Key20.rootDecode
+    exact Replay.slotChance_open_field _ _ (Key20.rootGroup_wide g)
   chance₁ := by
     rw [drawn.decode₁]
-    exact Key20.slotChance_draw _ _
+    exact Replay.slotChance_open_field _ _ Key20.open64_bits.ge
   chance₂ := by
     rw [drawn.decode₂]
-    exact Key20.slotChance_draw _ _
+    exact Replay.slotChance_open_field _ _ ((by decide : 128 ≤ 129).trans Key20.open128_bits.ge)
   chance₃ := by
     rw [drawn.decode₃]
-    exact Key20.slotChance_draw _ _
+    exact Replay.slotChance_kept128_field drawn.kept
   chance₄ := by
     rw [drawn.decode₄]
-    exact Key20.slotChance_draw _ _
+    exact Replay.slotChance_kept64_field drawn.kept
   chance₅ := by
     rw [drawn.decode₅]
-    exact Key20.slotChance_draw _ _
+    exact Replay.slotChance_kept64_field drawn.kept
   chanceL := by
     rw [drawn.decodeL]
-    exact Key20.slotChance_draw _ _
+    exact Replay.slotChance_kept64_field drawn.kept
   registered := drawn.registered
   covers := drawn.covers
 
@@ -277,11 +284,11 @@ section All
 
 variable {ι : Type} [Fintype ι] (kind : Wire → Option ι)
   (family : ι → Opening logicalWidth publicFits Wire Coord total)
-  (prover : OracleComp (Address Wire total) (Option Coord → K) (ℕ → Wire))
+  (prover : OracleComp (Address Wire total) (Option Coord → CodeSlot K) (ℕ → Wire))
     [Finite Wire]
 
-/-- Soundness of the final verifier with Akita openings whose decoders are the decoders `draw`
-of the sparse challenge families: `verifier_sound` with `p = 1/q²`. For each prover with at most
+/-- Soundness of the final verifier with Akita openings whose decoders are the decoders of the
+code of the sparse challenge families: `verifier_sound` with `p = 1/q²`. For each prover with at most
 `Q` queries to the oracle, the probability over the table of the oracle that `finalAccepts`
 accepts and no proof with witnesses satisfies `Verifies` for the statement of the first message
 is at most `shapesBound` for `p = 1/q²`. `drawn`: the hypotheses `Opening.Drawn` on the opening
@@ -329,7 +336,7 @@ local notation "ivc" =>
   adversary setup complete.packageWidth step cap control read head kind family prover budget
 
 /-- The final verifier with Akita openings against a false history, for openings whose decoders
-are the decoders `draw` of the sparse challenge families: `history_sound` with `p = 1/q²`. For
+are the decoders of the code of the sparse challenge families: `history_sound` with `p = 1/q²`. For
 each prover with at most `Q` queries to the oracle, the probability of a false history is at most
 `shapesBound` for `p = 1/q²` plus `IvcSecurity.walkBound` of the IVC adversary `adversary`.
 `drawn`: the hypotheses `Opening.Drawn` on the opening of each shape. The other hypotheses are
@@ -386,7 +393,7 @@ theorem history_knowledge_drawn
     positive admitted depth depthBound
 
 variable {p : Nebula.Plan} (app : Nebula.PortApp p.toGeometry)
-  (claim : (Address Wire total → Option Coord → K) →
+  (claim : (Address Wire total → Option Coord → CodeSlot K) →
     PMF (Lifecycle.Nebula.EndToEnd.MemoryStatement app.width))
 
 local notation "verifiers" => fun index =>
@@ -402,8 +409,8 @@ local notation:max "claimedAt" admitted:max =>
   FinalMemory.claimed setup step head kind verifiers extracted prover budget app exports assumption
     closed claim admitted (p.sMax * p.n)
 
-/-- The memory verifier with Akita openings whose decoders are the decoders `draw` of the sparse
-challenge families, in the form of `Claims.Final.memory_sound` (`FinalMemory.memory_sound` with
+/-- The memory verifier with Akita openings whose decoders are the decoders of the code of the
+sparse challenge families, in the form of `Claims.Final.memory_sound` (`FinalMemory.memory_sound` with
 `Opening.knowledge` at `p = 1/q²`). For each prover with at most `Q` queries to the oracle that
 names a memory statement with the law `claim` for each table, over the walk's `S_max · N`
 stages, the probability that the final verifier accepts `(i, z0, zi)`, the checks of SPEC.md

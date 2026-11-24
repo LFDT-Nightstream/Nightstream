@@ -389,7 +389,7 @@ fn dimensions(id: WasmMemoryId) -> &'static [Dimension] {
         | M::HostEventExportScheduleCount
         | M::HostEventImportScheduleCount
         | M::HostEventBase => &[D::Function],
-        M::HostEventSlotDescriptor | M::HostEventSlotImmediate0 | M::HostEventSlotImmediate1 => &[D::Event, D::Slot],
+        M::HostEventSlotDescriptor | M::HostEventSlotPayload => &[D::Event, D::Slot],
         M::Stack => &[D::Stack],
         M::LinearMemory => &[D::LinearMemory],
         M::GlobalLo | M::GlobalHi => &[D::Global],
@@ -575,7 +575,7 @@ impl WasmSize {
     pub fn limits(self) -> WasmLimits {
         let (pc, function, event, stack, linear_memory, global, call_depth, host_depth, table_index) = match self {
             Self::Micro => (8, 5, 3, 6, 7, 2, 2, 2, 2),
-            Self::Small => (8, 6, 6, 8, 9, 5, 4, 4, 4),
+            Self::Small => (8, 6, 7, 8, 9, 5, 4, 4, 4),
             Self::Medium => (9, 6, 7, 9, 10, 6, 5, 4, 5),
             Self::Large => (10, 7, 8, 10, 11, 7, 6, 4, 6),
         };

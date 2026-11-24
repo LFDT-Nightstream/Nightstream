@@ -404,8 +404,8 @@ Definition COL_HOST_EVENT_SLOT_DESCRIPTOR : nat := 451%nat.
 Definition COL_HOST_EVENT_SLOT_KIND : nat := 452%nat.
 Definition COL_HOST_EVENT_SLOT_ARG : nat := 453%nat.
 Definition COL_HOST_EVENT_SLOT_VARIANT : nat := 454%nat.
-Definition COL_HOST_EVENT_SLOT_IMMEDIATE0 : nat := 455%nat.
-Definition COL_HOST_EVENT_SLOT_IMMEDIATE1 : nat := 456%nat.
+Definition COL_HOST_EVENT_SLOT_TYPE_OR_INPUT : nat := 455%nat.
+Definition COL_HOST_EVENT_SLOT_PAYLOAD : nat := 456%nat.
 Definition COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT : nat := 457%nat.
 Definition COL_HOST_EVENT_BASE : nat := 458%nat.
 Definition COL_HOST_EVENT_EXIT_SCHEDULE_COUNT : nat := 459%nat.
@@ -433,10 +433,10 @@ Definition GMEM_HALF : nat := 1213%nat.
 Definition TURN_SCHEDULE_COUNT_INV : nat := 1214%nat.
 Definition OBJECT_ROOT_LANE : list nat := [1215%nat; 1216%nat; 1217%nat; 1218%nat].
 Definition OBJECT_SAVED_LANE : list nat := [1219%nat; 1220%nat; 1221%nat; 1222%nat].
-Definition RANGE_BITS : list nat := seq 1223%nat 2184%nat.
+Definition RANGE_BITS : list nat := seq 1223%nat 2192%nat.
 
 Definition namedColumnCount : nat := 465%nat.
-Definition columnCount : nat := 3407%nat.
+Definition columnCount : nat := 3415%nat.
 
 Definition families : list Family :=
   [(0%nat, 1%nat, Field);
@@ -838,7 +838,7 @@ Definition families : list Family :=
    (452%nat, 1%nat, (Bits 5%nat));
    (453%nat, 1%nat, (Bits 8%nat));
    (454%nat, 1%nat, (Bits 4%nat));
-   (455%nat, 1%nat, Field);
+   (455%nat, 1%nat, Byte);
    (456%nat, 1%nat, Field);
    (457%nat, 1%nat, Field);
    (458%nat, 1%nat, MemoryRepairable);
@@ -867,7 +867,7 @@ Definition families : list Family :=
    (1214%nat, 1%nat, Field);
    (1215%nat, 4%nat, Boolean);
    (1219%nat, 4%nat, Boolean);
-   (1223%nat, 2184%nat, Boolean)].
+   (1223%nat, 2192%nat, Boolean)].
 
 Definition rangeObligations : list (nat * Width) :=
   [(7%nat, (Implied 32%nat));

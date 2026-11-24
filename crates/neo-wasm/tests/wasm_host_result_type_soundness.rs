@@ -73,7 +73,7 @@ fn i32_host_result_high_limb_is_zero() {
     let slot = usize::from(trace[high].state_before.host_events.slot_cursor);
     assert_eq!(slot, 1);
     assert!(!trace[high].wide_values_enabled);
-    assert_eq!(trace[high].host_event_rom_slot.unwrap().immediate1, 0);
+    assert_eq!(trace[high].host_event_rom_slot.unwrap().type_or_input, 0);
     trace[high].wide_values_enabled = true;
     trace[high].stack_write0.as_mut().unwrap().value_hi = Some(1);
     trace[high].state_after.event_absorb.evbuf[slot] = 1;
@@ -86,7 +86,11 @@ fn i32_host_result_high_limb_is_zero() {
     let forged = build_witness_vector(&trace[high]).unwrap();
     common::assert_rejected(&forged, "i32 host result cannot carry a high word");
 
-    trace[high].host_event_rom_slot.as_mut().unwrap().immediate1 = 1;
+    trace[high]
+        .host_event_rom_slot
+        .as_mut()
+        .unwrap()
+        .type_or_input = 1;
     let witnesses = trace
         .iter()
         .map(|row| build_witness_vector(row).unwrap())

@@ -334,6 +334,7 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
             (COL_HOST_EVENT_SLOT_KIND, -F::ONE),
             (COL_HOST_EVENT_SLOT_ARG, -F::from_u64(32)),
             (COL_HOST_EVENT_SLOT_VARIANT, -F::from_u64(8192)),
+            (COL_HOST_EVENT_SLOT_TYPE_OR_INPUT, -F::from_u64(1 << 17)),
         ]);
     });
     b.with_tag(always("pc fallthrough flag"), |b| {

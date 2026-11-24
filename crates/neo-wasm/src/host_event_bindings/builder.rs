@@ -30,7 +30,7 @@ pub struct EventSequenceBuilder {
 #[derive(Clone, Debug)]
 struct OpaquePlacement {
     word: usize,
-    schema: [u64; 4],
+    schema: [u32; 4],
     sources: Vec<SlotBinding>,
 }
 
@@ -44,7 +44,7 @@ impl EventSequenceBuilder {
     }
 
     /// Start with a discriminant at word zero; continuation blocks receive no extra tags.
-    pub fn op(discriminant: u64) -> Self {
+    pub fn op(discriminant: u32) -> Self {
         let mut out = Self::absorbing();
         out.words.push(SlotBinding::Const(discriminant));
         out
@@ -145,7 +145,7 @@ impl EventSequenceBuilder {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn opaque(mut self, schema: [u64; 4], value: EventSources) -> Result<Self, WasmBuildError> {
+    pub fn opaque(mut self, schema: [u32; 4], value: EventSources) -> Result<Self, WasmBuildError> {
         if !self.absorb {
             return Err(WasmBuildError::Trace(
                 "opaque roots require an absorbing sequence".into(),
@@ -222,7 +222,7 @@ impl EventSources {
     }
 
     pub fn constant_i32(self, value: u32) -> Self {
-        self.push(SlotBinding::Const(u64::from(value)))
+        self.push(SlotBinding::Const(value))
     }
 
     pub fn constant_i64(self, value: u64) -> Self {

@@ -182,13 +182,13 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         COL_HOST_EVENT_INDEX_BEFORE as EVENT_INDEX_BEFORE,
         COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT as INITIAL_SCHEDULE_COUNT, COL_HOST_EVENT_SLOT_ARG as SLOT_ARG,
         COL_HOST_EVENT_SLOT_CURSOR_AFTER as SLOT_CURSOR_AFTER, COL_HOST_EVENT_SLOT_CURSOR_BEFORE as SLOT_CURSOR_BEFORE,
-        COL_HOST_EVENT_SLOT_IMMEDIATE0 as SLOT_IMMEDIATE0, COL_HOST_EVENT_SLOT_IMMEDIATE1 as SLOT_IMMEDIATE1,
-        COL_HOST_EVENT_SLOT_KIND as SLOT_KIND, COL_HOST_EVENT_SLOT_VARIANT as SLOT_VARIANT, COL_IS_PROGRAM_ROW,
-        COL_LINEAR_MEM_ACCESS_BYTE0, COL_LINEAR_MEM_ACCESS_BYTE1, COL_LINEAR_MEM_BYTE_OFFSET, COL_LINEAR_MEM_LANE_ADDR,
-        COL_LINEAR_MEM_LANE_VALUE, COL_LINEAR_MEM_OFFSET_IS_1, COL_LINEAR_MEM_OFFSET_IS_3, COL_LOCAL_INDEX,
-        COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_MEM_OOB, COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE,
-        COL_OUTPUT_VALUE_LO_BEFORE, COL_SP_BEFORE, COL_STACK_READ_ADDR_LO, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
-        COL_TURN_BOUNDARY, COL_WIDE_VALUES_ENABLED,
+        COL_HOST_EVENT_SLOT_KIND as SLOT_KIND, COL_HOST_EVENT_SLOT_PAYLOAD as SLOT_PAYLOAD,
+        COL_HOST_EVENT_SLOT_TYPE_OR_INPUT as SLOT_TYPE_OR_INPUT, COL_HOST_EVENT_SLOT_VARIANT as SLOT_VARIANT,
+        COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0, COL_LINEAR_MEM_ACCESS_BYTE1, COL_LINEAR_MEM_BYTE_OFFSET,
+        COL_LINEAR_MEM_LANE_ADDR, COL_LINEAR_MEM_LANE_VALUE, COL_LINEAR_MEM_OFFSET_IS_1, COL_LINEAR_MEM_OFFSET_IS_3,
+        COL_LOCAL_INDEX, COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_MEM_OOB, COL_OUTPUT_ENABLED_BEFORE,
+        COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE, COL_SP_BEFORE, COL_STACK_READ_ADDR_LO,
+        COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_TURN_BOUNDARY, COL_WIDE_VALUES_ENABLED,
     };
     let ci_sel = super::super::layout::selector_col(crate::isa::WasmOpcode::CallIndirect).expect("ci selector");
 
@@ -376,23 +376,15 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
 
         b.push_row(
             [(GK_CONST, F::ONE)],
-            [
-                (GSLOT_VALUE, F::ONE),
-                (SLOT_IMMEDIATE0, -F::ONE),
-                (SLOT_IMMEDIATE1, -F::from_u64(1 << 32)),
-            ],
+            [(GSLOT_VALUE, F::ONE), (SLOT_PAYLOAD, -F::ONE)],
             [],
         );
 
         b.push_row([(GK_RESULT, F::ONE)], [(SLOT_VARIANT, F::ONE)], [(GK2_HI, F::ONE)]);
-        b.push_row(
-            [(GK_RESULT, F::ONE)],
-            [(SLOT_IMMEDIATE0, F::ONE), (COL_ONE, -F::ONE)],
-            [],
-        );
+        b.push_row([(GK_RESULT, F::ONE)], [(SLOT_PAYLOAD, F::ONE), (COL_ONE, -F::ONE)], []);
         b.push_row(
             [(GK2_HI, F::ONE)],
-            [(COL_WIDE_VALUES_ENABLED, F::ONE), (SLOT_IMMEDIATE1, -F::ONE)],
+            [(COL_WIDE_VALUES_ENABLED, F::ONE), (SLOT_TYPE_OR_INPUT, -F::ONE)],
             [],
         );
 
@@ -464,12 +456,12 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         b.push_linear_zero([(COL_GATHER_LOCAL_WRITE, F::ONE), (GK_INPUT_LOCAL, -F::ONE)]);
         b.push_row(
             [(GK_INPUT_LOCAL, F::ONE)],
-            [(COL_WIDE_VALUES_ENABLED, F::ONE), (SLOT_IMMEDIATE1, -F::ONE)],
+            [(COL_WIDE_VALUES_ENABLED, F::ONE), (SLOT_TYPE_OR_INPUT, -F::ONE)],
             [],
         );
         b.push_row(
             [(GK_INPUT_LOCAL, F::ONE)],
-            [(SLOT_IMMEDIATE0, F::ONE), (COL_ONE, -F::ONE)],
+            [(SLOT_PAYLOAD, F::ONE), (COL_ONE, -F::ONE)],
             [],
         );
         b.push_row(
@@ -568,7 +560,7 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
                 (COL_LINEAR_MEM_LANE_ADDR[0], F::from_u64(4)),
                 (COL_LINEAR_MEM_BYTE_OFFSET, F::ONE),
                 (COL_STACK_READ_VALUE_LO[0], -F::ONE),
-                (SLOT_IMMEDIATE0, -F::ONE),
+                (SLOT_PAYLOAD, -F::ONE),
             ],
             [],
         );
@@ -598,7 +590,7 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
                 (COL_LINEAR_MEM_LANE_ADDR[0], F::from_u64(4)),
                 (COL_LINEAR_MEM_BYTE_OFFSET, F::ONE),
                 (COL_OUTPUT_VALUE_LO_BEFORE, -F::ONE),
-                (SLOT_IMMEDIATE0, -F::ONE),
+                (SLOT_PAYLOAD, -F::ONE),
             ],
             [],
         );
@@ -609,7 +601,7 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
                 (COL_LINEAR_MEM_LANE_ADDR[0], F::from_u64(4)),
                 (COL_LINEAR_MEM_BYTE_OFFSET, F::ONE),
                 (COL_LOCAL_VALUE, -F::ONE),
-                (SLOT_IMMEDIATE0, -F::ONE),
+                (SLOT_PAYLOAD, -F::ONE),
             ],
             [],
         );

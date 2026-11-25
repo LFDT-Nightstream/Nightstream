@@ -1,5 +1,5 @@
-import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinTerminal
-import NightstreamFPrime.Spec.Compression.Akita.Replay.ShapeAccept
+import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinConverseTerminal
+import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinConverseLevels
 
 /-! Theorem B of the join, direction "←", for `key20.aks`: the works (Akita revision `d50f700`,
 `VerifierTranscript::check_grind`, `read_fold_response`, `VerifierFoldDraw`; ePrint 2026/1983,
@@ -14,7 +14,20 @@ revision of 2026-11-23, (146) and Figure 4, step 2).
   have these stops. `pools20_of_accept`: an accepted proof has `Pools20`.
 - `index20_of`, `works20_of_stepOk`, `works20_of_accepts`: with `Pools20`, the works of the replay
   hold on such a transcript.
-- `verifyProof_accept_of_presents20`: `verifyProof_accept_of_levels` with these works. -/
+- `verifyProof_accept_of_presents20`: `verifyProof_accept_of_levels` with these works.
+- `mem20_of`, `checks20_lists`: the indices of the `fused.end`, `tensor.opening`, `tensor.end` and
+  `stage3.end` checks and of the terminal in the skeleton of `layout20`.
+- `isRangeKind`, `Ranges20`: the step of each check of the range proof of a level (`range.k.end`,
+  `range.leaf.end` or `norm.end`, `norm.integer`) has no stop. `ranges20_of_accept`: an accepted
+  proof has `Ranges20`.
+- `checks20_of_accepts`: on a transcript that presents the bytes and that `Key20.Tower.accepts`
+  accepts, with `Ranges20`, the step of each check of the script has no stop when the run before
+  it has none.
+- `verifyProof_accept_of_tower20`: theorem B "←" for `key20.aks`, with the conjuncts `Pools20`,
+  `Ranges20`, `Payload20` and `Digests20`.
+- `verifyProof_iff_tower20`: for last blocks `Last20`, `runProof` accepts exactly when the layout
+  takes the plan, `Pools20`, `Ranges20` and `Payload20` hold and `Key20.Tower.accepts` accepts a
+  transcript that presents the bytes. -/
 
 set_option autoImplicit false
 
@@ -103,6 +116,75 @@ theorem index20_of {ops : Array Op} (erased : ops.toList.map Op.erase = skeleton
   exact ⟨k, inside, by
     rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem inside, same]
     rfl⟩
+
+/-- The index of an operation whose erased form has `p`, in operations whose erased forms are the
+skeleton of `layout20`, is a member of the indices of `p` in the skeleton. -/
+theorem mem20_of {ops : Array Op} (erased : ops.toList.map Op.erase = skeleton (layout20 0 0))
+    {p : Op → Bool} {c : ℕ} {op : Op} (at_ : ops[c]? = some op) (holds : p op.erase = true) :
+    c ∈ (sk20.filter fun x => p x.1).map (·.2) := by
+  have entry : (skeleton (layout20 0 0))[c]? = some op.erase := by
+    rw [← erased, List.getElem?_map, Array.getElem?_toList, at_]
+    rfl
+  exact List.mem_map.mpr ⟨(op.erase, c), List.mem_filter.mpr
+    ⟨List.mem_of_getElem? (i := c) (by rw [List.getElem?_zipIdx, entry]; simp), holds⟩, rfl⟩
+
+/-- The operation is a `fused.end` check. -/
+def isFusedOp : Op → Bool
+  | .check _ (.fused ..) => true
+  | _ => false
+
+/-- The operation is a `tensor.opening` check. -/
+def isOpeningOp : Op → Bool
+  | .check _ (.tensorOpening ..) => true
+  | _ => false
+
+/-- The operation is a `tensor.end` check. -/
+def isTensorOp : Op → Bool
+  | .check _ (.tensor ..) => true
+  | _ => false
+
+/-- The operation is a `stage3.end` check. -/
+def isStage3Op : Op → Bool
+  | .check _ (.stage3 ..) => true
+  | _ => false
+
+/-- The operation is the terminal. -/
+def isTerminalOp : Op → Bool
+  | .terminal _ => true
+  | _ => false
+
+/-- The indices of the `fused.end`, `tensor.opening`, `tensor.end` and `stage3.end` checks and of
+the terminal in the skeleton of `layout20`. -/
+theorem checks20_lists :
+    (sk20.filter fun x => isFusedOp x.1).map (·.2) = [165, 316, 586, 848, 1153, 1456] ∧
+      (sk20.filter fun x => isOpeningOp x.1).map (·.2) = [321, 591, 853, 1158, 1461] ∧
+      (sk20.filter fun x => isTensorOp x.1).map (·.2) = [385, 649, 908, 1210, 1513] ∧
+      (sk20.filter fun x => isStage3Op x.1).map (·.2) = [] ∧
+      (sk20.filter fun x => isTerminalOp x.1).map (·.2) = [1521] := by
+  decide +kernel
+
+/-- The check is a check of the range proof of a level: `range.k.end`, the last check
+`range.leaf.end` or `norm.end`, or `norm.integer`. -/
+def isRangeKind : Check → Bool
+  | .range .. | .rangeNorm .. | .stage .. | .energy .. => true
+  | _ => false
+
+/-- The checks of the range proof of each level of the code hold: the step of the replay at each
+check `range.k.end`, `range.leaf.end` or `norm.end`, and `norm.integer` has no stop. The games of
+the levels of the model have these checks; `verifyProof_accept_of_tower20` takes them as a
+hypothesis. -/
+def Ranges20 (pub : Public) (proof : ByteArray) (messages : Array Message) : Prop :=
+  ∀ c key check, pub.ops[c]? = some (.check key check) → isRangeKind check = true →
+    StepOk pub proof messages c
+
+/-- An accepted proof has `Ranges20`. -/
+theorem ranges20_of_accept {pub : Public} {proof : ByteArray}
+    (scripted : script pub.layout pub.plan = .ok pub.ops)
+    (ends : endsFit pub.ops.zipIdx.toList = true) {full : Array Fq}
+    (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
+    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
+    (decoded : decode pub.ops proof = .ok (messages, rest)) : Ranges20 pub proof messages :=
+  fun c _ _ _ _ => stepOk_of_accept scripted ends terminalSetup accepted decoded c
 
 /-- The works of the replay of a script of `layout20` hold when the step of each work, of each
 response nonce and of each pool has no stop. -/
@@ -291,5 +373,187 @@ theorem verifyProof_accept_of_presents20 {zMax rice : ℕ} (layout : pub.layout 
   verifyProof_accept_of_levels pub proof layout scripted terminalSetup decoded
     (works20_of_accepts pub proof messages tLast eLast layout scripted pools presents accepts)
     levels tensors terminal
+
+/-- Theorem B "←" for the checks of the script: on a transcript that presents the bytes of a
+proof of `layout20` and that `Key20.Tower.accepts` accepts, with `Ranges20`, the step of each
+check has no stop when the run before it has none. The steps of `fused.end`, `tensor.opening`
+and `tensor.end` are from the links of the levels of the model (`level20_ok₀` to
+`level20_ok₅`); there is no `stage3.end`. -/
+theorem checks20_of_accepts {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
+    (scripted : script pub.layout pub.plan = .ok pub.ops)
+    (aligned : ReadsAligned messages pub.ops.zipIdx.toList 0)
+    (expanded : ∀ ℓ : Fin 6, (pub.setupFor (fold20 ℓ).setupCount).isSome)
+    (points : ∀ g : Fin 3, ((pub.groups[g.val]?.map (·.point)).getD #[]).size = ![20, 16, 16] g)
+    (values : (pub.groups.flatMap (·.value)).size = 3)
+    (ranges : Ranges20 pub proof messages)
+    {point : Prefix (Key20.Wire E) (Option Coord → CodeSlot E) total}
+    (presents : Presents20 pub proof messages tLast eLast block block₁ block₂ block₃ block₄ block₅
+      blockL point)
+    (accepts : (tower20 pub block block₁ block₂ block₃ block₄ block₅ blockL total 472).accepts
+      point)
+    {c : ℕ} {key : Key} {check : Check} (at_ : pub.ops[c]? = some (.check key check))
+    (before : (runFrom pub proof messages (pub.ops.zipIdx.toList.take c) (channelStart pub)).1 =
+      .ok ()) :
+    (((step pub proof messages c (.check key check)).run).run
+      (stateBefore pub proof messages pub.ops c)).1 = .ok () := by
+  have erased : pub.ops.toList.map Op.erase = skeleton (layout20 0 0) := by
+    rw [script_erase (layout ▸ scripted), skeleton20]
+  obtain ⟨f0, f1, f2, f3, f4, f5, -⟩ := indices20 layout scripted
+  obtain ⟨fusedList, openingList, tensorList, stage3List, -⟩ := checks20_lists
+  have accepts' := accepts
+  obtain ⟨-, -, l0, l1, l2, l3, l4, l5, -⟩ := accepts'
+  have ok₀ := level20_ok₀ _ pub proof messages tLast eLast layout scripted aligned points values
+    (expanded 0) rfl presents l0
+  have ok₁ := level20_ok₁ _ pub proof messages tLast eLast layout scripted aligned (expanded 1) rfl
+    presents l1
+  have ok₂ := level20_ok₂ _ pub proof messages tLast eLast layout scripted aligned (expanded 2) rfl
+    presents l2
+  have ok₃ := level20_ok₃ _ pub proof messages tLast eLast layout scripted aligned (expanded 3) rfl
+    presents l3
+  have ok₄ := level20_ok₄ _ pub proof messages tLast eLast layout scripted aligned (expanded 4) rfl
+    presents l4
+  have ok₅ := level20_ok₅ _ pub proof messages tLast eLast layout scripted aligned (expanded 5) rfl
+    presents l5
+  rw [f0] at ok₀
+  rw [f1] at ok₁
+  rw [f2] at ok₂
+  rw [f3] at ok₃
+  rw [f4] at ok₄
+  rw [f5] at ok₅
+  cases check with
+  | fused level F =>
+      have member := mem20_of erased (p := isFusedOp) at_ rfl
+      rw [fusedList] at member
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at member
+      rcases member with rfl | rfl | rfl | rfl | rfl | rfl
+      · exact ok₀ before _ at_
+      · exact ok₁.1 before _ at_
+      · exact ok₂.1 before _ at_
+      · exact ok₃.1 before _ at_
+      · exact ok₄.1 before _ at_
+      · exact ok₅.1 before _ at_
+  | tensorOpening point value partials =>
+      have member := mem20_of erased (p := isOpeningOp) at_ rfl
+      rw [openingList] at member
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at member
+      rcases member with rfl | rfl | rfl | rfl | rfl
+      · exact ok₁.2.1 before _ at_
+      · exact ok₂.2.1 before _ at_
+      · exact ok₃.2.1 before _ at_
+      · exact ok₄.2.1 before _ at_
+      · exact ok₅.2.1 before _ at_
+  | tensor lv count point opening =>
+      have member := mem20_of erased (p := isTensorOp) at_ rfl
+      rw [tensorList] at member
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at member
+      rcases member with rfl | rfl | rfl | rfl | rfl
+      · exact ok₁.2.2 before _ at_
+      · exact ok₂.2.2 before _ at_
+      · exact ok₃.2.2 before _ at_
+      · exact ok₄.2.2 before _ at_
+      · exact ok₅.2.2 before _ at_
+  | stage3 lv plan =>
+      have member := mem20_of erased (p := isStage3Op) at_ rfl
+      rw [stage3List] at member
+      exact absurd member List.not_mem_nil
+  | range lv base arities point => exact ranges c key _ at_ rfl _ at_
+  | rangeNorm lv leaf limit arities point => exact ranges c key _ at_ rfl _ at_
+  | stage nodes arity weights output children => exact ranges c key _ at_ rfl _ at_
+  | energy energy limit => exact ranges c key _ at_ rfl _ at_
+
+/-- Theorem B of the join, direction "←", for `key20.aks`: a proof of `layout20` that decodes
+with no byte left is accepted by `runProof` when `Key20.Tower.accepts` accepts a transcript that
+presents its bytes (`Presents20`) and the conjuncts that the model does not have hold. `pools`:
+the squeezes of field challenges and the draws of fold challenges give challenges. `ranges`: the
+checks of the range proof of each level hold. `payload`: the payload of `z` decodes. `digests`:
+the digests of the proof are those of the last blocks of the transcript. `terminalSetup` and
+`expanded`: the setup prefixes exist. `points` and `values`: the shape of the public statement. -/
+theorem verifyProof_accept_of_tower20 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
+    (scripted : script pub.layout pub.plan = .ok pub.ops) {full : Array Fq}
+    (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
+    (expanded : ∀ ℓ : Fin 6, (pub.setupFor (fold20 ℓ).setupCount).isSome)
+    (decoded : decode pub.ops proof = .ok (messages, 0))
+    (points : ∀ g : Fin 3, ((pub.groups[g.val]?.map (·.point)).getD #[]).size = ![20, 16, 16] g)
+    (values : (pub.groups.flatMap (·.value)).size = 3)
+    (pools : Pools20 pub proof messages) (ranges : Ranges20 pub proof messages)
+    (payload : Payload20 pub proof messages)
+    (digests : Digests20 pub proof messages tLast eLast)
+    {point : Prefix (Key20.Wire E) (Option Coord → CodeSlot E) total}
+    (presents : Presents20 pub proof messages tLast eLast block block₁ block₂ block₃ block₄ block₅
+      blockL point)
+    (accepts : (tower20 pub block block₁ block₂ block₃ block₄ block₅ blockL total 472).accepts
+      point) :
+    runProof pub proof = .verdict .accept := by
+  have aligned := decode_aligned decoded
+  have erased : pub.ops.toList.map Op.erase = skeleton (layout20 0 0) := by
+    rw [script_erase (layout ▸ scripted), skeleton20]
+  have worked := works20_of_accepts pub proof messages tLast eLast layout scripted pools presents
+    accepts
+  refine (verifyProof_accept_iff20 pub proof layout scripted terminalSetup).mpr
+    ⟨messages, decoded, ?_⟩
+  rcases stop : (replay pub pub.ops proof messages).1 with _ | st
+  · rfl
+  · exfalso
+    obtain ⟨op, at_, before, stepped⟩ := replay_stop_at pub proof messages pub.ops stop
+    rcases st with ⟨i, site⟩ | ⟨i, site⟩ | k
+    · unfold works at worked
+      rw [stop] at worked
+      cases worked
+    · simp only [Stop.op] at at_ before stepped
+      rcases step_reject pub proof messages i op _ stepped with ⟨key, check, rfl, -⟩ |
+        ⟨level, rfl, found⟩
+      · have ok := checks20_of_accepts pub proof messages tLast eLast layout scripted aligned
+          expanded points values ranges presents accepts at_ before
+        rw [stepped] at ok
+        cases ok
+      · have member := mem20_of erased (p := isTerminalOp) at_ rfl
+        rw [checks20_lists.2.2.2.2] at member
+        obtain ⟨-, -, -, -, -, -, size⟩ := indices20 layout scripted
+        obtain rfl : i = pub.ops.size - 1 := (List.mem_singleton.mp member).trans size.symm
+        have last := (frames20 layout scripted).2.2.2.2.2.2.2
+        rw [at_] at last
+        cases last
+        have accepts' := accepts
+        obtain ⟨-, -, -, -, -, -, -, -, passed⟩ := accepts'
+        obtain ⟨out, accepted⟩ := terminal20_of_last pub proof messages tLast eLast layout
+          scripted terminalSetup aligned payload
+          (last20_of_passed _ pub proof messages tLast eLast digests rfl presents passed) before
+        unfold terminalValue at found
+        dsimp only at found
+        rw [terminalSetup, Option.map_some, accepted] at found
+        cases found
+    · exact replay_matches20 layout scripted decoded terminalSetup k stop
+
+/-- Theorem B of the join for `key20.aks` as an equivalence: for a proof of `layout20` that
+decodes with no byte left, last blocks `Last20` of the terminal of the code and a transcript that
+presents the bytes with them, `runProof` accepts exactly when the layout takes the plan, the
+conjuncts `Pools20`, `Ranges20` and `Payload20` hold and `Key20.Tower.accepts` accepts the
+transcript. -/
+theorem verifyProof_iff_tower20 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
+    {full : Array Fq} (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
+    (expanded : ∀ ℓ : Fin 6, (pub.setupFor (fold20 ℓ).setupCount).isSome)
+    (decoded : decode pub.ops proof = .ok (messages, 0))
+    (points : ∀ g : Fin 3, ((pub.groups[g.val]?.map (·.point)).getD #[]).size = ![20, 16, 16] g)
+    (values : (pub.groups.flatMap (·.value)).size = 3)
+    (last : Last20 (E := E) pub proof messages tLast eLast)
+    {point : Prefix (Key20.Wire E) (Option Coord → CodeSlot E) total}
+    (presents : Presents20 pub proof messages tLast eLast block block₁ block₂ block₃ block₄ block₅
+      blockL point) :
+    runProof pub proof = .verdict .accept ↔
+      script pub.layout pub.plan = .ok pub.ops ∧ Pools20 pub proof messages ∧
+        Ranges20 pub proof messages ∧ Payload20 pub proof messages ∧
+        (tower20 pub block block₁ block₂ block₃ block₄ block₅ blockL total 472).accepts point := by
+  constructor
+  · intro accepted
+    obtain ⟨scripted, ends, -⟩ := verifyProof_script20 layout accepted
+    exact ⟨scripted, pools20_of_accept scripted ends terminalSetup accepted decoded,
+      ranges20_of_accept scripted ends terminalSetup accepted decoded,
+      payload20_guard layout accepted terminalSetup decoded,
+      presents20_accepts pub proof messages tLast eLast layout accepted terminalSetup expanded
+        decoded points values last presents⟩
+  · rintro ⟨scripted, pools, ranges, payload, accepts⟩
+    exact verifyProof_accept_of_tower20 pub proof messages tLast eLast layout scripted
+      terminalSetup expanded decoded points values pools ranges payload last.digests presents
+      accepts
 
 end NightstreamFPrime.Spec.Compression.Akita.Replay

@@ -1,4 +1,4 @@
-import NightstreamFPrime.Spec.Compression.Akita.Replay.RunProof
+import NightstreamFPrime.Spec.Compression.Akita.Replay.RunStopForms
 import NightstreamFPrime.Spec.Compression.Akita.Replay.FinalDrawn
 import NightstreamFPrime.Spec.Compression.Akita.Replay.WeightPackingJoin
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Stage3Match
@@ -20,7 +20,9 @@ and `Replay/Stage3Match.lean`).
   `Batch.codeScan` over the setup prefix `flat`): when `runProof` accepts, the game of the
   specification level runs on the path of the recorded values to acceptance with the recorded
   `(fused.point, witness_evaluation)` (and the result of Stage 3). The hypotheses are facts of
-  the layout, the shapes of the script, `endsFit` and the setup prefix of the terminal. -/
+  the layout, the shapes of the script, `endsFit` and the setup prefix of the terminal.
+- `pack_game_before`, `batch_game_before`: the same games after a run without a stop before the
+  `fused.end`, to the result of `foldRunIn` on the state before it. -/
 
 set_option autoImplicit false
 
@@ -88,6 +90,73 @@ theorem verifyProof_setupFor (scripted : script pub.layout pub.plan = .ok ops)
 
 variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree2 E]
 
+/-- A packing level with one group without Stage 3, after a run without a stop before its
+`fused.end` at `c`: `foldCheck` of `liftedReduction` runs on the path of the code to the result of
+`foldRunIn` on the state before `c`. The weights of the end check are theorems (`packWeight_one`,
+`packSupport_one`, `packAmbiented`). -/
+theorem pack_game_before {messages : Array Message}
+    (aligned : ReadsAligned messages ops.zipIdx.toList 0) {c : ℕ} {level : ℕ} {F : Fold}
+    (game : gameShape (ops.zipIdx.toList.take c) level F = true)
+    (drawShape : drawnShape (ops.zipIdx.toList.take c) level F.groups = true)
+    (before : (runFrom pub proof messages (ops.zipIdx.toList.take c) (channelStart pub)).1 =
+      .ok ()) {s : Replayer}
+    (state : stateBefore pub proof messages ops c = s)
+    {P : PackShape} (shaped : F.fused = .packing P) (direct : F.stage3 = none)
+    {setup : Array Fq} (expanded : pub.setupFor F.setupCount = some setup) {S : Shape}
+    {O : OpeningShape S} {fold : Descriptor}
+    (rows : (F.rhs, F.openingRow) = relation (fun _ : Fin 1 => S) O.openRank O.openDegree O.chain
+      fun _ => .witness)
+    (based : 2 ^ F.logBasis = S.certifiedBase) (low : F.low = O.low)
+    (β : Module.Basis (Fin O.planes) Zq E) (basis : ∀ t, β t = (extBasis.getD t Ext.zero).into)
+    (challenge : Fin S.blocks → Rq O.carrierDegree)
+    (challenged : ∀ i, challenge i = Poly.toRq _ (((drawnIn s level 0).map fun c =>
+      Poly.ofSparse O.carrierDegree (c.map fun x => (x.1 / (S.innerDegree / O.carrierDegree),
+        x.2))).getD i (Poly.zero O.carrierDegree)))
+    (fits : O.cells fold ≤ 2 ^ F.vars) {digits : ℕ}
+    (room : O.quotientRoom fold digits ≤ 2 ^ F.vars) (rowsFit : O.rowCount + 1 ≤ 2 ^ F.batch)
+    (w : Table) (plain : F.euclidean = false) (compressed : F.compressed = O.compressed fold)
+    (arities : (productStages F.logBasis).map (·.1) = rangeArities S.certifiedBase)
+    (leaf : leafDegree F.logBasis = rangeLeaf S.certifiedBase)
+    (slots : P.slots = [⟨0, S, O, fold⟩]) (opening : P.path = ⟨O.openDegree, O.openRank, O.chain⟩)
+    (digited : P.digits = digits) (numbers : PackGroup.Fits ⟨S, O, fold, [], [], [], Ext.one⟩ F.vars)
+    (G : FoldGroup) (grouped : F.groups = [G]) (ringed : G.ring = S.innerDegree)
+    (degreed : G.degree = O.carrierDegree) :
+    (foldCheck (liftedReduction β (packStatementFor O setup (claimPointIn s level 0)
+        (dataIn pub s level) .witness (rowsIn s level F) (claimsIn s level F)) challenge F.vars fits
+        digits room F.batch rowsFit) S.certifiedBase (O.gaps fold digits).support
+        (O.compressed fold) w).Runs
+      (foldPathIn E pub s level F setup F.vars F.batch)
+      ((foldRunIn pub s level F).map fun o => (o.1.map Ext.into, o.2.into)) := by
+  have st : LevelState (stateBefore pub proof messages ops c) level F :=
+    level_state pub proof messages _ (channelStart_fresh pub) (channelStart_empty pub) _ level F
+      game (aligned_take messages _ c _ aligned) before
+  rw [state] at st
+  obtain ⟨virtual, count, lengths⟩ := st.leaf plain
+  obtain ⟨cs, drawn⟩ := drawnIn_before pub proof messages ops before
+    (squeezeOf_of_shape drawShape (g := 0) (by rw [grouped]; rfl))
+  rw [state] at drawn
+  have one := packGroupsIn_one P s level F slots (by rw [grouped]; rfl)
+  have weighs := packWeight_one β basis (packInputsIn P setup s level F) (packingValuesIn s level F)
+    (dataIn pub s level) .witness (rowsIn s level F) (claimsIn s level F)
+    ((drawnIn s level 0).map fun c => Poly.ofSparse O.carrierDegree
+      (c.map fun x => (x.1 / (S.innerDegree / O.carrierDegree), x.2)))
+    ((drawnIn s level 0).map (Poly.ofSparse S.innerDegree)) (claimPointIn s level 0) challenge
+    (fun i => by rw [challenged i])
+    (packAmbiented s level O G ringed degreed ⟨cs, drawn⟩ challenge challenged) fits room
+    rowsFit (packGroup_fits _ _ _ _ numbers) rfl digited based opening rfl rfl
+    (by rw [show (packingValuesIn s level F).tau1 = (recordedIn s ⟨level, "tau1", none⟩).toList
+      from rfl, Array.length_toList]; exact st.tau)
+  have supported := packSupport_one (E := E) (packInputsIn P setup s level F)
+    (packingValuesIn s level F) ((drawnIn s level 0).map fun c => Poly.ofSparse O.carrierDegree
+      (c.map fun x => (x.1 / (S.innerDegree / O.carrierDegree), x.2)))
+    ((drawnIn s level 0).map (Poly.ofSparse S.innerDegree)) (claimPointIn s level 0) room digited
+    opening (by rw [show (packingValuesIn s level F).virtual =
+      (roundsIn s ⟨level, "range.leaf", none⟩).map (·.2) from virtual, List.length_map, count])
+  exact foldRunIn_pack_runs (E := E) pub s level F shaped direct expanded rows based low β
+    challenge fits room rowsFit w plain compressed virtual st.vars st.tau arities st.stages count
+    (fun x member => (lengths x member).trans leaf) st.fusedCount st.fusedLengths
+    (by rw [one]; exact weighs) (by rw [one]; exact supported)
+
 /-- A packing level with one group without Stage 3: when `runProof` accepts, `foldCheck` of
 `liftedReduction` runs on the path of the code to acceptance with the recorded
 `(fused.point, witness_evaluation)` on the state before its `fused.end`. The weights of the end
@@ -130,37 +199,77 @@ theorem verifyProof_pack_game (scripted : script pub.layout pub.plan = .ok ops)
       (some ((recordedIn s ⟨level, "fused.point", none⟩).toList.map Ext.into,
         (firstIn s ⟨level, "witness_evaluation", none⟩).into)) := by
   have none_ := (replay_of_decoded pub proof scripted ends terminalSetup accepted decoded).2
-  have before := (replay_step_ok pub proof messages none_ at_).1
+  subst state
+  exact runs_level pub proof messages none_ at_ shape
+    (pack_game_before pub proof (decode_aligned decoded) game drawShape
+      (replay_step_ok pub proof messages none_ at_).1 rfl shaped direct expanded rows based low β
+      basis challenge challenged fits room rowsFit w plain compressed arities leaf slots opening
+      digited numbers G grouped ringed degreed)
+
+/-- A fold with opening groups without Stage 3, after a run without a stop before its `fused.end`
+at `c`: `foldCheck` of `Batch.liftedReduction` runs on the path of the code to the result of
+`foldRunIn` on the state before `c`. The weights of the end check are theorems
+(`batchWeight_groups`, `batchSupport_in`, `batchAmbiented`). -/
+theorem batch_game_before {messages : Array Message}
+    (aligned : ReadsAligned messages ops.zipIdx.toList 0) {c : ℕ} {level : ℕ} {F : Fold}
+    (game : gameShape (ops.zipIdx.toList.take c) level F = true)
+    (drawShape : drawnShape (ops.zipIdx.toList.take c) level F.groups = true)
+    (before : (runFrom pub proof messages (ops.zipIdx.toList.take c) (channelStart pub)).1 =
+      .ok ()) {s : Replayer}
+    (state : stateBefore pub proof messages ops c = s)
+    {P : PackShape} (shaped : F.fused = .packing P) (direct : F.stage3 = none)
+    {setup : Array Fq} (expanded : pub.setupFor F.setupCount = some setup) {n : ℕ}
+    {B : Batch (Fin n)} (source : Fin n → RhsSource)
+    (rows : (F.rhs, F.openingRow) =
+      relation (fun k => B.shape (groupOrder n k)) B.openRank B.openDegree B.chain source)
+    (base : ℕ) (based : 2 ^ F.logBasis = base) (low : F.low = B.low)
+    (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E)
+    (basis : ∀ g t, β g t = (extBasis.getD t Ext.zero).into) (challenge : B.Challenge)
+    (challenged : ∀ k i, challenge (groupOrder n k) i = Poly.toRq _
+      ((drawnCarrier B s level k).getD i (Poly.zero (B.carrierDegree (groupOrder n k)))))
+    (fits : B.cells ≤ 2 ^ F.vars) {digits : ℕ} (room : B.quotientRoom digits ≤ 2 ^ F.vars)
+    (rowsFit : B.rowCount + 1 ≤ 2 ^ F.batch) (w : Table) (plain : F.euclidean = false)
+    (compressed : F.compressed = B.compressed)
+    (arities : (productStages F.logBasis).map (·.1) = rangeArities base)
+    (leaf : leafDegree F.logBasis = rangeLeaf base)
+    (slots : P.slots = (List.finRange n).map fun k => ⟨(groupOrder n k).val,
+      B.shape (groupOrder n k), B.opening (groupOrder n k), B.fold (groupOrder n k)⟩)
+    (opening : P.path = ⟨B.openDegree, B.openRank, B.chain⟩) (digited : P.digits = digits)
+    (numbers : ∀ k, (batchGroup B (fun _ => []) (fun _ => []) (fun _ => []) (fun _ => Ext.one)
+      k).Fits F.vars)
+    (G : Fin n → FoldGroup) (grouped : F.groups = (List.finRange n).map G)
+    (ringed : ∀ g, (G g).ring = (B.shape g).innerDegree)
+    (degreed : ∀ g, (G g).degree = B.carrierDegree g) (k₀ : Fin n) :
+    (foldCheck (Batch.liftedReduction β (batchStatementFor B setup (claimPointIn s level)
+        (dataIn pub s level) source (rowsIn s level F) (claimsIn s level F)) challenge F.vars fits
+        base digits room F.batch rowsFit) base (B.gaps digits).support B.compressed w).Runs
+      (foldPathIn E pub s level F setup F.vars F.batch)
+      ((foldRunIn pub s level F).map fun o => (o.1.map Ext.into, o.2.into)) := by
   have st : LevelState (stateBefore pub proof messages ops c) level F :=
     level_state pub proof messages _ (channelStart_fresh pub) (channelStart_empty pub) _ level F
-      game (aligned_take messages _ c _ (decode_aligned decoded)) before
+      game (aligned_take messages _ c _ aligned) before
   rw [state] at st
-  obtain ⟨virtual, count, -⟩ := st.leaf plain
-  obtain ⟨cs, drawn⟩ := drawnIn_before pub proof messages ops before
-    (squeezeOf_of_shape drawShape (g := 0) (by rw [grouped]; rfl))
-  rw [state] at drawn
-  have one := packGroupsIn_one P s level F slots (by rw [grouped]; rfl)
-  have weighs := packWeight_one β basis (packInputsIn P setup s level F) (packingValuesIn s level F)
-    (dataIn pub s level) .witness (rowsIn s level F) (claimsIn s level F)
-    ((drawnIn s level 0).map fun c => Poly.ofSparse O.carrierDegree
-      (c.map fun x => (x.1 / (S.innerDegree / O.carrierDegree), x.2)))
-    ((drawnIn s level 0).map (Poly.ofSparse S.innerDegree)) (claimPointIn s level 0) challenge
-    (fun i => by rw [challenged i])
-    (packAmbiented s level O G ringed degreed ⟨cs, drawn⟩ challenge challenged) fits room
-    rowsFit (packGroup_fits _ _ _ _ numbers) rfl digited based opening rfl rfl
-    (by rw [show (packingValuesIn s level F).tau1 = (recordedIn s ⟨level, "tau1", none⟩).toList
-      from rfl, Array.length_toList]; exact st.tau)
-  have supported := packSupport_one (E := E) (packInputsIn P setup s level F)
-    (packingValuesIn s level F) ((drawnIn s level 0).map fun c => Poly.ofSparse O.carrierDegree
-      (c.map fun x => (x.1 / (S.innerDegree / O.carrierDegree), x.2)))
-    ((drawnIn s level 0).map (Poly.ofSparse S.innerDegree)) (claimPointIn s level 0) room digited
-    opening (by rw [show (packingValuesIn s level F).virtual =
-      (roundsIn s ⟨level, "range.leaf", none⟩).map (·.2) from virtual, List.length_map, count])
-  exact foldRunIn_pack_game pub proof messages _ (channelStart_fresh pub) (channelStart_empty pub) _
-    key c level F shape game (aligned_take messages _ c _ (decode_aligned decoded))
-    (replay_ran pub proof messages none_ at_) state shaped direct expanded rows based low β challenge
-    fits room rowsFit w plain compressed arities leaf (by rw [one]; exact weighs)
-    (by rw [one]; exact supported)
+  obtain ⟨virtual, count, lengths⟩ := st.leaf plain
+  have drawnAt : ∀ k : Fin n, ∃ cs : List Sparse,
+      drawnIn s level (groupOrder n k).val = cs.map (ambient (G (groupOrder n k))) := fun k => by
+    obtain ⟨cs, drawn⟩ := drawnIn_before pub proof messages ops before
+      (squeezeOf_of_shape (g := (groupOrder n k).val) (G := G (groupOrder n k)) drawShape
+        (by rw [grouped]; exact getElem?_finRange_map G _))
+    exact ⟨cs, state ▸ drawn⟩
+  have numbersIn : ∀ g ∈ packGroupsIn P s level F, g.Fits F.vars := by
+    rw [packGroupsIn_batch B s level P F slots]
+    intro g member
+    obtain ⟨k, -, rfl⟩ := List.mem_map.mp member
+    exact batchGroup_fits B _ _ _ _ (numbers k)
+  exact foldRunIn_batch_runs (E := E) pub s level F shaped direct expanded source rows
+    base based low β challenge fits room rowsFit w plain compressed virtual st.vars st.tau
+    arities st.stages count (fun x member => (lengths x member).trans leaf) st.fusedCount
+    st.fusedLengths
+    (batchWeight_groups s level pub F slots opening digited setup source based β basis challenge
+      challenged (batchAmbiented s level B (fun k => G (groupOrder n k)) (fun _ => ringed _)
+        (fun _ => degreed _) drawnAt challenge challenged) fits room rowsFit numbersIn k₀ st.tau)
+    (batchSupport_in s level F slots opening digited room
+      (by rw [← Array.length_toList, virtual, List.length_map, count]))
 
 /-- A fold with opening groups without Stage 3: when `runProof` accepts, `foldCheck` of
 `Batch.liftedReduction` runs on the path of the code to acceptance with the recorded
@@ -206,32 +315,12 @@ theorem verifyProof_batch_game (scripted : script pub.layout pub.plan = .ok ops)
       (some ((recordedIn s ⟨level, "fused.point", none⟩).toList.map Ext.into,
         (firstIn s ⟨level, "witness_evaluation", none⟩).into)) := by
   have none_ := (replay_of_decoded pub proof scripted ends terminalSetup accepted decoded).2
-  have before := (replay_step_ok pub proof messages none_ at_).1
-  have st : LevelState (stateBefore pub proof messages ops c) level F :=
-    level_state pub proof messages _ (channelStart_fresh pub) (channelStart_empty pub) _ level F
-      game (aligned_take messages _ c _ (decode_aligned decoded)) before
-  rw [state] at st
-  obtain ⟨virtual, count, -⟩ := st.leaf plain
-  have drawnAt : ∀ k : Fin n, ∃ cs : List Sparse,
-      drawnIn s level (groupOrder n k).val = cs.map (ambient (G (groupOrder n k))) := fun k => by
-    obtain ⟨cs, drawn⟩ := drawnIn_before pub proof messages ops before
-      (squeezeOf_of_shape (g := (groupOrder n k).val) (G := G (groupOrder n k)) drawShape
-        (by rw [grouped]; exact getElem?_finRange_map G _))
-    exact ⟨cs, state ▸ drawn⟩
-  have numbersIn : ∀ g ∈ packGroupsIn P s level F, g.Fits F.vars := by
-    rw [packGroupsIn_batch B s level P F slots]
-    intro g member
-    obtain ⟨k, -, rfl⟩ := List.mem_map.mp member
-    exact batchGroup_fits B _ _ _ _ (numbers k)
-  exact foldRunIn_batch_game pub proof messages _ (channelStart_fresh pub) (channelStart_empty pub)
-    _ key c level F shape game (aligned_take messages _ c _ (decode_aligned decoded))
-    (replay_ran pub proof messages none_ at_) state shaped direct expanded source rows base based
-    low β challenge fits room rowsFit w plain compressed arities leaf
-    (batchWeight_groups s level pub F slots opening digited setup source based β basis challenge
-      challenged (batchAmbiented s level B (fun k => G (groupOrder n k)) (fun _ => ringed _)
-        (fun _ => degreed _) drawnAt challenge challenged) fits room rowsFit numbersIn k₀ st.tau)
-    (batchSupport_in s level F slots opening digited room
-      (by rw [← Array.length_toList, virtual, List.length_map, count]))
+  subst state
+  exact runs_level pub proof messages none_ at_ shape
+    (batch_game_before pub proof (decode_aligned decoded) game drawShape
+      (replay_step_ok pub proof messages none_ at_).1 rfl shaped direct expanded source rows base
+      based low β basis challenge challenged fits room rowsFit w plain compressed arities leaf
+      slots opening digited numbers G grouped ringed degreed k₀)
 
 /-- The offloaded root of `key30.aks`: when `runProof` accepts, Stage 3 gives `some o` and
 `offloadCheck` of `Batch.liftedReduction` over the setup prefix `flat`, with the split

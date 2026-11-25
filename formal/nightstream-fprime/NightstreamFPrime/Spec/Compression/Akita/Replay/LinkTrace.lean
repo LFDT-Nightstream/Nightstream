@@ -23,7 +23,9 @@ level `ℓ + 1` (`Build.prefix_`), so its keys `tensor.*` have the level `ℓ + 
   runs on the path of the fold and of the tensor reduction to `(ρ, θ, ṽ)`.
 - `verifyProof_traceLink`: the statement `traceStatementFor` of the replay at the level `ℓ + 1` is
   the claim that `Tier.TraceLinked` takes from `(ρ, θ, ṽ)`, with the segments
-  `ρ = ρ_pack ++ (ρ_pos ++ ρ_blk)` and the payload of the words `next_witness` of the level `ℓ`. -/
+  `ρ = ρ_pack ++ (ρ_pos ++ ρ_blk)` and the payload of the words `next_witness` of the level `ℓ`.
+- `tensorLink_before`, `tensored_before`, `traceLink_before`: the same three theorems when the run
+  before the `tensor.end` and its step have no stop. -/
 
 set_option autoImplicit false
 
@@ -187,6 +189,68 @@ variable (pub : Public) (proof : ByteArray) {ops : Array Op}
 variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree2 E]
 
 /-- The tensor reduction of the level `level + 1` at `tensor.end` (operation `t`) on the claim
+`(fused.point, witness_evaluation)` of the level `level`, when the run before `t` and the step of
+`t` have no stop and no operation from `t` to `c'` writes `tensorKeys level` or ends
+`tensor.sumcheck`: on the state before `c'` the tensor point `ρ` and the tail of `r_2` have `ν`
+coordinates, and `tensorCheck` runs on the path of the recorded values to `(ρ, θ, ṽ)` with
+`θ = mle ρ (tensorWeight r_2.tail η)` and the final claim `ṽ`. -/
+theorem tensorLink_before {messages : Array Message}
+    (aligned : ReadsAligned messages ops.zipIdx.toList 0) {level t c' ν : ℕ} {key : Key}
+    (shape : roundsAt (ops.zipIdx.toList.take t) ⟨level + 1, "tensor.sumcheck", none⟩ ν 2 = true)
+    (before : (runFrom pub proof messages (ops.zipIdx.toList.take t) (channelStart pub)).1 =
+      .ok ())
+    (stepped : (((step pub proof messages t (.check key (.tensor (level + 1) ν
+      ⟨level, "fused.point", none⟩ ⟨level, "witness_evaluation", none⟩))).run).run
+        (stateBefore pub proof messages ops t)).1 = .ok ())
+    (after : t ≤ c')
+    (kept : frees ((ops.zipIdx.toList.take c').drop t) (tensorKeys level)
+      [⟨level + 1, "tensor.sumcheck", none⟩] = true)
+    (w : Table) :
+    let s := stateBefore pub proof messages ops c'
+    let r2 := (recordedIn s ⟨level, "fused.point", none⟩).toList
+    let ρ := (recordedIn s ⟨level + 1, "tensor.sumcheck.point", none⟩).toList
+    let η := firstIn s ⟨level + 1, "tensor.eta", none⟩
+    let final := firstIn s ⟨level + 1, "tensor.final_claims", none⟩
+    ρ.length = ν ∧ r2.tail.length = ν ∧
+      (tensorCheck ν w (r2.map (Ext.into (E := E)))
+        (firstIn s ⟨level, "witness_evaluation", none⟩).into).Runs
+        (tensorPath E ν r2 (firstIn s ⟨level, "witness_evaluation", none⟩)
+          ((recordedIn s ⟨level + 1, "tensor.partials", none⟩).getD 0 Ext.zero)
+          ((recordedIn s ⟨level + 1, "tensor.partials", none⟩).getD 1 Ext.zero) η
+          (roundsIn s ⟨level + 1, "tensor.sumcheck", none⟩) final)
+        (some (ρ.map Ext.into, mle (ρ.map Ext.into) (tensorWeight (r2.tail.map Ext.into) η.into),
+          final.into)) := by
+  obtain ⟨e, shaped⟩ := roundsAt_sound shape
+  obtain ⟨roundCount, _, points⟩ := rounds_facts pub proof messages _ (channelStart_fresh pub)
+    (channelStart_empty pub) _ _ ν 2 e shaped (aligned_take messages _ t _ aligned) before
+  obtain ⟨o, ran⟩ := tensor_some_of_step pub proof messages t key (level + 1) ν
+    ⟨level, "fused.point", none⟩ ⟨level, "witness_evaluation", none⟩ _ stepped
+  have game := tensor_game_before (E := E) pub proof messages aligned
+    ⟨level, "fused.point", none⟩ ⟨level, "witness_evaluation", none⟩ shape before w
+  rw [ran, Option.map_some] at game
+  obtain ⟨tailLength, oPoint, oClaim⟩ := tensorRun_some ran
+  obtain ⟨frames, roundsFrame⟩ := stateBefore_frees pub proof messages after kept
+  have frame := fun k (inside : k ∈ tensorKeys level) => (frames k inside).1
+  have fp := frame ⟨level, "fused.point", none⟩ (by simp [tensorKeys])
+  have we := frame ⟨level, "witness_evaluation", none⟩ (by simp [tensorKeys])
+  have partials := frame ⟨level + 1, "tensor.partials", none⟩ (by simp [tensorKeys])
+  have eta := frame ⟨level + 1, "tensor.eta", none⟩ (by simp [tensorKeys])
+  have finals := frame ⟨level + 1, "tensor.final_claims", none⟩ (by simp [tensorKeys])
+  have rho := frame ⟨level + 1, "tensor.sumcheck.point", none⟩ (by simp [tensorKeys])
+  have rounds := roundsFrame ⟨level + 1, "tensor.sumcheck", none⟩ List.mem_cons_self
+  have pointIs : o.point = (recordedIn (stateBefore pub proof messages ops t)
+      ⟨level + 1, "tensor.sumcheck.point", none⟩).toList := by
+    rw [oPoint]
+    exact points
+  dsimp only
+  rw [fp, firstIn_congr we, partials, firstIn_congr eta, firstIn_congr finals, rho, rounds]
+  refine ⟨?_, tailLength, ?_⟩
+  · rw [← pointIs, oPoint, List.length_map]
+    exact roundCount
+  · rw [pointIs, oClaim] at game
+    exact game
+
+/-- The tensor reduction of the level `level + 1` at `tensor.end` (operation `t`) on the claim
 `(fused.point, witness_evaluation)` of the level `level`: when `runProof` accepts and no
 operation from `t` to `c'` writes `tensorKeys level` or ends `tensor.sumcheck`, on the state
 before `c'` the tensor point `ρ` and the tail of `r_2` have `ν` coordinates, and `tensorCheck`
@@ -218,35 +282,60 @@ theorem verifyProof_tensorLink (scripted : script pub.layout pub.plan = .ok ops)
           (roundsIn s ⟨level + 1, "tensor.sumcheck", none⟩) final)
         (some (ρ.map Ext.into, mle (ρ.map Ext.into) (tensorWeight (r2.tail.map Ext.into) η.into),
           final.into)) := by
-  obtain ⟨-, none_⟩ := replay_of_decoded pub proof scripted ends terminalSetup accepted decoded
-  obtain ⟨before, _⟩ := replay_step_ok pub proof messages none_ at_
-  obtain ⟨e, shaped⟩ := roundsAt_sound shape
-  obtain ⟨roundCount, _, points⟩ := rounds_facts pub proof messages _ (channelStart_fresh pub)
-    (channelStart_empty pub) _ _ ν 2 e shaped
-    (aligned_take messages _ t _ (decode_aligned decoded)) before
-  obtain ⟨o, ran, game⟩ := verifyProof_tensor_game (E := E) pub proof scripted ends terminalSetup
-    accepted decoded at_ shape rfl w
-  obtain ⟨tailLength, oPoint, oClaim⟩ := tensorRun_some ran
-  obtain ⟨frames, roundsFrame⟩ := stateBefore_frees pub proof messages after kept
-  have frame := fun k (inside : k ∈ tensorKeys level) => (frames k inside).1
-  have fp := frame ⟨level, "fused.point", none⟩ (by simp [tensorKeys])
-  have we := frame ⟨level, "witness_evaluation", none⟩ (by simp [tensorKeys])
-  have partials := frame ⟨level + 1, "tensor.partials", none⟩ (by simp [tensorKeys])
-  have eta := frame ⟨level + 1, "tensor.eta", none⟩ (by simp [tensorKeys])
-  have finals := frame ⟨level + 1, "tensor.final_claims", none⟩ (by simp [tensorKeys])
-  have rho := frame ⟨level + 1, "tensor.sumcheck.point", none⟩ (by simp [tensorKeys])
-  have rounds := roundsFrame ⟨level + 1, "tensor.sumcheck", none⟩ List.mem_cons_self
-  have pointIs : o.point = (recordedIn (stateBefore pub proof messages ops t)
-      ⟨level + 1, "tensor.sumcheck.point", none⟩).toList := by
-    rw [oPoint]
-    exact points
-  dsimp only at game ⊢
-  rw [fp, firstIn_congr we, partials, firstIn_congr eta, firstIn_congr finals, rho, rounds]
-  refine ⟨?_, tailLength, ?_⟩
-  · rw [← pointIs, oPoint, List.length_map]
-    exact roundCount
-  · rw [pointIs, oClaim] at game
-    exact game
+  obtain ⟨before, stepped⟩ := replay_step_ok pub proof messages
+    (replay_of_decoded pub proof scripted ends terminalSetup accepted decoded).2 at_
+  exact tensorLink_before pub proof (decode_aligned decoded) shape before stepped after kept w
+
+/-- `Tier.tensored` of a level `level` on the replay, when the run before the `tensor.end` at `t`
+and the step of `t` have no stop: a game `g` that runs on `path` to the recorded
+`(fused.point, witness_evaluation)` on the state before `c`, with the tensor reduction of the level
+`level + 1` at `t`, runs on `path` and the path of the tensor reduction to `(ρ, θ, ṽ)` of the
+recorded values on the state before `c'`. -/
+theorem tensored_before {messages : Array Message}
+    (aligned : ReadsAligned messages ops.zipIdx.toList 0) {level c t c' ν : ℕ} {key : Key}
+    (shape : roundsAt (ops.zipIdx.toList.take t) ⟨level + 1, "tensor.sumcheck", none⟩ ν 2 = true)
+    (ran : (runFrom pub proof messages (ops.zipIdx.toList.take t) (channelStart pub)).1 =
+      .ok ())
+    (stepped : (((step pub proof messages t (.check key (.tensor (level + 1) ν
+      ⟨level, "fused.point", none⟩ ⟨level, "witness_evaluation", none⟩))).run).run
+        (stateBefore pub proof messages ops t)).1 = .ok ())
+    (before : c ≤ t) (after : t ≤ c')
+    (held : frees ((ops.zipIdx.toList.take t).drop c)
+      [⟨level, "fused.point", none⟩, ⟨level, "witness_evaluation", none⟩] [] = true)
+    (kept : frees ((ops.zipIdx.toList.take c').drop t) (tensorKeys level)
+      [⟨level + 1, "tensor.sumcheck", none⟩] = true)
+    {g : Game (Option (List E × E))} {path : List Move} (w : Table)
+    (runs : g.Runs path
+      (some ((recordedIn (stateBefore pub proof messages ops c)
+          ⟨level, "fused.point", none⟩).toList.map Ext.into,
+        (firstIn (stateBefore pub proof messages ops c)
+          ⟨level, "witness_evaluation", none⟩).into))) :
+    let s := stateBefore pub proof messages ops c'
+    let r2 := (recordedIn s ⟨level, "fused.point", none⟩).toList
+    let ρ := (recordedIn s ⟨level + 1, "tensor.sumcheck.point", none⟩).toList
+    let η := firstIn s ⟨level + 1, "tensor.eta", none⟩
+    let final := firstIn s ⟨level + 1, "tensor.final_claims", none⟩
+    ρ.length = ν ∧ r2.tail.length = ν ∧
+      (g.bind fun
+        | none => .pure none
+        | some (r2, v) => tensorCheck ν w r2 v).Runs
+        (path ++ tensoredPath E ν (some (r2, firstIn s ⟨level, "witness_evaluation", none⟩))
+          ((recordedIn s ⟨level + 1, "tensor.partials", none⟩).getD 0 Ext.zero)
+          ((recordedIn s ⟨level + 1, "tensor.partials", none⟩).getD 1 Ext.zero) η
+          (roundsIn s ⟨level + 1, "tensor.sumcheck", none⟩) final)
+        (some (ρ.map Ext.into, mle (ρ.map Ext.into) (tensorWeight (r2.tail.map Ext.into) η.into),
+          final.into)) := by
+  obtain ⟨long, tail, game⟩ := tensorLink_before (E := E) pub proof aligned shape ran stepped after
+    kept w
+  obtain ⟨frames, -⟩ := stateBefore_frees pub proof messages before held
+  obtain ⟨later, -⟩ := stateBefore_frees pub proof messages after kept
+  have fp := (later ⟨level, "fused.point", none⟩ (by simp [tensorKeys])).1.trans
+    (frames ⟨level, "fused.point", none⟩ List.mem_cons_self).1
+  have we := (later ⟨level, "witness_evaluation", none⟩ (by simp [tensorKeys])).1.trans
+    (frames ⟨level, "witness_evaluation", none⟩ (by simp)).1
+  rw [← fp, ← firstIn_congr we] at runs
+  dsimp only at long tail game ⊢
+  exact ⟨long, tail, runs_bind runs game⟩
 
 /-- `Tier.tensored` of a level `level` on the replay: when its game `g` runs on `path` to the
 recorded `(fused.point, witness_evaluation)` on the state before `c` and `runProof` accepts,
@@ -287,17 +376,10 @@ theorem verifyProof_tensored (scripted : script pub.layout pub.plan = .ok ops)
           (roundsIn s ⟨level + 1, "tensor.sumcheck", none⟩) final)
         (some (ρ.map Ext.into, mle (ρ.map Ext.into) (tensorWeight (r2.tail.map Ext.into) η.into),
           final.into)) := by
-  obtain ⟨long, tail, game⟩ := verifyProof_tensorLink (E := E) pub proof scripted ends terminalSetup
-    accepted decoded at_ shape after kept w
-  obtain ⟨frames, -⟩ := stateBefore_frees pub proof messages before held
-  obtain ⟨later, -⟩ := stateBefore_frees pub proof messages after kept
-  have fp := (later ⟨level, "fused.point", none⟩ (by simp [tensorKeys])).1.trans
-    (frames ⟨level, "fused.point", none⟩ List.mem_cons_self).1
-  have we := (later ⟨level, "witness_evaluation", none⟩ (by simp [tensorKeys])).1.trans
-    (frames ⟨level, "witness_evaluation", none⟩ (by simp)).1
-  rw [← fp, ← firstIn_congr we] at runs
-  dsimp only at long tail game ⊢
-  exact ⟨long, tail, runs_bind runs game⟩
+  obtain ⟨ran, stepped⟩ := replay_step_ok pub proof messages
+    (replay_of_decoded pub proof scripted ends terminalSetup accepted decoded).2 at_
+  exact tensored_before pub proof (decode_aligned decoded) shape ran stepped before after held kept
+    w runs
 
 omit [Fintype E] [DecidableEq E] in
 /-- The words `next_witness` of the level before and `opening_payload` of a fold with one group of
@@ -310,6 +392,75 @@ theorem dataIn_runs (s : Replayer) (level : ℕ) (S : Shape) (O : OpeningShape S
       (s.fields.get? ⟨level + 1, "opening_payload", none⟩).getD #[] :=
   ⟨dataIn_witness pub s level (pathRun_source _ _ _ _ _ _),
     dataIn_payload pub s (level + 1) (pathRun_source _ _ _ _ _ _)⟩
+
+/-- The link `Tier.TraceLinked` on the replay (Akita Figure 4, steps 0, 3 and 5, (65), (95) to
+(101)), when the run before the `tensor.end` at `t` and the step of `t` have no stop: on the state
+before `c'` the statement `traceStatementFor` of the receiver `F` at the level `level + 1` is the
+folding statement of `TraceClaim.ofPoint` for the segments `ρ_pack`, `ρ_pos`, `ρ_blk` of the
+tensor point `ρ`, its factor `θ` and its final claim `ṽ`, with the payload of the words
+`next_witness` of the level `level` and the matrices of the setup. -/
+theorem traceLink_before {messages : Array Message}
+    (aligned : ReadsAligned messages ops.zipIdx.toList 0) {level t c' ν : ℕ} {key : Key}
+    (shape : roundsAt (ops.zipIdx.toList.take t) ⟨level + 1, "tensor.sumcheck", none⟩ ν 2 = true)
+    (before : (runFrom pub proof messages (ops.zipIdx.toList.take t) (channelStart pub)).1 =
+      .ok ())
+    (stepped : (((step pub proof messages t (.check key (.tensor (level + 1) ν
+      ⟨level, "fused.point", none⟩ ⟨level, "witness_evaluation", none⟩))).run).run
+        (stateBefore pub proof messages ops t)).1 = .ok ())
+    (after : t ≤ c')
+    (kept : frees ((ops.zipIdx.toList.take c').drop t) (tensorKeys level)
+      [⟨level + 1, "tensor.sumcheck", none⟩] = true)
+    {F : Fold} (traced : F.trace.isSome = true) (single : F.groups.length = 1) {S : Shape}
+    (O : OpeningShape S) (quarter : 4 * (S.innerDegree / 4) = S.innerDegree)
+    (width : 2 * (S.innerDegree / 4) = 2 ^ Nat.log 2 (S.innerDegree / 2))
+    (length : S.blockLength = 2 ^ Nat.log 2 S.blockLength)
+    (long : Nat.log 2 (S.innerDegree / 2) + Nat.log 2 S.blockLength ≤ ν)
+    (blocks : S.blocks ≤ 2 ^ (ν - (Nat.log 2 (S.innerDegree / 2) + Nat.log 2 S.blockLength)))
+    (setup : Array Fq) :
+    let s := stateBefore pub proof messages ops c'
+    let r2 := (recordedIn s ⟨level, "fused.point", none⟩).toList
+    let ρ := (recordedIn s ⟨level + 1, "tensor.sumcheck.point", none⟩).toList
+    let η := firstIn s ⟨level + 1, "tensor.eta", none⟩
+    let pack := (packPoint S ρ).map (Ext.into (E := E))
+    let position := (positionPoint S ρ).map (Ext.into (E := E))
+    let block := (blockPoint S ρ).map (Ext.into (E := E))
+    pack ++ (position ++ block) = ρ.map Ext.into ∧ S.blocks ≤ 2 ^ block.length ∧
+      S.blockLength = 2 ^ position.length ∧ 2 * (S.innerDegree / 4) = 2 ^ pack.length ∧
+      traceStatementFor (E := E) O quarter setup (traceValuesIn s (level + 1) F)
+          (dataIn pub s (level + 1)) .witness (rowsIn s (level + 1) F)
+          (claimsIn s (level + 1) F) =
+        (Extract.TraceClaim.ofPoint quarter
+          (payloadOf S.chain _ _ ((s.fields.get? ⟨level, "next_witness", none⟩).getD #[]))
+          (payloadOf O.chain _ _ ((s.fields.get? ⟨level + 1, "opening_payload", none⟩).getD #[]))
+          block position pack (mle (ρ.map Ext.into) (tensorWeight (r2.tail.map Ext.into) η.into))
+          (firstIn s ⟨level + 1, "tensor.final_claims", none⟩).into).statement
+          (Key.ofSetup (flatOf setup) S) (OpeningKey.ofSetup (flatOf setup) O) := by
+  obtain ⟨rhoLength, tailLength, -⟩ := tensorLink_before (E := E) pub proof aligned shape before
+    stepped after kept (fun _ => 0)
+  dsimp only at rhoLength tailLength ⊢
+  obtain ⟨packLength, positionLength, blockLength⟩ := segments_length S _ (rhoLength ▸ long)
+  have rows : rowsIn (stateBefore pub proof messages ops c') (level + 1) F = #[Ext.one] := by
+    simp [rowsIn, single]
+  have claims : claimsIn (stateBefore pub proof messages ops c') (level + 1) F =
+      recordedIn (stateBefore pub proof messages ops c') ⟨level + 1, "tensor.final_claims", none⟩ := by
+    simp [claimsIn, traced]
+  obtain ⟨witness, payload⟩ := dataIn_runs pub (stateBefore pub proof messages ops c') level S O
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩
+  · rw [← List.map_append, ← List.map_append, segments_append]
+  · rw [List.length_map, blockLength, rhoLength]
+    exact blocks
+  · rw [List.length_map, positionLength]
+    exact length
+  · rw [List.length_map, packLength]
+    exact width
+  · have same : (traceValuesIn (stateBefore pub proof messages ops c') (level + 1) F).point.length =
+        (traceValuesIn (stateBefore pub proof messages ops c') (level + 1) F).tail.length := by
+      show (recordedIn (stateBefore pub proof messages ops c')
+          ⟨level + 1, "tensor.sumcheck.point", none⟩).toList.length =
+        (recordedIn (stateBefore pub proof messages ops c') ⟨level, "fused.point", none⟩).toList.tail.length
+      rw [rhoLength, tailLength]
+    rw [rows, claims, traceStatementFor_one quarter setup _ _ _ same, witness, payload]
+    rfl
 
 /-- The link `Tier.TraceLinked` on the replay (Akita Figure 4, steps 0, 3 and 5, (65), (95) to
 (101)): when `runProof` accepts, on the state before `c'` the statement `traceStatementFor` of
@@ -355,32 +506,10 @@ theorem verifyProof_traceLink (scripted : script pub.layout pub.plan = .ok ops)
           block position pack (mle (ρ.map Ext.into) (tensorWeight (r2.tail.map Ext.into) η.into))
           (firstIn s ⟨level + 1, "tensor.final_claims", none⟩).into).statement
           (Key.ofSetup (flatOf setup) S) (OpeningKey.ofSetup (flatOf setup) O) := by
-  obtain ⟨rhoLength, tailLength, -⟩ := verifyProof_tensorLink (E := E) pub proof scripted ends
-    terminalSetup accepted decoded at_ shape after kept (fun _ => 0)
-  dsimp only at rhoLength tailLength ⊢
-  obtain ⟨packLength, positionLength, blockLength⟩ := segments_length S _ (rhoLength ▸ long)
-  have rows : rowsIn (stateBefore pub proof messages ops c') (level + 1) F = #[Ext.one] := by
-    simp [rowsIn, single]
-  have claims : claimsIn (stateBefore pub proof messages ops c') (level + 1) F =
-      recordedIn (stateBefore pub proof messages ops c') ⟨level + 1, "tensor.final_claims", none⟩ := by
-    simp [claimsIn, traced]
-  obtain ⟨witness, payload⟩ := dataIn_runs pub (stateBefore pub proof messages ops c') level S O
-  refine ⟨?_, ?_, ?_, ?_, ?_⟩
-  · rw [← List.map_append, ← List.map_append, segments_append]
-  · rw [List.length_map, blockLength, rhoLength]
-    exact blocks
-  · rw [List.length_map, positionLength]
-    exact length
-  · rw [List.length_map, packLength]
-    exact width
-  · have same : (traceValuesIn (stateBefore pub proof messages ops c') (level + 1) F).point.length =
-        (traceValuesIn (stateBefore pub proof messages ops c') (level + 1) F).tail.length := by
-      show (recordedIn (stateBefore pub proof messages ops c')
-          ⟨level + 1, "tensor.sumcheck.point", none⟩).toList.length =
-        (recordedIn (stateBefore pub proof messages ops c') ⟨level, "fused.point", none⟩).toList.tail.length
-      rw [rhoLength, tailLength]
-    rw [rows, claims, traceStatementFor_one quarter setup _ _ _ same, witness, payload]
-    rfl
+  obtain ⟨before, stepped⟩ := replay_step_ok pub proof messages
+    (replay_of_decoded pub proof scripted ends terminalSetup accepted decoded).2 at_
+  exact traceLink_before pub proof (decode_aligned decoded) shape before stepped after kept traced
+    single O quarter width length long blocks setup
 
 end Proof
 

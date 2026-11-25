@@ -1,5 +1,6 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Spec.Compression.Akita.Extract.PresentPage
+import NightstreamFPrime.Spec.Compression.Akita.Extract.PresentGiven
 
 /-! Axiom audits for the transcripts on the finite wire `Page` that present a path of a game
 (`Extract/PresentPage.lean`). The example at the end applies `Tier.exists_block` to a level whose
@@ -43,6 +44,25 @@ nonce of the transcript. -/
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Prefix.ofBlocks_block
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tier.game_eq_pure_iff_of_runs
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tier.exists_block
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Samples
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Samples.append
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.exists_samples
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.samples_pathOf
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Presents.samples
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.cellFor
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.cellFor_message
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.cellsFrom
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.afterDraws
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.leading
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.segments
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.cellsOf
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.cellsOf_congr
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.afterDraws_zero
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.cellsFrom_leading
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.cellsOf_zero
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.pathOf_of_samples_from
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.pathOf_of_samples
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tier.presents_of_samples
 
 namespace AkitaPresentPageGuards
 
@@ -104,5 +124,26 @@ example : ∃ point : Prefix (Page Unit (ZMod 2) 1 2 0) (Option Unit → ZMod 2)
     obtain rfl : i = 0 := by omega
     rw [show roundTier.bits.getD 0 0 = 0 from rfl, workZeros_zero]
     exact Finset.mem_univ _
+
+/-- `pathOf_of_samples` with `exists_samples`: for a run of a drawable game on a path that fits
+the cells, the page with the cells `cellsOf path 0` and moves with the answers of
+`exists_samples` and the cells `cellsOf path (j + 1)` present the path. -/
+example {α Reply Data E : Type} [Fintype Reply] [Nonempty Reply] [Zero E] {width cap slots : ℕ}
+    (data : Data) {game : Game α} {path : List Move} {result : α} (runs : game.Runs path result)
+    (drawable : Drawable Reply game) (packs : Packs E width cap slots path 0) :
+    ∃ pages : List (Reply × Page Data E slots width cap),
+      pathOf Page.read game ⟨data, cellsOf path 0, 0⟩ 0 pages = path := by
+  obtain ⟨views, -, samples⟩ := exists_samples game path result runs drawable
+  refine ⟨views.zipIdx.map fun x => (x.1, ⟨data, cellsOf path (x.2 + 1), 0⟩),
+    pathOf_of_samples ?_ packs rfl fun j _ move found => ?_⟩
+  · rw [List.map_map, show (Prod.fst ∘ fun x : Reply × ℕ =>
+      (x.1, (⟨data, cellsOf path (x.2 + 1), 0⟩ : Page Data E slots width cap))) = Prod.fst from rfl,
+      List.zipIdx_map_fst]
+    exact samples
+  · rw [List.getElem?_map, List.getElem?_zipIdx] at found
+    obtain ⟨x, at_, rfl⟩ := Option.map_eq_some_iff.mp found
+    obtain ⟨reply, -, rfl⟩ := Option.map_eq_some_iff.mp at_
+    show cellsOf path (0 + j + 1) = cellsOf path (j + 1)
+    rw [Nat.zero_add]
 
 end AkitaPresentPageGuards

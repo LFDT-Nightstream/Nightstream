@@ -17,7 +17,9 @@ level `ℓ + 1`, with the keys `tensor.*` of the level `ℓ + 1`.
 - `verifyProof_key20_terminal`: the terminal of `key20.aks` when `runProof` accepts: the bound
   `Route.Short` of the Euclidean route for `zSource z`, the fold challenges, and the checks (128)
   to (130) for `TerminalStatement.ofPoint` of the result of the level 5 with its tensor
-  reduction. -/
+  reduction.
+- `terminalLink_before`: `verifyProof_terminalLink` when the run before the `tensor.end` and its
+  step have no stop. -/
 
 set_option autoImplicit false
 
@@ -33,6 +35,66 @@ section Proof
 
 variable (pub : Public) (proof : ByteArray) {ops : Array Op}
 variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree2 E]
+
+/-- The link `Terminal.Linked` on the replay (Akita Section 8.2), when the run before the
+`tensor.end` at `t` and the step of `t` have no stop: on the state before `c'` the statement
+`statementOf` of the terminal at the level `level + 1` is `TerminalStatement.ofPoint` for
+`A_term = matrixOf` of the setup, the state of the messages with the last block `tLast`, the
+segments `ρ_pack`, `ρ_pos`, `ρ_blk` of the tensor point `ρ`, the factor `θ` and the final claim `ṽ`
+of `tensorLink_before`. -/
+theorem terminalLink_before {messages : Array Message}
+    (aligned : ReadsAligned messages ops.zipIdx.toList 0) {level t c' ν : ℕ} {key : Key}
+    (shape : roundsAt (ops.zipIdx.toList.take t) ⟨level + 1, "tensor.sumcheck", none⟩ ν 2 = true)
+    (before : (runFrom pub proof messages (ops.zipIdx.toList.take t) (channelStart pub)).1 =
+      .ok ())
+    (stepped : (((step pub proof messages t (.check key (.tensor (level + 1) ν
+      ⟨level, "fused.point", none⟩ ⟨level, "witness_evaluation", none⟩))).run).run
+        (stateBefore pub proof messages ops t)).1 = .ok ())
+    (after : t ≤ c')
+    (kept : frees ((ops.zipIdx.toList.take c').drop t) (tensorKeys level)
+      [⟨level + 1, "tensor.sumcheck", none⟩] = true)
+    {S : Shape} (quarter : 4 * (S.innerDegree / 4) = S.innerDegree)
+    (width : 2 * (S.innerDegree / 4) = 2 ^ Nat.log 2 (S.innerDegree / 2))
+    (length : S.blockLength = 2 ^ Nat.log 2 S.blockLength)
+    (long : Nat.log 2 (S.innerDegree / 2) + Nat.log 2 S.blockLength ≤ ν)
+    (blocks : S.blocks ≤ 2 ^ (ν - (Nat.log 2 (S.innerDegree / 2) + Nat.log 2 S.blockLength)))
+    (setup : Array Fq) (tLast : ℕ → Rq S.innerDegree) :
+    let s := stateBefore pub proof messages ops c'
+    let r2 := (recordedIn s ⟨level, "fused.point", none⟩).toList
+    let ρ := (recordedIn s ⟨level + 1, "tensor.sumcheck.point", none⟩).toList
+    let η := firstIn s ⟨level + 1, "tensor.eta", none⟩
+    let pack := (packPoint S ρ).map (Ext.into (E := E))
+    let position := (positionPoint S ρ).map (Ext.into (E := E))
+    let block := (blockPoint S ρ).map (Ext.into (E := E))
+    pack ++ (position ++ block) = ρ.map Ext.into ∧ S.blocks ≤ 2 ^ block.length ∧
+      S.blockLength = 2 ^ position.length ∧ 2 * (S.innerDegree / 4) = 2 ^ pack.length ∧
+      statementOf (E := E) S quarter setup (terminalMessagesIn s (level + 1))
+          (terminalChallengesIn s (level + 1)) tLast =
+        Extract.TerminalStatement.ofPoint quarter (matrixOf S setup)
+          (stateOf S (terminalMessagesIn s (level + 1)) tLast) block position pack
+          (mle (ρ.map Ext.into) (tensorWeight (r2.tail.map Ext.into) η.into))
+          (firstIn s ⟨level + 1, "tensor.final_claims", none⟩).into := by
+  obtain ⟨rhoLength, tailLength, -⟩ := tensorLink_before (E := E) pub proof aligned shape before
+    stepped after kept (fun _ => 0)
+  dsimp only at rhoLength tailLength ⊢
+  obtain ⟨packLength, positionLength, blockLength⟩ := segments_length S _ (rhoLength ▸ long)
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩
+  · rw [← List.map_append, ← List.map_append, segments_append]
+  · rw [List.length_map, blockLength, rhoLength]
+    exact blocks
+  · rw [List.length_map, positionLength]
+    exact length
+  · rw [List.length_map, packLength]
+    exact width
+  · have same : (recordedIn (stateBefore pub proof messages ops c')
+        ⟨level + 1, "tensor.sumcheck.point", none⟩).toList.length =
+        (recordedIn (stateBefore pub proof messages ops c')
+          ⟨level + 1 - 1, "fused.point", none⟩).toList.tail.length := by
+      rw [Nat.add_sub_cancel, rhoLength, tailLength]
+    unfold statementOf terminalChallengesIn
+    dsimp only
+    rw [tensorFactor_into _ _ same, Nat.add_sub_cancel]
+    rfl
 
 /-- The link `Terminal.Linked` on the replay (Akita Section 8.2): when `runProof` accepts, on
 the state before `c'` the statement `statementOf` of the terminal at the level `level + 1` is
@@ -72,27 +134,10 @@ theorem verifyProof_terminalLink (scripted : script pub.layout pub.plan = .ok op
           (stateOf S (terminalMessagesIn s (level + 1)) tLast) block position pack
           (mle (ρ.map Ext.into) (tensorWeight (r2.tail.map Ext.into) η.into))
           (firstIn s ⟨level + 1, "tensor.final_claims", none⟩).into := by
-  obtain ⟨rhoLength, tailLength, -⟩ := verifyProof_tensorLink (E := E) pub proof scripted ends
-    terminalSetup accepted decoded at_ shape after kept (fun _ => 0)
-  dsimp only at rhoLength tailLength ⊢
-  obtain ⟨packLength, positionLength, blockLength⟩ := segments_length S _ (rhoLength ▸ long)
-  refine ⟨?_, ?_, ?_, ?_, ?_⟩
-  · rw [← List.map_append, ← List.map_append, segments_append]
-  · rw [List.length_map, blockLength, rhoLength]
-    exact blocks
-  · rw [List.length_map, positionLength]
-    exact length
-  · rw [List.length_map, packLength]
-    exact width
-  · have same : (recordedIn (stateBefore pub proof messages ops c')
-        ⟨level + 1, "tensor.sumcheck.point", none⟩).toList.length =
-        (recordedIn (stateBefore pub proof messages ops c')
-          ⟨level + 1 - 1, "fused.point", none⟩).toList.tail.length := by
-      rw [Nat.add_sub_cancel, rhoLength, tailLength]
-    unfold statementOf terminalChallengesIn
-    dsimp only
-    rw [tensorFactor_into _ _ same, Nat.add_sub_cancel]
-    rfl
+  obtain ⟨before, stepped⟩ := replay_step_ok pub proof messages
+    (replay_of_decoded pub proof scripted ends terminalSetup accepted decoded).2 at_
+  exact terminalLink_before pub proof (decode_aligned decoded) shape before stepped after kept
+    quarter width length long blocks setup tLast
 
 end Proof
 

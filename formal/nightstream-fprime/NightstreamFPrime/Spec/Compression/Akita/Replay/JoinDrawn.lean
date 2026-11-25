@@ -11,8 +11,9 @@ message (Akita revision `d50f700`, `VerifierFoldDraw`; `Replay/FinalDrawn.lean`)
   group are `foldChallenges G bytes` of a message `bytes`.
 - `squeeze20_terminal`: the first squeeze of the terminal group of `layout20` before the terminal
   has the family of the terminal (a closed computation of the kernel on the skeleton).
-- `verifyProof_drawn20`: for an accepted proof of `layout20`, the fold challenges of the terminal
-  group on the state before the terminal are `foldChallenges` of a message. -/
+- `drawn20_before`, `verifyProof_drawn20`: after a run without a stop before the terminal (for an
+  accepted proof of `layout20`), the fold challenges of the terminal group on the state before the
+  terminal are `foldChallenges` of a message. -/
 
 set_option autoImplicit false
 
@@ -111,6 +112,25 @@ theorem squeeze20_terminal :
     squeezeOf 6 0 (sk20.take 1521) == some (layout20 0 0).terminal.group := by
   decide +kernel
 
+/-- For a script of `layout20`, after a run without a stop before the terminal, the fold
+challenges of the terminal group on the state before the terminal are the challenges of the
+sampler of the code on a message. -/
+theorem drawn20_before {pub : Public} {proof : ByteArray} {zMax rice : ℕ}
+    (layout : pub.layout = layout20 zMax rice)
+    (scripted : script pub.layout pub.plan = .ok pub.ops) {messages : Array Message}
+    (before : (runFrom pub proof messages (pub.ops.zipIdx.toList.take (pub.ops.size - 1))
+      (channelStart pub)).1 = .ok ()) :
+    ∃ bytes, foldChallenges (layout20 zMax rice).terminal.group bytes =
+      some (drawnIn (stateBefore pub proof messages pub.ops (pub.ops.size - 1)) 6 0) := by
+  have erased : pub.ops.toList.map Op.erase = skeleton (layout20 0 0) := by
+    rw [script_erase (layout ▸ scripted), skeleton20]
+  have size : pub.ops.size - 1 = 1521 := by rw [size_skeleton erased, skeleton20_length]
+  have first : squeezeOf 6 0 (pub.ops.zipIdx.toList.take (pub.ops.size - 1)) =
+      some (layout20 zMax rice).terminal.group := by
+    rw [← squeezeOf_erase, take_erase erased, size]
+    exact beq_iff_eq.mp squeeze20_terminal
+  exact drawnIn_sampled pub proof messages 6 0 _ _ _ (by simp [channelStart]) first before
+
 /-- For an accepted proof of `layout20`, the fold challenges of the terminal group on the state
 before the terminal are the challenges of the sampler of the code on a message (the hypothesis
 `drawn` of `verifyProof_key20_terminal`). -/
@@ -120,18 +140,9 @@ theorem verifyProof_drawn20 {pub : Public} {proof : ByteArray} {zMax rice : ℕ}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
     {messages : Array Message} {rest : ℕ} (decoded : decode pub.ops proof = .ok (messages, rest)) :
     ∃ bytes, foldChallenges (layout20 zMax rice).terminal.group bytes =
-      some (drawnIn (stateBefore pub proof messages pub.ops (pub.ops.size - 1)) 6 0) := by
-  obtain ⟨scripted, ends, -⟩ := verifyProof_script20 layout accepted
-  have terminalAt := (verifyProof_frames20 layout accepted).2.2.2.2.2.2.2
-  have ran := (replay_step_ok pub proof messages
-    (replay_of_decoded pub proof scripted ends terminalSetup accepted decoded).2 terminalAt).1
-  have erased : pub.ops.toList.map Op.erase = skeleton (layout20 0 0) := by
-    rw [script_erase (layout ▸ scripted), skeleton20]
-  have size : pub.ops.size - 1 = 1521 := by rw [size_skeleton erased, skeleton20_length]
-  have first : squeezeOf 6 0 (pub.ops.zipIdx.toList.take (pub.ops.size - 1)) =
-      some (layout20 zMax rice).terminal.group := by
-    rw [← squeezeOf_erase, take_erase erased, size]
-    exact beq_iff_eq.mp squeeze20_terminal
-  exact drawnIn_sampled pub proof messages 6 0 _ _ _ (by simp [channelStart]) first ran
+      some (drawnIn (stateBefore pub proof messages pub.ops (pub.ops.size - 1)) 6 0) :=
+  let ⟨scripted, ends, _⟩ := verifyProof_script20 layout accepted
+  drawn20_before layout scripted (before_of_replay pub proof messages
+    (replay_of_decoded pub proof scripted ends terminalSetup accepted decoded).2 _)
 
 end NightstreamFPrime.Spec.Compression.Akita.Replay

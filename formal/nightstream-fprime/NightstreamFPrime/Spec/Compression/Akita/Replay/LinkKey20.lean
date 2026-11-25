@@ -11,7 +11,9 @@ folds of `layout20`; `Key20.Tower.accepts` of `Key20Opening.lean`, `towerLinks` 
 - `verifyProof_key20_traceLink`: for each pair `(ℓ, ℓ + 1)` of `(1, 2)`, `(2, 3)`, `(3, 4)`,
   `(4, 5)`, the statement of the replay at the level `ℓ + 1` is the claim that
   `Tier.TraceLinked` takes from the result `(ρ, θ, ṽ)` of the level `ℓ` with its tensor
-  reduction. -/
+  reduction.
+- `key20_traceLink_before`: `verifyProof_key20_traceLink` when the run before the `tensor.end`
+  and its step have no stop. -/
 
 set_option autoImplicit false
 
@@ -298,6 +300,65 @@ theorem verifyProof_key20_traceSq_tensored {zMax rice : ℕ}
       (route.trans (decide_eq_true deep)) compressed arities)
 
 /-- `Tier.TraceLinked` from the level `level` (`L`) to the level `level + 1` (`L'`) of
+`key20.aks` on the replay (Akita Figure 4, steps 0, 3 and 5), when the run before the `tensor.end`
+at `t` and the step of `t` have no stop: on the state before `c'` the statement
+`traceStatementFor` of the level `level + 1` is the folding statement of `TraceClaim.ofPoint` for
+the segments `ρ = ρ_pack ++ (ρ_pos ++ ρ_blk)` of the tensor point, the factor `θ`, the final claim
+`ṽ` and the payload of the words `next_witness` of the level `level`. -/
+theorem key20_traceLink_before {zMax rice : ℕ} {messages : Array Message}
+    (aligned : ReadsAligned messages ops.zipIdx.toList 0) {level t c' : ℕ} {key : Key}
+    {L L' : Key20.Level}
+    (pair : (level, L, L') ∈ [(1, Key20.level₁, Key20.level₂), (2, Key20.level₂, Key20.level₃),
+      (3, Key20.level₃, Key20.level₄), (4, Key20.level₄, Key20.level₅)])
+    (shape : roundsAt (ops.zipIdx.toList.take t) ⟨level + 1, "tensor.sumcheck", none⟩ L.tail 2 =
+      true)
+    (before : (runFrom pub proof messages (ops.zipIdx.toList.take t) (channelStart pub)).1 =
+      .ok ())
+    (stepped : (((step pub proof messages t (.check key (.tensor (level + 1) L.tail
+      ⟨level, "fused.point", none⟩ ⟨level, "witness_evaluation", none⟩))).run).run
+        (stateBefore pub proof messages ops t)).1 = .ok ())
+    (after : t ≤ c')
+    (kept : frees ((ops.zipIdx.toList.take c').drop t) (tensorKeys level)
+      [⟨level + 1, "tensor.sumcheck", none⟩] = true)
+    {F : Fold} (fold : (layout20 zMax rice).folds[level + 1]? = some F)
+    (quarter : 4 * (L'.shape.innerDegree / 4) = L'.shape.innerDegree) (setup : Array Fq) :
+    let s := stateBefore pub proof messages ops c'
+    let r2 := (recordedIn s ⟨level, "fused.point", none⟩).toList
+    let ρ := (recordedIn s ⟨level + 1, "tensor.sumcheck.point", none⟩).toList
+    let η := firstIn s ⟨level + 1, "tensor.eta", none⟩
+    let pack := (packPoint L'.shape ρ).map (Ext.into (E := E))
+    let position := (positionPoint L'.shape ρ).map (Ext.into (E := E))
+    let block := (blockPoint L'.shape ρ).map (Ext.into (E := E))
+    pack ++ (position ++ block) = ρ.map Ext.into ∧ L'.shape.blocks ≤ 2 ^ block.length ∧
+      L'.shape.blockLength = 2 ^ position.length ∧
+      2 * (L'.shape.innerDegree / 4) = 2 ^ pack.length ∧
+      traceStatementFor (E := E) L'.opening quarter setup (traceValuesIn s (level + 1) F)
+          (dataIn pub s (level + 1)) .witness (rowsIn s (level + 1) F)
+          (claimsIn s (level + 1) F) =
+        (Extract.TraceClaim.ofPoint quarter
+          (payloadOf L'.shape.chain _ _ ((s.fields.get? ⟨level, "next_witness", none⟩).getD #[]))
+          (payloadOf L'.opening.chain _ _
+            ((s.fields.get? ⟨level + 1, "opening_payload", none⟩).getD #[]))
+          block position pack (mle (ρ.map Ext.into) (tensorWeight (r2.tail.map Ext.into) η.into))
+          (firstIn s ⟨level + 1, "tensor.final_claims", none⟩).into).statement
+          (Key.ofSetup (flatOf setup) L'.shape) (OpeningKey.ofSetup (flatOf setup) L'.opening) := by
+  obtain ⟨traced, single, -⟩ := layout20_receiver pair fold
+  have numbers : ∀ x ∈ [(L'.shape, L.tail)],
+      4 * (x.1.innerDegree / 4) = x.1.innerDegree ∧
+      2 * (x.1.innerDegree / 4) = 2 ^ Nat.log 2 (x.1.innerDegree / 2) ∧
+      x.1.blockLength = 2 ^ Nat.log 2 x.1.blockLength ∧
+      Nat.log 2 (x.1.innerDegree / 2) + Nat.log 2 x.1.blockLength ≤ x.2 ∧
+      x.1.blocks ≤ 2 ^ (x.2 - (Nat.log 2 (x.1.innerDegree / 2) + Nat.log 2 x.1.blockLength)) := by
+    intro x member
+    refine key20_segments x ?_
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at member pair ⊢
+    rcases pair with ⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩ <;>
+      simp [member]
+  obtain ⟨-, width, length, long, blocks⟩ := numbers _ List.mem_cons_self
+  exact traceLink_before pub proof aligned shape before stepped after kept (by rw [traced]; rfl)
+    single L'.opening quarter width length long blocks setup
+
+/-- `Tier.TraceLinked` from the level `level` (`L`) to the level `level + 1` (`L'`) of
 `key20.aks` on the replay (Akita Figure 4, steps 0, 3 and 5): when `runProof` accepts, the
 tensor reduction of the level `level + 1` at `t` has the rounds `L.tail`, and the fold of the
 level `level + 1` is the fold of `layout20`, on the state before `c'` the statement
@@ -342,21 +403,10 @@ theorem verifyProof_key20_traceLink {zMax rice : ℕ}
           block position pack (mle (ρ.map Ext.into) (tensorWeight (r2.tail.map Ext.into) η.into))
           (firstIn s ⟨level + 1, "tensor.final_claims", none⟩).into).statement
           (Key.ofSetup (flatOf setup) L'.shape) (OpeningKey.ofSetup (flatOf setup) L'.opening) := by
-  obtain ⟨traced, single, -⟩ := layout20_receiver pair fold
-  have numbers : ∀ x ∈ [(L'.shape, L.tail)],
-      4 * (x.1.innerDegree / 4) = x.1.innerDegree ∧
-      2 * (x.1.innerDegree / 4) = 2 ^ Nat.log 2 (x.1.innerDegree / 2) ∧
-      x.1.blockLength = 2 ^ Nat.log 2 x.1.blockLength ∧
-      Nat.log 2 (x.1.innerDegree / 2) + Nat.log 2 x.1.blockLength ≤ x.2 ∧
-      x.1.blocks ≤ 2 ^ (x.2 - (Nat.log 2 (x.1.innerDegree / 2) + Nat.log 2 x.1.blockLength)) := by
-    intro x member
-    refine key20_segments x ?_
-    simp only [List.mem_cons, List.not_mem_nil, or_false] at member pair ⊢
-    rcases pair with ⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩ <;>
-      simp [member]
-  obtain ⟨-, width, length, long, blocks⟩ := numbers _ List.mem_cons_self
-  exact verifyProof_traceLink pub proof scripted ends terminalSetup accepted decoded at_ shape
-    after kept (by rw [traced]; rfl) single L'.opening quarter width length long blocks setup
+  obtain ⟨before, stepped⟩ := replay_step_ok pub proof messages
+    (replay_of_decoded pub proof scripted ends terminalSetup accepted decoded).2 at_
+  exact key20_traceLink_before pub proof (decode_aligned decoded) pair shape before stepped after
+    kept fold quarter setup
 
 end Proof
 

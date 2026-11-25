@@ -1207,7 +1207,7 @@ decision.
 
 - (x) The byte verifier checks the statement against the supplied root. Rust selects the root profiles from its
   schedule catalog. Given the selected root, `Replay.shaped20` and `Replay.shaped30` give the group and value counts,
-  point lengths and commitment shape for each row (`Replay` denotes `Spec.Compression.Akita.Replay`). The point lengths
+  point lengths and commitment shape for each row. The point lengths
   equal the axis widths (`Replay.axes20`, `Replay.axes30`), so these rows need no padding.
   `Setup.page` tries at most `count + 64` words for `count` field elements. Rust keeps reading.
   With the key20 layout and root, successful setup expansion and decoding, and the model's block, slot and stage

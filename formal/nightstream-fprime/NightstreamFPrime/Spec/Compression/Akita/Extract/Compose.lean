@@ -212,8 +212,8 @@ noncomputable def back :
       ¬ Verifier.Fails P (C.statement (anchor.wire 0) value) (tables 1) (tables 2) τ
 
 /-- The conditions on the parameters. `wf` to `key_fits` are the hypotheses of
-`Verifier.game_avoids`. `lookups`, `challenges` and `column`: an answer of the oracle gives
-uniform lookup challenges, uniform challenges after `V` and a uniform column point.
+`Verifier.game_avoids`. The oracle supplies uniform lookup challenges (`lookups`) and uniform
+challenges after `V` (`challenges`).
 `lead_sound`: for a table `W` that fails the test `good`, on each path of `lead` that avoids the
 bad sets `W` does not satisfy `Relation` for the claims of the value. `lead_staged`: each draw of
 `lead` has its bound of `leadCosts`, and a path that ends in a value has all the draws.

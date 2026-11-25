@@ -35,7 +35,8 @@ each schedule are in `Claims.Akita`.
   this proof is a prover of the game of `key30_opening_bound`, with no hypothesis on the fit for
   the zero tables and the zero setup prefix only. For another setup prefix and other tables, the
   fit conditions of the honest prover are hypotheses (`Spec.Compression.Akita.Key30.tower_complete`).
-  No Lean result joins `verifyProof` of the code to the Lean verifier. -/
+  The byte replay theorem `Spec.Compression.Akita.Replay.verifyProof_accepts20` covers key20.
+  The link from key30 proof bytes to `Key30.Tower.accepts` remains open. -/
 
 namespace NightstreamFPrime.Claims.AkitaKey30
 
@@ -47,7 +48,7 @@ attribute [local instance low] Classical.propDecidable
 `crates/ns-compress/artifacts/key30.aks`, the file of the key of `2^19` blocks (Akita Proposition
 10.44 (i) and Lemma 9.1 for this schedule). The verifier is the Lean verifier
 `Key30.Tower.accepts` of the opening with an offloaded root, with the fold decoders of the
-pinned Akita code. No Lean result joins `verifyProof` of the code to it.
+pinned Akita code.
 Each output of the extractor is a certified decommitment of the commitment of each group of the
 root to a table that has the claimed value at the claimed point, or a solution of Module-SIS for
 a matrix of a group, of a level or for `A_term` (`[MSIS]`). `shared`: the matrices `A`, `B` and
@@ -127,8 +128,8 @@ theorem key30_opening_sound
 /-- The Nightstream extraction bound (Bounds above), not Akita Theorem 10.46, for the opening of
 a row of `crates/ns-compress/artifacts/key30.aks`, with Akita Lemma 9.1 for the offloaded root.
 The model is that of `Claims.Akita.checkpoint_extraction`, and the verifier is the Lean verifier
-`Key30.Tower.accepts` with the fold decoders of the code, and no Lean result joins `verifyProof` of the code to it. For each prover
-with at most `Q` queries, the probability that the verifier accepts and the extractor returns no
+`Key30.Tower.accepts` with the fold decoders of the code. For each prover with at most `Q`
+queries, the probability that the verifier accepts and the extractor returns no
 output is at most `(Q + 1)·(1622923/(4096·q²) + (1179 + B_1 + B_2 + B_3)/q²) +
 (Q + 1)·(1188 + B_1 + B_2 + B_3)/budget`. `B_1`, `B_2` and `B_3` count the live blocks of the witness groups at levels 1, 2 and 3.
 The counts are 148, 43 and 23 for `W` of 27 variables, and 139, 42 and 22 for `W` of 26 variables. The draw of each check has the factor `2^{−g}` for the work bits `g` of its site in

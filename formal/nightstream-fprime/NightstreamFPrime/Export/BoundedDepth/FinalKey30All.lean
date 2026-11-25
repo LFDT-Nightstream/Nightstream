@@ -185,8 +185,8 @@ noncomputable def Opening.breakChance (budget : ℕ) : ℝ :=
 /-- The bound of the final verifier for the shape of `o`:
 `(Q + 1)·(runCost + 1622923/(4096·|K|) + (1179 + B_1 + B_2 + B_3)/q²) + (Q + 1)·(1190 + B_1 + B_2 +
 B_3)/budget +
-breakChance`. `B_1` and `B_2` are the live blocks of the witness group of level 1 and of level 2
-of the row. The count of the retry loops is 2 for the compression argument and
+breakChance`. `B_1`, `B_2` and `B_3` count the live blocks of the witness group at levels 1, 2
+and 3 of the row. The count of the retry loops is 2 for the compression argument and
 `1188 + B_1 + B_2 + B_3` for the opening: 1402 for `W` of 27 variables and 1391 for `W` of 26
 variables. -/
 noncomputable def Opening.shapeBound (queries budget : ℕ) : ℝ :=

@@ -262,7 +262,7 @@ theorem level₂_sized : ∀ r ∈ rows,
     2 ≤ (level₂ r).fold.responseBase ∧ (level₂ r).shape.certifiedBase < fieldModulus := by decide
 
 /-- The conditions of `liftFold` and `LevelSized` on the numbers of level 3: the quotient
-digits end at the cell 523264 of the cube of `2^19` cells. -/
+digits end at cell 510976 for `w26` and at cell 523264 for `w27` in the cube of `2^19` cells. -/
 theorem level₃_sized : ∀ r ∈ rows, (level₃ r).opening.cells (level₃ r).fold ≤ 2 ^ (level₃ r).vars ∧
     (level₃ r).opening.quotientRoom (level₃ r).fold quotientDigits ≤ 2 ^ (level₃ r).vars ∧
     (level₃ r).opening.rowCount + 1 ≤ 2 ^ (level₃ r).batch ∧ 2 ≤ (level₃ r).fold.responseBase ∧

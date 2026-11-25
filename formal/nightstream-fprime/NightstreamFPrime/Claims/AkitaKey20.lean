@@ -33,7 +33,10 @@ trust item 7). The results of Akita that hold for each schedule are in `Claims.A
   tables (`Spec.Compression.Akita.TrigTable.code_accurate`), so the operator bound `Γ` is a
   theorem (`Spec.Compression.Akita.TrigTable.filtered_code`). `key20_kept` reduces the count
   `Spec.Compression.Akita.Key20.Kept` of these filters to a count at one frequency.
-- Open: no Lean result joins `verifyProof` of the code to the Lean verifier. -/
+- For key20, `Spec.Compression.Akita.Replay.verifyProof_accepts20` gives an accepted opening
+  transcript for each proof that the Lean byte verifier `verifyProof` accepts under its hypotheses.
+  `Replay.verifyProof_bound20` gives the opening extraction bound under `carries`: for each oracle
+  table, the prover transcript must present the bytes that the verifier accepts. -/
 
 namespace NightstreamFPrime.Claims.AkitaKey20
 
@@ -45,8 +48,9 @@ attribute [local instance low] Classical.propDecidable
 /-- The output of the extractor for the opening of `crates/ns-compress/artifacts/key20.aks`, the
 schedule of the test key of `2^9` blocks (Akita Theorem 10.17 with Akita Proposition 10.44 (i)).
 It does not cover `key30.aks`. The verifier is the Lean verifier `Key20.Tower.accepts` with the
-fold decoders of the pinned Akita code, and no Lean result joins `verifyProof` of the code to it. Each output is
-with an accepted transcript. It is a certified decommitment of the commitment of each group of
+fold decoders of the pinned Akita code. `Replay.verifyProof_accepts20` gives an accepted opening
+transcript for each accepted proof under its hypotheses. Each extractor output for an accepted
+transcript is a certified decommitment of the commitment of each group of
 the root to a table with the claimed value (`OpensAt`), or a solution of Module-SIS for a matrix
 of a group, of a level, or for `A_term`. The filters of the families are the predicate of the
 pinned Akita code, and Lean proves the operator bound `Γ` for them (Akita Theorem H.1). -/
@@ -115,7 +119,9 @@ theorem key20_opening_sound
 `crates/ns-compress/artifacts/key20.aks`: a Nightstream bound in the role of Akita Theorem 10.46,
 not that theorem (Bounds, in the file header). It does not cover `key30.aks`. The model is one
 uniform table of the oracle on keys with independent slots, and the verifier is the Lean verifier
-`Key20.Tower.accepts` with the fold decoders of the code, and no Lean result joins `verifyProof` of the code to it. For each prover with at most `Q` queries, the probability that the verifier
+`Key20.Tower.accepts` with the fold decoders of the code. For the byte verifier, the corresponding
+bound is `Replay.verifyProof_bound20` under its hypothesis `carries`. For each prover with at most
+`Q` queries, the probability that the verifier
 accepts and the extractor returns no output is at most
 `(Q + 1)·(317479/(1024·q²) + 135/q²) + (Q + 1)·142/budget`: `317479/(1024·q²)` for the
 draws of the checks, `135/q²` for the 135 fold coordinates (the slot probability of each decoder
@@ -582,8 +588,9 @@ theorem key20_opening_played
 `crates/ns-compress/artifacts/key20.aks` (Akita Theorem 10.17 for the compression argument over
 the opening). It does not cover `key30.aks`. The model is one uniform table of the oracle on keys
 with independent slots, and the verifier is the Lean verifier `FinalKey20.finalAccepts` with the
-fold decoders of the pinned Akita code, and no Lean result joins `verifyProof` of the code to it. For each prover with at most `Q`
-queries, the probability that the verifier accepts and no proof with witnesses satisfies
+fold decoders of the pinned Akita code. The byte replay theorem `Replay.verifyProof_accepts20`
+covers the opening component. For each prover with at most `Q` queries, the probability that
+the final verifier accepts and no proof with witnesses satisfies
 `Verifies` for the statement is at most the Nightstream bound `FinalKey20.shapesBound` (Bounds, in
 the file header) at the slot probability `1/q²`:
 for each claim shape, `(Q + 1)·(runCost + 317479/(1024·q²) + 135/q²) + (Q + 1)·144/budget + breakChance`.

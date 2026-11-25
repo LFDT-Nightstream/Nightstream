@@ -75,9 +75,7 @@ namespace AkitaFinalGuards
 open NightstreamFPrime.Spec.Compression.Akita NightstreamFPrime.Spec.Compression.Akita.Replay
 open NightstreamFPrime.Spec.Compression.Akita.Replay.Replayer
 
-/-- `drawShape`: a script whose first squeeze of the group has the family of the layout (the run
-check `docs/akita-work/w14/z-new/checks/FinalShapes.lean` shows it at the 26 folds of the four
-real scripts). -/
+/-- `drawShape`: a script whose first squeeze of the group has the family of the layout. -/
 example (G : FoldGroup) (i : ℕ) : drawnShape [(.squeeze 0 0 G, i)] 0 [G] = true := by
   simp [drawnShape, squeezeOf, Op.drawsGroup]
 

@@ -4,8 +4,7 @@
 
 use akita_algebra::{CyclotomicRing, EqPolynomial};
 use akita_challenges::{Challenges, FoldDraw, SparseChallenge, VerifierFoldDraw};
-use akita_config::proof_optimized::fp64;
-use akita_config::{transcript_instance_descriptor, RecursiveCommitmentConfig};
+use akita_config::transcript_instance_descriptor;
 use akita_error::AkitaError;
 use akita_params::sis::checked_centered_l2_sq;
 use akita_params::{
@@ -43,9 +42,9 @@ use super::trace::{
     STATEMENT,
 };
 use crate::akita::verifier::schedule::{catalog, row};
+use crate::akita::verifier::Config;
 use crate::akita::{Base, Extension, Schedules, Shape};
 
-type Config = RecursiveCommitmentConfig<fp64::Dense>;
 type Grinding<'a, 'proof> = VerifierGrinding<'proof, 'a>;
 type Point = OpeningFamily<PreparedOpeningPoint<Base, Extension>, PreparedSubringCoefficientPackingPoint<Extension>>;
 

@@ -12,7 +12,7 @@ offloaded root, with the bound `Key30.towerError_le` of its stage errors and its
 of the file: the claims pass the layout of step 5, the key polynomial has `2^19` blocks, the
 opening point of `V` has the zeros `FinalKey20.laidZeros` of the layout, and `W` has the count of
 variables of the row. `key30_points` gives the numbers of the three opening claims: the points of
-the key polynomial, `W` and `V` have 30, 26 or 27, and 26 coordinates. `Use.points` gives these
+the key polynomial, `W` and `V` have 30, 27 or 26, and 26 coordinates. `Use.points` gives these
 lengths for the points of the Akita opening on each transcript with the conditions `Compose.Ran`.
 The link `RootLinked` of the root needs these coordinates (`Key30.root_points`). -/
 
@@ -52,7 +52,8 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
     RingCarrierLayout.carrierWidth logicalWidth}
   {mode : Mode} (setup : FinalVerifier.Setup mode logicalWidth publicFits)
-  (packageWidths : Fin 2 → ℕ) (step : AppState → AppWitness → AppState) (control : AppState → AppWitness → Fin 2) (shape : Claims logicalWidth publicFits)
+  (packageWidths : Fin 2 → ℕ) (step : AppState → AppWitness → AppState)
+  (control : AppState → AppWitness → Fin 2) (shape : Claims logicalWidth publicFits)
   {Wire Coord : Type} {total : ℕ} (read : Reader Wire)
   (head : Wire → First logicalWidth publicFits) {r : Key30.Row} {member : r ∈ rows}
   (bound : Prefix Wire (Option Coord → CodeSlot K) total → (g : Fin 3) → ((root r).shape g).Payload)
@@ -186,7 +187,8 @@ the tables of the groups of `Key30.root`. -/
 theorem key30_points (use : Use setup shape r) :
     (setup.params shape).laneVars + (setup.params shape).keyBlockVars +
         (setup.params shape).rowVars = 30 ∧
-      (setup.params shape).spanVars + (setup.verifier shape).zeros = 26 ∧
+      (setup.params shape).spanVars +
+        (setup.verifier shape).zeros = 26 ∧
       (setup.params shape).spanVars ≤ 26 ∧ (setup.params shape).witnessVars = r.vars := by
   refine and_assoc.mp (and_assoc.mp ⟨?_, use.row⟩)
   obtain ⟨⟨l, ok⟩, -⟩ := use.laid
@@ -220,7 +222,7 @@ theorem key30_points (use : Use setup shape r) :
 
 omit [Nonempty Coord] in
 /-- On a transcript with the conditions `Compose.Ran` of the final verifier with `Use`, the points
-of the three claims of the Akita opening have 30, 26 or 27, and 26 coordinates
+of the three claims of the Akita opening have 30, 27 or 26, and 26 coordinates
 (`Compose.Ran.lengths`, `key30_points`). -/
 theorem Use.points (use : Use setup shape r) {point : Prefix Wire (Option Coord → CodeSlot K) total}
     (ran : Compose.Ran C vf commit value place point) :
@@ -238,16 +240,16 @@ theorem Use.points (use : Use setup shape r) {point : Prefix Wire (Option Coord 
 (`FinalAkita.final_sound` with `Key30.tower_suffix`). For each prover with at most `Q` queries to
 the oracle, the probability that the verifier accepts and no proof with witnesses satisfies
 `Verifies` for the statement of the first message is at most
-`(Q + 1)·(runCost + 1622923/(4096·|K|) + (1179 + B_1 + B_2 + B_3)·p) + (Q + 1)·(1190 + B_1 +
-B_2 + B_3)/budget +
+`(Q + 1)·(runCost + 1622923/(4096·|K|) + (1179 + B_1 + B_2 + B_3)·p) + (Q + 1)·(1190 + B_1 + B_2 +
+B_3)/budget +
 breakChance`. The verifier `offAccepts` accepts with the conditions `Compose.Ran` and the links
 `offLinks` of the opening with an offloaded root. `p` is a bound of the slot probability of each challenge
 family (`Key30.towerError_le`), and `1190 + B_1 + B_2 + B_3` is the count of the retry loops: 2 for the
-compression argument and `1188 + B_1 + B_2 + B_3` for the opening, which is 1402 for `W` of 27
-variables and 1391 for `W` of 26 variables. `breakChance` is the probability that the extractor returns a
+compression argument and `1188 + B_1 + B_2 + B_3` for the opening, which is 1402 for `W` of 27 variables
+and 1391 for `W` of 26 variables. `breakChance` is the probability that the extractor returns a
 solution of Module-SIS for the key commitment, for a matrix of a group, of a level, or for
 `A_term`. `use`: the conditions `Use` of the key of `key30.aks` and the row, with which the points
-of the three opening claims have 30, 26 or 27, and 26 coordinates (`Use.points`). `coords`: an
+of the three opening claims have 30, 27 or 26, and 26 coordinates (`Use.points`). `coords`: an
 answer of the oracle has 40 slots, which is a slot for each coordinate of `α`, for each lookup
 challenge, for each challenge after `V` and for each fold challenge of a level. `registeredS` and
 `positive₁`: the premise of Akita Lemma 9.1 for the commitment `registry` of the setup prefix

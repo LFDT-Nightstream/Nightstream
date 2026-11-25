@@ -2,8 +2,7 @@ import tests.AkitaVectors
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Stage3
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Prefix
 
-/-! The gate of Stage 3 of `key30.aks` (`docs/akita-work/match-design.md` section 7, items 11
-and 12; `Replay/Stage3.lean`, `Replay/Stage3Weight.lean`). For each of the two positive
+/-! The gate of Stage 3 of `key30.aks` (`Replay/Stage3.lean`, `Replay/Stage3Weight.lean`). For each of the two positive
 `key30.aks` vectors the replay of `Replay/Transcript.lean` (the one replay of
 `tests/AkitaAllVectors.lean`) runs from the public inputs and the proof bytes; it evaluates
 `stage3.end`, which the Rust test of the vectors cannot evaluate (the

@@ -109,15 +109,7 @@ theorem skeleton20_stages (ℓ : Fin 6) :
 theorem skeleton30_stages {r : Key30.Row} (member : r ∈ Key30.rows) (ℓ : Fin 7) :
     stagesShape (skeleton (layout30 r 0 0)).zipIdx ℓ (fold30 r ℓ) = true := by
   simp only [Key30.rows, List.mem_cons, List.mem_nil_iff, or_false] at member
-  rcases member.symm with rfl | rfl
-  · match ℓ with
-    | 0 => exact skeleton30_w27_stages0
-    | 1 => exact skeleton30_w27_stages1
-    | 2 => exact skeleton30_w27_stages2
-    | 3 => exact skeleton30_w27_stages3
-    | 4 => exact skeleton30_w27_stages4
-    | 5 => exact skeleton30_w27_stages5
-    | 6 => exact skeleton30_w27_stages6
+  rcases member with rfl | rfl
   · match ℓ with
     | 0 => exact skeleton30_w26_stages0
     | 1 => exact skeleton30_w26_stages1
@@ -126,6 +118,14 @@ theorem skeleton30_stages {r : Key30.Row} (member : r ∈ Key30.rows) (ℓ : Fin
     | 4 => exact skeleton30_w26_stages4
     | 5 => exact skeleton30_w26_stages5
     | 6 => exact skeleton30_w26_stages6
+  · match ℓ with
+    | 0 => exact skeleton30_w27_stages0
+    | 1 => exact skeleton30_w27_stages1
+    | 2 => exact skeleton30_w27_stages2
+    | 3 => exact skeleton30_w27_stages3
+    | 4 => exact skeleton30_w27_stages4
+    | 5 => exact skeleton30_w27_stages5
+    | 6 => exact skeleton30_w27_stages6
 
 variable (pub : Public) (proof : ByteArray) (messages : Array Message)
 

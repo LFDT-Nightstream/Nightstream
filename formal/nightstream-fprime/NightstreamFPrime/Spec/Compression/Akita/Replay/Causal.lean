@@ -1,8 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinStage
 
 /-! The state of the replay before an operation is a function of the events of the sponge before
-it (Akita revision `d50f700`; `Replay/Keccak.lean`, `Replay/Transcript.lean`;
-`docs/akita-work/w17/design.md` section 2, track N, item 4).
+it (Akita revision `d50f700`; `Replay/Keccak.lean`, `Replay/Transcript.lean`).
 
 - `Core` and `core s`: the recorded values, field messages, integers and bytes of a state, as
   functions of the key. `noteOf` reads a state only through its core (`noteOf_core`).

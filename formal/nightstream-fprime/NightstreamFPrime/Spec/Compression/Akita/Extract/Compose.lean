@@ -212,8 +212,8 @@ noncomputable def back :
       ¬ Verifier.Fails P (C.statement (anchor.wire 0) value) (tables 1) (tables 2) τ
 
 /-- The conditions on the parameters. `wf` to `key_fits` are the hypotheses of
-`Verifier.game_avoids`. `lookups` and `challenges`: an answer of the oracle gives uniform lookup
-challenges and uniform challenges after `V`.
+`Verifier.game_avoids`. The oracle supplies uniform lookup challenges (`lookups`) and uniform
+challenges after `V` (`challenges`).
 `lead_sound`: for a table `W` that fails the test `good`, on each path of `lead` that avoids the
 bad sets `W` does not satisfy `Relation` for the claims of the value. `lead_staged`: each draw of
 `lead` has its bound of `leadCosts`, and a path that ends in a value has all the draws.
@@ -278,7 +278,8 @@ theorem back_valid [Nonempty Coord] (sized : C.Sized vf) : (C.back vf).Valid whe
     show Staged _ (C.backCheck vf (anchor.wire 0) tables (C.ran anchor)) _
     rcases C.ran anchor with _ | ⟨value, τ⟩
     · trivial
-    · exact Verifier.back_staged vf sized.challenges exists_fair_field sized.wf _ _ _ _
+    · exact Verifier.back_staged vf sized.challenges exists_fair_field
+        sized.wf _ _ _ _
   nonnegative := Verifier.backCosts_nonnegative vf
   draws := List.cons_ne_nil _ _
   aligned := List.length_replicate ..

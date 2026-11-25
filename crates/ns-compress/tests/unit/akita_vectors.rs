@@ -7,6 +7,7 @@ mod replay;
 #[path = "akita_vectors/trace.rs"]
 mod trace;
 
+use std::borrow::Borrow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::PathBuf;
@@ -43,7 +44,7 @@ const UNCHECKED: [&str; 4] = [
 /// The first seed of `direct` at `key20.aks` whose opening has a response nonce that is not zero.
 const RETRY_SEED: u64 = 1;
 
-struct Case {
+struct Case<V> {
     schedules: &'static Schedules,
     file: &'static str,
     shape: Shape,
@@ -53,11 +54,11 @@ struct Case {
     session: Vec<u8>,
     proof: Vec<u8>,
     registry: SetupPrefixVerifierRegistry<Base>,
-    verifier: &'static Verifier,
+    verifier: V,
     origin: Value,
 }
 
-impl Case {
+impl<V: Borrow<Verifier>> Case<V> {
     fn accepts(&self, proof: &[u8]) -> bool {
         self.verdict(&self.commitments, &self.points, &self.values, proof)
             .is_ok()
@@ -75,7 +76,9 @@ impl Case {
             point: &points[group],
             value: values[group],
         });
-        self.verifier.verify(openings, proof, &self.session)
+        self.verifier
+            .borrow()
+            .verify(openings, proof, &self.session)
     }
 
     fn groups(&self) -> Vec<CommittedGroup<Base>> {
@@ -108,7 +111,7 @@ impl Case {
 }
 
 /// `crate::verifier::verify`, to the statement of the Akita opening.
-fn compressed() -> Case {
+fn compressed() -> Case<&'static Verifier> {
     let instances = instances();
     let statements = statements(&instances);
     let layout = layout_of(&instances);
@@ -171,7 +174,7 @@ fn value(cells: &[F], point: &[K]) -> K {
         .fold(table[0], |value, &coordinate| value * (K::ONE - coordinate))
 }
 
-fn direct(schedules: &'static Schedules, row: usize, file: &'static str, cells: usize, seed: u64) -> Case {
+fn direct(schedules: &'static Schedules, row: usize, file: &'static str, cells: usize, seed: u64) -> Case<Verifier> {
     let (witness, inverse) = schedules.rows[row];
     let shape = Shape {
         key: schedules.key_vars,
@@ -223,12 +226,12 @@ fn direct(schedules: &'static Schedules, row: usize, file: &'static str, cells: 
         session,
         proof,
         registry: setup_prefixes(&prefixes).expect("registry"),
-        verifier: Box::leak(Box::new(Verifier::new(shape, &prefixes).expect("verifier"))),
+        verifier: Verifier::new(shape, &prefixes).expect("verifier"),
         origin: json!({"prover": "akita", "random_cells": cells, "seed": seed}),
     }
 }
 
-fn vector(case: &Case) -> Value {
+fn vector(case: &Case<impl Borrow<Verifier>>) -> Value {
     assert!(
         case.accepts(&case.proof),
         "{}: the verifier accepts the proof",
@@ -272,7 +275,7 @@ fn vector(case: &Case) -> Value {
     vector
 }
 
-fn change(case: &Case, mut record: Value, proof: &[u8]) -> Value {
+fn change(case: &Case<impl Borrow<Verifier>>, mut record: Value, proof: &[u8]) -> Value {
     let accepted = case.accepts(proof);
     record["result"] = json!(if accepted { "accept" } else { "reject" });
     match case.replay(proof) {
@@ -290,7 +293,7 @@ fn change(case: &Case, mut record: Value, proof: &[u8]) -> Value {
     record
 }
 
-fn negative(case: &Case, vector: &Value, kind: impl Fn(&str) -> bool) -> Value {
+fn negative(case: &Case<impl Borrow<Verifier>>, vector: &Value, kind: impl Fn(&str) -> bool) -> Value {
     let events = vector["events"].as_array().expect("events");
     let mut kinds: BTreeMap<(u64, String), Vec<&Value>> = BTreeMap::new();
     for event in events {
@@ -359,7 +362,7 @@ fn negative(case: &Case, vector: &Value, kind: impl Fn(&str) -> bool) -> Value {
 
 /// Changes of the statement with the proof of `case`. `Verifier::verify` takes three openings
 /// with one value each, so a statement has no other count of groups or of values.
-fn statement_negative(case: &Case) -> Value {
+fn statement_negative(case: &Case<impl Borrow<Verifier>>) -> Value {
     let mut changes = Vec::new();
     let mut record =
         |kind: &str, group: usize, commitment: Option<Vec<u8>>, point: Option<Vec<K>>, value: Option<K>| {

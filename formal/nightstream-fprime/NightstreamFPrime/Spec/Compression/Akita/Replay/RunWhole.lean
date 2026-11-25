@@ -18,7 +18,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.RunGame
   run reaches has the message of its kind at `next`, so its step does not stop with `mismatch`.
 - `openingHolds` is the check `tensor.opening` on the recorded values; `tensorRun_opening`: when
   `tensorRun` accepts, the check holds, and `tensorRun_of_opening_reject`: when the check stops,
-  `tensorRun` is `none` on the same values (finding 16 for `tensor.opening`). -/
+  `tensorRun` is `none` on the same values. -/
 
 set_option autoImplicit false
 

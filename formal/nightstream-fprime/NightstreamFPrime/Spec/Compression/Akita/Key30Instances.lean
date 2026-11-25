@@ -56,8 +56,7 @@ def views (r : Row) : List Instance :=
         ((level₁ r).openInstances ++
           (levelViews (level₂ r) false
               (2 * (2 * 51) * (level₂ r).fold.sourceBound (level₂ r).shape) ++
-            (levelViews (level₃ r) false
-                (2 * (2 * 51) * (level₃ r).fold.sourceBound (level₃ r).shape) ++
+            (levelViews (level₃ r) false (2 * (2 * 51) * (level₃ r).fold.sourceBound (level₃ r).shape) ++
               (levelViews level₄ false (2 * (2 * 31) * level₄.fold.sourceBound level₄.shape) ++
                 (levelViews level₅ true (64 * (norm₅ r).operator ^ 2 * (norm₅ r).limit) ++
                   (levelViews level₆ true (64 * norm₆.operator ^ 2 * norm₆.limit) ++

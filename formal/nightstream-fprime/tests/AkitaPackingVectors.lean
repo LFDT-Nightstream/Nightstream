@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.Sampler
 import NightstreamFPrime.Spec.Compression.Akita.Replay.WeightPacking
 
 /-! The gate of the end check of the fused sum-check (`fused.end`) at the packing levels
-(`docs/akita-work/match-design.md` section 7, item 9; `Replay/WeightPacking.lean`,
+(`Replay/WeightPacking.lean`,
 `Replay/FusedJoin.lean`): level 1 and the root of `key20.aks`, the levels 3, 2, 1 and the root of
 `key30.aks`. The one replay of each positive vector (`tests/AkitaAllVectors.lean`) evaluates
 `fused.end` at each packing level (`packingIn`: `foldFused` on the points, the challenges, `v_W`,

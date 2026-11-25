@@ -25,9 +25,8 @@ adversary 6 and trust item 7). The claims for the schedule file
 namespace NightstreamFPrime.Claims.Akita
 
 open Spec Spec.Compression Lifecycle Lifecycle.BoundedDepth Export.BoundedDepth
-open scoped BigOperators Spec.FieldExtensionRing Spec.Compression.Production
+open scoped BigOperators Spec.FieldExtensionRing Spec.Compression.Production FinalKey20Algebra
 attribute [local instance low] Classical.propDecidable
-open scoped NightstreamFPrime.Export.BoundedDepth.FinalKey20.Instances
 
 
 /-- Akita Theorem 10.17 in the form (161), for a fixed environment, as a Nightstream result in the

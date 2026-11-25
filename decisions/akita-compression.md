@@ -205,8 +205,8 @@ level of the final proof. It does not include:
   claims (`[MSIS]`). The 169 bits are not in the paper: its floor is 128 bits
   for each instance, more than 125 bits for the family, and at least 147 bits
   for the compression maps (Akita Appendix G). The owner's target is 128 bits
-  against a classical attacker by the method of the main-key record, and two
-  matrices are below it (Open points, the model of the Module-SIS price). For `key20.aks`, the instances are the 13
+  against a classical attacker by the method of the main-key record, and three
+  level-2 matrix instances are below it (Open points, the model of the Module-SIS price). For `key20.aks`, the instances are the 13
   instances of `Claims.AkitaKey20.key20_instance_list`.
 
 Lean has claims in which the Akita openings are not ideal (`Claims.AkitaKey20`).
@@ -873,8 +873,7 @@ decision.
   `Spec.Compression.Akita.Replay.kept128_isSome`), and a filtered fold
   coordinate has the price `1/|Kept G| ≤ 1/2^128 ≤ 1/q²`
   (`Spec.Compression.Akita.Replay.slotChance_kept64_le`,
-  `Spec.Compression.Akita.Replay.slotChance_kept64_field`). The stated fold
-  terms do not change: `135/q²` for `key20.aks` and
+  `Spec.Compression.Akita.Replay.slotChance_kept64_field`). The claims use the fold bounds `135/q²` for `key20.aks` and
   `(1179 + B_1 + B_2 + B_3)/q²` for a row of `key30.aks`. The exact term of the
   decoders of the code is the sum over the fold coordinates of `1/2^K`
   without a filter (`K` = 128 for `(64, 31, 10)` and 129 for `(128, 31, 0)`)
@@ -1203,33 +1202,23 @@ decision.
   `Spec.Compression.Akita.Replay.verifyProof_exists_accepts20`). The script
   shapes, `endsFit` and the fold of each end check are theorems for each plan
   of the two layouts (`Spec.Compression.Akita.Replay.script20`,
-  `Spec.Compression.Akita.Replay.script30`). The last blocks of the terminal
-  are preimages of the digests of the proof (difference (b)). The work bits
-  of the model are those of the plan of the two real `key20.aks` proofs, by
-  an executed check. Difference (x) has the state of the open parts.
+  `Spec.Compression.Akita.Replay.script30`). The last terminal blocks are preimages of the proof digests
+  (difference (b)). Tests compare the work bits of the model with the plans of the two key20 proofs at all 473 stages.
 
-- (x) The byte verifier and the code on the same input, for `key20.aks`
-  (`Replay.` is `Spec.Compression.Akita.Replay.`).
-  - `Replay.verifyProof` rejects a statement without the shape of the
-    schedule row (`Public.shaped`, `Replay.shaped20`), as the code does. No
-    group has a point shorter than its axis bits (`Replay.axes20`,
-    `Replay.axes30`), so Lean does not model the zero padding of the code.
-    `Setup.page` stops after 64 rejected words where the code reads on
-    (probability below `2^-3000`); Lean then rejects, as at each stop.
-  - Wire message `k` of the transcript of an accepted proof can have the
-    data of the state before the work of stage `k`
-    (`Replay.verifyProof_accepts20`), a function of the public input, the
-    events of the sponge before the stage and the last blocks
-    (`Replay.noteAt20_causal`; difference (b) for the last blocks). Not
-    proved: the same for the cells of the wire message.
-  - With an ideal sponge and the hypothesis that the transcript of a prover
-    of the model presents the bytes for each table, the bound of the opening
-    claim holds for `verifyProof` (`Replay.verifyProof_bound20`). Lean does
-    not construct that prover and sponge from an adversary against the code
-    (it needs the cells, the pool words as slots, the reader of a check
-    stage, an injective image of the absorbed bytes, and the last blocks).
-  - Converse: Lean has it from the level functions of the replay
-    (`Replay.verifyProof_accept_iff_levels`). `key30.aks` has no join.
+- (x) The byte verifier checks the statement against the supplied root. Rust selects the root profiles from its
+  schedule catalog. Given the selected root, `Replay.shaped20` and `Replay.shaped30` give the group and value counts,
+  point lengths and commitment shape for each row. The point lengths
+  equal the axis widths (`Replay.axes20`, `Replay.axes30`), so these rows need no padding.
+  `Setup.page` tries at most `count + 64` words for `count` field elements. Rust keeps reading.
+  With the key20 layout and root, successful setup expansion and decoding, and the model's block, slot and stage
+  hypotheses, `Replay.verifyProof_accepts20` gives an accepted opening transcript with the stage note in the data field
+  of each wire message through stage 473. For fixed public input and last blocks, runs that reach the stage with the
+  same sponge events have the same note (`Replay.noteAt20_causal`). The corresponding property for cells remains open.
+  `Replay.verifyProof_bound20` bounds the probability that the byte verifier accepts and the extractor returns no output.
+  It assumes that one prover with a query bound presents the accepted bytes for every oracle table and its specified sponge.
+  The construction from an adversary against the code remains open, including the cells, pool words, check-stage reader,
+  encoding of absorbed bytes and last blocks. `Replay.verifyProof_accept_iff_levels` characterizes acceptance of the inner
+  key20 replay by its level checks. The converse from acceptance by the opening verifier and the key30 join remain open.
 
 ### The results for `key30.aks`
 
@@ -1243,28 +1232,33 @@ term `breakChance` under `[MSIS]`.
   root commitment to a table with the claimed value, or a solution of
   Module-SIS (`Claims.AkitaKey30.key30_opening_sound`). The verifier accepts
   while the extractor returns no output with probability at most `(Q + 1) ·
-  (6452107 + 4096·(B_1 + B_2 + B_3))/(4096·q²) + (Q + 1) · (1188 + B_1 + B_2 +
-  B_3)/budget` (`Claims.AkitaKey30.key30_opening_bound`). `B_1`, `B_2` and
-  `B_3` are the live blocks of the witness group of the levels 1, 2 and 3:
-  148, 43 and 23 for `W` of 27 variables, and 139, 42 and 22 for `W` of 26
-  variables. The tree size of the opening is `1813708800 · (129 + B_1) · (B_2
-  + 1) · (B_3 + 1)` (`Spec.Compression.Akita.Key30.tower_counts`).
+  (6452107 + 4096·(B_1 + B_2 + B_3))/(4096·q²) + (Q + 1) · (1188 + B_1 + B_2 + B_3)/budget`
+  (`Claims.AkitaKey30.key30_opening_bound`). `B_1`, `B_2`, and `B_3` count the live witness blocks at levels 1, 2, and 3.
+  Their values are (148, 43, 23) for `W` of 27 variables and (139, 42, 22) for
+  `W` of 26 variables. The tree size of the
+  opening is `1813708800 · (129 + B_1) · (B_2 + 1) · (B_3 + 1)`
+  (`Spec.Compression.Akita.Key30.tower_counts`).
 
 - The final verifier. For each claim shape and for the proof of zero steps, the
-  bound is the sum over the shapes of `(Q + 1) · (runCost + (6452107 + 4096·(B_1
-  + B_2 + B_3))/(4096·q²)) + (Q + 1) · (1190 + B_1 + B_2 + B_3)/budget + breakChance`
+  bound is the sum over the shapes of `(Q + 1) · (runCost + (6452107 + 4096·(B_1 + B_2 + B_3))/(4096·q²)) + (Q + 1) · (1190 + B_1 + B_2 + B_3)/budget + breakChance`
   (`Claims.AkitaKey30.key30_verifier_sound`). The probability of a false
   history is at most this sum plus `walkBound`, and the same bound holds for
   the witnesses of the reverse extractor
   (`Claims.AkitaKey30.key30_history_sound`,
   `Claims.AkitaKey30.key30_history_knowledge`). The three opening points have
-  30, 26 or 27, and 26 coordinates (`Claims.AkitaKey30.key30_points`). The part
+  30, 27 or 26, and 26 coordinates (`Claims.AkitaKey30.key30_points`). The part
   that does not read the schedule is in `Export/BoundedDepth/FinalShapes.lean`,
   and the files of `key20.aks` keep their statements.
 
-- The instances. The 54 matrices of each row give 18 instances `(d, n, m, p,
-  η)` that are not below another instance. The statement of
-  `Claims.AkitaKey30.key30_instance_list` has the list. The list is complete for
+- The instances. Each row has 54 matrix views. One list of 18 instances
+  `(d, n, m, p, η)` covers both rows: `(32, 1, 128, ∞, 1)`, `(64, 1, 1024,
+  ∞, 1)`, `(64, 2, 77, ∞, 63)`, `(64, 3, 616, ∞, 63)`, `(64, 8, 256, 2, 2^46)`,
+  `(64, 8, 512, 2, 2^45)`, `(128, 1, 416, ∞, 31)`, `(128, 1, 4128, ∞, 15)`,
+  `(128, 1, 11264, ∞, 7)`, `(128, 4, 512, ∞, 126852)`, `(128, 5, 512, ∞,
+  835380)`, `(128, 6, 2048, ∞, 835380)`, `(256, 1, 8192, ∞, 15)`, `(256, 1,
+  22528, ∞, 7)`, `(512, 2, 1024, ∞, 8126340)`, `(512, 2, 2048, ∞, 507780)`,
+  `(512, 3, 2560, ∞, 2080374660)` and `(2048, 1, 4096, ∞, 16642998148)`
+  (`Claims.AkitaKey30.key30_instance_list`). The list is complete for
   `breakChance`, with the collision of the key commitment and the witness of
   Akita Lemma 9.1 for the setup prefix (`Claims.AkitaKey30.key30_instances`).
   `formal/nightstream-fprime/tests/AkitaSchedules.lean` compares the list with
@@ -1299,27 +1293,31 @@ probability `1/q²` (with `Kept`) are theorems.
 
 The limits are these. The matrices of the root are the views of the setup
 prefix by the hypothesis `shared`, and from it Lean proves the split of the
-public weight of the root into the setup part. The commitment of the setup
-prefix in the verifier setup is the output of the Lean commitment algorithm by
-the hypothesis `registered`. The Lean verifier of the opening accepts the
-honest proof for each setup prefix and each family of tables with the fit
-conditions of the honest prover (`Claims.AkitaKey30.key30_opening_accepts`).
-The fit conditions are a hypothesis. Lean proves them for the zero tables and the zero setup prefix,
+public weight of the root into the setup part. The commitment of the setup prefix in the
+verifier setup is the output of the Lean commitment algorithm by the hypothesis
+`registered`. The Lean verifier of
+the opening accepts the honest proof for each setup prefix and each family of
+tables with the fit conditions of the honest prover
+(`Claims.AkitaKey30.key30_opening_accepts`). The fit conditions are a
+hypothesis. Lean proves them for the zero tables and the zero setup prefix,
 and for each setup prefix with decoders that give the fold challenge 0
-(`Spec.Compression.Akita.Key30.fit_zero`, `Spec.Compression.Akita.Key30.fit_quiet`).
-The final verifier of this file has no acceptance result. The memory result is
-in this game (`Claims.AkitaKey30.key30_memory_sound`). No theorem joins the
-Lean verifier to the verifier of the code for this file, and its fold decoders
-are those of the code (difference (a)). The differences (k) to (p) apply.
+(`Spec.Compression.Akita.Key30.fit_zero`,
+`Spec.Compression.Akita.Key30.fit_quiet`). The final
+verifier of this file has no acceptance result. The memory result is in this
+game (`Claims.AkitaKey30.key30_memory_sound`). The replay checks the code on fixed inputs. The join from byte acceptance to the
+claims remains open for this key (difference (w)). Its fold decoders are
+those of the code (difference (a)). Differences (k) to (p) also apply.
 
 The owner decided to remove the claims that end in `_with_akita`
-(2026-11-22). They are deleted, with their premise rows and the entry `AKITA`
-of the list of assumptions. The merge of `main` of 2026-11-25 keeps the
-removal: `main` had these claims with the open premise `akita.fixedSetup`. The
-claims of `Claims.AkitaKey20` and `Claims.AkitaKey30` have the extraction and
-the composition with the game as theorems under their hypotheses. The numbers
-of this section are for the `key30.aks` of that merge, with `V` of 26
-variables. The entry points `verify_final` of `SPEC.md` are open. They cite `Claims.AkitaKey30.key30_history_sound` and
+(2026-11-22), and the removal is done. The four claims of `Claims.Final` that
+end in `_with_akita` and the earlier claim `verify_final_sound` of `Claims.Shipped`
+took Akita Theorem 10.46 as a premise, and they are deleted. The premise rows
+`akita.theorem1046`, `akita.admissible`, `akita.admitted`, `akita.budget`,
+`binding`, `accepts` and `composition` and the entry `AKITA` of the list of
+assumptions are deleted with them. The claims of `Claims.AkitaKey20` and
+`Claims.AkitaKey30` have the extraction and the composition with the game as
+theorems under their hypotheses. The entry points `verify_final` of `SPEC.md`
+are open. They cite `Claims.AkitaKey30.key30_history_sound` and
 `Claims.AkitaKey30.key30_memory_sound` as the bounds of the modeled verifier,
 whose verifier is the Lean verifier that the differences (a) to (p) separate
 from the pinned code that Rust calls. `Claims.Shipped.verify_final_sound`
@@ -1345,10 +1343,10 @@ the facts).
 - The claim. Decided: the results are claims, and each hypothesis has a class
   in the premise table. For `key20.aks` and `key30.aks`, the claims have the
   extraction and the composition as theorems under their hypotheses. For `key30.aks`, the
-  rows `AkitaKey30/drawn.registered` and `AkitaKey30/drawn` are open. For `key20.aks`, one premise row is open: the
+  rows `AkitaKey30/drawn.registered` and `AkitaKey30/drawn.registered.*` are open. Both keys also depend on the accepted count of the filtered families (row `AkitaKey20/drawn.kept`). For `key20.aks`, the
   conditions `Export.BoundedDepth.FinalKey20.Opening.Drawn` of the final
   verifier, which hold the fold decoders of the code and the certified decommitment `registered` of
-  the key commitment. The 512 blocks of the key polynomial are of the class
+  the key commitment, remain open. The 512 blocks of the key polynomial are of the class
   link. The term `breakChance` is `[MSIS]`. The uniform table on message keys
   is `[KECCAK]`. The memory claims are `Claims.AkitaKey20.key20_memory_sound` and
   `Claims.AkitaKey30.key30_memory_sound`.
@@ -1418,9 +1416,13 @@ trust item 7, gives the facts).
   and `H_2`. Ring descent moves a price only from a smaller degree to a larger
   degree, and the reductions do not give the 169 bits to an instance. What
   stays open is a check that compares the shapes of Lean with the code.
-- The model of the Module-SIS price. The statement of
-  `Claims.AkitaKey20.key20_instance_list` has the 13 instances `(d, n, m, p, η)`
-  of `key20.aks`. For `p = 2`
+- The model of the Module-SIS price. `Claims.AkitaKey20.key20_instance_list` has
+  the 13 instances `(d, n, m, p, η)` of `key20.aks`: `(32, 1, 128, ∞, 1)`,
+  `(64, 1, 1024, ∞, 1)`, `(64, 2, 77, ∞, 63)`, `(64, 3, 616, ∞, 63)`,
+  `(64, 8, 256, 2, 2^46)`, `(64, 8, 512, 2, 2^45)`, `(128, 1, 1936, ∞, 7)`,
+  `(128, 1, 1092, ∞, 31)`, `(128, 4, 512, ∞, 126852)`,
+  `(128, 4, 256, 2, 2^44)`, `(512, 2, 56, ∞, 53477172)`,
+  `(1024, 1, 224, ∞, 32505732)` and `(1024, 1, 56, ∞, 53477172)`. For `p = 2`
   the bound is on the square of the norm. `Claims.AkitaKey20.key20_instances`
   states that the list is complete for `breakChance`, and
   `formal/nightstream-fprime/tests/AkitaSchedules.lean` compares the list with
@@ -1434,15 +1436,14 @@ trust item 7, gives the facts).
   (`Claims.AkitaKey30.key30_instance_list`), and the same test compares them
   with the two rows of the file. The pinned code admits an instance only at
   169.07 bits or more of quantum ADPS16 Core-SVP cost, in a direct ℓ∞ attack model on
-  the scalar instance `(n·d, m·d)`, with the estimator of the Akita authors. A
-  run of this estimator in a copy of the pinned code reproduces the two cells
-  of Table 10 of the paper and gives 171.99 bits or more for each ℓ∞ instance
-  of both files. These numbers are estimates: for 19 of the 46 ℓ∞ views the
-  search was for a local minimum that the estimator does not certify, and
-  Akita Appendix G accepts a floor only from a certified search. The price
-  does not include attacks on the ring or module structure, the loss of the
-  reduction, or the sum over the instances that share one setup stream, which
-  is about 170.9 bits for each file in that model. The owner's target is 128
+  the scalar instance `(n·d, m·d)`, with the estimator of the Akita authors. A run on `key20.aks` and the former `key30.aks` (SHA-256
+  `b71861d25a4cb23b8eb68b20365bc5b76336224dcacdcada86242c9d9c084f94`)
+  reproduced the two cells of Table 10. It estimated at least 171.99 bits for
+  each ℓ∞ instance of those schedules. For 19 of those 46 ℓ∞ views it used a
+  local search. Akita Appendix G accepts a floor only from a certified search.
+  These estimates exclude attacks on the ring or module structure, reduction
+  losses, and the sum over instances with one setup stream. The current
+  `key30.aks` has different matrix widths and has no recorded run of this direct ℓ∞ estimator. The owner's target is 128
   bits against a classical attacker (2026-11-22). The method is that of the
   record of the main key
   ([`field-2p64-59-ring-x64.md`](./field-2p64-59-ring-x64.md), Security
@@ -1451,20 +1452,18 @@ trust item 7, gives the facts).
   2026-11-20. `scripts/estimate_akita_sis.sage` gives the numbers of the main
   key and of each matrix view of the two files by this method
   (`scripts/akita_sis_estimates.csv`). In the ADPS16 classical model the
-  main key has 140.16 bits. Two matrices `B` of rank 1 over the ring of degree
-  128 are below the target: level 2 of `key20.aks`, `(128, 1, 1092, ∞, 31)`,
-  at 122.06 bits, and level 2 of `key30.aks`, `(128, 1, 4128, ∞, 15)` at
-  124.39 bits and `(128, 1, 4032, ∞, 15)` at 124.68 bits for its two rows
-  (123.81 and 124.39 bits before the file of 2026-11-25). Each other
-  instance has 134.90 bits or more. The ADPS16 quantum numbers of the same
-  method are 127.20 bits for the main key and 110.77, 112.89 and 113.16 bits
-  for these matrices. The 169 bits of the code are a number of the direct ℓ∞
-  model, which gives 154.23 bits for the main key, so they are not a number
-  of this method. Accepted owner choice (2026-11-24): the owner accepts
-  these three numbers below the target of 128 bits, and the schedule files
-  are not changed. Rank 2 for such a matrix gives 285 bits or more, and the
-  next smaller digit base gives 134.6 bits or more; the owner did not select
-  either change.
+  main key has 140.16 bits. Three level-2 matrices `B` of rank 1 and degree
+  128 cost less than the 128-bit target. For `key20.aks`, width 1092 and bound
+  31 give 122.06 classical bits. For rows 0 and 1 of `key30.aks`, widths 4032
+  and 4128 at bound 15 give 124.68 and 124.39 classical bits. Their ADPS16
+  quantum estimates are 110.77, 113.155 and 112.89 bits. Each other Akita
+  instance has at least 134.90 classical bits. The main key has 127.20
+  quantum bits in this model. The Akita code uses the direct ℓ∞ model.
+  On 2026-11-24 the owner accepted 122.06 bits for the test key and 123.81
+  and 124.39 bits for the two rows of the former large schedule. The price
+  of its first row was for width 4224. The new width 4032 has no separate
+  owner decision. The same rank and bound at width 4128 cover that instance
+  (`Claims.AkitaKey30.key30_instance_list`). The owner accepted its 124.39 bits.
 - The pair `(λ_FS, Q_max)`. The Akita code declares neither number. It has a
   target rate of 128 bits for each query. The paper has a proof of work before
   selected algebraic challenge queries (Akita Section 10.1 and Appendix I),

@@ -1,8 +1,8 @@
 import NightstreamFPrime.Spec.Compression.Akita.Replay.ShapeStages
 
 /-! The converse of `verifyProof_accept` from the level functions (Akita revision `d50f700`;
-`verifyProof_accept_of` of `Replay/RunProof.lean`, finding 16 of `Replay/ShapeRange.lean`,
-`Replay/RunProof.lean` and `Replay/RunWhole.lean`).
+`verifyProof_accept_of` of `Replay/RunProof.lean`, `Replay/ShapeRange.lean` and
+`Replay/RunWhole.lean`).
 
 - `holds_run`, `check_keeps`: the step of a check changes only the recorded stage results and
   checks. `stateBefore_stopped`: after a first stop at the operation `c`, the state before each

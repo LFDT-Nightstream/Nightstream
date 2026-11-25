@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinExists
 
 /-! The `Note` of each wire message of the model from the state of the replay before the work of
 its stage, for `key20.aks` (Akita revision `d50f700`; ePrint 2026/1983, revision of 2026-11-23,
-Figure 4; `docs/akita-work/w17/design.md` section 2, track N).
+Figure 4).
 
 - `stageIndex20 pub k` is the index of the work of the stage `k` (`workIndices20`), and the index
   of the terminal for `k ≥ 473`. `noteAt20 … k` is `noteOf` on the state before it.

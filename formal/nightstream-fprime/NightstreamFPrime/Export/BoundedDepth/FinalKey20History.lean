@@ -61,7 +61,8 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
     RingCarrierLayout.carrierWidth logicalWidth}
   {mode : Mode} (setup : FinalVerifier.Setup mode logicalWidth publicFits)
-  (packageWidths : Fin 2 → ℕ) (step : AppState → AppWitness → AppState) (control : AppState → AppWitness → Fin 2) {Wire Coord : Type} {total : ℕ} (read : Reader Wire)
+  (packageWidths : Fin 2 → ℕ) (step : AppState → AppWitness → AppState)
+  (control : AppState → AppWitness → Fin 2) {Wire Coord : Type} {total : ℕ} (read : Reader Wire)
   (head : Wire → First logicalWidth publicFits)
   [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] {ι : Type} [Fintype ι]
   (kind : Wire → Option ι) (family : ι → Opening logicalWidth publicFits Wire Coord total)

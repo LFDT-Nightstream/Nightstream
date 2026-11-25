@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.Sampler
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Fused
 
 /-! The gate of the end check of the fused sum-check (`fused.end`) at the trace levels
-(`docs/akita-work/match-design.md` section 7, item 9; `Replay/Fused.lean`,
+(`Replay/Fused.lean`,
 `Replay/FusedJoin.lean`). The one replay of each positive vector (`tests/AkitaAllVectors.lean`)
 runs from the public inputs and the proof bytes; it evaluates `fused.end` at each level with
 evaluation trace with the points, the challenges, `v_W`, the end claim of the rounds and the

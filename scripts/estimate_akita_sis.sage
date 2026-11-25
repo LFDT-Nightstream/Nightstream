@@ -36,7 +36,7 @@ def run(d, n, m, norm, bound):
         ("classical", SIS.estimate.rough(p, quiet=True)["lattice"]),
         ("default", SIS.estimate(p, quiet=True)["lattice"]),
     ):
-        out[name] = {"bits": None if c["rop"] == oo else float(log(c["rop"], 2)), "beta": int(c["beta"]), "d": int(c["d"])}
+        out[name] = {"bits": float("inf") if c["rop"] == oo else float(log(c["rop"], 2)), "beta": int(c["beta"]), "d": int(c["d"])}
     return out
 
 
@@ -62,7 +62,7 @@ def fix(d, n, m, norm, bound):
 
 
 def bits(value):
-    return "inf" if value is None else f"{value:.3f}"
+    return f"{value:.3f}"
 
 
 def row(uses, key, top, x, low):

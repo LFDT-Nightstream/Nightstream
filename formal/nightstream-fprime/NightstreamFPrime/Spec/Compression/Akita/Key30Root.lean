@@ -231,6 +231,10 @@ theorem tower_complete {sendable : (M : Type) → M → Prop} {slots width cap :
     omega
   have points₁ := level₁_points r member
   have opening₁ := level₁_openings r member
+  have link := links r member
+  have lift := lifts r member
+  have point := points r member
+  have cells := live_cells r member
   exact offTower_complete (scan := scan) (fix := fun ω _ => Batch.pinBreak key₁ openKey₁ _ 0
     reference ω) sends (by omega) room carriesR spotted carriesO carries₁R carries₁ carries₂
     carries₃ carries₄ carries₅ carries₆ carriesL (honest.1 r member)
@@ -242,19 +246,19 @@ theorem tower_complete {sendable : (M : Type) → M → Prop} {slots width cap :
     ((by decide : rangeWidth 16 ≤ 6).trans (by omega)) (level₁_bounded r member) registered
     (points₁ 0).2.2.1 (points₁ 0).2.2.2.1 (points₁ 0).2.1 (points₁ 0).1
     (points₁ 1).2.2.1 (points₁ 1).2.2.2.1 (points₁ 1).2.1 (points₁ 1).1
-    (by decide) (by decide) ((live_cells r member).1).1
-    ((lifts r member).1).1 ((lifts r member).1).2.1 ((lifts r member).1).2.2.1 ((lifts r member).1).2.2.2
+    (by decide) (by decide) cells.1.1
+    lift.1.1 lift.1.2.1 lift.1.2.2.1 lift.1.2.2.2
     covers.2.1 covers.2.2 ((by decide : rangeWidth 16 ≤ 6).trans (by omega))
-    (lifts r member).2.1 (lifts r member).2.2.1 (lifts r member).2.2.2.1 (lifts r member).2.2.2.2 covers.2.1 covers.2.2
+    lift.2.1 lift.2.2.1 lift.2.2.2.1 lift.2.2.2.2 covers.2.1 covers.2.2
     ((by decide : rangeWidth 16 ≤ 6).trans (by omega))
-    ((points r member).1).1 ((points r member).1).2.1 ((points r member).1).2.2.1
-    ((points r member).1).2.2.2.1 ((points r member).1).2.2.2.2.1.symm ((live_cells r member).1).2.1
-    (points r member).2.1.1 (points r member).2.1.2.1 (points r member).2.1.2.2.1 (points r member).2.1.2.2.2
-    ((points r member).1).2.2.2.2.2.symm ((live_cells r member).1).2.2
+    point.1.1 point.1.2.1 point.1.2.2.1
+    point.1.2.2.2.1 point.1.2.2.2.2.1.symm cells.1.2.1
+    point.2.1.1 point.2.1.2.1 point.2.1.2.2.1 point.2.1.2.2.2
+    point.1.2.2.2.2.2.symm cells.1.2.2
     quarters.1 quarters.2.1 quarters.2.2.1 quarters.2.2.2 source₄ source₅ source₆ sourceTerm
-    (fold₄.mono wide) (fold₅.mono wide) (fold₆.mono wide) (links r member).1.1 (links r member).1.2.1 (links r member).1.2.2.1
-    (links r member).1.2.2.2 (links r member).2.1.1 (links r member).2.1.2.1 (links r member).2.1.2.2.1 (links r member).2.1.2.2.2 (links r member).2.2.1
-    (links r member).2.2.2.1 (links r member).2.2.2.2.1 (links r member).2.2.2.2.2
+    (fold₄.mono wide) (fold₅.mono wide) (fold₆.mono wide) link.1.1 link.1.2.1 link.1.2.2.1
+    link.1.2.2.2 link.2.1.1 link.2.1.2.1 link.2.1.2.2.1 link.2.1.2.2.2 link.2.2.1
+    link.2.2.2.1 link.2.2.2.2.1 link.2.2.2.2.2
     (norms_sized r member (level₅, (norm₅ r)) (List.mem_cons_self ..)).1
     (norms_sized r member (level₆, norm₆) (List.mem_cons_of_mem _ (List.mem_cons_self ..))).1
     ((by decide : rangeWidthSq level₅.shape.certifiedBase ≤ 8).trans wide)

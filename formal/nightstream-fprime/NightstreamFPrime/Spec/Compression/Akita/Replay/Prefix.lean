@@ -315,7 +315,7 @@ theorem paged_le (enough : Setup.pageSize ≤ count)
     have nonnegative : (0 : ℝ) ≤ ∑ S : Fin (pages * Setup.pageSize) → Zq,
         if event S then (1 : ℝ) else 0 :=
       Finset.sum_nonneg fun S _ => by split <;> norm_num
-    rw [mul_comm (_ ^ pages) _, mul_assoc]
+    rw [mul_right_comm, mul_comm _ (∑ S, _)]
     exact mul_le_mul_of_nonneg_left fewer nonnegative
   · calc 𝔼 streams : Fin pages → Fin count → Word, ∑ j, (if StreamFallback Setup.pageSize
             (streams j) then (1 : ℝ) else 0)

@@ -14,7 +14,7 @@ Algorithm 9, steps 6 to 11 and Rejects; Algorithm 10).
   `Rejects`.
 - `rejects_mass_le`: an answer of the oracle decodes to a challenge of `Rejects` with
   probability at most `tableError + omegaError`.
-- `honestInverses_zero`: the honest inverses are 0 after the span.
+- `honestInverses_zero`: the honest inverses are 0 outside the witness span.
 - `led_wins`: an honest prover of `lead` is an honest prover of `led`, and the lookup challenges
   at its end are no table values.
 - `back_wins`: for a statement and a table `W` with `Relation`, honest counts and the honest
@@ -97,7 +97,7 @@ theorem back_ends (wf : WellFormed P) (st : Statement P) (W V : ℕ → F) (τ :
         claims.w.1.length = P.witnessVars ∧
         claims.v.1.length = P.spanVars + vf.zeros := by
   intro ch
-  show (Game.bind _ _).Ends _
+  show (bind _ _).Ends _
   rw [ends_bind]
   refine (sumcheck_ends (P.lookups + 2) _ P.witnessVars [] _).mono ?_
   intro first ends₁
@@ -108,7 +108,7 @@ theorem back_ends (wf : WellFormed P) (st : Statement P) (W V : ℕ → F) (τ :
     obtain ⟨cs, eq, len⟩ := ends₁ ρ value rfl
     rw [eq, List.nil_append, len]
   intro vals
-  show (Game.bind _ _).Ends _
+  show (bind _ _).Ends _
   rw [ends_bind]
   refine (sumcheck_ends 2 _ _ [] _).mono ?_
   intro second ends₂
@@ -125,17 +125,17 @@ theorem back_ends (wf : WellFormed P) (st : Statement P) (W V : ℕ → F) (τ :
     · show (kp ++ rowPoint P.rowVars ch.omega).length = _
       rw [List.length_append, kp_length, rowPoint_length]
     · show (ρ.take P.spanVars ++ List.replicate vf.zeros 0).length = _
-      rw [List.length_append, List.length_take, List.length_replicate, ρ_length,
-        Nat.min_eq_left wf.span_le]
+      rw [List.length_append, List.length_take,
+        List.length_replicate, ρ_length, Nat.min_eq_left wf.span_le]
   · cases equal
 
 omit [Fintype F] [DecidableEq F] [Field K] [Fintype K] [DecidableEq K] [Algebra F K] in
-/-- The honest inverses are 0 from the cell `2^spanVars`: each slice with a table is in the
-span. -/
-theorem honestInverses_zero (wf : WellFormed P) (W : ℕ → F) (τ : Fin P.lookups → F) {cell : ℕ}
-    (large : 2 ^ P.spanVars ≤ cell) : honestInverses P W τ cell = 0 :=
-  ite_eq_right fun ⟨c, table, _, inside⟩ =>
-    absurd (inside.trans_le (wf.span_fit c table).1) (not_lt.mpr large)
+/-- The shared inverse of SPEC.md Algorithm 9 is zero outside the witness span. -/
+theorem honestInverses_zero (W : ℕ → F) (τ : Fin P.lookups → F) (wf : WellFormed P) {cell : ℕ}
+    (large : 2 ^ P.spanVars ≤ cell) : honestInverses P W τ cell = 0 := by
+  refine ite_eq_right ?_
+  rintro ⟨c, lookup, _, inside⟩
+  exact (not_lt_of_ge large) (inside.trans_le (wf.span_fit c lookup).1)
 
 variable {sendable : (M : Type) → M → Prop} {slots : ℕ}
 
@@ -160,12 +160,13 @@ theorem led_wins {Lead : Type} {lead : Game (Option Lead)} {draws : ℕ} {goal :
 table `W` with `Relation`, honest counts, lookup challenges that are no table values and the
 honest inverses, the prover has a message for each draw sequence outside `Rejects` such that
 `back` ends in opening claims that are true for the key polynomial, `W` and the inverses.
-`sends`, `wide`, `room` and `short`: a round polynomial, an element of `K` and the values
+`sends`, `wide`, `room` and `values`: a round polynomial, an element of `K` and the values
 `honestValues` are messages of the prover. -/
-theorem back_wins {width cap : ℕ} (sends : Sends sendable K width cap)
-    (wide : P.lookups + 3 ≤ width) (room : 1 < slots)
-    (short : ∀ values : Values K, sendable (Values K) values)
-    (wf : WellFormed P) (matrix : MatrixSpec vf) (rows : P.rows ≤ 2 ^ P.rowVars)
+theorem back_wins {width cap : ℕ} (sends : Sends sendable K width cap) (wide : P.lookups + 3 ≤ width)
+    (room : 1 < slots)
+    (values : ∀ v : Values K, sendable (Values K) v)
+    (wf : WellFormed P) (matrix : MatrixSpec vf)
+    (rows : P.rows ≤ 2 ^ P.rowVars)
     (key_fits : ∀ c, (P.shape c).witness.vars - P.laneVars ≤ P.keyBlockVars)
     (st : Statement P) (W : ℕ → F) (τ : Fin P.lookups → F) (shaped : Shaped P st)
     (relation : Relation P st W) (honest : HonestCounts P W) (distinct : TablesDistinct P)
@@ -181,7 +182,7 @@ theorem back_wins {width cap : ℕ} (sends : Sends sendable K width cap)
   intro ch allowed
   have regular : ∀ i < P.rowVars, 1 + ch.omega ^ 2 ^ i ≠ 0 := fun i lt zero =>
     allowed (Or.inr (hit_self.mpr (Finset.mem_filter.mpr ⟨Finset.mem_univ _, i, lt, zero⟩)))
-  have inverses := honestInverses_spec (P := P) W τ
+  have inverses := honestInverses_spec W τ
   have main_truth := combRound_truth P.witnessVars (P.lookups + 2)
     (mainTables P st W (honestInverses P W τ) τ ch) (mainComb P τ ch) (mainComb_degree P τ ch)
   refine (winsOff_bind _ _ _ _ _ _ _ _).mpr ?_
@@ -189,13 +190,11 @@ theorem back_wins {width cap : ℕ} (sends : Sends sendable K width cap)
     (0 + (P.laneVars + P.keyBlockVars)) _ P.witnessVars [] (claimedSum P st ch) 0 (by simp)
     (by
       rw [main_truth_nil]
-      exact (honest_sum st W _ τ ch wf relation honest inverses distinct apart).symm)
-      (Nat.zero_lt_of_lt room)
+      exact (honest_sum st W _ τ ch wf relation honest inverses distinct apart).symm) (by omega)
     ?_).off
   intro ρ ρ_sized place early
   have ρ_length : ρ.length = P.witnessVars := by simpa using ρ_sized
-  have next : place + 1 < slots := by omega
-  refine ⟨Nat.lt_of_succ_lt next, honestValues W (honestInverses P W τ) ch ρ, short _, ?_⟩
+  refine ⟨by omega, honestValues W (honestInverses P W τ) ch ρ, values _, ?_⟩
   have point_length (c : Fin P.claims) :
       (uses P ch ρ c).point.length = (P.shape c).witness.vars - P.laneVars := by
     have := (wf.witness_fits c).2.2
@@ -205,20 +204,18 @@ theorem back_wins {width cap : ℕ} (sends : Sends sendable K width cap)
   have key_truth := combRound_truth (P.laneVars + P.keyBlockVars) 2 (keyTables ch ρ) productComb
     productComb_degree
   refine (winsOff_bind _ _ _ _ _ _ _ _).mpr ?_
-  refine (sumcheck_winsAt key_truth
-    (fun _ => sends.vector 3 _ ((Nat.le_add_left 3 P.lookups).trans wide)) 0 _
+  refine (sumcheck_winsAt key_truth (fun _ => sends.vector 3 _ (by omega)) 0 _
     (P.laneVars + P.keyBlockVars) [] (keyTrue P ch ρ) (place + 1) (by simp)
     (by
       rw [product_truth_nil, cubeSum_eq_sum_range, show 2 ^ (P.laneVars + P.keyBlockVars) =
         P.lanes * 2 ^ P.keyBlockVars by rw [pow_add]; rfl]
-      exact (key_sum P.lanes P.keyBlockVars _ _ _ block_fits (pow_pos two_pos _)).symm) next
+      exact (key_sum P.lanes P.keyBlockVars _ _ _ block_fits (pow_pos two_pos _)).symm) (by omega)
     ?_).off
   intro kp kp_sized last late
   have kp_length : kp.length = P.laneVars + P.keyBlockVars := by simpa using kp_sized
-  refine ⟨lt_of_le_of_lt late next, honestKey ch kp, sends.scalar _, ?_⟩
+  refine ⟨by omega, honestKey ch kp, sends.scalar _, ?_⟩
   have checked : Checked vf st τ ch ρ
-      (combTruth P.witnessVars (mainTables P st W (honestInverses P W τ) τ ch)
-        (mainComb P τ ch) ρ)
+      (combTruth P.witnessVars (mainTables P st W (honestInverses P W τ) τ ch) (mainComb P τ ch) ρ)
       (honestValues W (honestInverses P W τ) ch ρ) kp
       (combTruth (P.laneVars + P.keyBlockVars) (keyTables ch ρ) productComb kp)
       (honestKey ch kp) := by
@@ -226,6 +223,6 @@ theorem back_wins {width cap : ℕ} (sends : Sends sendable K width cap)
     · rw [← kp_length, product_truth_final]
       exact key_check_honest ch ρ kp wf st shaped ρ_length kp_length rows regular key_fits
     · exact main_check_honest vf st W (honestInverses P W τ) τ ch ρ wf shaped ρ_length matrix
-  exact ⟨_, ite_eq_left checked, rfl, rfl, (mle_V_opening _ _ _).symm⟩
+  exact ⟨_, ite_eq_left checked, rfl, rfl, (mle_V_opening _ ρ _).symm⟩
 
 end NightstreamFPrime.Spec.Compression.Verifier

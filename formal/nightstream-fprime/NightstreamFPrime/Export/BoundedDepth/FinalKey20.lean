@@ -51,12 +51,6 @@ attribute [local instance low] Classical.propDecidable
 
 noncomputable local instance : Algebra Zq K := inferInstanceAs (Algebra F K)
 
-namespace Instances
-
-attribute [scoped instance] instAlgebraZqK
-
-end Instances
-
 noncomputable local instance : Degree2 K :=
   ⟨AlgEquiv.ofRingEquiv (f := carrierEquiv.ringEquiv) fun _ => rfl⟩
 
@@ -64,7 +58,8 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
     RingCarrierLayout.carrierWidth logicalWidth}
   {mode : Mode} (setup : FinalVerifier.Setup mode logicalWidth publicFits)
-  (packageWidths : Fin 2 → ℕ) (step : AppState → AppWitness → AppState) (control : AppState → AppWitness → Fin 2) (shape : Claims logicalWidth publicFits)
+  (packageWidths : Fin 2 → ℕ) (step : AppState → AppWitness → AppState)
+  (control : AppState → AppWitness → Fin 2) (shape : Claims logicalWidth publicFits)
   {Wire Coord : Type} {total : ℕ} (read : Reader Wire)
   (head : Wire → First logicalWidth publicFits)
   (bound : Prefix Wire (Option Coord → CodeSlot K) total → (g : Fin 3) → (root.shape g).Payload)
@@ -189,7 +184,8 @@ theorem key20_points (use : Use setup shape) :
     (setup.params shape).laneVars + (setup.params shape).keyBlockVars +
         (setup.params shape).rowVars = 20 ∧
       (setup.params shape).witnessVars = 16 ∧
-      (setup.params shape).spanVars + (setup.verifier shape).zeros = 16 ∧
+      (setup.params shape).spanVars +
+        (setup.verifier shape).zeros = 16 ∧
       (setup.params shape).spanVars ≤ 16 := by
   obtain ⟨⟨l, ok⟩, -⟩ := use.laid
   have same : setup.layout shape = l.production := by simp only [FinalVerifier.Setup.layout, ok]
@@ -312,8 +308,7 @@ theorem sound [Finite Wire] {peak : Fin 3 → ℕ} (premises : Premises setup pa
   have slots : 22 ≤ Fintype.card Coord := (by decide : 22 ≤ 30).trans coords
   have lookupsFit : (setup.params shape).lookups ≤ Fintype.card Coord :=
     (by decide : 4 ≤ 30).trans coords
-  have cube : CompressionFresh.oneShape.cubeVariables ≤ Fintype.card Coord :=
-    (by decide : 28 ≤ 30).trans coords
+  have cube : CompressionFresh.oneShape.cubeVariables ≤ Fintype.card Coord := (by decide : 28 ≤ 30).trans coords
   have challengesFit : 4 + ((setup.params shape).lookups + ((setup.params shape).claims +
       (setup.params shape).claims + (setup.params shape).spanVars)) ≤ Fintype.card Coord := by
     have claims : (setup.params shape).claims ≤ 3 := Nat.succ_le_succ mode.slots_le
@@ -376,7 +371,7 @@ and `Relation` for `W`. No Lean result gives `leads`.
 values and to challenges after `V` whose `ω` has a row point: the two failures of Algorithm 9,
 Rejects. `decodes` to `decodesL`: the slots of an answer decode to fold challenges.
 
-`sends`, `wide`, `capped`, `room`, `short` and `carriesM` to `carriesL`: a wire message can have
+`sends`, `wide`, `capped`, `room`, `sendValues` and `carriesM` to `carriesL`: a wire message can have
 the data of the prover. `bound₀`, `bound₁`, `bound₂`: the commitments that a stage input fixes
 are the commitments of the key polynomial and of `W`, and the commitment of `V` in the message
 after the lookup challenges. `next`, `inside`, `reads`, `clears`: the stage of the terminal and
@@ -389,8 +384,7 @@ theorem complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
     {partialsOf : Wire → Fin Key20.terminal.blocks → Rq Key20.terminal.innerDegree}
     (use : Use setup shape) (sends : Sends sendable K width cap) (wide : 8 ≤ width)
     (capped : 3029804899 ≤ cap) (room : 3 < slots)
-    (short : ∀ values : Compression.Verifier.Values K,
-      sendable (Compression.Verifier.Values K) values)
+    (sendValues : ∀ v : Compression.Verifier.Values K, sendable (Compression.Verifier.Values K) v)
     (carriesM : Carries sendable slots read commit)
     (carriesC : Carries sendable slots read fun wire => (commit wire, value wire, place wire))
     (carriesR : Carries sendable slots read claim)
@@ -483,7 +477,7 @@ theorem complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
   replace worked : ∀ input, table input none ∈ workZeros (CodeSlot K) 57 := fun input => worked input.address
   clear_value table
   obtain ⟨wf, -, matrix, rows, key_fits⟩ := FinalVerifier.laid_facts setup use.laid
-  obtain ⟨keyLength, wLength, vLength, spanLength⟩ := key20_points setup shape use
+  obtain ⟨keyLength, wLength, vLength, -⟩ := key20_points setup shape use
   have fits : Compose.root C vf ≤ total := by
     have ends₀ := Tier.finish_eq zeroth
     have ends₁ := Tier.finish_eq first
@@ -505,8 +499,8 @@ theorem complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
     exact ite_eq_left ⟨checks, gate⟩
   obtain ⟨proof, zero, ran, linked⟩ := Compose.accepts (commit := commit) (value := value)
     (place := place) (accept := accept) wf matrix rows key_fits
-    (fun _ W other => FinalVerifier.lead_bare setup _ _ W other) fits sends
-    ((by decide : 4 + 3 ≤ 8).trans wide) (by omega) short carriesM carriesC table
+    (fun _ W other => FinalVerifier.lead_bare setup _ _ W other) fits sends (by change 4 + 3 ≤ width; omega) (by omega)
+    sendValues carriesM carriesC table
     (fun input T _ _ => Compression.Verifier.rejects_sample (calm input) (regular input) T)
     (onPath_nil accept table given) rfl W counts
     (params_tablesDistinct _ _ _ _ fun _ => checks.2.2.2.1 _)
@@ -528,8 +522,9 @@ theorem complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
           fin_cases g
           · exact Compose.keyBase_zero rows (by rw [keyLength]; exact large)
           · exact tail cell large
-          · exact Compression.Verifier.honestInverses_zero wf W τ
-              ((Nat.pow_le_pow_right (by decide) spanLength).trans large))
+          · have small : (setup.params shape).spanVars ≤ 16 := by omega
+            exact Compression.Verifier.honestInverses_zero W τ wf
+              ((Nat.pow_le_pow_right (by decide) small).trans large))
         committed
         (fun g => by
           fin_cases g
@@ -538,5 +533,7 @@ theorem complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
           · exact lengths.2.2.trans vLength)
         valued (fit τ apart))
   exact ⟨proof, zero, ran, linked⟩
+
+scoped[FinalKey20Algebra] attribute [instance] instAlgebraZqK
 
 end NightstreamFPrime.Export.BoundedDepth.FinalKey20

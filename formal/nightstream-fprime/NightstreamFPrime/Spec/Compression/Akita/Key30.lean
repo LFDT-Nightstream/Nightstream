@@ -5,11 +5,11 @@ of `2^19` blocks (Akita, ePrint 2026/1983, revision of 2026-11-23, (28), (53), (
 (76), (84), Section 9 with (136), and Section 9.3). `tests/AkitaSchedules.lean` compares each
 number that the file holds with the file.
 
-- The file has two rows: `w26` for `W` of 26 variables and `w27` for `W` of 27 variables. `Row`
-  has the numbers of a row that the other row does not have.
+- The file has two rows: `w27` for `W` of 27 variables and `w26` for `W` of 26 variables. `Row`
+  holds the parameters that vary by row.
 - `root` is the fold of the key polynomial, `W` and `V`. `level₁` is the fold of the setup prefix
   and of the witness of the root (Akita (136)): the root is offloaded, and the file has the
-  natural length `2^23` of the setup prefix in `setup_natural_len`. `level₂` and `level₃` have
+  natural length `2^23` of the setup prefix in `setup_natural_len`. `level₂` and `(level₃ r)` have
   coefficient packing with the quotient-lift check, `level₄` to `level₆` have evaluation trace,
   and `terminal` is the shape of the terminal. The levels 5 and 6 and the terminal have the
   numbers of the levels 4 and 5 and of the terminal of `key20.aks`, and the level 5 has its own
@@ -37,21 +37,20 @@ namespace Key30
 open Key20 (maps Squared)
 
 /-- The numbers of a row of `key30.aks` that the other row does not have: the count of variables
-of `W`, the block length `M` of `W` at the root, the live blocks of the witness group of
-level 1, of level 2 and of level 3, and `S_max` of level 5. -/
+of `W`, its block length at the root, the live blocks at levels 1 to 3, and the squared norm cap at level 5. -/
 structure Row where
   vars : ℕ
   length : ℕ
   blocks₁ : ℕ
   blocks₂ : ℕ
   blocks₃ : ℕ
-  limit₅ : ℕ
-
-/-- The first row, for `W` of 26 variables. -/
-def w26 : Row := ⟨26, 128, 139, 42, 22, 1360588800⟩
+  cap₅ : ℕ
 
 /-- The second row, for `W` of 27 variables. -/
 def w27 : Row := ⟨27, 256, 148, 43, 23, 1370973736⟩
+
+/-- The first row, for `W` of 26 variables. -/
+def w26 : Row := ⟨26, 128, 139, 42, 22, 1360588800⟩
 
 def rows : List Row := [w26, w27]
 
@@ -209,8 +208,7 @@ def level₆ : Key20.Level := Key20.level₅
 /-- The shape of the terminal: that of `key20.aks`. -/
 def terminal : Shape := Key20.terminal
 
-/-- The Euclidean route of level 5, with `S_max` of the row. -/
-def norm₅ : Squared := ⟨18, r.limit₅, 15⟩
+def norm₅ : Squared := ⟨18, r.cap₅, 15⟩
 
 def norm₆ : Squared := Key20.norm₅
 
@@ -264,12 +262,11 @@ theorem level₂_sized : ∀ r ∈ rows,
     2 ≤ (level₂ r).fold.responseBase ∧ (level₂ r).shape.certifiedBase < fieldModulus := by decide
 
 /-- The conditions of `liftFold` and `LevelSized` on the numbers of level 3: the quotient
-digits end at the cell 510976 or 523264 of the cube of `2^19` cells. -/
-theorem level₃_sized : ∀ r ∈ rows,
-    (level₃ r).opening.cells (level₃ r).fold ≤ 2 ^ (level₃ r).vars ∧
+digits end at cell 510976 for `w26` and at cell 523264 for `w27` in the cube of `2^19` cells. -/
+theorem level₃_sized : ∀ r ∈ rows, (level₃ r).opening.cells (level₃ r).fold ≤ 2 ^ (level₃ r).vars ∧
     (level₃ r).opening.quotientRoom (level₃ r).fold quotientDigits ≤ 2 ^ (level₃ r).vars ∧
-    (level₃ r).opening.rowCount + 1 ≤ 2 ^ (level₃ r).batch ∧
-    2 ≤ (level₃ r).fold.responseBase ∧ (level₃ r).shape.certifiedBase < fieldModulus := by decide
+    (level₃ r).opening.rowCount + 1 ≤ 2 ^ (level₃ r).batch ∧ 2 ≤ (level₃ r).fold.responseBase ∧
+    (level₃ r).shape.certifiedBase < fieldModulus := by decide
 
 /-- The conditions of `committedTrace` and `LevelSized` on the numbers of level 4. -/
 theorem level₄_sized : level₄.opening.cells level₄.fold ≤ 2 ^ level₄.vars ∧
@@ -283,7 +280,7 @@ theorem tails_sized : ∀ L ∈ [level₅, level₆], L.opening.cells L.fold ≤
     L.shape.certifiedBase < fieldModulus := by decide
 
 /-- The conditions `room` and `noWrap` of `NormSized` for the levels 5 and 6. -/
-theorem norms_sized : ∀ r ∈ rows, ∀ entry ∈ [(level₅, norm₅ r), (level₆, norm₆)],
+theorem norms_sized : ∀ r ∈ rows, ∀ entry ∈ [(level₅, (norm₅ r)), (level₆, norm₆)],
     entry.1.shape.blockLength * entry.1.shape.sourceDigits * entry.1.shape.innerDegree ≤
         2 ^ entry.1.vars ∧
       max (entry.1.shape.directLimit entry.1.fold) entry.2.limit < fieldModulus := by
@@ -292,7 +289,7 @@ theorem norms_sized : ∀ r ∈ rows, ∀ entry ∈ [(level₅, norm₅ r), (lev
 
 /-- The response of each level on the Euclidean route has `2^ν_norm` coordinates, which is
 `physical_response_len` of the file. -/
-theorem norms_response : ∀ r ∈ rows, ∀ entry ∈ [(level₅, norm₅ r), (level₆, norm₆)],
+theorem norms_response : ∀ r ∈ rows, ∀ entry ∈ [(level₅, (norm₅ r)), (level₆, norm₆)],
     entry.1.shape.blockLength * entry.1.shape.sourceDigits * entry.1.shape.innerDegree =
       2 ^ entry.2.vars := by decide
 
@@ -302,7 +299,7 @@ theorem quarters : 4 * 32 = level₄.shape.innerDegree ∧ 4 * 16 = level₅.sha
     4 * 16 = level₆.shape.innerDegree ∧ 4 * 16 = terminal.innerDegree := by decide
 
 /-- The opening point of each group of the root has segments for `RootLinked`: `B`, `M`,
-`k·h_car` and `d_car` are powers of two. The lengths have the sums 30, 26 or 27, and 26. -/
+`k·h_car` and `d_car` are powers of two. The lengths have the sums 30, 27 or 26, and 26. -/
 theorem root_points : ∀ r ∈ rows, ∀ g, ((root r).shape g).blocks = 2 ^ ![9, 8, 8] g ∧
     ((root r).shape g).blockLength = 2 ^ ![10, r.vars - 19, 9] g ∧
     ((root r).opening g).stride = 2 ^ ![4, 4, 2] g ∧ (root r).carrierDegree g = 2 ^ 7 ∧
@@ -311,7 +308,7 @@ theorem root_points : ∀ r ∈ rows, ∀ g, ((root r).shape g).blocks = 2 ^ ![9
 
 /-- The segments of the opening points of the two groups of level 1 (Akita (136)): the point
 `ρ_S` of the setup prefix has `2 + 7 + 7 + 7 = ν_S` coordinates, and the point `r_2` of the witness
-has `2 + 7 + 11 + 8 = μ` coordinates for the 139 or 148 live blocks. -/
+has `2 + 7 + 11 + 8 = μ` coordinates for the 148 or 139 live blocks. -/
 theorem level₁_points : ∀ r ∈ rows, ∀ g, ((level₁ r).shape g).blocks ≤ 2 ^ ![7, 8] g ∧
     ((level₁ r).shape g).blockLength = 2 ^ ![7, 11] g ∧ ((level₁ r).opening g).stride = 2 ^ 2 ∧
     (level₁ r).carrierDegree g = 2 ^ 7 ∧
@@ -361,14 +358,13 @@ theorem honest : (∀ r ∈ rows, ∀ g, ((root r).shape g).Honest) ∧ shapeS.H
 end of the quotient digits of the root and of the levels 1 to 3, and the end of the flat witness
 of the levels 4 to 6 (Akita Section 4.5, (40) to (42)). -/
 theorem live_cells : ∀ r ∈ rows,
-      ((root r).quotientRoom quotientDigits₀ ≤
+    ((root r).quotientRoom quotientDigits₀ ≤
           (shapeW₁ r).blocks * ((shapeW₁ r).blockLength * (shapeW₁ r).innerDegree) ∧
         (level₁ r).quotientRoom quotientDigits ≤
           (level₂ r).shape.blocks * ((level₂ r).shape.blockLength * (level₂ r).shape.innerDegree) ∧
         (level₂ r).opening.quotientRoom (level₂ r).fold quotientDigits ≤
-          (level₃ r).shape.blocks *
-            ((level₃ r).shape.blockLength * (level₃ r).shape.innerDegree)) ∧
-      (level₃ r).opening.quotientRoom (level₃ r).fold quotientDigits ≤
+          (level₃ r).shape.blocks * ((level₃ r).shape.blockLength * (level₃ r).shape.innerDegree)) ∧
+    (level₃ r).opening.quotientRoom (level₃ r).fold quotientDigits ≤
         level₄.shape.blocks * (level₄.shape.blockLength * level₄.shape.innerDegree) ∧
       level₄.opening.cells level₄.fold ≤
         level₅.shape.blocks * (level₅.shape.blockLength * level₅.shape.innerDegree) ∧

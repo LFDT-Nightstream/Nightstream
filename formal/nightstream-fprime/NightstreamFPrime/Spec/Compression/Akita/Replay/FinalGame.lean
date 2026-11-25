@@ -5,7 +5,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.Stage3Match
 
 /-! The games of the packing levels of the specification when `runProof` accepts, with the
 weights of the end check of `fused.end` and of Stage 3 as theorems (Akita revision `d50f700`;
-`docs/akita-work/match-design.md` section 5.1; the weight theorems of `Replay/WeightPackingJoin.lean`
+the weight theorems of `Replay/WeightPackingJoin.lean`
 and `Replay/Stage3Match.lean`).
 
 - `packGroupsIn_one`: the group of `packGroupsIn` at a packing level with one group, with the

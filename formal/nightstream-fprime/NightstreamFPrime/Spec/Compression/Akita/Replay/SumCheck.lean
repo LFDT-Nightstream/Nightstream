@@ -6,7 +6,7 @@ import NightstreamFPrime.Spec.Compression.Game.Path
 `akita-sumcheck/src/proof_stream.rs`: `verify_sumcheck_rounds`,
 `verify_eq_factored_sumcheck_rounds`; `single.rs`; ePrint 2026/1983, revision of 2026-11-23,
 Section 3.4, Figure 2, and Section 3.5), and its relation to the sum-check games of the
-specification (`docs/akita-work/match-design.md` section 5.2, T1).
+specification.
 
 - `sumcheckRun` is the claim chain of the code. In the plain form (tensor, norm, fused, Stage 3)
   a message is the round polynomial `p` without its linear coefficient, which `plainStep` solves

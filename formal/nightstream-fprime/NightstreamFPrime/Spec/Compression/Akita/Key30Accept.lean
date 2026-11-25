@@ -283,8 +283,8 @@ theorem fit_zero :
     (stateFit_zero (fun g => (openings g).1) (fun g => (openings g).2)
       (fun g => (level₁_folds r member g).1) (fun g => (level₁_folds r member g).2)
       (level₁_path r member) opens zero (by decide)
-      (liftFit_zero ((lifts r member).1).1 ((lifts r member).1).2.1 ((lifts r member).1).2.2.1
-        ((lifts r member).1).2.2.2 (by decide : 2 ≤ 16)
+      (liftFit_zero (lifts r member).1.1 (lifts r member).1.2.1 (lifts r member).1.2.2.1
+        (lifts r member).1.2.2.2 (by decide : 2 ≤ 16)
         (liftFit_zero (lifts r member).2.1 (lifts r member).2.2.1 (lifts r member).2.2.2.1 (lifts r member).2.2.2.2 (by decide : 2 ≤ 16)
           (traceFit_zero quarters.1 (by decide) (by decide) trivial
             (traceFit_zero quarters.2.1 (by decide) (by decide)
@@ -308,7 +308,7 @@ theorem fit_quiet (tables : Fin 3 → Table) :
     (fun _ _ _ decoded => (Option.some.inj decoded).symm) fun _ _ =>
   stateFit_quiet (fun g => (level₁_folds r member g).1.two)
     (fun _ _ _ decoded => (Option.some.inj decoded).symm) fun _ _ =>
-  liftFit_quiet ((lifts r member).1).2.1.two (fun _ _ decoded => (Option.some.inj decoded).symm)
+  liftFit_quiet (lifts r member).1.2.1.two (fun _ _ decoded => (Option.some.inj decoded).symm)
     fun _ =>
   liftFit_quiet (lifts r member).2.2.1.two (fun _ _ decoded => (Option.some.inj decoded).symm) fun _ =>
   traceFit_quiet quarters.1 (by decide) (fun _ _ _ decoded => (Option.some.inj decoded).symm)
@@ -556,7 +556,7 @@ variable {r : Row} (member : r ∈ rows) (flat : Table)
   (decode₂ : Replay.CodeSlot E → Option (Rq (level₂ r).opening.carrierDegree)) (weight₂ : ℕ)
   (β₃ : Module.Basis (Fin (level₃ r).opening.planes) Zq E) (key₃ : Key (level₃ r).shape)
   (openKey₃ : OpeningKey (level₃ r).opening) (block₃ : Fin (level₃ r).shape.blocks → Coord)
-  (decode₃ : Replay.CodeSlot E → Option (Rq (OpeningShape.carrierDegree (Key20.Level.opening (level₃ r))))) (weight₃ : ℕ)
+  (decode₃ : Replay.CodeSlot E → Option (Rq (level₃ r).opening.carrierDegree)) (weight₃ : ℕ)
   (key₄ : Key level₄.shape) (openKey₄ : OpeningKey level₄.opening)
   (block₄ : Fin level₄.shape.blocks → Coord)
   (decode₄ : Replay.CodeSlot E → Option (Rq level₄.shape.innerDegree)) (weight₄ : ℕ)

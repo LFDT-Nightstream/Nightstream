@@ -100,16 +100,12 @@ theorem lifts : ∀ r ∈ rows, ((level₂ r).shape.Bounded ∧ Radix (level₂ 
         (level₂ r).opening.chain) ∧
     (level₃ r).shape.Bounded ∧ Radix (level₃ r).fold.responseBase ∧
       (level₃ r).fold.responseBase ≤ (level₃ r).shape.certifiedBase ∧
-      PathFits (level₃ r).opening.openDegree (1 * (level₃ r).opening.openRank)
-        (level₃ r).opening.chain := by
+      PathFits (level₃ r).opening.openDegree (1 * (level₃ r).opening.openRank) (level₃ r).opening.chain := by
   intro r member
   simp only [rows, List.mem_cons, List.not_mem_nil, or_false] at member
-  rcases member with rfl | rfl <;>
-    exact ⟨⟨⟨⟨by decide, by decide, by decide, by decide⟩, by decide, by decide, by decide,
+  rcases member with rfl | rfl <;> constructor <;>
+    exact ⟨⟨⟨by decide, by decide, by decide, by decide⟩, by decide, by decide, by decide,
       pathFits_of (by decide) (by decide)⟩, ⟨by decide, by decide, by decide⟩, by decide,
-      pathFits_of (by decide) (by decide)⟩,
-      ⟨⟨by decide, by decide, by decide, by decide⟩, by decide, by decide, by decide,
-        pathFits_of (by decide) (by decide)⟩, ⟨by decide, by decide, by decide⟩, by decide,
       pathFits_of (by decide) (by decide)⟩
 
 /-- The largest number of field elements in one message of the range tree: 6 for the bases 8
@@ -157,7 +153,6 @@ theorem links : ∀ r ∈ rows,
 
 /-- The bounds `S_max` of the levels 5 and 6 are at most `3029804899`, the energy that a wire
 message of the checks can have. -/
-theorem capped : ∀ r ∈ rows, (norm₅ r).limit ≤ 3029804899 ∧ norm₆.limit ≤ 3029804899 := by
-  decide
+theorem capped : ∀ r ∈ rows, (norm₅ r).limit ≤ 3029804899 ∧ norm₆.limit ≤ 3029804899 := by decide
 
 end NightstreamFPrime.Spec.Compression.Akita.Key30

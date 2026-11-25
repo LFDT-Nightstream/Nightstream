@@ -7,10 +7,10 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.OffTower
 Proposition 10.44, Theorem 10.46, Corollary 10.35 (ii) and Corollary 10.49 with (206)).
 
 - `tower_suffix` is `offTower_suffix` for the numbers of a row of `Key30.lean`, under a verifier
-  that accepts only with `offLinks`. The retry loops are `1188 + B_1 + B_2 + B_3` and the tree
-  size is `1813708800·(129 + B_1)·(B_2 + 1)·(B_3 + 1)`, for the live blocks `B_1` of the witness
-  group of level 1, `B_2` of level 2 and `B_3` of level 3: 1402 and 530531588505600 for `W` of 27
-  variables, and 1391 and 480727144857600 for `W` of 26 variables (`tower_counts`).
+  that accepts only with `offLinks`. The retry loops are `1188 + B_1 + B_2 + B_3` and the tree size is
+  `1813708800·(129 + B_1)·(B_2 + 1)·(B_3 + 1)`, where `B_1`, `B_2` and `B_3` count the live witness blocks at levels 1 to 3.
+  The counts are 1402 and 530531588505600 for `W` of 27 variables, and 1391 and
+  480727144857600 for `W` of 26 variables (`tower_counts`).
 - Its hypotheses are: an answer of the oracle has 28 slots, the fold coordinates of each level
   have different slots, each challenge family has units as differences and its norm bound, the
   premise `Batch.Registered` of Akita Lemma 9.1 for the commitment `registry` of the setup prefix,
@@ -46,10 +46,8 @@ theorem tower_counts : ∀ r ∈ rows,
           (2 * (level₅.shape.blocks + 1) * (2 * (level₆.shape.blocks + 1) *
             (terminal.blocks + 1))))))))) =
       1813708800 * ((129 + r.blocks₁) * (r.blocks₂ + 1) * (r.blocks₃ + 1)) ∧
-    [1188 + w27.blocks₁ + w27.blocks₂ + w27.blocks₃,
-      1813708800 * ((129 + w27.blocks₁) * (w27.blocks₂ + 1) * (w27.blocks₃ + 1)),
-      1188 + w26.blocks₁ + w26.blocks₂ + w26.blocks₃,
-      1813708800 * ((129 + w26.blocks₁) * (w26.blocks₂ + 1) * (w26.blocks₃ + 1))] =
+    [1188 + w27.blocks₁ + w27.blocks₂ + w27.blocks₃, 1813708800 * ((129 + w27.blocks₁) * (w27.blocks₂ + 1) * (w27.blocks₃ + 1)),
+      1188 + w26.blocks₁ + w26.blocks₂ + w26.blocks₃, 1813708800 * ((129 + w26.blocks₁) * (w26.blocks₂ + 1) * (w26.blocks₃ + 1))] =
       [1402, 530531588505600, 1391, 480727144857600] := by decide
 
 variable {E : Type} [Field E] [Fintype E]
@@ -167,8 +165,8 @@ the batching root over the offloaded fold of the key polynomial, `W` and `V`, th
 the group of the setup prefix and the group of the witness, the packing levels 2 and 3, the trace
 levels 4 to 6 and the terminal is a suffix from the stage `start` under each verifier `accept`
 that accepts only with `offLinks` (`linked`, `offTower_suffix`). The levels 1 to 4 have the coefficient route, and the levels 5 and 6 and the
-terminal have the Euclidean route. The suffix has `1188 + B_1 + B_2 + B_3` retry loops and the
-tree size `1813708800·(129 + B_1)·(B_2 + 1)·(B_3 + 1)` (`tower_counts`). `slots`: an answer of the oracle has 28
+terminal have the Euclidean route. The suffix has `1188 + B_1 + B_2 + B_3` retry loops and the tree size
+`1813708800·(129 + B_1)·(B_2 + 1)·(B_3 + 1)` (`tower_counts`). `slots`: an answer of the oracle has 28
 slots. `injective`, `units`, `sparse` and `bounded`: the fold coordinates of each level have
 different slots, and the challenge family of each level has units as differences (Akita
 Definition 9.2, E1), members with `‖c‖_1 = ω`, and at the levels 5 and 6 and at the terminal
@@ -257,10 +255,8 @@ theorem tower_suffix {peak : Fin 3 → ℕ} {peak₁ : Fin 2 → ℕ} (slots : 2
       exact liftFold_valid injective₂ units₂ sparse₂ sized₂.2.2.2.1 sized₂.2.2.2.2
         ((le_of_eq_of_le (rfl : (level₂ r).vars = 21) (by decide : 21 ≤ 28)).trans slots)
         ((le_of_eq_of_le (rfl : (level₂ r).batch = 4) (by decide : 4 ≤ 28)).trans slots))
-    (LevelSized.lift ⟨injective₃, units₃, sparse₃, (level₃_sized r member).2.2.2.1,
-      (level₃_sized r member).2.2.2.2,
-      (le_of_eq_of_le (rfl : (level₃ r).vars = 19) (by decide : 19 ≤ 28)).trans slots,
-      (le_of_eq_of_le (rfl : (level₃ r).batch = 4) (by decide : 4 ≤ 28)).trans slots⟩)
+    (LevelSized.lift ⟨injective₃, units₃, sparse₃, (level₃_sized r member).2.2.2.1, (level₃_sized r member).2.2.2.2,
+      (by decide : 19 ≤ 28).trans slots, (by decide : 4 ≤ 28).trans slots⟩)
     (LevelSized.trace ⟨injective₄, units₄, sparse₄, level₄_sized.2.2.1, level₄_sized.2.2.2,
       (by decide : level₄.vars ≤ 28).trans slots, (by decide : level₄.batch ≤ 28).trans slots⟩)
     (LevelSized.traceSq ⟨injective₅, units₅, sparse₅, sized₅.2.2.1, sized₅.2.2.2,
@@ -317,8 +313,7 @@ theorem towerError_le {p : ℝ} (chance : ∀ g, slotChance (decode g) ≤ p)
   have sum₂ : 1 / 2 ^ Tier.foldBits second * ∑ b, Tier.chance second b ≤
       (r.blocks₂ : ℕ) * p :=
     sum_le_mul (Fintype.card_fin _) (fun _ => slotChance_nonnegative _) fun _ => chance₂
-  have sum₃ : 1 / 2 ^ Tier.foldBits third * ∑ b, Tier.chance third b ≤
-      (r.blocks₃ : ℕ) * p :=
+  have sum₃ : 1 / 2 ^ Tier.foldBits third * ∑ b, Tier.chance third b ≤ (r.blocks₃ : ℕ) * p :=
     sum_le_mul (Fintype.card_fin _) (fun _ => slotChance_nonnegative _) fun _ => chance₃
   have sum₄ : 1 / 2 ^ Tier.foldBits fourth * ∑ b, Tier.chance fourth b ≤ (8 : ℕ) * p :=
     sum_le_mul (Fintype.card_fin _) (fun _ => slotChance_nonnegative _) fun _ => chance₄
@@ -399,14 +394,12 @@ theorem towerError_le {p : ℝ} (chance : ∀ g, slotChance (decode g) ≤ p)
     dsimp only [Tier.tensored, liftFold]
     rw [credit_append (by rw [List.length_map]; exact foldLosses_length ..), List.sum_append,
       foldCredit_eq, tensorCredit_eq]
-    rw [show 2 * (level₃ r).opening.largestDegree - 1 = 255 by rcases row with rfl | rfl <;> decide,
-      show 2 * (level₃ r).shape.innerDegree - 1 = 255 by rcases row with rfl | rfl <;> decide,
-      show (level₃ r).opening.compressed (level₃ r).fold = true by
-        rcases row with rfl | rfl <;> decide]
-    simp only [foldCredit, tensorCredit, treeCredit,
-      show (level₃ r).shape.certifiedBase = 16 by rfl, show rangeArities 16 = [2] by decide,
-      show rangeLeaf 16 = 4 by decide, show leafDegree 16 = 4 by decide,
-      show (level₃ r).vars = 19 by rfl, show (level₃ r).batch = 4 by rfl,
+    rw [show 2 * (level₃ r).opening.largestDegree - 1 = 255 by rfl,
+      show 2 * (level₃ r).shape.innerDegree - 1 = 255 by rfl,
+      show (level₃ r).opening.compressed (level₃ r).fold = true by rcases row with rfl | rfl <;> decide]
+    simp only [foldCredit, tensorCredit, treeCredit, show (level₃ r).shape.certifiedBase = 16 by rfl,
+      show rangeArities 16 = [2] by decide, show rangeLeaf 16 = 4 by decide,
+      show leafDegree 16 = 4 by decide, show (level₃ r).vars = 19 by rfl, show (level₃ r).batch = 4 by rfl,
       show (level₃ r).tail = 18 by rfl, show (2 + 1 : ℕ) = 3 by rfl, show (1 * 2 - 1 : ℕ) = 1 by rfl,
       w1, w2, w3, w4, w5, w19, w255, ite_true]
     push_cast
@@ -475,6 +468,6 @@ theorem towerError_le {p : ℝ} (chance : ∀ g, slotChance (decode g) ≤ p)
     field_simp
     ring
   rw [split]
-  linarith [sum₀, sum₁, sum₂, sum₃, sum₄, sum₅, sum₆, last]
+  linarith only [sum₀, sum₁, sum₂, sum₃, sum₄, sum₅, sum₆, last]
 
 end NightstreamFPrime.Spec.Compression.Akita.Key30

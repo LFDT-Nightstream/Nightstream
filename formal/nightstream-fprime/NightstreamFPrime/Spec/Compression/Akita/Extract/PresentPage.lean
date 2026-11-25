@@ -64,7 +64,7 @@ def nextIndex : List Move → ℕ → ℕ
   | Move.draw _ :: path, _ => nextIndex path 0
   | Move.recv _ :: path, index => nextIndex path (index + 1)
 
-variable (E : Type) [Zero E] (width cap slots : ℕ) in
+variable (E : Type) (width cap slots : ℕ) in
 /-- The messages of a path fit the cells of the pages: each message is the message of a cell,
 and the message `index` after a draw has `index < slots`. -/
 def Packs : List Move → ℕ → Prop
@@ -73,7 +73,7 @@ def Packs : List Move → ℕ → Prop
   | @Move.recv M message :: path, index =>
       index < slots ∧ Cell.Sendable E width cap M message ∧ Packs path (index + 1)
 
-variable {E : Type} [Zero E] {width cap slots : ℕ}
+variable {E : Type} {width cap slots : ℕ}
 
 theorem packs_draw {C : Type} (c : C) (path : List Move) (index : ℕ) :
     Packs E width cap slots (Move.draw c :: path) index ↔ Packs E width cap slots path 0 :=
@@ -97,6 +97,8 @@ theorem Packs.append (first second : List Move) (index : ℕ) :
       | recv m =>
           rw [List.cons_append, packs_recv, packs_recv, induction]
           exact ⟨fun ⟨a, b, c, d⟩ => ⟨⟨a, b, c⟩, d⟩, fun ⟨⟨a, b, c⟩, d⟩ => ⟨a, b, c, d⟩⟩
+
+variable [Zero E]
 
 /-- A number is the message of a cell exactly when it is at most `cap`. -/
 theorem Cell.sendable_nat_iff (message : ℕ) :

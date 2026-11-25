@@ -43,7 +43,7 @@ Algorithm 11 gives for the light relation, and a security minimum of at most 118
 proof that the verifier of Algorithm 6 accepts, with the light circuit last and slot 1 at the
 default slot of depth 0, passes the checks of steps 1 to 4 and the gate of step 5 with each fresh
 commitment. `Claims.Ivc.light_run_complete` gives such a proof for each valid run of 1 to
-`cap + 1` steps. -/
+`Folding.Schedule.productionLightFoldCap + 1` steps. -/
 theorem light_gate_complete
     {logicalWidth : ℕ}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤

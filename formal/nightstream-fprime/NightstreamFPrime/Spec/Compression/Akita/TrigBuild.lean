@@ -195,28 +195,29 @@ private theorem le_cshr (x : ℤ) (shift : ℕ) : (x / 2 ^ shift : ℝ) ≤ cshr
   push_cast at above
   exact above
 
-attribute [local irreducible] Real.instLT Real.instLE in
 private theorem imul_encloses {a b : ℤ × ℤ} {x y : ℝ} (first : Encloses 61 a x)
     (second : Encloses 61 b y) (firstNonneg : 0 ≤ a.1) (secondNonneg : 0 ≤ b.1) :
     Encloses 61 (imul a b) (x * y) ∧ 0 ≤ (imul a b).1 := by
+  unfold imul
+  generalize (61 : ℕ) = k at *
   have a₀ : (0 : ℝ) ≤ a.1 := by exact_mod_cast firstNonneg
   have b₀ : (0 : ℝ) ≤ b.1 := by exact_mod_cast secondNonneg
-  have low : (a.1 : ℝ) * b.1 ≤ 2 ^ 61 * x * (2 ^ 61 * y) :=
+  have low : (a.1 : ℝ) * b.1 ≤ 2 ^ k * x * (2 ^ k * y) :=
     mul_le_mul first.1 second.1 b₀ (a₀.trans first.1)
-  have high : 2 ^ 61 * x * (2 ^ 61 * y) ≤ (a.2 : ℝ) * b.2 :=
+  have high : 2 ^ k * x * (2 ^ k * y) ≤ (a.2 : ℝ) * b.2 :=
     mul_le_mul first.2 second.2 (b₀.trans second.1) ((a₀.trans first.1).trans first.2)
-  have scale : (0 : ℝ) < 2 ^ 61 := by positivity
+  have scale : (0 : ℝ) < 2 ^ k := by positivity
   refine ⟨⟨?_, ?_⟩, ?_⟩
-  · have below := fshr_le (a.1 * b.1) 61
+  · have below := fshr_le (a.1 * b.1) k
     push_cast at below
     refine below.trans ?_
     rw [div_le_iff₀ scale]
-    linarith
-  · have above := le_cshr (a.2 * b.2) 61
+    exact low.trans_eq (by ac_rfl)
+  · have above := le_cshr (a.2 * b.2) k
     push_cast at above
     refine le_trans ?_ above
     rw [le_div_iff₀ scale]
-    linarith
+    exact (le_of_eq (by ac_rfl : (2 : ℝ) ^ k * (x * y) * 2 ^ k = 2 ^ k * x * (2 ^ k * y))).trans high
   · exact Int.ediv_nonneg (mul_nonneg firstNonneg secondNonneg) (by positivity)
 
 private theorem term_encloses {p : ℤ × ℤ} {x : ℝ} {f : ℤ} (enclosed : Encloses 61 p x)
@@ -342,7 +343,11 @@ private theorem sin_close {x : ℝ} (small : |x| ≤ 1) :
   refine le_trans (le_of_eq ?_) ((Complex.abs_im_le_norm _).trans (exp_close small))
   simp [Complex.exp_ofReal_mul_I_im]
 
-attribute [local irreducible] Real.instLT Real.instLE in
+private theorem Encloses.nonnegative {k : ℕ} {p : ℤ × ℤ} {x : ℝ} (enclosed : Encloses k p x)
+    (lo : 0 ≤ p.1) : 0 ≤ x := by
+  have loReal : (0 : ℝ) ≤ p.1 := by exact_mod_cast lo
+  exact nonneg_of_mul_nonneg_right (loReal.trans enclosed.1) (by positivity : (0 : ℝ) < 2 ^ k)
+
 private theorem taylor_encloses {phi start : ℤ × ℤ} {odd : ℕ} {x f : ℝ}
     (enclosed : Encloses 61 phi x) (phiNonneg : 0 ≤ phi.1) (small : odd ≤ 1)
     (first : Encloses 61 start (x ^ odd)) (firstNonneg : 0 ≤ start.1) (unit : |x| ≤ 1)
@@ -351,9 +356,7 @@ private theorem taylor_encloses {phi start : ℤ × ℤ} {odd : ℕ} {x f : ℝ}
       (taylorLoop (imul phi phi) start odd nterms).power
       (taylorLoop (imul phi phi) start odd nterms).fact (2 * nterms + 1 + odd)) f := by
   have scale : (0 : ℝ) < 2 ^ 61 := by positivity
-  have x₀ : 0 ≤ x :=
-    nonneg_of_mul_nonneg_right
-      ((by exact_mod_cast phiNonneg : (0 : ℝ) ≤ phi.1).trans enclosed.1) scale
+  have x₀ := enclosed.nonnegative phiNonneg
   obtain ⟨square, squareNonneg⟩ := imul_encloses enclosed enclosed phiNonneg phiNonneg
   obtain ⟨sum, power, powerNonneg, fact⟩ :=
     taylorLoop_encloses (square.of_eq (sq x).symm) squareNonneg first firstNonneg small nterms

@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinTerminal
 
 /-! The draws of the checks of a level and the messages of the paths of the code, for theorem A of
 the join of `key20.aks` (Akita revision `d50f700`; ePrint 2026/1983, revision of 2026-11-23,
-Figure 6, Sections 5.2, 6.1 and 6.3; `docs/akita-work/w16/design.md` section 2).
+Figure 6, Sections 5.2, 6.1 and 6.3).
 
 - `DrawsLe game n`: each run of `game` has at most `n` draws (`DrawsLe.runs`). The checks of each
   kind of level draw at most once for each bound of `Tier.costs` (`foldCheck_draws`,
@@ -231,7 +231,7 @@ end Draws
 
 section Fits
 
-variable (E : Type) [Zero E] (width cap slots : ℕ)
+variable (E : Type) (width cap slots : ℕ)
 
 /-- The path packs from the message `index` (`Extract.Packs`), and its next message index is at
 most `next`. -/

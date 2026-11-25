@@ -66,7 +66,8 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
     RingCarrierLayout.carrierWidth logicalWidth}
   {mode : Mode} (setup : FinalVerifier.Setup mode logicalWidth publicFits)
-  (packageWidths : Fin 2 → ℕ) (step : AppState → AppWitness → AppState) (control : AppState → AppWitness → Fin 2) (shape : Claims logicalWidth publicFits)
+  (packageWidths : Fin 2 → ℕ) (step : AppState → AppWitness → AppState)
+  (control : AppState → AppWitness → Fin 2) (shape : Claims logicalWidth publicFits)
   {Coord : Type} [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] {total slots width limit : ℕ}
 
 /-- The commitments that a stage input fixes: the commitments of the key polynomial and of `W`
@@ -177,7 +178,7 @@ local notation "fifth" =>
 
 /-- The final verifier `towerAccepts` of `sound` accepts the honest prover of a final proof with
 the wire messages `Sheet`, without the probability that a response of the Akita opening does not
-fit (`complete` with `Page.sends`, `Cell.sendable_triple` and `Page.carries`). The terminal is
+fit (`complete` with `Page.sends`, `Cell.sendable_values` and `Page.carries`). The terminal is
 `sheetTerminal` at the stage after the level 5, and the commitments of a stage input are
 `sheetBound`. For a setup with `Use`, each matrix of each level, each decoder of the fold
 challenges and each table of the oracle with `calm`, `regular` and `decodes` to `decodesL`, a
@@ -309,7 +310,7 @@ theorem accepts (use : Use setup shape) (wide : 8 ≤ width) (capped : 302980489
     (statementOf := (Key20.Note.statement ∘ noteOf))
     (partialsOf := (Key20.Note.partials ∘ noteOf)) (accept := accept) use
     (Page.sends (by omega)) wide capped room
-    (Cell.sendable_triple (by omega))
+    (Cell.sendable_values (by omega))
     (Page.carries (fun data : Content => data.2.commit)
       fun target => ⟨((given, fun _ => []), { base with commit := target }), rfl⟩)
     (Page.carries (fun data : Content => (data.2.commit, data.2.value, data.1.2))

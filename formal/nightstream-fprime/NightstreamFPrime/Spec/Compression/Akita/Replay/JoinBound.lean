@@ -3,8 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.Statement
 
 /-! The bound of the claims for `key20.aks` on the byte verifier with an ideal sponge (Akita
 revision `d50f700`; ePrint 2026/1983, revision of 2026-11-23, Theorem 10.17 and Section 10.3;
-`Key20.Tower.extraction_le` of `Key20Opening.lean`; `SECURITY_MODEL.md`, `[KECCAK]`;
-`docs/akita-work/w17/design.md` section 3).
+`Key20.Tower.extraction_le` of `Key20Opening.lean`; `SECURITY_MODEL.md`, `[KECCAK]`).
 
 - `verifyProof_accepts20`: the join for the verifier `verifyProof` with its checks of the
   statement: for the layout and the statement shape `root20` of `key20.aks`, an accepted proof has

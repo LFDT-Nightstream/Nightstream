@@ -9,8 +9,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.RunProof
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Statement
 
 /-! The Lean replay of the vectors of real Akita openings in `tests/vectors/akita/`
-(`crates/ns-compress/tests/unit/akita_vectors.rs`, Akita revision `d50f700`;
-`docs/akita-work/match-design.md` section 7, items 1 to 4).
+(`crates/ns-compress/tests/unit/akita_vectors.rs`, Akita revision `d50f700`).
 
 - Inputs. `Vector` has the public inputs of a positive file (`schedule`, `shape`, `session`,
   `descriptor`, `groups`, `setup_field_elements`, `grinding_plan`) and the `proof` bytes. The
@@ -287,7 +286,7 @@ def terminalNumbers (v : Vector) : IO TerminalFile := do
   IO.ofExcept do
     let rows ← array (← Json.parse text) ["rows"]
     let row ← match v.schedule, v.shape with
-      | "crates/ns-compress/artifacts/key30.aks", (_, 26, _) => pure rows[1]!
+      | "crates/ns-compress/artifacts/key30.aks", (_, 27, _) => pure rows[1]!
       | _, _ => pure rows[0]!
     let terminal ← field row ["schedule", "terminal"]
     let group := (← array terminal ["response_shape", "layout", "groups"])[0]!

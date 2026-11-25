@@ -1,6 +1,6 @@
 import NightstreamFPrime.Spec.Compression.Game.Game
 
-/-! One run of a game (`docs/akita-work/match-design.md` section 5.1, `Game.runs`): the game ends
+/-! One run of a game (`Game.Runs`): the game ends
 in a result when each draw takes the next challenge of a path and each receipt takes the next
 message. `Runs` is a function of the path (`runs_unique`), and `runs_bind` joins the run of a
 game with the run of its continuation. -/

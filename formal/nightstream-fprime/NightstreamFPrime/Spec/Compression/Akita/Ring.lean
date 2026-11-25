@@ -102,12 +102,7 @@ theorem coeff_ofCoeffs (c : ℕ → Zq) {i : ℕ} (small : i < d) :
     exact (degree_monomial_le j (c j)).trans_lt
       (WithBot.coe_lt_coe.mpr (Finset.mem_range.mp member))
   rw [coeff, ofCoeffs, rep_mk_of_degree_lt below, finsetSum_coeff]
-  rw [Finset.sum_eq_single i]
-  · exact Finsupp.single_eq_same
-  · intro j _ differ
-    exact Finsupp.single_eq_of_ne' differ
-  · intro absent
-    exact absurd (Finset.mem_range.mpr small) absent
+  simp [coeff_monomial, Finsupp.single_apply, small]
 
 theorem ofCoeffs_coeff (x : Rq d) : ofCoeffs (coeff x) = x :=
   ext_coeff fun _ small => coeff_ofCoeffs _ small

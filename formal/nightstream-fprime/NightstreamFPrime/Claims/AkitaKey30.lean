@@ -35,21 +35,20 @@ each schedule are in `Claims.Akita`.
   this proof is a prover of the game of `key30_opening_bound`, with no hypothesis on the fit for
   the zero tables and the zero setup prefix only. For another setup prefix and other tables, the
   fit conditions of the honest prover are hypotheses (`Spec.Compression.Akita.Key30.tower_complete`).
-  No Lean result joins `verifyProof` of the code to the Lean verifier for this file: the join
-  `Spec.Compression.Akita.Replay.verifyProof_accepts20` is for `key20.aks`. -/
+  The byte replay theorem `Spec.Compression.Akita.Replay.verifyProof_accepts20` covers key20.
+  The link from key30 proof bytes to `Key30.Tower.accepts` remains open. -/
 
 namespace NightstreamFPrime.Claims.AkitaKey30
 
 open Spec Spec.Compression Lifecycle Lifecycle.BoundedDepth Export.BoundedDepth
-open scoped BigOperators Spec.FieldExtensionRing Spec.Compression.Production
+open scoped BigOperators Spec.FieldExtensionRing Spec.Compression.Production FinalKey20Algebra
 attribute [local instance low] Classical.propDecidable
-open scoped NightstreamFPrime.Export.BoundedDepth.FinalKey20.Instances
 
 /-- The output of the extractor for the opening of a row of
 `crates/ns-compress/artifacts/key30.aks`, the file of the key of `2^19` blocks (Akita Proposition
 10.44 (i) and Lemma 9.1 for this schedule). The verifier is the Lean verifier
 `Key30.Tower.accepts` of the opening with an offloaded root, with the fold decoders of the
-pinned Akita code. No Lean result joins `verifyProof` of the code to it for this file.
+pinned Akita code.
 Each output of the extractor is a certified decommitment of the commitment of each group of the
 root to a table that has the claimed value at the claimed point, or a solution of Module-SIS for
 a matrix of a group, of a level or for `A_term` (`[MSIS]`). `shared`: the matrices `A`, `B` and
@@ -129,12 +128,11 @@ theorem key30_opening_sound
 /-- The Nightstream extraction bound (Bounds above), not Akita Theorem 10.46, for the opening of
 a row of `crates/ns-compress/artifacts/key30.aks`, with Akita Lemma 9.1 for the offloaded root.
 The model is that of `Claims.Akita.checkpoint_extraction`, and the verifier is the Lean verifier
-`Key30.Tower.accepts` with the fold decoders of the code, and no Lean result joins `verifyProof` of the code to it for this file. For each prover
-with at most `Q` queries, the probability that the verifier accepts and the extractor returns no
+`Key30.Tower.accepts` with the fold decoders of the code. For each prover with at most `Q`
+queries, the probability that the verifier accepts and the extractor returns no
 output is at most `(Q + 1)·(1622923/(4096·q²) + (1179 + B_1 + B_2 + B_3)/q²) +
-(Q + 1)·(1188 + B_1 + B_2 + B_3)/budget`. `B_1`, `B_2` and `B_3` are the live blocks of the witness
-group of level 1, of level 2 and of level 3 of the row: 148, 43 and 23 for `W` of 27 variables, and
-139, 42 and 22 for `W` of 26 variables. The draw of each check has the factor `2^{−g}` for the work bits `g` of its site in
+(Q + 1)·(1188 + B_1 + B_2 + B_3)/budget`. `B_1`, `B_2` and `B_3` count the live blocks of the witness groups at levels 1, 2 and 3.
+The counts are 148, 43 and 23 for `W` of 27 variables, and 139, 42 and 22 for `W` of 26 variables. The draw of each check has the factor `2^{−g}` for the work bits `g` of its site in
 the Akita code (Akita Remark 10.18, `Extract.workBits`), and the fold terms have no work credit.
 A solution of Module-SIS (`[MSIS]`) is an output, and the bound has no term for it. With `drawn`,
 each slot gives a fold challenge at each level (`Spec.Compression.Akita.Key30.Tower.Drawn.decodes`,
@@ -1293,7 +1291,8 @@ theorem key30_points
     {r : Akita.Key30.Row}
     (use : FinalKey30.Use setup shape r) :
     (setup.params shape).laneVars + (setup.params shape).keyBlockVars + (setup.params shape).rowVars = 30 ∧
-      (setup.params shape).spanVars + (setup.verifier shape).zeros = 26 ∧
+      (setup.params shape).spanVars + (setup.verifier shape).zeros =
+          26 ∧
         (setup.params shape).spanVars ≤ 26 ∧ (setup.params shape).witnessVars = r.vars :=
   @NightstreamFPrime.Export.BoundedDepth.FinalKey30.key30_points logicalWidth publicFits mode setup shape r
     use

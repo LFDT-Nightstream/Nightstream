@@ -332,8 +332,7 @@ theorem Opening.ready {p : ℝ} (premises : Premises setup packageWidths)
   have slots : 22 ≤ Fintype.card Coord := (by decide : 22 ≤ 30).trans coords
   have lookupsFit : (FinalVerifier.Setup.params S₀ o.shape).lookups ≤ Fintype.card Coord :=
     (by decide : 4 ≤ 30).trans coords
-  have cube : CompressionFresh.oneShape.cubeVariables ≤ Fintype.card Coord :=
-    (by decide : 28 ≤ 30).trans coords
+  have cube : CompressionFresh.oneShape.cubeVariables ≤ Fintype.card Coord := (by decide : 28 ≤ 30).trans coords
   have challengesFit : 4 + ((FinalVerifier.Setup.params S₀ o.shape).lookups +
       ((FinalVerifier.Setup.params S₀ o.shape).claims +
         (FinalVerifier.Setup.params S₀ o.shape).claims +

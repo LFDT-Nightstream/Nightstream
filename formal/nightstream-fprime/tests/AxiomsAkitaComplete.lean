@@ -211,8 +211,7 @@ parts of the verifier game (`BackComplete`) and the two checkpoints of the argum
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.noteTower_accepts
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.noteTower_zero
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.noteTower_played
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Cell.entry
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Cell.sendable_triple
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Cell.sendable_values
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.settle_of_settled
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.ends_settle
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.ends_advance

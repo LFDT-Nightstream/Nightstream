@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.Replay.SamplerCount
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Transcript
 
-/-! The stage `fold_challenges` of the replay (`docs/akita-work/match-design.md` section 2): the
+/-! The stage `fold_challenges` of the replay: the
 draw of a group gives no challenge (`VerifierFoldDraw`: the operator-norm pool runs out, and the
 verifier rejects with `InvalidProof`), and the outcome is `noWork` at the squeeze of the group.
 

@@ -21,9 +21,8 @@ the emitter writes for the reference application, and the keys of a package iden
 namespace NightstreamFPrime.Claims.Shipped
 
 open Spec Lifecycle Lifecycle.BoundedDepth Export.BoundedDepth
-open scoped Spec.Compression.Production Spec.FieldExtensionRing
+open scoped Spec.Compression.Production Spec.FieldExtensionRing FinalKey20Algebra
 attribute [local instance low] Classical.propDecidable
-open scoped NightstreamFPrime.Export.BoundedDepth.FinalKey20.Instances
 
 /-- `Verifier::verify` (SPEC.md Algorithm 6) at the shipped packages of the reference
 application: the probability that the verifier accepts a statement that no valid run of the

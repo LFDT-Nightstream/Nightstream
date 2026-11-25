@@ -2,8 +2,7 @@ import tests.AkitaVectors
 import NightstreamFPrime.Spec.Compression.Akita.Replay.SamplerSigns
 import NightstreamFPrime.Spec.Compression.Akita.Replay.SamplerStage
 
-/-! The gate of the fold challenge sampler (`docs/akita-work/match-design.md` section 7, item 8;
-T5 and T11): the replay of `Replay/Transcript.lean` from the public inputs and the proof bytes
+/-! The gate of the fold challenge sampler: the replay of `Replay/Transcript.lean` from the public inputs and the proof bytes
 (the one replay of `tests/AkitaAllVectors.lean`) squeezes the message of the fold challenges of
 each group (`Derived.foldMessages`) and draws its challenges with `foldChallenges`
 (`Derived.drawn`). Each equals the `fold_challenges` event of

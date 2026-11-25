@@ -314,8 +314,7 @@ theorem presents20_passed {zMax rice : ℕ} (layout : pub.layout = layout20 zMax
     · rfl
   · exact (presents.nonce 6 (by decide)).mpr (ok _)
 
-/-- Theorem B of the join, direction "→", for `key20.aks` (`docs/akita-work/w16/design.md`
-section 2): on each transcript of `tower20` that presents the bytes of an accepted proof of
+/-- Theorem B of the join, direction "→", for `key20.aks`: on each transcript of `tower20` that presents the bytes of an accepted proof of
 `layout20` (`Presents20`) with the last blocks `Last20` of the terminal of the code, the verifier
 `Key20.Tower.accepts` of the claims accepts. `terminalSetup` and `expanded`: the setup prefixes of
 the terminal and of the folds exist. `points` and `values`: the shape of the public statement. -/

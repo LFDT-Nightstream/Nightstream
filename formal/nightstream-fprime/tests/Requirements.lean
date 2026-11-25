@@ -18,6 +18,12 @@ variable {logicalWidth : ℕ}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
     RingCarrierLayout.carrierWidth logicalWidth}
 
+-- SPEC.md Algorithm 10, Akita Definition 9.2.
+example (schedule : Akita.Schedule)
+    (row : schedule.row = Akita.key30W27 ∨ schedule.row = Akita.key30W26) :
+    ¬ schedule.Admissible :=
+  schedule.not_admissible_key30 row
+
 -- Akita Section 9.3, C3.
 example (schedule : Akita.Schedule) (admissible : schedule.Admissible) :
     schedule.row.Chained ∧ schedule.chainCompatibility :=

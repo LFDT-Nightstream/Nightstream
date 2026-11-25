@@ -96,7 +96,7 @@ omit [FieldSlot Slot E] in
 of the honest prover, with honest counts. `settled` and `leads`: `lead` starts at a draw, and the
 prover of `lead` has a message for each draw sequence outside `Verifier.Rejects` such that `lead`
 ends in a value whose claims satisfy `Shaped` and `Relation` for `W`. `sends`, `wide`, `room`,
-`short`, `carriesM` and `carriesR`: a wire message can have the messages of the prover, the data
+`sendValues`, `carriesM` and `carriesR`: a wire message can have the messages of the prover, the data
 `middle` and the commitments, the values and the points of the Akita opening. The other
 hypotheses are conditions of `Sized`.
 
@@ -113,9 +113,9 @@ theorem run [Nonempty Coord] {accept : Prefix Wire (Option Coord → Slot) total
     (rows : P.rows ≤ 2 ^ P.rowVars)
     (key_fits : ∀ c, (P.shape c).witness.vars - P.laneVars ≤ P.keyBlockVars)
     (lead_bare : ∀ wire W other, bare (C.lead wire W) = bare (C.lead wire other))
-    (fits : C.root vf ≤ total) (sends : Sends sendable E width cap)
-    (wide : P.lookups + 3 ≤ width) (room : 1 < slots)
-    (short : ∀ values : Verifier.Values E, sendable (Verifier.Values E) values)
+    (fits : C.root vf ≤ total) (sends : Sends sendable E width cap) (wide : P.lookups + 3 ≤ width)
+    (room : 1 < slots)
+    (sendValues : ∀ v : Verifier.Values E, sendable (Verifier.Values E) v)
     (carriesM : Carries sendable slots C.read middle)
     (carriesR : Carries sendable slots C.read fun wire => (commit wire, value wire, place wire))
     (table : Prefix Wire (Option Coord → Slot) total → Option Coord → Slot)
@@ -191,7 +191,7 @@ theorem run [Nonempty Coord] {accept : Prefix Wire (Option Coord → Slot) total
       (by rw [backCheck]; exact trivial)
       (by
         rw [backCheck]
-        exact Verifier.back_wins vf sends wide room short wf matrix rows key_fits _ W τ
+        exact Verifier.back_wins vf sends wide room sendValues wf matrix rows key_fits _ W τ
           shaped relation counts distinct apart)
       dodges (List.cons_ne_nil _ _)
       (fun game => (payload τ,
@@ -244,12 +244,13 @@ Then a proof with the first message `first` exists whose complete transcript sat
 `links`. -/
 theorem accepts [Nonempty Coord] {accept : Prefix Wire (Option Coord → Slot) total → Prop}
     {sendable : (M : Type) → M → Prop} {slots width cap : ℕ} (wf : Verifier.WellFormed P)
-    (matrix : Verifier.MatrixSpec vf) (rows : P.rows ≤ 2 ^ P.rowVars)
+    (matrix : Verifier.MatrixSpec vf)
+    (rows : P.rows ≤ 2 ^ P.rowVars)
     (key_fits : ∀ c, (P.shape c).witness.vars - P.laneVars ≤ P.keyBlockVars)
     (lead_bare : ∀ wire W other, bare (C.lead wire W) = bare (C.lead wire other))
-    (fits : C.root vf ≤ total) (sends : Sends sendable E width cap)
-    (wide : P.lookups + 3 ≤ width) (room : 1 < slots)
-    (short : ∀ values : Verifier.Values E, sendable (Verifier.Values E) values)
+    (fits : C.root vf ≤ total) (sends : Sends sendable E width cap) (wide : P.lookups + 3 ≤ width)
+    (room : 1 < slots)
+    (sendValues : ∀ v : Verifier.Values E, sendable (Verifier.Values E) v)
     (carriesM : Carries sendable slots C.read commit)
     (carriesR : Carries sendable slots C.read fun wire => (commit wire, value wire, place wire))
     (table : Prefix Wire (Option Coord → Slot) total → Option Coord → Slot)
@@ -286,7 +287,7 @@ theorem accepts [Nonempty Coord] {accept : Prefix Wire (Option Coord → Slot) t
       C.Ran vf commit value place (pointPath total accept proof table total) ∧
       links (pointPath total accept proof table total) := by
   obtain ⟨moves, τ, claims, length, on', fresh, apart, opened, committed, places, values, each⟩ :=
-    run wf matrix rows key_fits lead_bare fits sends wide room short carriesM carriesR
+    run wf matrix rows key_fits lead_bare fits sends wide room sendValues carriesM carriesR
       table dodges on starts W counts distinct settled leads
       (fun τ g => (Akita.commit (key g) (![keyBase P, W, Verifier.honestInverses P W τ] g)).1)
       (fun τ g => (Akita.commit (key g) (![keyBase P, W, Verifier.honestInverses P W τ] g)).1)

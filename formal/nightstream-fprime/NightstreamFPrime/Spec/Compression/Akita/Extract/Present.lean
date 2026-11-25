@@ -3,8 +3,7 @@ import NightstreamFPrime.Spec.Compression.Game.SumCheck
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Tier
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Decoders
 
-/-! A run of a game on a path of challenges and messages (`Game.Runs`,
-`docs/akita-work/match-design.md` section 5.1) and the transcript form of the soundness claims
+/-! A run of a game on a path of challenges and messages (`Game.Runs`) and the transcript form of the soundness claims
 (`position`, `Segment.game`, `Tier.game`; Akita, ePrint 2026/1983, revision of 2026-11-23,
 Section 10.3).
 

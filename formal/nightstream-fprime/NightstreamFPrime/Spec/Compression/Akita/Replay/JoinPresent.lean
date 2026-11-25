@@ -2,8 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinShape
 import NightstreamFPrime.Spec.Compression.Akita.Extract.PresentPage
 
 /-! A transcript of the model that presents the bytes of a proof of `key20.aks` (Akita revision
-`d50f700`; ePrint 2026/1983, revision of 2026-11-23, Section 10.3; `docs/akita-work/w16/design.md`
-section 2).
+`d50f700`; ePrint 2026/1983, revision of 2026-11-23, Section 10.3).
 
 - `workIndices20` and `nonceIndices20` are the indices of the 473 works and the 7 response nonces
   of the skeleton of `layout20`, and `starts20` the fold stages of the model (`stages20`).

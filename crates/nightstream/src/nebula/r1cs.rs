@@ -384,6 +384,16 @@ impl<Id: Clone + Eq> R1csApplication<Id> {
         self.layout.checked_column(row, column)
     }
 
+    /// The number of source rows in one step.
+    pub fn trace_rows(&self) -> usize {
+        self.layout.rows.get()
+    }
+
+    /// The previous and next columns of each state word.
+    pub fn links(&self) -> &[(usize, usize)] {
+        &self.links
+    }
+
     /// Check the rank-one rows and constant word. Memory checks belong to
     /// the complete Nebula relation (SPEC.md section 7.6).
     pub fn check(&self, z: &[F]) -> Result<(), R1csStepError> {

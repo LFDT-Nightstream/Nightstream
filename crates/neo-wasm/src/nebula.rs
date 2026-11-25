@@ -101,6 +101,16 @@ pub fn plan_ordered_slots(rows: NonZeroUsize) -> Result<Vec<Vec<usize>>, Catalog
 }
 
 impl WasmApplication {
+    /// The column registry of the WASM relation.
+    pub fn columns() -> nightstream::relation::ColumnRegistry {
+        crate::witness_layout::range_checked_column_registry()
+    }
+
+    /// The batched R1CS memory application.
+    pub fn r1cs(&self) -> &R1csApplication<WasmMemoryId> {
+        &self.0
+    }
+
     /// The application of `rows` trace rows per step for `geometry`, with one
     /// region for each memory of the catalog and the slot plan of
     /// `plan_ordered_slots`.
@@ -538,9 +548,9 @@ pub enum WasmSize {
     /// references, steps of 800 rows, and at most 30 segments of 1 step:
     /// runs of up to 24,000 rows.
     Micro,
-    /// ROM of `2^12` cells and RAM of `2^10`: 256 instructions, 64 function
-    /// references, steps of 672 rows, and at most 24 segments of 1 step:
-    /// runs of up to 16,128 rows.
+    /// ROM of `2^13` cells and RAM of `2^10`: 256 instructions, 64 function
+    /// references, steps of 512 rows, and at most 19 segments of 1 step:
+    /// runs of up to 9,728 rows.
     Small,
     /// ROM of `2^13` cells and RAM of `2^11`: 512 instructions, 64 function
     /// references, steps of 664 rows, and at most 12 segments of 2 steps:
@@ -559,7 +569,7 @@ impl WasmSize {
     fn shape(self) -> (usize, usize, usize, usize, usize) {
         match self {
             Self::Micro => (11, 8, 800, 1, 30),
-            Self::Small => (12, 10, 672, 1, 24),
+            Self::Small => (13, 10, 512, 1, 19),
             Self::Medium => (13, 11, 664, 2, 12),
             Self::Large => (14, 12, 664, 4, 6),
         }

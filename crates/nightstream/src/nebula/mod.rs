@@ -13,6 +13,7 @@ mod catalog;
 mod circuit;
 mod expr;
 mod geometry;
+pub mod live;
 #[cfg(test)]
 mod machine;
 mod poseidon;

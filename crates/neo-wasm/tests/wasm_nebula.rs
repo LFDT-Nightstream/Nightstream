@@ -1185,3 +1185,44 @@ fn stack_replacements_bind_prior_values_in_nebula() {
         }
     }
 }
+
+#[test]
+fn live_application_rows_hold_on_honest_wasm_segment() {
+    let setup = setup(per_step(1));
+    let (app, geometry) = setup.complete();
+    let traced = &setup.programs[0];
+    let (program, mut native) = setup.run(&app, traced);
+    let columns = WasmApplication::columns();
+    let wrong_ports = Geometry::new(2, 2, 2, 2, 1).unwrap();
+    assert_ne!(geometry.b_ops, wrong_ports.b_ops);
+    assert!(nightstream::nebula::live::circuit(&wrong_ports, &app, app.r1cs(), &columns).is_err());
+    let shape = nightstream::nebula::live::circuit(&geometry, &app, app.r1cs(), &columns).unwrap();
+    let mut run = nightstream::nebula::live::Run::new(app, &program, traced.initial);
+    assert!(matches!(run.segment(&[]), Err(SegmentError::StepCount)));
+    let steps = run.segment(&traced.inputs).unwrap();
+    let invocations = native.segment(&traced.inputs).unwrap();
+    assert_eq!(steps.len(), invocations.len());
+    for pair in steps.windows(2) {
+        assert_eq!(pair[0].state_out, pair[1].state_in);
+        assert_eq!(pair[0].carry_out, pair[1].carry_in);
+    }
+    for (step, invocation) in steps.iter().zip(invocations) {
+        assert_eq!(step.values.len(), shape.variables);
+        assert_eq!(&step.values[4..shape.variables - 4], &invocation.words);
+        assert_eq!(step.ops.len(), geometry.b_ops);
+        assert_eq!(step.initial.len(), geometry.b_scan);
+        assert_eq!(step.final_.len(), geometry.b_scan);
+        let eval = |side: &nightstream::application::Affine| {
+            side.terms()
+                .iter()
+                .fold(side.constant_term(), |v, (i, c)| v + step.values[i.index()] * *c)
+        };
+        for (i, row) in shape.rows.iter().enumerate() {
+            assert_eq!(eval(&row[0]) * eval(&row[1]), eval(&row[2]), "application row {i}");
+        }
+    }
+    let statement = run.statement();
+    assert_eq!(statement.steps, traced.inputs.len() as u64);
+    assert_eq!(statement.segments, 1);
+    assert_eq!(statement.final_ts, native.timestamp());
+}

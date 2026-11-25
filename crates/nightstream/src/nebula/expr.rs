@@ -290,7 +290,7 @@ pub(super) fn rank_one_row(expression: &Expr) -> Option<Sides> {
 }
 
 /// `directConstraint`.
-fn direct_row(expression: &Expr) -> Option<Sides> {
+pub(super) fn direct_row(expression: &Expr) -> Option<Sides> {
     if let Expr::Add(output, scaled) = expression {
         if let (Expr::Var(output), Expr::Mul(coefficient, recipe)) = (&**output, &**scaled) {
             if let Expr::Const(value) = &**coefficient {

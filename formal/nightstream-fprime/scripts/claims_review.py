@@ -41,7 +41,7 @@ def source(module, start, stop):
 
 
 def row_of(theorem, label, head):
-    for index, (names, row_head, kind, _) in enumerate(rows):
+    for index, (names, row_head, kind, *_) in enumerate(rows):
         if any(covers(n, theorem, label) for n in names) and row_head in ('*', head):
             return index + 1, kind
     return None, 'none'
@@ -70,6 +70,8 @@ w('- `lean`: a named Lean theorem discharges it at the production values.\n'
   '- `link`: Lean emits data and a Rust test checks it on the shipped packages.\n'
   '- `assumption`: an entry of the assumption list below.\n'
   '- `open`: nothing backs it yet.\n')
+w('A field under a function result has all the arguments and hypotheses of that function. '
+  'For example, the bounds under `fitsPackage.blocks` apply when the pieces are packable.\n')
 w('Read the papers next to this file. For each claim, report:\n')
 w('1. Does it state the paper\'s theorem, or a weaker or stronger one? Name the paper section.\n'
   '2. Is a hypothesis missing, too strong, or impossible to meet for the production setup? '
@@ -126,7 +128,7 @@ if rendered != emitted:
     sys.exit(f'claims_review: {len(emitted - rendered)} claims of the Lean list are not in the file')
 w('## Premise table rows\n')
 w('Each hypothesis above points to one row. The evidence is from `formal/nightstream-fprime/SECURITY_MODEL.md`.\n')
-for index, (names, head, kind, evidence) in enumerate(rows):
+for index, (names, head, kind, evidence, _) in enumerate(rows):
     w(f'**R{index + 1}** ({kind}, head `{head}`): ' + ', '.join(f'`{n}`' for n in names)
       + '\n\n' + evidence + '\n')
 

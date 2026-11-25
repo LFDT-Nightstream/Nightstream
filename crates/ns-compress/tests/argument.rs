@@ -83,7 +83,7 @@ fn a_changed_proof_does_not_verify() {
         ),
     ];
     for round in [0, rounds / 2, rounds - 1] {
-        for coefficient in 0..4 {
+        for coefficient in 0..proof.rounds[round].len() {
             changes.push((
                 format!("round {round} coefficient {coefficient}"),
                 Box::new(move |proof| proof.rounds[round][coefficient] += K::ONE),
@@ -98,12 +98,7 @@ fn a_changed_proof_does_not_verify() {
             ));
         }
     }
-    for column in 0..proof.inverse_values.len() {
-        changes.push((
-            format!("inverse value {column}"),
-            Box::new(move |proof| proof.inverse_values[column] += K::ONE),
-        ));
-    }
+    changes.push(("inverse value".into(), Box::new(|proof| proof.shared_inverse += K::ONE)));
     for (name, length) in [
         ("witness commitment", proof.witness_commitment.len()),
         ("inverse commitment", proof.inverse_commitment.len()),
@@ -310,4 +305,47 @@ fn another_witness_does_not_verify() {
         let proof = prove_with(instances, &witnesses).expect("the prover does not check its witness");
         assert!(accepts(instances, &proof).is_err(), "claim {claim}");
     }
+}
+
+fn together<T: Send>(work: impl Fn(usize) -> T + Sync) -> [T; 2] {
+    let start = std::sync::Barrier::new(2);
+    std::thread::scope(|scope| {
+        let first = scope.spawn(|| {
+            start.wait();
+            work(0)
+        });
+        start.wait();
+        let second = work(1);
+        [first.join().unwrap(), second]
+    })
+}
+
+#[test]
+fn shared_setup_proves_independent_statements_concurrently() {
+    let instances = instances();
+    let independent = [&instances[..2], &instances[1..]];
+    let expected = independent.map(|instances| prove(instances).unwrap());
+    let keys = together(|index| ns_compress::ProverKey::shared([100, 80][index]).unwrap());
+    assert!(std::sync::Arc::ptr_eq(&keys[0], &keys[1]));
+    let weak = std::sync::Arc::downgrade(&keys[0]);
+    let run = |instances: &[Instance], key: &ns_compress::ProverKey| {
+        let witnesses: Vec<_> = instances.iter().map(|instance| &instance.witness).collect();
+        let committed = commit(key, layout(instances), &witnesses).unwrap();
+        let mut transcript = Poseidon2Transcript::new_v1_2();
+        let proof = committed
+            .prove(&mut transcript, &statements(instances))
+            .unwrap()
+            .0;
+        accepts_under(key.verification_key(), instances, &proof).unwrap();
+        proof
+    };
+    assert_eq!(together(|index| run(independent[index], &keys[index])), expected);
+    drop(keys);
+    assert!(weak.upgrade().is_none());
+    assert_eq!(
+        ns_compress::ProverKey::shared(80)
+            .unwrap()
+            .verification_key(),
+        key().verification_key()
+    );
 }

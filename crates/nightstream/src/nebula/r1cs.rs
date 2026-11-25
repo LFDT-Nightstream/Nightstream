@@ -13,6 +13,7 @@
 //! catalog (Lean `Spec.Nebula.MemoryTrace.batchCatalog`) in the regions of a
 //! `Size`, so one circuit serves every run whose memories fit those regions.
 
+use std::collections::BTreeSet;
 use std::num::NonZeroUsize;
 use std::ops::Range;
 use std::sync::Arc;
@@ -26,7 +27,7 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use super::app::{Application, Memory, Transition};
 use super::catalog::{CatalogBinding, CatalogBindingError, CatalogRowError, Region};
-use super::expr::Expr;
+use super::expr::{Expr, Row};
 use super::geometry::Geometry;
 use super::rows::View;
 use super::{MemoryPreload, Program};
@@ -175,10 +176,58 @@ pub fn batched_slots<Id>(
 /// A relation of one row as a Nebula application, `rows` rows in each step.
 #[derive(Clone, Debug)]
 pub struct R1csApplication<Id> {
-    relation: Arc<Vec<[Terms; 3]>>,
+    relation: Arc<StepRelation>,
     links: Arc<Vec<(usize, usize)>>,
     layout: StepLayout,
     binding: CatalogBinding<Id>,
+}
+
+#[derive(Debug)]
+struct RowPlacement {
+    group_start_only: bool,
+    last_only: bool,
+}
+
+#[derive(Debug)]
+struct StepRelation {
+    source: Vec<[Terms; 3]>,
+    placements: Vec<RowPlacement>,
+    placed_rows: usize,
+}
+
+impl StepRelation {
+    fn new(relation: RowRelation, layout: &StepLayout, omitted: &BTreeSet<usize>) -> Self {
+        let rows = layout.rows.get();
+        let group_rows = layout.group_rows.get();
+        let mut placed_rows = 0;
+        let placements = relation
+            .rows
+            .iter()
+            .enumerate()
+            .map(|(index, sides)| {
+                let mut columns = sides.iter().flatten().map(|(column, _)| *column);
+                let block_only = group_rows > 1
+                    && columns.clone().any(|column| layout.is_shared(column))
+                    && columns.all(|column| column == relation.one || layout.is_shared(column));
+                let last_only = omitted.contains(&index);
+                placed_rows += match (block_only, last_only) {
+                    (false, false) => rows,
+                    (false, true) => 1,
+                    (true, false) => rows.div_ceil(group_rows),
+                    (true, true) => usize::from((rows - 1).is_multiple_of(group_rows)),
+                };
+                RowPlacement {
+                    group_start_only: block_only,
+                    last_only,
+                }
+            })
+            .collect();
+        Self {
+            source: relation.rows,
+            placements,
+            placed_rows,
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -308,7 +357,7 @@ impl<Id: Clone + Eq> R1csApplication<Id> {
         }
         let omitted = ranges::internal_output_checks(&relation, &links, &layout, catalog);
         Ok(Self {
-            relation: Arc::new(step_relation(&relation, &links, &layout, &omitted)),
+            relation: Arc::new(StepRelation::new(relation, &layout, &omitted)),
             links: Arc::new(links),
             layout,
             binding,
@@ -326,7 +375,7 @@ impl<Id: Clone + Eq> R1csApplication<Id> {
     /// The rank-one rows of one step's relation: the rows of each row, then
     /// the continuity rows between neighbor rows.
     pub fn relation_rows(&self) -> usize {
-        self.relation.len()
+        self.relation.placed_rows + (self.layout.rows.get() - 1) * self.links.len()
     }
 
     /// Map a source column to its step witness position, or reject an index
@@ -344,21 +393,24 @@ impl<Id: Clone + Eq> R1csApplication<Id> {
                 expected: self.aux(),
             });
         }
-        let affine = |terms: &Terms| {
-            terms
-                .iter()
-                .fold(F::ZERO, |sum, (column, coefficient)| sum + *coefficient * z[*column])
-        };
-        if let Some(row) = self
-            .relation
-            .iter()
-            .position(|[a, b, c]| affine(a) * affine(b) != affine(c))
-        {
+        let source = self.source_rows().map(|(row, [a, b, c])| {
+            let affine = |terms: &Terms| {
+                terms.iter().fold(F::ZERO, |sum, (column, coefficient)| {
+                    sum + *coefficient * z[self.column(row, *column)]
+                })
+            };
+            affine(a) * affine(b) != affine(c)
+        });
+        let one = z[self.layout.one];
+        let continuity = self
+            .continuity_rows()
+            .map(|(previous, next)| (z[previous] - z[next]) * one != F::ZERO);
+        if let Some(row) = source.chain(continuity).position(|failed| failed) {
             return Err(R1csStepError::Relation { row });
         }
-        if z[self.layout.one] != F::ONE {
+        if one != F::ONE {
             return Err(R1csStepError::Relation {
-                row: self.relation.len(),
+                row: self.relation_rows(),
             });
         }
         Ok(())
@@ -378,6 +430,29 @@ impl<Id: Clone + Eq> R1csApplication<Id> {
 
     fn column(&self, row: usize, column: usize) -> usize {
         self.layout.column(row, column)
+    }
+
+    fn source_rows(&self) -> impl Iterator<Item = (usize, &[Terms; 3])> + '_ {
+        let last = self.layout.rows.get() - 1;
+        (0..=last).flat_map(move |row| {
+            let group_start = row.is_multiple_of(self.layout.group_rows.get());
+            self.relation
+                .source
+                .iter()
+                .zip(&self.relation.placements)
+                .filter(move |(_, placement)| {
+                    (!placement.group_start_only || group_start) && (!placement.last_only || row == last)
+                })
+                .map(move |(sides, _)| (row, sides))
+        })
+    }
+
+    fn continuity_rows(&self) -> impl Iterator<Item = (usize, usize)> + '_ {
+        (1..self.layout.rows.get()).flat_map(move |row| {
+            self.links
+                .iter()
+                .map(move |link| (self.column(row - 1, previous(link)), self.column(row, next(link))))
+        })
     }
 
     fn link_words(&self, z: &[F], row: usize, column: fn(&(usize, usize)) -> usize) -> Vec<u64> {
@@ -415,29 +490,34 @@ impl<Id: Clone + Eq> Application for R1csApplication<Id> {
     /// binding rows. Every row but `z[one] = 1` reads the constant 1 in place
     /// of `z[one]` (Lean `PortApp.fixColumn`), so a row `x · (x − one)` reads
     /// only `x` and gives `x` a bit slot (SPEC.md section 7.6).
-    fn rows(&self, view: &View) -> Result<Vec<Expr>, crate::Error> {
+    fn rows(&self, view: &View) -> Result<Vec<Row>, crate::Error> {
         let one = view.aux(self.layout.one);
         let mut z: Vec<Expr> = (0..self.aux()).map(|column| view.aux(column)).collect();
         z[self.layout.one] = Expr::constant(1);
-        let affine = |terms: &Terms| {
-            terms
-                .iter()
-                .fold(Expr::constant(0), |sum, (column, coefficient)| {
-                    sum + Expr::Const(*coefficient) * z[*column].clone()
-                })
-        };
-        let mut rows: Vec<Expr> = self
-            .relation
-            .iter()
-            .map(|[a, b, c]| affine(c) - affine(a) * affine(b))
-            .collect();
-        rows.push(one - Expr::constant(1));
+        let binding = self.binding.rows(view, &z)?;
+        let mut rows = Vec::with_capacity(self.relation_rows() + 1 + 2 * self.links.len() + binding.len());
+        rows.extend(self.source_rows().map(|(row, sides)| {
+            Row::RankOne(sides.each_ref().map(|terms| {
+                terms
+                    .iter()
+                    .map(|(column, coefficient)| (z[self.column(row, *column)].clone(), *coefficient))
+                    .collect()
+            }))
+        }));
+        rows.extend(self.continuity_rows().map(|(previous, next)| {
+            Row::RankOne([
+                vec![(z[previous].clone(), F::ONE), (z[next].clone(), -F::ONE)],
+                vec![(z[self.layout.one].clone(), F::ONE)],
+                Vec::new(),
+            ])
+        }));
+        rows.push((one - Expr::constant(1)).into());
         let last = self.layout.rows.get() - 1;
         for (k, link) in self.links.iter().enumerate() {
-            rows.push(z[self.column(0, next(link))].clone() - view.input(k));
-            rows.push(z[self.column(last, previous(link))].clone() - view.output(k));
+            rows.push((z[self.column(0, next(link))].clone() - view.input(k)).into());
+            rows.push((z[self.column(last, previous(link))].clone() - view.output(k)).into());
         }
-        rows.extend(self.binding.rows(view, &z)?);
+        rows.extend(binding.into_iter().map(Row::Expr));
         Ok(rows)
     }
 
@@ -457,52 +537,4 @@ impl<Id: Clone + Eq> Application for R1csApplication<Id> {
             aux: z.clone(),
         })
     }
-}
-
-/// SPEC.md section 7.6. Place each source row, retaining a row over only
-/// shared columns and the constant once per group, omitting selected internal
-/// output checks, then append the links.
-fn step_relation(
-    relation: &RowRelation,
-    links: &[(usize, usize)],
-    layout: &StepLayout,
-    omitted: &std::collections::BTreeSet<usize>,
-) -> Vec<[Terms; 3]> {
-    let column = |row: usize, column: usize| layout.column(row, column);
-    let block_only = |sides: &[Terms; 3]| {
-        let mut columns = sides.iter().flatten().map(|(column, _)| *column);
-        columns.clone().any(|column| layout.is_shared(column))
-            && columns.all(|column| column == relation.one || layout.is_shared(column))
-    };
-    let rows = layout.rows.get();
-    let mut step = Vec::new();
-    for row in 0..rows {
-        for (index, sides) in relation.rows.iter().enumerate() {
-            if row + 1 < rows && omitted.contains(&index) {
-                continue;
-            }
-            if row % layout.group_rows.get() != 0 && block_only(sides) {
-                continue;
-            }
-            step.push(sides.clone().map(|terms| {
-                terms
-                    .into_iter()
-                    .map(|(c, coefficient)| (column(row, c), coefficient))
-                    .collect()
-            }));
-        }
-    }
-    for row in 1..rows {
-        for link in links {
-            step.push([
-                vec![
-                    (column(row - 1, previous(link)), F::ONE),
-                    (column(row, next(link)), -F::ONE),
-                ],
-                vec![(layout.one, F::ONE)],
-                Vec::new(),
-            ]);
-        }
-    }
-    step
 }

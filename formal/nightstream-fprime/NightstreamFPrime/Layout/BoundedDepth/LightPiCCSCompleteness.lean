@@ -230,7 +230,7 @@ theorem completeFrom {initial : Env} {base : Nat} (before : Sequence.Prefix init
     built5 agrees5 rows5
   obtain ⟨built6, agrees6, rows6⟩ := PointWeightedHorner.Owned.build
     (EvalKTerminal.coreInterface (evalKInterface interface offset)) p5.current
-    (evalKOffset interface offset) (by decide) (assumptionsAt p5.current).evalK
+    (evalKOffset interface offset) (assumptionsAt p5.current).evalK
   obtain ⟨p6, ops6, end6, preserves6, -⟩ := appendBuiltAt p5
     "light.piccs.eval_K_terminal" (evalKCircuit interface offset)
     (evalKOffset interface offset) end5
@@ -238,7 +238,7 @@ theorem completeFrom {initial : Env} {base : Nat} (before : Sequence.Prefix init
       (assumptionsAt p5.current).evalK) built6 agrees6 rows6
   obtain ⟨built7, agrees7, rows7⟩ := PointWeightedHorner.Owned.build
     (EvalATerminal.coreInterface (evalAInterface interface offset)) p6.current
-    (evalAOffset interface offset) (by decide) (assumptionsAt p6.current).evalA
+    (evalAOffset interface offset) (assumptionsAt p6.current).evalA
   obtain ⟨p7, ops7, end7, preserves7, -⟩ := appendBuiltAt p6
     "light.piccs.eval_A_terminal" (evalACircuit interface offset)
     (evalAOffset interface offset) end6

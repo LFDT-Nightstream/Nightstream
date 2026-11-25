@@ -1,6 +1,6 @@
 use neo_ccs::SparsePoly;
-use neo_math::{D, F, K};
-use p3_field::PrimeCharacteristicRing;
+use neo_math::{KExtensions, D, F, K};
+use p3_field::{Field, PrimeCharacteristicRing};
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 use std::ops::Range;
@@ -12,6 +12,35 @@ use crate::PiCcsError;
 
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 const ROW_DOT_CHUNK: usize = 1 << 14;
+
+const SEVENTH_POWER_BINOMIAL: [u8; 8] = [1, 7, 21, 35, 35, 21, 7, 1];
+
+pub(super) fn is_poseidon2_gate(polynomial: &SparsePoly<F>) -> bool {
+    let [ab, c, s] = polynomial.terms() else {
+        return false;
+    };
+    polynomial.arity() == 4
+        && ab.exps == [1, 1, 0, 0]
+        && ab.coeff == F::ONE
+        && c.exps == [0, 0, 1, 0]
+        && c.coeff == -F::ONE
+        && s.exps == [0, 0, 0, 7]
+        && s.coeff == F::ONE
+}
+
+fn gate_evaluations(mut result: Vec<K>, points: &[K], use_coefficients: bool) -> Vec<K> {
+    if use_coefficients {
+        let mut coefficients = [K::ZERO; SEVENTH_POWER_BINOMIAL.len()];
+        coefficients.copy_from_slice(&result[..SEVENTH_POWER_BINOMIAL.len()]);
+        for (output, &point) in result.iter_mut().zip(points) {
+            *output = coefficients
+                .iter()
+                .rev()
+                .fold(K::ZERO, |value, &coefficient| value * point + coefficient);
+        }
+    }
+    result
+}
 
 struct Values {
     words: Vec<K>,
@@ -25,6 +54,7 @@ pub(super) struct ApplicationTables {
     challenges: Vec<K>,
     resident: Option<Values>,
     complete: Option<MatrixWindow>,
+    next_gate: Option<[K; 8]>,
     workspace_bytes: usize,
     peak_bytes: usize,
 }
@@ -68,9 +98,17 @@ impl ApplicationTables {
             challenges: Vec::new(),
             resident: None,
             complete: None,
+            next_gate: None,
             workspace_bytes,
             peak_bytes: 0,
         })
+    }
+
+    pub(super) fn resume(&mut self, point: &[K], rows: usize, words: Vec<K>) {
+        debug_assert_eq!(words.len(), rows * 4);
+        self.resident = Some(Values { rows, words });
+        self.rows = rows;
+        self.challenges = point.to_vec();
     }
 
     pub(super) fn fresh_count(&self) -> usize {
@@ -119,6 +157,27 @@ impl ApplicationTables {
             words: vec![K::ZERO; word_count],
             rows,
         };
+        if self.challenges.is_empty()
+            && row_start == 0
+            && rows == self.shape.rows
+            && self.fresh_count == 1
+            && self.shape.matrices == 4
+        {
+            if let Some(prepared) = source.take_checked_fresh_rows().filter(|prepared| {
+                prepared.len() == rows
+                    && prepared
+                        .capacity()
+                        .checked_mul(size_of::<[F; 4]>())
+                        .and_then(|storage| storage.checked_add(external))
+                        .is_some_and(|live| live <= self.workspace_bytes)
+            }) {
+                self.record(external + prepared.capacity() * size_of::<[F; 4]>())?;
+                for (matrix, values) in output.words.chunks_mut(rows).enumerate() {
+                    fill(values, |row| K::from(prepared[row][matrix]));
+                }
+                return Ok(output);
+            }
+        }
         if self.challenges.is_empty() {
             if let Some(factored) = source.factored()? {
                 let slot_bytes = factored.slot_count() * size_of::<F>();
@@ -283,6 +342,80 @@ impl ApplicationTables {
         }
     }
 
+    fn accumulate_gate_coefficients<T: Field>(
+        values: &Values,
+        row_start: usize,
+        pairs: Range<usize>,
+        gamma: K,
+        weights: &EqualityWeights,
+        coordinate: impl Fn(K) -> T,
+        scale: impl Fn(K, T) -> K,
+        result: &mut [K],
+    ) {
+        let mut source_weight = K::ONE;
+        for source in values.words.chunks_exact(4 * values.rows) {
+            let tables: [&[K]; 4] =
+                std::array::from_fn(|matrix| &source[matrix * values.rows..(matrix + 1) * values.rows]);
+            let mut quadratic = [K::ZERO; 3];
+            let mut seventh_power = [K::ZERO; SEVENTH_POWER_BINOMIAL.len()];
+            for pair in pairs.clone() {
+                let [[a, da], [b, db], [c, dc], [s, ds]] = tables.map(|table| {
+                    let (low, high) = prefix::pair(table, pair);
+                    let low = coordinate(low);
+                    [low, coordinate(high) - low]
+                });
+                let weight = weights.at(row_start / 2 + pair);
+
+                if (a != T::ZERO || da != T::ZERO) && (b != T::ZERO || db != T::ZERO) {
+                    quadratic[0] += scale(weight, a * b - c);
+                    quadratic[1] += scale(weight, a * db + da * b - dc);
+                    quadratic[2] += scale(weight, da * db);
+                } else {
+                    if c != T::ZERO {
+                        quadratic[0] -= scale(weight, c);
+                    }
+                    if dc != T::ZERO {
+                        quadratic[1] -= scale(weight, dc);
+                    }
+                }
+
+                if s == T::ZERO {
+                    if ds != T::ZERO {
+                        seventh_power[7] += scale(weight, ds.exp_const_u64::<7>());
+                    }
+                } else if ds == T::ZERO {
+                    seventh_power[0] += scale(weight, s.exp_const_u64::<7>());
+                } else {
+                    let s2 = s.square();
+                    let ds2 = ds.square();
+                    let s3 = s2 * s;
+                    let ds3 = ds2 * ds;
+                    let s4 = s2.square();
+                    let ds4 = ds2.square();
+                    let coefficients = [
+                        s4 * s3,
+                        s4 * s2 * ds,
+                        s4 * s * ds2,
+                        s4 * ds3,
+                        s3 * ds4,
+                        s2 * ds4 * ds,
+                        s * ds4 * ds2,
+                        ds4 * ds3,
+                    ];
+                    for (total, coefficient) in seventh_power.iter_mut().zip(coefficients) {
+                        *total += scale(weight, coefficient);
+                    }
+                }
+            }
+            for (index, &binomial) in SEVENTH_POWER_BINOMIAL.iter().enumerate() {
+                let low = quadratic.get(index).copied().unwrap_or(K::ZERO);
+                let high = seventh_power[index].scale_base(F::from_u8(binomial));
+                result[index] += source_weight * (low + high);
+            }
+            source_weight *= gamma;
+        }
+    }
+
     fn accumulate(
         &self,
         values: &Values,
@@ -291,6 +424,7 @@ impl ApplicationTables {
         gamma: K,
         points: &[K],
         weights: &EqualityWeights,
+        use_coefficients: bool,
         coordinates: &mut [K],
         result: &mut [K],
     ) -> Result<usize, PiCcsError> {
@@ -311,6 +445,43 @@ impl ApplicationTables {
             .checked_sub(live_bytes)
             .ok_or_else(|| invalid("CPU application values exceed the supplied workspace"))?;
         let pairs = values.rows.div_ceil(2);
+        let sum_pairs = |pairs: Range<usize>, coordinates: &mut [K], result: &mut [K]| {
+            if !use_coefficients {
+                self.accumulate_pairs(
+                    values,
+                    row_start,
+                    pairs,
+                    polynomial,
+                    gamma,
+                    points,
+                    weights,
+                    coordinates,
+                    result,
+                );
+            } else if self.challenges.is_empty() {
+                Self::accumulate_gate_coefficients(
+                    values,
+                    row_start,
+                    pairs,
+                    gamma,
+                    weights,
+                    |value| value.real(),
+                    K::scale_base,
+                    result,
+                );
+            } else {
+                Self::accumulate_gate_coefficients(
+                    values,
+                    row_start,
+                    pairs,
+                    gamma,
+                    weights,
+                    |value| value,
+                    |left, right| left * right,
+                    result,
+                );
+            }
+        };
         #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
         {
             let workers = rayon::current_num_threads()
@@ -331,17 +502,7 @@ impl ApplicationTables {
                         let start = worker * (pairs / workers) + worker.min(pairs % workers);
                         let end = start + pairs / workers + usize::from(worker < pairs % workers);
                         let (coordinates, result) = scratch.split_at_mut(self.shape.matrices);
-                        self.accumulate_pairs(
-                            values,
-                            row_start,
-                            start..end,
-                            polynomial,
-                            gamma,
-                            points,
-                            weights,
-                            coordinates,
-                            result,
-                        );
+                        sum_pairs(start..end, coordinates, result);
                     });
                 for scratch in scratch.chunks(scratch_words) {
                     for (total, &value) in result.iter_mut().zip(&scratch[self.shape.matrices..]) {
@@ -353,17 +514,7 @@ impl ApplicationTables {
         }
         #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
         let _ = available;
-        self.accumulate_pairs(
-            values,
-            row_start,
-            0..pairs,
-            polynomial,
-            gamma,
-            points,
-            weights,
-            coordinates,
-            result,
-        );
+        sum_pairs(0..pairs, coordinates, result);
         Ok(live_bytes)
     }
 
@@ -406,6 +557,7 @@ impl ApplicationTables {
                 .checked_mul(size_of::<K>())
                 .is_none_or(|bytes| bytes > available)
         }) {
+            self.next_gate = None;
             self.resident = None;
         }
         let resident = self
@@ -422,10 +574,12 @@ impl ApplicationTables {
             || polynomial.terms().iter().all(|term| term.coeff == F::ZERO)
             || witnesses.iter().all(SuperneoZBlocks::is_zero)
         {
+            self.next_gate = None;
             self.resident = None;
             self.complete = None;
             return Ok(result);
         }
+        let use_coefficients = points.len() >= SEVENTH_POWER_BINOMIAL.len() && is_poseidon2_gate(polynomial);
         let mut coordinates = vec![K::ZERO; self.shape.matrices];
         let row_bytes = self.row_bytes()?;
         if self.resident.is_none() && self.rows <= available / row_bytes {
@@ -436,6 +590,12 @@ impl ApplicationTables {
             }
         }
         if let Some(values) = &self.resident {
+            if let Some(coefficients) = self.next_gate.filter(|_| use_coefficients) {
+                return Ok(points
+                    .iter()
+                    .map(|&point| crate::sumcheck::poly_eval_k(&coefficients, point))
+                    .collect());
+            }
             let peak = self.accumulate(
                 values,
                 0,
@@ -443,11 +603,12 @@ impl ApplicationTables {
                 gamma,
                 points,
                 weights,
+                use_coefficients,
                 &mut coordinates,
                 &mut result,
             )?;
             self.record(peak)?;
-            return Ok(result);
+            return Ok(gate_evaluations(result, points, use_coefficients));
         }
         let mut row_start = 0;
         let mut window_rows = (available / row_bytes).min(self.rows);
@@ -478,6 +639,7 @@ impl ApplicationTables {
                 gamma,
                 points,
                 weights,
+                use_coefficients,
                 &mut coordinates,
                 &mut result,
             )?;
@@ -485,10 +647,26 @@ impl ApplicationTables {
             row_start += rows;
             window_rows = rows;
         }
-        Ok(result)
+        Ok(gate_evaluations(result, points, use_coefficients))
+    }
+
+    pub(super) fn fold_next_gate(&mut self, challenge: K, polynomial: &SparsePoly<F>, weights: &EqualityWeights) {
+        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+        if self.fresh_count == 1 && is_poseidon2_gate(polynomial) {
+            if let Some(values) = &mut self.resident {
+                self.next_gate = Some(bind_gate(values, challenge, weights));
+                self.challenges.push(challenge);
+                self.rows = self.rows.div_ceil(2);
+                return;
+            }
+        }
+        #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+        let _ = (polynomial, weights);
+        self.fold(challenge);
     }
 
     pub(super) fn fold(&mut self, challenge: K) {
+        self.next_gate = None;
         if let Some(values) = &mut self.resident {
             let rows = values.rows;
             let next = rows.div_ceil(2);
@@ -522,9 +700,97 @@ impl ApplicationTables {
     }
 
     pub(super) fn clear(&mut self) {
+        self.next_gate = None;
         self.resident = None;
         self.complete = None;
     }
+}
+
+#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+fn bind_gate(values: &mut Values, challenge: K, weights: &EqualityWeights) -> [K; 8] {
+    const MATRICES: usize = 4;
+    let rows = values.rows;
+    let next = rows.div_ceil(2);
+    let pairs = rows.div_ceil(4);
+    let (low, high) = weights.factors();
+    let workers = rayon::current_num_threads().min(pairs.div_ceil(1024));
+    let groups_per_worker = pairs.div_ceil(low.len() * workers);
+    let span = groups_per_worker * low.len() * 4;
+    let (a, remaining) = values.words.split_at_mut(rows);
+    let (b, remaining) = remaining.split_at_mut(rows);
+    let (c, s) = remaining.split_at_mut(rows);
+    let coefficients = a
+        .par_chunks_mut(span)
+        .zip(b.par_chunks_mut(span))
+        .zip(c.par_chunks_mut(span))
+        .zip(s.par_chunks_mut(span))
+        .enumerate()
+        .map(|(worker, (((a, b), c), s))| {
+            let mut tables = [a, b, c, s];
+            let mut coefficients = [K::ZERO; 8];
+            let pairs = tables[0].len().div_ceil(4);
+            for first in (0..pairs).step_by(low.len()) {
+                let mut tile = [K::ZERO; 8];
+                let count = (pairs - first).min(low.len());
+                for (index, &weight) in low[..count].iter().enumerate() {
+                    let bound = tables
+                        .each_mut()
+                        .map(|table| prefix::bind_four(table, first + index, challenge));
+                    for (sum, term) in tile.iter_mut().zip(gate_terms(bound)) {
+                        *sum += weight * term;
+                    }
+                }
+                let weight = high[worker * groups_per_worker + first / low.len()];
+                coefficients = prefix::add_coefficients(coefficients, tile.map(|value| value * weight));
+            }
+            coefficients
+        })
+        .reduce(|| [K::ZERO; 8], prefix::add_coefficients);
+    for table in 0..MATRICES {
+        let start = table * rows;
+        prefix::compact_bound_chunks(&mut values.words[start..start + rows], span);
+        if table != 0 {
+            values.words.copy_within(start..start + next, table * next);
+        }
+    }
+    values.rows = next;
+    values.words.truncate(MATRICES * next);
+    coefficients
+}
+
+#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+fn gate_terms([[a, a1], [b, b1], [c, c1], [s, s1]]: [[K; 2]; 4]) -> [K; 8] {
+    let (da, db, ds) = (a1 - a, b1 - b, s1 - s);
+    let low = a * b - c;
+    let quadratic = da * db;
+    let linear = a1 * b1 - c1 - low - quadratic;
+    let mut terms = [low, linear, quadratic, K::ZERO, K::ZERO, K::ZERO, K::ZERO, K::ZERO];
+    if s == K::ZERO {
+        terms[7] = ds.exp_const_u64::<7>();
+    } else if ds == K::ZERO {
+        terms[0] += s.exp_const_u64::<7>();
+    } else {
+        let s2 = s.square();
+        let d2 = ds.square();
+        let s3 = s * s2;
+        let d3 = ds * d2;
+        let s4 = s2.square();
+        let d4 = d2.square();
+        let powers = [
+            s4 * s3,
+            s4 * s2 * ds,
+            s4 * s * d2,
+            s4 * d3,
+            s3 * d4,
+            s2 * d4 * ds,
+            s * d4 * d2,
+            d4 * d3,
+        ];
+        for ((term, value), binomial) in terms.iter_mut().zip(powers).zip(SEVENTH_POWER_BINOMIAL) {
+            *term += value.scale_base(F::from_u8(binomial));
+        }
+    }
+    terms
 }
 
 #[cfg(test)]

@@ -19,12 +19,15 @@ p3-field = { workspace = true }
 rayon = { workspace = true }
 thiserror = { workspace = true }
 # Akita, ePrint 2026/1983. The Jolt revision is Akita's own pin.
-akita-pcs = { git = "https://github.com/LayerZero-Labs/akita.git", rev = "d50f700fb1a292395a717cef0e6f437c7ce2cdb1" }
+akita-pcs = { git = "https://github.com/nicarq/akita.git", rev = "5a2a2db2c554cdd4dde7dd2f303cb304ce5460be" }
+prover-akita-config = { package = "akita-config", git = "https://github.com/nicarq/akita.git", rev = "5a2a2db2c554cdd4dde7dd2f303cb304ce5460be" }
+prover-akita-params = { package = "akita-params", git = "https://github.com/nicarq/akita.git", rev = "5a2a2db2c554cdd4dde7dd2f303cb304ce5460be" }
+prover-akita-types = { package = "akita-types", git = "https://github.com/nicarq/akita.git", rev = "5a2a2db2c554cdd4dde7dd2f303cb304ce5460be" }
 akita-config = { git = "https://github.com/LayerZero-Labs/akita.git", rev = "d50f700fb1a292395a717cef0e6f437c7ce2cdb1" }
 akita-params = { git = "https://github.com/LayerZero-Labs/akita.git", rev = "d50f700fb1a292395a717cef0e6f437c7ce2cdb1" }
 akita-serialization = { git = "https://github.com/LayerZero-Labs/akita.git", rev = "d50f700fb1a292395a717cef0e6f437c7ce2cdb1" }
 akita-types = { git = "https://github.com/LayerZero-Labs/akita.git", rev = "d50f700fb1a292395a717cef0e6f437c7ce2cdb1" }
-akita-verifier = { git = "https://github.com/LayerZero-Labs/akita.git", rev = "d50f700fb1a292395a717cef0e6f437c7ce2cdb1" }
+akita-verifier = { git = "https://github.com/LayerZero-Labs/akita.git", rev = "d50f700fb1a292395a717cef0e6f437c7ce2cdb1", features = ["parallel"] }
 jolt-field = { git = "https://github.com/a16z/jolt", rev = "25d87ba68bde9f4a85ac986f5487b2e7b7db2699", default-features = false, features = ["asm", "solinas"] }
 
 [dev-dependencies]

@@ -12,11 +12,10 @@ a collision on the decoded next state and the terminal's state (`stateHash_binds
 (`bridge`). The decode is a function of the proof, so the collision names two inputs that a
 reduction computes from the proof.
 
-The light circuit reads only the active slot's words (`StepRelation.lightInput`), so the decode
-takes the other slot from the terminal's slots. Its step relation needs the other slot's prior
-digest word to be that slot's digest. After the base case the light rows copy that word into the
-next state's words, which the output hash hashes; so either the next state's words are the
-terminal's state preimage and the premise holds, or the two lists collide (`WordCollision`).
+Both circuits hash the active slot. The decoder takes the other slot from the terminal. After
+the base case the rows copy that slot's prior digest into the next-state preimage. When the
+preimage equals the terminal's preimage, the other slot has its verified digest. Otherwise the
+two lists give a `WordCollision`.
 
 The circuit selector of Construction 2 (`Paper.Machine.control`) reads only the application state
 and witness. The bounded-depth scheme's scheduler picks the circuit from the slot depth, which the application
@@ -66,7 +65,7 @@ theorem valid_of_chosen {program : Stage1.Application.Program} {circuit : Fin 2}
   fin_cases circuit <;> decide
 
 /-- The terminal does not read the circuit selector. -/
-theorem holdsFor_recursive_control (cap : Nat)
+theorem holdsFor_recursive_control
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits)
     (step : AppState → AppWitness → AppState) (control control' : AppState → AppWitness → Fin 2)
@@ -75,10 +74,10 @@ theorem holdsFor_recursive_control (cap : Nat)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
       (StepFresh logicalWidth publicFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2) :
-    Terminal.HoldsFor cap ajtai circuitKeys step control statement (.recursive payload) ↔
-      Terminal.HoldsFor cap ajtai circuitKeys step control' statement (.recursive payload) :=
-  (Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step control statement payload).trans
-    (Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step control' statement payload).symm
+    Terminal.HoldsFor ajtai circuitKeys step control statement (.recursive payload) ↔
+      Terminal.HoldsFor ajtai circuitKeys step control' statement (.recursive payload) :=
+  (Terminal.holdsFor_recursive_iff ajtai circuitKeys step control statement payload).trans
+    (Terminal.holdsFor_recursive_iff ajtai circuitKeys step control' statement payload).symm
 
 /-- The key digests and both application states have four words; the counters are any `Nat`. -/
 structure Shaped (state : State logicalWidth publicFits) : Prop where
@@ -289,11 +288,11 @@ structure Exports where
   refreshFresh : Nat
   lightWidth : Nat
   refreshWidth : Nat
-  lightFitsPackage : CircuitRelation.Fits CircuitRelation.publicColumns (CircuitRelation.pieces
+  lightFitsPackage : CircuitRelation.Fits CircuitRelation.publicColumns (SpecializedCircuit.pieces
     (LightAssemblerCircuit.stepCircuit program base relation 0 ajtai)
     (LightAssembler.sharedEnd base program.witnessWordCount)
     (lightDigestColumn program)) lightFresh lightWidth
-  refreshFitsPackage : CircuitRelation.Fits CircuitRelation.publicColumns (CircuitRelation.pieces
+  refreshFitsPackage : CircuitRelation.Fits CircuitRelation.publicColumns (SpecializedCircuit.pieces
     (RefreshAssemblerCircuit.stepCircuit program base relation 1 ajtai)
     (RefreshAssembler.sharedEnd base program.witnessWordCount)
     (refreshDigestColumn program)) refreshFresh refreshWidth
@@ -310,8 +309,7 @@ structure Exports where
 
 variable {relation ajtai circuitKeys step cubeFits}
 
-/-- The step that a fresh witness of `circuit` decodes to. A light step takes its other slot from
-`running`. -/
+/-- The step decoded from the fresh witness, with the inactive slot from `running`. -/
 def Exports.decode (exports : Exports relation ajtai circuitKeys step cubeFits) (circuit : Fin 2)
     (witness : Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
     (running : Fin 2 → SlotData logicalWidth publicFits) :
@@ -324,7 +322,7 @@ def Exports.decode (exports : Exports relation ajtai circuitKeys step cubeFits) 
         (publicFits := publicFits) exports.program).verifierKeys env⟩
   else
     let env := refreshEnv exports.program relation ajtai exports.refreshFresh exports.refreshLayout assignment
-    ⟨refreshInput exports.program env, refreshOutput exports.program relation 1 env,
+    ⟨refreshInput exports.program running env, refreshOutput exports.program relation 1 running env,
       decodedKeys circuitKeys (refreshInterface (logicalWidth := logicalWidth)
         (publicFits := publicFits) exports.program).verifierKeys env⟩
 
@@ -351,20 +349,24 @@ theorem Exports.last_witness_length (exports : Exports relation ajtai circuitKey
 def WordCollision (left right : List F) : Prop :=
   left ≠ right ∧ left.length = right.length ∧ Poseidon2.hash left = Poseidon2.hash right
 
-/-- The next state's words of the light step that a recursive terminal's fresh witness decodes
-to. -/
-def Exports.lightNextWords (exports : Exports relation ajtai circuitKeys step cubeFits)
+/-- The next-state preimage read from the final circuit. -/
+def Exports.nextWords (exports : Exports relation ajtai circuitKeys step cubeFits)
     (payload : TerminalProof (SlotData logicalWidth publicFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
       (StepFresh logicalWidth publicFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2) : List F :=
-  StepRelation.lightNextWords (logicalWidth := logicalWidth) (publicFits := publicFits)
-    exports.program 0
-    (lightEnv exports.program relation ajtai exports.lightFresh exports.lightLayout
-      (Layout.ProductionRelation.Plan.logicalAssignment payload.freshWitness))
+  let assignment := Layout.ProductionRelation.Plan.logicalAssignment payload.freshWitness
+  if circuitOf payload.pc = 0 then
+    StepRelation.lightNextWords (logicalWidth := logicalWidth) (publicFits := publicFits)
+      exports.program 0 (lightEnv exports.program relation ajtai exports.lightFresh
+        exports.lightLayout assignment)
+  else
+    StepRelation.refreshNextWords (logicalWidth := logicalWidth) (publicFits := publicFits)
+      exports.program 1 (refreshEnv exports.program relation ajtai exports.refreshFresh
+        exports.refreshLayout assignment)
 
 /-- The collision of the bridge: the next state of the decoded last step and the terminal's state
-collide, or the last step is light and its next state's words and the terminal's state preimage
+collide, or the final circuit's next-state words and the terminal's state preimage
 collide. -/
 def Collision (exports : Exports relation ajtai circuitKeys step cubeFits)
     (statement : TerminalStatement AppState)
@@ -377,8 +379,8 @@ def Collision (exports : Exports relation ajtai circuitKeys step cubeFits)
         ((setup Folding.Schedule.productionLightFoldCap ajtai (exports.last payload).keys).forCircuit
           (circuitOf payload.pc)) (exports.last payload).input (exports.last payload).output))
       (terminalState circuitKeys statement payload.running payload.pc) ∨
-    (circuitOf payload.pc = 0 ∧ WordCollision (exports.lightNextWords payload)
-      (statePreimage (terminalState circuitKeys statement payload.running payload.pc)))
+    WordCollision (exports.nextWords payload)
+      (statePreimage (terminalState circuitKeys statement payload.running payload.pc))
 
 /-- What the bridge reads from a recursive terminal: a valid statement, a program counter that
 names a circuit, a positive iteration, a fresh public input that encodes the terminal's state
@@ -399,17 +401,17 @@ structure Linked (statement : TerminalStatement AppState)
     payload.freshWitness
 
 /-- A recursive terminal that the terminal relation accepts is linked. -/
-theorem linked_of_holdsFor (control : AppState → AppWitness → Fin 2) (cap : Nat)
+theorem linked_of_holdsFor (control : AppState → AppWitness → Fin 2)
     (statement : TerminalStatement AppState)
     (payload : TerminalProof (SlotData logicalWidth publicFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
       (StepFresh logicalWidth publicFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2)
-    (accepted : Terminal.HoldsFor cap ajtai circuitKeys step control statement
+    (accepted : Terminal.HoldsFor ajtai circuitKeys step control statement
       (.recursive payload)) :
     Linked (ajtai := ajtai) (circuitKeys := circuitKeys) statement payload := by
   obtain ⟨valid, pcValid, positive, freshHash, _, freshHolds⟩ :=
-    (Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step control statement payload).1
+    (Terminal.holdsFor_recursive_iff ajtai circuitKeys step control statement payload).1
       accepted
   have selected : selectedIndex pcValid = circuitOf payload.pc := by
     obtain ⟨lower, upper⟩ := pcValid
@@ -451,7 +453,7 @@ theorem bridge_linked (exports : Exports relation ajtai circuitKeys step cubeFit
       (chosen exports.program 0) exports.programStep (fun _ _ valid => ite_eq_left valid)
       exports.lightFresh exports.lightWidth exports.lightFitsPackage exports.lightLayout cubeFits
       exports.lightInside payload.fresh payload.freshWitness _ freshHash freshHolds
-    simp only [Collision, Exports.last, Exports.lightNextWords, circuitEq, Exports.decode,
+    simp only [Collision, Exports.last, Exports.nextWords, circuitEq, Exports.decode,
       ↓reduceIte]
     by_cases same : StepRelation.lightNextWords (logicalWidth := logicalWidth)
         (publicFits := publicFits) exports.program 0 (lightEnv exports.program relation ajtai exports.lightFresh exports.lightLayout
@@ -472,35 +474,54 @@ theorem bridge_linked (exports : Exports relation ajtai circuitKeys step cubeFit
         holds (Fin.isLt _)
         List.length_ofFn List.length_ofFn statement valid positive payload.running payload.pc
         pcValid (words.trans digestEq)).imp_right Or.inl
-    · exact Or.inr (Or.inr ⟨trivial, same,
+    · exact Or.inr (Or.inr ⟨same,
         (lightNextWords_length exports.program 0 _).trans
           (statePreimage_length (state := terminalState circuitKeys statement payload.running
             payload.pc) ⟨keysShaped, valid.2.1, valid.2.2⟩).symm,
         hashEq.trans digestEq⟩)
   · have circuitEq : circuitOf payload.pc = 1 := by simp [circuitOf, ranRefresh]
     rw [circuitEq, exports.refreshKey] at freshHolds
-    obtain ⟨holds, words⟩ := refresh_freshHolds exports.program relation ajtai circuitKeys
-      step (chosen exports.program 1) exports.programStep (fun _ _ valid => ite_eq_left valid)
-      exports.refreshFresh
-      exports.refreshWidth exports.refreshFitsPackage exports.refreshLayout cubeFits
+    obtain ⟨hashEq, nextOther⟩ := refresh_freshWords exports.program relation ajtai step
+      (chosen exports.program 1) exports.programStep (fun _ _ valid => ite_eq_left valid)
+      exports.refreshFresh exports.refreshWidth exports.refreshFitsPackage exports.refreshLayout cubeFits
       exports.refreshInside payload.fresh payload.freshWitness _ freshHash freshHolds
-    simp only [Collision, Exports.last, circuitEq, Exports.decode, Fin.one_eq_zero_iff,
-      OfNat.ofNat_ne_one, ↓reduceIte]
-    exact (bind_step _ ajtai circuitKeys keysShaped step (chosen exports.program 1) 1 _ _ _ _
-      holds (Fin.isLt _)
-      List.length_ofFn List.length_ofFn statement valid positive payload.running payload.pc
-      pcValid (words.trans digestEq)).imp_right Or.inl
+    simp only [Collision, Exports.last, Exports.nextWords, circuitEq, Exports.decode,
+      Fin.one_eq_zero_iff, OfNat.ofNat_ne_one, ↓reduceIte]
+    by_cases same : StepRelation.refreshNextWords (logicalWidth := logicalWidth)
+        (publicFits := publicFits) exports.program 1 (refreshEnv exports.program relation ajtai exports.refreshFresh exports.refreshLayout
+          (Layout.ProductionRelation.Plan.logicalAssignment payload.freshWitness)) =
+        statePreimage (terminalState circuitKeys statement payload.running payload.pc)
+    · have others : RefreshOtherDigest exports.program payload.running
+          (refreshEnv exports.program relation ajtai exports.refreshFresh exports.refreshLayout
+            (Layout.ProductionRelation.Plan.logicalAssignment payload.freshWitness)) := by
+        intro nonzero slot other
+        rw [← nextOther nonzero slot other]
+        exact refreshNextDigests_of_words exports.program same slot
+      obtain ⟨holds, words⟩ := refresh_freshHolds exports.program relation ajtai circuitKeys
+        step (chosen exports.program 1) exports.programStep (fun _ _ valid => ite_eq_left valid)
+        exports.refreshFresh exports.refreshWidth
+        exports.refreshFitsPackage exports.refreshLayout cubeFits exports.refreshInside payload.fresh
+        payload.freshWitness _ freshHash freshHolds payload.running others
+      exact (bind_step _ ajtai circuitKeys keysShaped step (chosen exports.program 1) 1 _ _ _ _
+        holds (Fin.isLt _)
+        List.length_ofFn List.length_ofFn statement valid positive payload.running payload.pc
+        pcValid (words.trans digestEq)).imp_right Or.inl
+    · exact Or.inr (Or.inr ⟨same,
+        (refreshNextWords_length exports.program 1 _).trans
+          (statePreimage_length (state := terminalState circuitKeys statement payload.running
+            payload.pc) ⟨keysShaped, valid.2.1, valid.2.2⟩).symm,
+        hashEq.trans digestEq⟩)
 
 /-- `bridge_linked` for a recursive terminal that the terminal relation accepts under any
 selector. -/
 theorem bridge (exports : Exports relation ajtai circuitKeys step cubeFits)
     (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
-    (control : AppState → AppWitness → Fin 2) (cap : Nat) (statement : TerminalStatement AppState)
+    (control : AppState → AppWitness → Fin 2) (statement : TerminalStatement AppState)
     (payload : TerminalProof (SlotData logicalWidth publicFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
       (StepFresh logicalWidth publicFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2)
-    (accepted : Terminal.HoldsFor cap ajtai circuitKeys step control statement
+    (accepted : Terminal.HoldsFor ajtai circuitKeys step control statement
       (.recursive payload)) :
     (StepHolds Folding.Schedule.productionLightFoldCap ajtai circuitKeys step
         (chosen exports.program (circuitOf payload.pc)) (circuitOf payload.pc) (exports.last payload).input
@@ -509,7 +530,7 @@ theorem bridge (exports : Exports relation ajtai circuitKeys step cubeFits)
         (exports.last payload).input (exports.last payload).output) ∨
       Collision exports statement payload :=
   bridge_linked exports keysShaped statement payload
-    (linked_of_holdsFor control cap statement payload accepted)
+    (linked_of_holdsFor control statement payload accepted)
 
 end Circuits
 

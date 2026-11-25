@@ -5,12 +5,12 @@ use neo_wasm::host_event_bindings::{
 use neo_wasm::{WasmBuildError, WasmProgramTables, WasmVmStep};
 use p3_field::PrimeCharacteristicRing;
 
-const MUL_ARGS_TAG: u64 = 1;
-const MUL_RESULT_TAG: u64 = 2;
-const SINK_TAG: u64 = 3;
-const ENTRY_HEADER_TAG: u64 = 4;
-const ENTRY_PAYLOAD_TAG: u64 = 5;
-const EXIT_OUTPUT_TAG: u64 = 6;
+const MUL_ARGS_TAG: u32 = 1;
+const MUL_RESULT_TAG: u32 = 2;
+const SINK_TAG: u32 = 3;
+const ENTRY_HEADER_TAG: u32 = 4;
+const ENTRY_PAYLOAD_TAG: u32 = 5;
+const EXIT_OUTPUT_TAG: u32 = 6;
 const ENTRY_HEADER_WORD: u32 = 9;
 
 pub const MUL_FREF: u32 = 1;

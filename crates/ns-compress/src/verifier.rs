@@ -6,8 +6,8 @@ use p3_field::PrimeCharacteristicRing;
 
 use crate::akita::verifier::Opening;
 use crate::key::{self, VerificationKey};
-use crate::layout::{LANE_VARS, LOOKUPS, LOOKUP_VARS};
-use crate::transcript::{absorb_bytes, absorb_extension, challenges as draw, session};
+use crate::layout::LANE_VARS;
+use crate::transcript::{absorb_bytes, absorb_extension, session};
 use crate::weights::{self, Uses};
 use crate::{
     absorb_statements, challenges, claimed_sum, inverse_point, layout, lookup_challenges, sumcheck, Error, Proof,
@@ -41,9 +41,9 @@ pub fn verify(
     let (row_point, scale) = key::row_point(challenges.omega)?;
     let (rho, value) = sumcheck::verify(transcript, &proof.rounds, claimed_sum(statements, &challenges))?;
     absorb_extension(transcript, &[proof.witness_value]);
-    absorb_extension(transcript, &proof.inverse_values);
+    absorb_extension(transcript, &[proof.shared_inverse]);
     absorb_extension(transcript, &[proof.key_part]);
-    let column = draw(transcript, LOOKUP_VARS);
+
     let (mut key_point, key_claim) = sumcheck::verify(transcript, &proof.key_rounds, proof.key_part)?;
     absorb_extension(transcript, &[proof.key_polynomial_value]);
     let session = session(transcript, SESSION);
@@ -58,15 +58,9 @@ pub fn verify(
         .iter()
         .map(|&coordinate| K::ONE - coordinate)
         .product();
-    let combine = |weights: [K; LOOKUPS]| -> K {
-        low * weights
-            .iter()
-            .zip(&proof.inverse_values)
-            .map(|(&weight, &value)| weight * value)
-            .sum::<K>()
-    };
-    let inverse = combine(challenges.psi);
-    let scaled = combine(std::array::from_fn(|k| challenges.psi[k] * challenges.taus[k]));
+    let u = low * proof.shared_inverse;
+    let (denominator, numerator) =
+        crate::lookup::LookupPolynomial::new(&challenges.taus, &challenges.psi).at(proof.witness_value);
     let (mut check, mut sum) = (K::ZERO, K::ZERO);
     for (table, (_, slice, _, _)) in layout.tables().enumerate() {
         let selector = slice.selector(&rho);
@@ -84,7 +78,7 @@ pub fn verify(
     let start = Instant::now();
     let matrices = weights::matrix_part(statements, &challenges, &uses)?;
     let weights = proof.key_part + matrices + closed;
-    if value != proof.witness_value * (weights - check * inverse) + check * scaled + sum * inverse {
+    if value != proof.witness_value * weights + u * (check * denominator + sum * numerator) {
         return Err(Error::Rejected("the sum-check ends in another value"));
     }
     let matrices = start.elapsed();
@@ -93,11 +87,6 @@ pub fn verify(
     let akita = key.akita(layout.shape())?;
     let akita_setup = start.elapsed();
     let start = Instant::now();
-    let inverse_value = weights::equality(&column, proof.inverse_values.len())
-        .iter()
-        .zip(&proof.inverse_values)
-        .map(|(&weight, &value)| weight * value)
-        .sum();
     akita.verify(
         [
             Opening {
@@ -112,8 +101,8 @@ pub fn verify(
             },
             Opening {
                 commitment: &proof.inverse_commitment,
-                point: &inverse_point(&layout, &rho, &column),
-                value: inverse_value,
+                point: &inverse_point(&layout, &rho),
+                value: proof.shared_inverse,
             },
         ],
         &proof.opening,

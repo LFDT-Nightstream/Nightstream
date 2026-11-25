@@ -1,6 +1,7 @@
 use core::ops::{Index, IndexMut};
 use p3_field::PrimeCharacteristicRing;
 use rayon::prelude::*;
+use std::borrow::Cow;
 use std::sync::Arc;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -439,14 +440,32 @@ where
             .collect::<Result<Vec<_>, _>>()?
             .into_iter()
             .unzip();
-        Self::compact_signed_unit_from_column_masks(rows, cols, &positive, &negative)
+        Self::from_owned_column_masks(rows, cols, positive, negative)
     }
 
     pub fn compact_signed_unit_from_column_masks(
         rows: usize,
         cols: usize,
-        positive_columns: &[u64],
-        negative_columns: &[u64],
+        positive: &[u64],
+        negative: &[u64],
+    ) -> Result<Self, &'static str> {
+        Self::from_column_masks(rows, cols, Cow::Borrowed(positive), Cow::Borrowed(negative))
+    }
+
+    pub fn from_owned_column_masks(
+        rows: usize,
+        cols: usize,
+        positive: Vec<u64>,
+        negative: Vec<u64>,
+    ) -> Result<Self, &'static str> {
+        Self::from_column_masks(rows, cols, Cow::Owned(positive), Cow::Owned(negative))
+    }
+
+    fn from_column_masks(
+        rows: usize,
+        cols: usize,
+        positive_columns: Cow<'_, [u64]>,
+        negative_columns: Cow<'_, [u64]>,
     ) -> Result<Self, &'static str> {
         if rows > u64::BITS as usize {
             return Err("signed-unit column masks support at most 64 rows");
@@ -477,8 +496,8 @@ where
             cols,
             storage: Storage::Packed(Arc::new(PackedSignedUnit {
                 bits: PackedSignedUnitBits::ColumnMasks {
-                    positive: positive_columns.to_vec(),
-                    negative: negative_columns.to_vec(),
+                    positive: positive_columns.into_owned(),
+                    negative: negative_columns.into_owned(),
                 },
                 values: [F::ZERO, F::ONE, neg_one],
                 cols,

@@ -114,7 +114,7 @@ fn high_i64_local_pointer_cannot_authorize_memory_write() {
         .iter()
         .position(|row| {
             row.host_event_rom_slot
-                .is_some_and(|slot| slot.kind == WasmHostEventSlotKind::Const && slot.immediate0 == 42)
+                .is_some_and(|slot| slot.kind == WasmHostEventSlotKind::Const && slot.payload == 42)
         })
         .expect("dummy constant row");
     assert_eq!(

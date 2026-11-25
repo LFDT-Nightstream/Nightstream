@@ -4,11 +4,13 @@
 Lean writes the hypotheses of each theorem of `NightstreamFPrime.Claims` to PREMISES, one line
 for each: the theorem, the hypothesis and the constant at the head of its type. A hypothesis is a
 binder whose type is a proposition, or a proof field of a binder whose type is a structure of the
-package. The Lean build fails when the file is not current (`#premise_census`).
+package or a function to one. The Lean build fails when the file is not current
+(`#premise_census`).
 
 SECURITY_MODEL.md holds one table between the premise markers. A row gives hypothesis names (a
-name that ends in `.*` covers each field under it), the head (`*` for each head), a class and
-the evidence of the class. A name `Scope/name` covers only the claims under `Claims.Scope`:
+name that ends in `.*` covers each field under it), the head (`*` for each head), the number of
+lines of PREMISES that it covers, a class and the evidence of the class. A name `Scope/name`
+covers only the claims under `Claims.Scope`:
 
   assumption  an assumption of the allowed list: the evidence cites its `[ID]`.
   lean        Lean proves it: the evidence names the Lean theorem or instance that discharges it.
@@ -19,11 +21,14 @@ the evidence of the class. A name `Scope/name` covers only the claims under `Cla
               `SPEC.md` algorithm or section, or the adversary of SECURITY_MODEL.md.
   open        no evidence: the evidence starts with `Open:` and gives the reason.
 
-Rules: each line of PREMISES has exactly one row, each name of a row has a line, and each row has
-the evidence of its class.
+Rules: each line of PREMISES has exactly one row, each name of a row has a line, each row covers
+the number of lines that it gives, and each row has the evidence of its class. So a hypothesis
+with a new name, or with the name of a row, fails until a person changes the table. Each theorem
+of PREMISES also has a pin in SPEC.md, so a changed statement fails `#spec_census`.
 """
 import re
 import subprocess
+from collections import Counter
 import sys
 from pathlib import Path
 
@@ -44,20 +49,21 @@ def premise_lines(text):
 
 
 def table_rows(model):
-    """(names, head, class, evidence) of each row of the table, or an error."""
+    """(names, head, class, evidence, lines) of each row of the table, or an error."""
     if model.count(BEGIN) != 1 or model.count(END) != 1:
         return None, [f'the page needs one table between {BEGIN} and {END}']
     rows, errors = [], []
     for line in model[model.index(BEGIN):model.index(END)].splitlines():
         cells = [cell.strip() for cell in line.strip().strip('|').split('|')]
-        if not line.startswith('|') or len(cells) != 4 or set(cells[0]) <= set('- ') \
+        if not line.startswith('|') or len(cells) != 5 or set(cells[0]) <= set('- ') \
                 or cells[0] == 'Premise':
             continue
         names, head = TICKED.findall(cells[0]), cells[1].strip('`')
-        if not names or cells[2] not in CLASSES:
-            errors.append(f'row {cells[0]!r} needs a backticked name and a class of {CLASSES}')
+        if not names or not cells[2].isdigit() or cells[3] not in CLASSES:
+            errors.append(f'row {cells[0]!r} needs a backticked name, a number of lines and a '
+                          f'class of {CLASSES}')
             continue
-        rows.append((names, head, cells[2], cells[3]))
+        rows.append((names, head, cells[3], cells[4], int(cells[2])))
     return rows, errors
 
 
@@ -76,7 +82,7 @@ def rust_tests():
 
 
 def evidence_errors(row, lines, context):
-    names, head, kind, evidence = row
+    names, head, kind, evidence, _ = row
     ticked = TICKED.findall(evidence)
     where = f'row {names[0]!r}'
     if kind == 'assumption':
@@ -115,21 +121,28 @@ def check(model, premises, context):
     if rows is None:
         return errors, 0
     lines = premise_lines(premises)
-    used = set()
+    used, covered = set(), Counter()
     for theorem, label, head in lines:
         if label == '-':
             continue
-        matches = [(index, name) for index, (names, row_head, _, _) in enumerate(rows)
+        matches = [(index, name) for index, (names, row_head, *_) in enumerate(rows)
                    for name in names if covers(name, theorem, label) and row_head in ('*', head)]
         if len({index for index, _ in matches}) != 1:
             errors.append(f'`{theorem}` takes `{label}` (`{head}`), which has '
                           f'{len(matches)} rows in the premise table; it needs exactly one')
         used.update(matches)
+        covered.update({index for index, _ in matches})
     for index, row in enumerate(rows):
         for name in row[0]:
             if (index, name) not in used:
                 errors.append(f'row name `{name}` (`{row[1]}`) covers no hypothesis')
+        if covered[index] != row[4]:
+            errors.append(f'row {row[0][0]!r} gives {row[4]} lines, but it covers '
+                          f'{covered[index]}: read each new line, then change the number')
         errors.extend(evidence_errors(row, lines, context))
+    for theorem in sorted({line[0] for line in lines}):
+        if not re.search(rf'`{re.escape(theorem)}` \(`[0-9a-f]{{16}}`\)', context['spec']):
+            errors.append(f'`{theorem}` has no pin in SPEC.md')
     return errors, sum(1 for row in rows if row[2] == 'open')
 
 

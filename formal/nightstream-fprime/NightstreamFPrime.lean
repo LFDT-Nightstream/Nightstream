@@ -145,6 +145,7 @@ import NightstreamFPrime.Export.Generic.SlotLayout
 import NightstreamFPrime.Export.Generic.PieceRowsCompleteness
 import NightstreamFPrime.Export.Generic.RowReads
 import NightstreamFPrime.Export.Generic.LogicalPlan
+import NightstreamFPrime.Export.BoundedDepth.LightCodec
 import NightstreamFPrime.Export.BoundedDepth.StepRelation
 import NightstreamFPrime.Export.BoundedDepth.StepPackage
 import NightstreamFPrime.Export.BoundedDepth.TerminalBridge

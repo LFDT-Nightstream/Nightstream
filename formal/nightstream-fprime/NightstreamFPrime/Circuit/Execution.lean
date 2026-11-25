@@ -5,20 +5,90 @@ batches in order. `Witness.Computed` states its result without the order: each r
 and each hint column has the value of its hint. An ordered program computes its own result
 (`Witness.execute_computed`), so a gadget proves its rows from `Witness.Computed` in one
 environment, and a parent has the rows of each child in that environment
-(`Witness.computed_append`). A native fill that gives the values of its batches off the dead
+(`Witness.computed_append`), and its completeness follows from its order and its rows
+(`Witness.complete`). A native fill that gives the values of its batches off the dead
 columns keeps two executions equal off those columns (`Witness.agreeOff_fill`). -/
 
 namespace NightstreamFPrime.Circuit
 
 open NightstreamFPrime.Spec
 
-def HintsCausal : Nat → List Hint → Prop
+def HintsEach (holds : Nat → Hint → Prop) : Nat → List Hint → Prop
   | _, [] => True
-  | start, hint :: rest => hint.source.VarsBelow start ∧ HintsCausal (start + 1) rest
+  | start, hint :: rest => holds start hint ∧ HintsEach holds (start + 1) rest
 
-def HintsComputed (env : Env) : Nat → List Hint → Prop
-  | _, [] => True
-  | start, hint :: rest => env start = hint.eval env ∧ HintsComputed env (start + 1) rest
+def HintsCausal : Nat → List Hint → Prop :=
+  HintsEach fun column hint => hint.source.VarsBelow column
+
+def HintsComputed (env : Env) : Nat → List Hint → Prop :=
+  HintsEach fun column hint => env column = hint.eval env
+
+namespace HintsEach
+
+variable {holds : Nat → Hint → Prop}
+
+theorem append {start : Nat} {left right : List Hint} (first : HintsEach holds start left)
+    (second : HintsEach holds (start + left.length) right) :
+    HintsEach holds start (left ++ right) := by
+  induction left generalizing start with
+  | nil => exact second
+  | cons hint rest ih =>
+      refine ⟨first.1, ih first.2 ?_⟩
+      rwa [show start + 1 + rest.length = start + (hint :: rest).length by
+        rw [List.length_cons]; omega]
+
+theorem imp {other : Nat → Hint → Prop} {start : Nat} {hints : List Hint}
+    (implies : ∀ column hint, holds column hint → other column hint)
+    (each : HintsEach holds start hints) : HintsEach other start hints := by
+  induction hints generalizing start with
+  | nil => trivial
+  | cons hint rest ih => exact ⟨implies _ _ each.1, ih each.2⟩
+
+theorem range_map {start count : Nat} {hint : Nat → Hint}
+    (each : ∀ index, index < count → holds (start + index) (hint index)) :
+    HintsEach holds start ((List.range count).map hint) := by
+  induction count with
+  | zero => trivial
+  | succ count ih =>
+      rw [List.range_succ, List.map_append]
+      refine append (ih fun index below => each index (by omega)) ?_
+      rw [List.length_map, List.length_range]
+      exact ⟨each count (by omega), trivial⟩
+
+theorem range_flatMap {start count stride : Nat} {block : Nat → List Hint}
+    (lengths : ∀ index, index < count → (block index).length = stride)
+    (blocks : ∀ index, index < count → HintsEach holds (start + index * stride) (block index)) :
+    HintsEach holds start ((List.range count).flatMap block) := by
+  induction count with
+  | zero => trivial
+  | succ count ih =>
+      rw [List.range_succ, List.flatMap_append, List.flatMap_cons, List.flatMap_nil,
+        List.append_nil]
+      refine append (ih (fun index below => lengths index (by omega))
+        fun index below => blocks index (by omega)) ?_
+      have length : ((List.range count).flatMap block).length = count * stride := by
+        rw [List.length_flatMap, List.map_congr_left (g := fun _ => stride) fun index member =>
+          lengths index (by have := List.mem_range.mp member; omega)]
+        simp
+      rw [length]
+      exact blocks count (by omega)
+
+theorem finRange_flatMap {start count stride : Nat} {block : Fin count → List Hint}
+    (lengths : ∀ index, (block index).length = stride)
+    (blocks : ∀ index, HintsEach holds (start + index.val * stride) (block index)) :
+    HintsEach holds start ((List.finRange count).flatMap block) := by
+  induction count generalizing start with
+  | zero => trivial
+  | succ count ih =>
+      rw [List.finRange_succ, List.flatMap_cons, List.flatMap_map]
+      refine append (by simpa using blocks 0) ?_
+      rw [lengths 0]
+      refine ih (block := fun index => block index.succ) (fun index => lengths index.succ)
+        fun index => ?_
+      rw [Nat.add_assoc, Nat.add_comm stride, ← Nat.succ_mul]
+      exact blocks index.succ
+
+end HintsEach
 
 theorem hintsCausal_of_readBelow (start : Nat) (hints : List Hint)
     (below : HintsReadBelow start hints) : HintsCausal start hints := by
@@ -51,9 +121,28 @@ theorem hintsComputed_of_agree {before after : Env} {start : Nat} {hints : List 
       have shifted : ∀ index, index < start + 1 + rest.length → after index = before index :=
         fun index below => agrees index (by simp only [List.length_cons]; omega)
       refine ⟨?_, ih causal.2 shifted computed.2⟩
+      show after start = hint.eval after
       rw [shifted start (by omega), computed.1]
       exact hint.eval_eq_of_agree_below start before after causal.1
         fun index below => (shifted index (by omega)).symm
+
+theorem hintsComputed_unique {left right : Env} {start : Nat} {hints : List Hint}
+    (causal : HintsCausal start hints) (first : HintsComputed left start hints)
+    (second : HintsComputed right start hints)
+    (below : ∀ index, index < start → left index = right index) :
+    ∀ index, index < start + hints.length → left index = right index := by
+  induction hints generalizing start with
+  | nil => exact below
+  | cons hint rest ih =>
+      have here : left start = right start := by
+        rw [first.1, second.1]
+        exact hint.eval_eq_of_agree_below start left right causal.1 below
+      intro index bounded
+      refine ih causal.2 first.2 second.2 (fun earlier under => ?_) index
+        (by rw [List.length_cons] at bounded; omega)
+      by_cases same : earlier = start
+      · rw [same, here]
+      · exact below earlier (by omega)
 
 theorem executeHints_computed (env : Env) (start : Nat) (hints : List Hint)
     (causal : HintsCausal start hints) :
@@ -175,6 +264,35 @@ theorem WitnessBatch.execute_agreeOff {dead : Nat → Prop} {batch : WitnessBatc
     AgreeOff dead (batch.execute left) (batch.execute right) :=
   executeHints_agreeOff _ _ avoids.2 (executeRecipes_agreeOff _ _ avoids.1 agree)
 
+def Op.RecipesOnly : Op → Prop
+  | .witness _ | .mark _ => True
+  | .assertZero _ | .subcircuit _ => False
+
+theorem executeRecipes_append (env : Env) (start : Nat) (first second : List Expr) :
+    executeRecipes env start (first ++ second) =
+      executeRecipes (executeRecipes env start first) (start + first.length) second := by
+  induction first generalizing env start with
+  | nil => rfl
+  | cons recipe rest ih =>
+      rw [List.cons_append, executeRecipes, ih, List.length_cons, executeRecipes,
+        Nat.add_right_comm, Nat.add_assoc]
+
+theorem recipeConstraints_split : ∀ {head : List Expr} {start other : Nat}
+    {recipes tail : List Expr},
+    recipeConstraints start recipes = recipeConstraints other head ++ tail →
+      (head ≠ [] → start = other) ∧
+        ∃ rest, recipes = head ++ rest ∧ tail = recipeConstraints (start + head.length) rest
+  | [], _, _, recipes, _, rows => ⟨fun absent => absurd rfl absent, recipes, rfl, rows.symm⟩
+  | _ :: _, _, _, [], _, rows => nomatch rows
+  | wanted :: head, start, other, recipe :: recipes, tail, rows => by
+      injection rows with row rows
+      injection row with column negated
+      injection column with column
+      injection negated with _ same
+      obtain ⟨_, rest, split, later⟩ := recipeConstraints_split rows
+      refine ⟨fun _ => column, rest, by rw [same, split]; rfl, ?_⟩
+      rw [later, List.length_cons, Nat.add_right_comm, Nat.add_assoc]
+
 namespace Witness
 
 def execute (env : Env) (batches : List WitnessBatch) : Env :=
@@ -217,6 +335,33 @@ theorem Ordered.append : ∀ {start : Nat} {first : List WitnessBatch} {middle :
       Ordered start (first ++ second) finish
   | _, [], _, _, _, left, right => Ordered.mono right left le_rfl
   | _, _ :: _, _, _, _, left, right => ⟨left.1, left.2.1, Ordered.append left.2.2 right⟩
+
+theorem Ordered.finRange_flatMap {count stride : Nat} : ∀ {start : Nat}
+    {block : Fin count → List WitnessBatch},
+    (∀ index, Ordered (start + index.val * stride) (block index)
+      (start + (index.val + 1) * stride)) →
+      Ordered start ((List.finRange count).flatMap block) (start + count * stride) := by
+  induction count with
+  | zero => exact fun _ => Nat.le_add_right _ _
+  | succ count ih =>
+      intro start block blocks
+      rw [List.finRange_succ, List.flatMap_cons, List.flatMap_map]
+      have head := blocks 0
+      rw [Fin.val_zero, Nat.zero_mul, Nat.add_zero, Nat.zero_add, Nat.one_mul] at head
+      refine head.append ?_
+      have tail := ih (start := start + stride) (block := fun index => block index.succ)
+        fun index => by
+          rw [Nat.add_assoc, Nat.add_comm stride, ← Nat.succ_mul, Nat.add_assoc,
+            Nat.add_comm stride, ← Nat.succ_mul]
+          exact blocks index.succ
+      rwa [Nat.add_assoc, Nat.add_comm stride, ← Nat.succ_mul] at tail
+
+theorem computed_flatMap {index : Type} (env : Env) (indices : List index)
+    (block : index → List WitnessBatch) :
+    Computed env (indices.flatMap block) ↔ ∀ position ∈ indices, Computed env (block position) := by
+  simp only [Computed, List.mem_flatMap]
+  exact ⟨fun all position member batch inside => all batch ⟨position, member, inside⟩,
+    fun each batch ⟨position, member, inside⟩ => each position member batch inside⟩
 
 theorem execute_agrees_below {start : Nat} {batches : List WitnessBatch} {finish : Nat}
     (ordered : Ordered start batches finish) (env : Env) (index : Nat) (below : index < start) :
@@ -280,6 +425,25 @@ theorem agreeOff_fill {dead : Nat → Prop} {start finish : Nat} {inner : List W
     exact out.elim (execute_agrees_below ordered left column)
       (execute_agrees_above ordered left column)
 
+theorem execute_of_rows : ∀ (batches : List WitnessBatch) (env : Env) (start : Nat)
+    (recipes : List Expr),
+    (∀ batch ∈ batches, batch.hints = [] ∧ batch.recipes ≠ []) →
+    recipeConstraints start recipes =
+        batches.flatMap (fun batch => recipeConstraints batch.start batch.recipes) →
+      executeRecipes env start recipes = execute env batches
+  | [], _, _, [], _, _ => rfl
+  | [], _, _, _ :: _, _, rows => nomatch rows
+  | batch :: rest, env, start, recipes, plain, rows => by
+      obtain ⟨same, tail, split, later⟩ := recipeConstraints_split (rows.trans List.flatMap_cons)
+      have first := plain batch (by simp)
+      have run : batch.execute env = executeRecipes env start batch.recipes := by
+        unfold WitnessBatch.execute
+        rw [first.1, same first.2]
+        rfl
+      rw [split, executeRecipes_append, ← run]
+      exact execute_of_rows rest _ _ tail (fun later member => plain later (by simp [member]))
+        later.symm
+
 theorem witnesses_append (left right : List Op) :
     witnesses (left ++ right) = witnesses left ++ witnesses right :=
   List.flatMap_append
@@ -287,6 +451,44 @@ theorem witnesses_append (left right : List Op) :
 theorem witnesses_cons (operation : Op) (rest : List Op) :
     witnesses (operation :: rest) = operation.witnesses ++ witnesses rest :=
   List.flatMap_cons
+
+theorem witnesses_assertions (rows : List Expr) : witnesses (rows.map Op.assertZero) = [] := by
+  induction rows with
+  | nil => rfl
+  | cons row rest ih => rw [List.map_cons, witnesses_cons, ih]; rfl
+
+theorem computed_holdsFlat {env : Env} {ops : List Op} (only : ∀ op ∈ ops, op.RecipesOnly)
+    (computed : Computed env (witnesses ops)) : holdsFlat env ops := by
+  intro row member
+  obtain ⟨op, opMember, rowMember⟩ := List.mem_flatMap.mp member
+  cases op with
+  | witness batch =>
+      exact (computed batch (List.mem_flatMap.mpr ⟨_, opMember, List.mem_singleton.mpr rfl⟩)).1
+        row rowMember
+  | mark _ => exact absurd rowMember List.not_mem_nil
+  | assertZero _ => exact False.elim (only _ opMember)
+  | subcircuit _ => exact False.elim (only _ opMember)
+
+theorem ordered_batch {offset : Nat} {recipes : List Expr} {ops : List Op}
+    (batches : witnesses ops = [WitnessBatch.arithmetic offset recipes])
+    (count : localLength ops = recipes.length) (causal : RecipesCausal offset recipes) :
+    Ordered offset (witnesses ops) (offset + localLength ops) := by
+  rw [batches, count]
+  exact ⟨le_rfl, ⟨causal, trivial⟩, by simp [Ordered, WitnessBatch.finish]⟩
+
+theorem computed_batch {env : Env} {offset : Nat} {recipes : List Expr} {ops : List Op}
+    (batches : witnesses ops = [WitnessBatch.arithmetic offset recipes])
+    (computed : Computed env (witnesses ops)) :
+    ConstraintsHold env (recipeConstraints offset recipes) :=
+  (computed (WitnessBatch.arithmetic offset recipes) (by simp [batches])).1
+
+theorem complete {env : Env} {offset : Nat} {ops : List Op}
+    (ordered : Ordered offset (witnesses ops) (offset + localLength ops))
+    (rows : ∀ completed, (∀ index, index < offset → completed index = env index) →
+      Computed completed (witnesses ops) → holdsFlat completed ops) :
+    ∃ completed, AgreesOutside env completed offset (localLength ops) ∧ holdsFlat completed ops :=
+  ⟨execute env (witnesses ops), execute_agreesOutside ordered env,
+    rows _ (execute_agrees_below ordered env) (execute_computed ordered env)⟩
 
 end Witness
 

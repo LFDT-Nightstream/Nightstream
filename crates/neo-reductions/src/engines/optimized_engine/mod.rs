@@ -17,6 +17,7 @@ mod verify;
 
 pub use crate::engines::pi_ccs_joint_protocol::PaperJointRoundOracle;
 pub use crate::engines::pi_ccs_protocol::{Challenges, PiCcsProof};
+pub use cpu_oracle::PackedGateNorm;
 pub use paper_joint::prove_with_complete_oracle as optimized_prove_with_complete_oracle;
 pub use paper_joint::prove_with_matrix_rows as optimized_prove_with_matrix_rows;
 pub use paper_joint::prove_with_profile as optimized_prove_with_profile;

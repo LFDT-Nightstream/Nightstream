@@ -18,6 +18,19 @@ variable {logicalWidth : ℕ}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
     RingCarrierLayout.carrierWidth logicalWidth}
 
+-- SPEC.md Algorithm 10 and SECURITY_MODEL.md, premise `akita.fixedSetup`.
+example (opening : Akita.Use) (prover : Akita.Prover opening.scheme opening.claims)
+    (knowledge : opening.Knowledge prover) :
+    ∃ extractor : Akita.Extractor prover, opening.Efficient prover extractor ∧
+      extractor.chance (extractor.Fails opening.params) ≤
+        opening.schedule.knowledgeError prover (opening.advantage prover) :=
+  knowledge.fixedSetup knowledge.admissible knowledge.admitted knowledge.budget
+
+-- Akita Section 9.3, C3.
+example (schedule : Akita.Schedule) (admissible : schedule.Admissible) :
+    schedule.row.Chained ∧ schedule.chainCompatibility :=
+  ⟨admissible.1.2.2, admissible.2.2.2.1⟩
+
 -- SPEC.md Algorithm 10, step 5, in the light mode, with Algorithm 9, steps 2 and 3, and
 -- Algorithm 11, step 1.
 example (setup : FinalVerifier.Setup .light logicalWidth publicFits)
@@ -62,14 +75,13 @@ example (setup : FinalVerifier.Setup .both logicalWidth publicFits)
   rintro ⟨first, second, fresh⟩ ⟨_ | _ | _ | _, below⟩
   exacts [first, second, fresh, by simp only [FinalVerifier.Mode.slots] at below; omega]
 
--- SPEC.md section 3 and Algorithm 10, step 5: in the light mode, `error_bits` is 119 at each
--- depth up to the cap.
+-- SPEC.md section 3 and Algorithm 10, step 5: the exact compression gate at each supported light layout.
 example (blocks depth keyBlocks : ℕ) (l : Rust.Placed)
     (ok : Rust.layoutNew
       [⟨blocks, some (productionGlobalParams.accumulatorBound depth)⟩, ⟨blocks, none⟩]
       keyBlocks = .ok l)
     (legal : depth ≤ 64) :
-    Rust.runBits (l.counts 320 4) = 119 :=
+    Rust.runBits (l.counts 320 4) = (if keyBlocks = 2 ^ 9 then 119 else 118) :=
   @Claims.Compression.light_error_bits blocks depth keyBlocks l ok legal
 
 -- SPEC.md Algorithm 9, Rejects and Source: with ideal openings, the verifier rejects the honest
@@ -96,24 +108,24 @@ example {F K : Type} [Field F] [Fintype F] [DecidableEq F] [Field K] [Fintype K]
 -- SPEC.md Algorithm 10, steps 1 to 5, in the light mode: the verifier takes the key of
 -- Algorithm 11, which has `2^19` blocks, and its security minimum is at most 119 bits.
 example (light : FinalVerifier.Setup .light logicalWidth publicFits) (packageWidths : Fin 2 → ℕ)
-    (step : AppState → AppWitness → AppState) (cap : ℕ)
+    (step : AppState → AppWitness → AppState)
     (control : AppState → AppWitness → Fin 2)
     (key : (Rust.schedules.find? fun s =>
         decide ((light.rows 0).matrices.columns / ringDegree ≤ s.blocks)).map
         Rust.Schedule.blocks = some light.keyBlocks)
-    (shipped : light.keyBlocks = 2 ^ 19) (minimum : light.minimum ≤ 119)
+    (shipped : light.keyBlocks = 2 ^ 19) (minimum : light.minimum ≤ 118)
     (statement : TerminalStatement AppState)
     (payload : TerminalProof (SlotData logicalWidth publicFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
       (StepFresh logicalWidth publicFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2)
-    (verifies : RunCompleteness.Verifies light.ajtai light.circuitKeys step packageWidths cap
+    (verifies : RunCompleteness.Verifies light.ajtai light.circuitKeys step packageWidths
       control statement (.recursive payload))
     (pcOne : payload.pc = 1) (slotOne : payload.running 1 = (defaultSlot, 0))
     (commitment : PaperAlgebra.Commitment) :
     FinalVerifier.Checks .light statement ⟨payload.pc, payload.running, commitment⟩ ∧
       light.Gate ⟨payload.pc, payload.running, commitment⟩ :=
-  @Claims.Final.light_gate_complete logicalWidth publicFits light packageWidths step cap control
+  @Claims.Final.light_gate_complete logicalWidth publicFits light packageWidths step control
     key shipped minimum statement payload verifies pcOne slotOne commitment
 
 -- SPEC.md Algorithm 6 and section 1, at the shipped packages: the verifier accepts a statement
@@ -144,12 +156,12 @@ example {ajtai : Shipped.Ajtai} (facts : Shipped.Facts Shipped.program ajtai)
     (adversary : IvcAdversary
       (IvcSecurity.Output StepRelation.keyWidth StepRelation.keyPublicFits))
     (admitted : StageAdmitted (Stage.start (IvcSecurity.walkAdversary adversary)))
-    (packageWidths : Fin 2 → ℕ) (control : AppState → AppWitness → Fin 2) (cap depth : ℕ)
+    (packageWidths : Fin 2 → ℕ) (control : AppState → AppWitness → Fin 2) (depth : ℕ)
     (depthBound : ∀ tape ∈ adversary.tape.support,
       (adversary.output tape).1.iteration ≤ depth) :
     (adversary.tape.toOuterMeasure {tape |
         RunCompleteness.Verifies ajtai (Shipped.keys identity relations) Shipped.program.step
-            packageWidths cap control (adversary.output tape).1 (adversary.output tape).2 ∧
+            packageWidths control (adversary.output tape).1 (adversary.output tape).2 ∧
           ¬ IvcWalk.Reaches Shipped.program (adversary.output tape).1}).toReal ≤
       ∑ j : Fin depth,
         (IvcSecurity.finderChance ajtai (Shipped.keys identity relations)
@@ -162,7 +174,7 @@ example {ajtai : Shipped.Ajtai} (facts : Shipped.Facts Shipped.program ajtai)
             (IvcWalk.back ajtai (Shipped.keys identity relations)
               (Shipped.exports facts identity relations lightKey refreshKey)))) :=
   @Claims.Shipped.verify_sound ajtai facts identity relations lightKey refreshKey Admitted
-    StageAdmitted Efficient error assumption closed adversary admitted packageWidths control cap
+    StageAdmitted Efficient error assumption closed adversary admitted packageWidths control
     depth depthBound
 
 -- SPEC.md section 1: under `[P2-PERM]` and `[SPONGE]`, when the finder of stage `j` makes at
@@ -208,6 +220,7 @@ example {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
 -- when the collision finder makes at most `N` permutation calls, the light success is below the
 -- extraction chance plus `(Q + 1) · 575/2^128`, the MSIS solver's advantage,
 -- `2 · (C(N + 2, 2)/q⁴ + N²/q⁴)`, `(7Q + 124)/budget` and `2^−1129`, with `q = 2^64 − 59`.
+attribute [local irreducible] Real.instLT in
 example
     (key : (RandomOracleSetup.SetupIndex StepRelation.keyWidth StepRelation.keyPublicFits →
       AjtaiSetupV1.Rejection.Stream) → CircuitKey StepRelation.keyWidth StepRelation.keyPublicFits)
@@ -237,6 +250,7 @@ example
 -- when the collision finder makes at most `N` permutation calls, the refresh success is below the
 -- extraction chance plus `(Q + 1) · 4748/2^128`, the MSIS solver's advantage,
 -- `16 · (C(N + 2, 2)/q⁴ + N²/q⁴)`, `(77Q + 1286)/budget` and `2^−1129`, with `q = 2^64 − 59`.
+attribute [local irreducible] Real.instLT in
 example
     (key : (RandomOracleSetup.SetupIndex StepRelation.keyWidth StepRelation.keyPublicFits →
       AjtaiSetupV1.Rejection.Stream) → CircuitKey StepRelation.keyWidth StepRelation.keyPublicFits)

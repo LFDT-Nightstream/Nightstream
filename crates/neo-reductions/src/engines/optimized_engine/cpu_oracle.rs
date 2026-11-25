@@ -7,11 +7,13 @@ use rayon::prelude::*;
 #[path = "application.rs"]
 mod application;
 
-use super::prefix::{self, Assignment};
+use super::prefix::{self, Assignment, PackedNorm, PACKED_NORM_ROUNDS};
 use crate::engines::pi_ccs_joint::{gamma_power, range_product, JointDims};
 use crate::engines::pi_ccs_joint_protocol::{PaperJointRoundOracle, V1_2OutputOpening};
 use crate::engines::pi_ccs_protocol::Challenges;
-use crate::superneo_eval::{fill_combined_projection, EqualityWeights, MatrixRows, SuperneoZBlocks};
+use crate::superneo_eval::{
+    fill_geometric_projection, EqualityWeights, MatrixRows, PadProjection, SuperneoZBlocks, LANE_BITS,
+};
 use crate::PiCcsError;
 use application::ApplicationTables;
 
@@ -55,7 +57,61 @@ fn pair_norm_coefficients(table: &Assignment<'_>, pairs: usize, weights: &Equali
     }
 }
 
+struct CarriedPad {
+    projection: PadProjection,
+    lanes: Vec<K>,
+}
+
+impl CarriedPad {
+    fn new(witness: &SuperneoZBlocks, high_point: &[K], gamma: K) -> Self {
+        let projection = PadProjection::new(gamma);
+        let lanes = projection.contract_blocks(witness, high_point).to_vec();
+        Self { projection, lanes }
+    }
+}
+
+pub trait PackedGateNorm {
+    fn submit(&mut self, round: usize, challenge: K, weights: (&[K], &[K])) -> Result<(), PiCcsError>;
+    fn coefficients(&mut self, round: usize) -> Result<([K; 8], [K; 4]), PiCcsError>;
+    fn take_tables(&mut self, round: usize) -> Option<(Vec<K>, Vec<K>)>;
+}
+
+impl super::PaperJointOracleInput<'_> {
+    pub fn packed_gate_norm_shape(&self) -> bool {
+        let shape = self.rows.shape();
+        self.prior_point.is_some()
+            && self.running_witnesses.len() == 1
+            && self.fresh_witnesses.len() == 1
+            && self.norm_sources == 1
+            && self.params.b() == 2
+            && self.fresh_witnesses[0].Z.is_packed_signed_unit()
+            && self.dims.variables >= 10
+            && self.dims.variables <= 30
+            && shape.matrices == 4
+            && application::is_poseidon2_gate(self.structure.f())
+            && (1 << 16..=1 << 19).contains(&shape.rows)
+            && (1 << 21..=1 << 24).contains(&self.dims.assignment_width)
+    }
+
+    pub fn optimized_with_packed_terms<'a>(
+        self,
+        device: Option<Box<dyn PackedGateNorm + 'a>>,
+        openings: &'a dyn crate::superneo_eval::TerminalOpeningDevice,
+    ) -> Result<Box<dyn PaperJointRoundOracle + 'a>, PiCcsError>
+    where
+        Self: 'a,
+    {
+        Ok(Box::new(OptimizedPaperJointOracle::with_device(
+            self,
+            device,
+            Some(openings),
+        )?))
+    }
+}
+
 pub struct OptimizedPaperJointOracle<'a> {
+    openings: Option<&'a dyn crate::superneo_eval::TerminalOpeningDevice>,
+    device: Option<Box<dyn PackedGateNorm + 'a>>,
     structure: &'a CcsStructure<F>,
     source: &'a dyn MatrixRows,
     workspace_bytes: usize,
@@ -70,22 +126,62 @@ pub struct OptimizedPaperJointOracle<'a> {
     assignments: Vec<Assignment<'a>>,
     witness_blocks: Vec<SuperneoZBlocks>,
     evaluation_table: Vec<K>,
+    carried_pad: Option<CarriedPad>,
+    norm_polynomial: Option<[K; 4]>,
+    packed_norm: Option<PackedNorm<'a>>,
+    packed_norm_value: Option<K>,
+    carried_polynomial: Option<[K; 2]>,
     constraint_shift: K,
 }
 
 impl<'a> OptimizedPaperJointOracle<'a> {
     pub fn new(
         structure: &'a CcsStructure<F>,
-        params: &neo_params::NeoParams,
+        params: &'a neo_params::NeoParams,
         fresh: &'a [CcsWitness<F>],
         running: &'a [Mat<F>],
         challenges: Challenges,
-        prior_point: Option<&[K]>,
+        prior_point: Option<&'a [K]>,
         dims: JointDims,
         source: &'a dyn MatrixRows,
         workspace_bytes: usize,
         norm_sources: usize,
     ) -> Result<Self, PiCcsError> {
+        Self::with_device(
+            super::PaperJointOracleInput {
+                structure,
+                params,
+                fresh_witnesses: fresh,
+                running_witnesses: running,
+                challenges,
+                prior_point,
+                dims,
+                rows: source,
+                workspace_bytes,
+                norm_sources,
+            },
+            None,
+            None,
+        )
+    }
+
+    fn with_device(
+        input: super::PaperJointOracleInput<'a>,
+        mut device: Option<Box<dyn PackedGateNorm + 'a>>,
+        openings: Option<&'a dyn crate::superneo_eval::TerminalOpeningDevice>,
+    ) -> Result<Self, PiCcsError> {
+        let super::PaperJointOracleInput {
+            structure,
+            params,
+            fresh_witnesses: fresh,
+            running_witnesses: running,
+            challenges,
+            prior_point,
+            dims,
+            rows: source,
+            workspace_bytes,
+            norm_sources,
+        } = input;
         let shape = source.shape();
         if !challenges.has_expected_dimension(dims.variables)
             || running.is_empty() != prior_point.is_none()
@@ -95,6 +191,10 @@ impl<'a> OptimizedPaperJointOracle<'a> {
             || structure.f().eval(&vec![F::ZERO; structure.t()]) != F::ZERO
         {
             return Err(PiCcsError::InvalidInput("optimized CPU oracle input shape".into()));
+        }
+        if let Some(gpu) = &mut device {
+            let weights = EqualityWeights::new(&challenges.alpha[1..]);
+            gpu.submit(0, K::ZERO, weights.factors())?;
         }
         let witnesses = fresh
             .iter()
@@ -110,15 +210,44 @@ impl<'a> OptimizedPaperJointOracle<'a> {
             .map(|source| Assignment::new(source, dims.assignment_width))
             .collect::<Vec<_>>();
         let fresh_tables = ApplicationTables::new(source, &witness_blocks[..fresh.len()], workspace_bytes)?;
-        let evaluation_table = carried_table(
-            source,
-            &witness_blocks[fresh.len()..],
-            challenges.gamma,
-            dims,
-            structure.n(),
-            workspace_bytes,
-        )?;
+        let running_blocks = &witness_blocks[fresh.len()..];
+        let (evaluation_table, carried_pad) = match (running_blocks, prior_point) {
+            ([witness], Some(prior))
+                if dims.variables > LANE_BITS && structure.n() <= dims.assignment_width && !witness.is_zero() =>
+            {
+                let matrix =
+                    single_carried_matrix(source, witness, challenges.gamma, dims, structure.n(), workspace_bytes)?;
+                (
+                    matrix,
+                    Some(CarriedPad::new(witness, &prior[LANE_BITS..], challenges.gamma)),
+                )
+            }
+            _ => (
+                carried_table(
+                    source,
+                    running_blocks,
+                    challenges.gamma,
+                    dims,
+                    structure.n(),
+                    workspace_bytes,
+                )?,
+                None,
+            ),
+        };
+        let packed_norm = if device.is_none()
+            && params.b() == 2
+            && dims.variables >= PACKED_NORM_ROUNDS
+            && assignments
+                .iter()
+                .any(|assignment| assignment.len() >= (1 << 16))
+        {
+            PackedNorm::new(&assignments, &challenges.alpha, challenges.gamma)
+        } else {
+            None
+        };
         Ok(Self {
+            openings,
+            device,
             structure,
             source,
             workspace_bytes,
@@ -133,6 +262,11 @@ impl<'a> OptimizedPaperJointOracle<'a> {
             assignments,
             witness_blocks,
             evaluation_table,
+            carried_pad,
+            norm_polynomial: None,
+            packed_norm,
+            packed_norm_value: None,
+            carried_polynomial: None,
             constraint_shift: gamma_power(challenges.gamma, running.len() * D * (structure.t() + 1)),
         })
     }
@@ -168,26 +302,157 @@ impl<'a> OptimizedPaperJointOracle<'a> {
             .sum()
     }
 
-    fn carried_coefficients(&self, weights: &EqualityWeights) -> [K; 2] {
-        let term = |index| {
-            let (low, high) = prefix::pair(&self.evaluation_table, index);
-            let weight = weights.at(index);
-            [weight * low, weight * (high - low)]
-        };
-        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-        {
-            (0..self.evaluation_table.len().div_ceil(2))
-                .into_par_iter()
-                .with_min_len(prefix::MIN_JOB_PAIRS)
-                .map(term)
-                .reduce(|| [K::ZERO; 2], |left, right| [left[0] + right[0], left[1] + right[1]])
+    fn carried_coefficients(&self, round: usize, prior: &[K]) -> [K; 2] {
+        let weights = EqualityWeights::new(&prior[round + 1..]);
+        let coefficients = |low, high| [low, high - low];
+        let matrix = prefix::sum_products(&self.evaluation_table, &weights, coefficients);
+        self.carried_pad.as_ref().map_or(matrix, |pad| {
+            let weights = EqualityWeights::new(&prior[round + 1..LANE_BITS]);
+            prefix::add_coefficients(matrix, prefix::sum_products(&pad.lanes, &weights, coefficients))
+        })
+    }
+
+    fn bind_norm(&mut self, round: usize, challenge: K) {
+        let ordinary = self.norm_polynomial.take();
+        if let Some(packed) = &mut self.packed_norm {
+            let bound_rounds = round + 1;
+            if bound_rounds == PACKED_NORM_ROUNDS {
+                let point = std::array::from_fn(|i| if i == round { challenge } else { self.point[i] });
+                let bound_value = ordinary.map(|poly| crate::sumcheck::poly_eval_k(&poly, challenge));
+                if let Some(previous) = bound_value.filter(|_| self.dims.variables > LANE_BITS && packed.defer()) {
+                    packed.discard_histogram();
+                    let weights = EqualityWeights::new(&self.challenges.alpha[bound_rounds + 1..]);
+                    let higher = packed.moments(&point, &weights, self.challenges.gamma);
+                    self.norm_polynomial = Some(prefix::recover_weighted_constant(
+                        previous,
+                        self.challenges.alpha[bound_rounds],
+                        higher,
+                    ));
+                } else {
+                    self.packed_norm_value = bound_value;
+                    self.packed_norm
+                        .take()
+                        .unwrap()
+                        .bind(&mut self.assignments, &point);
+                }
+            } else if bound_rounds > PACKED_NORM_ROUNDS {
+                let previous = ordinary.expect("deferred rounds carry their norm polynomial");
+                let weights = EqualityWeights::new(&self.challenges.alpha[bound_rounds + 1..]);
+                let gamma = self.challenges.gamma;
+                let mut point = [K::ZERO; LANE_BITS];
+                point[..round].copy_from_slice(&self.point);
+                point[round] = challenge;
+                let point = &point[..bound_rounds];
+                let higher = match bound_rounds {
+                    4 => packed.face::<2>(point, &weights, gamma, &mut self.assignments),
+                    5 => packed.face::<4>(point, &weights, gamma, &mut self.assignments),
+                    6 => packed.face::<8>(point, &weights, gamma, &mut self.assignments),
+                    _ => unreachable!("a packed face spans at most one 64-lane column"),
+                };
+                if bound_rounds == LANE_BITS {
+                    self.packed_norm = None;
+                }
+                self.norm_polynomial = Some(prefix::recover_weighted_constant(
+                    crate::sumcheck::poly_eval_k(&previous, challenge),
+                    self.challenges.alpha[bound_rounds],
+                    higher,
+                ));
+            }
+            return;
         }
-        #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-        {
-            (0..self.evaluation_table.len().div_ceil(2))
-                .map(term)
-                .fold([K::ZERO; 2], |left, right| [left[0] + right[0], left[1] + right[1]])
+        let encoded = self.packed_norm_value.take().is_some();
+        if let Some(previous) = ordinary.filter(|_| {
+            round + 1 < self.dims.variables
+                && (encoded
+                    || self
+                        .assignments
+                        .iter()
+                        .all(|table| matches!(table, Assignment::Folded(_))))
+        }) {
+            let weights = EqualityWeights::new(&self.challenges.alpha[round + 2..]);
+            let bind = |table: &mut Assignment<'_>| match table {
+                Assignment::Folded(values) => prefix::bind_norm_products(values, challenge, &weights),
+                Assignment::Encoded { codes, values, zero } => {
+                    let (dense, higher) = prefix::bind_encoded(codes, values, *zero, challenge, &weights);
+                    *table = Assignment::Folded(dense);
+                    higher
+                }
+                Assignment::Input { .. } => unreachable!(),
+            };
+            let gamma = self.challenges.gamma;
+            let serial = |tables: &mut [Assignment<'_>]| {
+                let mut higher = [K::ZERO; 3];
+                let mut weight = K::ONE;
+                for table in tables {
+                    higher = prefix::add_coefficients(higher, bind(table).map(|value| value * weight));
+                    weight *= gamma;
+                }
+                higher
+            };
+            #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+            let higher = if !encoded && round > PACKED_NORM_ROUNDS && self.assignments.len() > 2 {
+                self.assignments
+                    .par_iter_mut()
+                    .enumerate()
+                    .map(|(index, table)| {
+                        let weight = gamma_power(gamma, index);
+                        bind(table).map(|v| v * weight)
+                    })
+                    .reduce(|| [K::ZERO; 3], prefix::add_coefficients)
+            } else {
+                serial(&mut self.assignments)
+            };
+            #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+            let higher = serial(&mut self.assignments);
+            self.norm_polynomial = Some(prefix::recover_weighted_constant(
+                crate::sumcheck::poly_eval_k(&previous, challenge),
+                self.challenges.alpha[round + 1],
+                higher,
+            ));
+        } else {
+            for table in &mut self.assignments {
+                table.fold(challenge);
+            }
         }
+    }
+
+    fn bind_carried(&mut self, round: usize, challenge: K) {
+        let polynomial = self.carried_polynomial.take();
+        if let Some(pad) = &mut self.carried_pad {
+            prefix::fold(&mut self.evaluation_table, challenge);
+            if round + 1 == LANE_BITS {
+                let mut point = [K::ZERO; LANE_BITS];
+                point[..round].copy_from_slice(&self.point);
+                point[round] = challenge;
+                let witness = &self.witness_blocks[self.fresh_tables.fresh_count()];
+                self.evaluation_table.resize(witness.block_len(), K::ZERO);
+                pad.projection
+                    .add_contracted_lanes(witness, &point, &mut self.evaluation_table);
+                self.carried_pad = None;
+            } else {
+                prefix::fold(&mut pad.lanes, challenge);
+            }
+            return;
+        }
+        if let (Some(previous), Some(prior)) = (polynomial, &self.prior_point) {
+            if round + 1 < self.dims.variables {
+                let weights = EqualityWeights::new(&prior[round + 2..]);
+                let higher =
+                    prefix::bind_sum_products(
+                        &mut self.evaluation_table,
+                        challenge,
+                        &weights,
+                        |low, high| [high - low],
+                    );
+                self.carried_polynomial = Some(prefix::recover_weighted_constant(
+                    crate::sumcheck::poly_eval_k(&previous, challenge),
+                    prior[round + 1],
+                    higher,
+                ));
+                return;
+            }
+        }
+        prefix::fold(&mut self.evaluation_table, challenge);
     }
 }
 
@@ -197,28 +462,61 @@ impl PaperJointRoundOracle for OptimizedPaperJointOracle<'_> {
         if round >= self.dims.variables {
             return Err(PiCcsError::InvalidInput("completed optimized CPU oracle".into()));
         }
-        let weights = EqualityWeights::new(&self.challenges.alpha[round + 1..]);
-        let matrix = self.matrix_coefficients(points, &weights)?;
-        let norm = if self.base == 2 {
-            self.norm_coefficients(&weights)
+        let (matrix, norm, general_weights) = if let Some(gpu) = &mut self.device {
+            let (gate, norm) = gpu.coefficients(round)?;
+            let evaluations = points
+                .iter()
+                .map(|&x| crate::sumcheck::poly_eval_k(&gate, x))
+                .collect();
+            (evaluations, norm, None)
         } else {
-            [K::ZERO; 4]
+            let weights = EqualityWeights::new(&self.challenges.alpha[round + 1..]);
+            let matrix = self.matrix_coefficients(points, &weights)?;
+            if self.base == 2 {
+                let polynomial = self.norm_polynomial.unwrap_or_else(|| {
+                    if let Some(packed) = &self.packed_norm {
+                        return packed.coefficients(&self.point, &self.challenges.alpha[round + 1..PACKED_NORM_ROUNDS]);
+                    }
+                    if let Some(previous) = self.packed_norm_value {
+                        let mut higher = [K::ZERO; 3];
+                        for (index, table) in self.assignments.iter().enumerate() {
+                            if let Assignment::Encoded { codes, values, zero } = table {
+                                let moments = prefix::encoded_moments(codes, values, *zero, &weights);
+                                let weight = gamma_power(self.challenges.gamma, index);
+                                higher = prefix::add_coefficients(higher, moments.map(|value| value * weight));
+                            }
+                        }
+                        return prefix::recover_weighted_constant(previous, self.challenges.alpha[round], higher);
+                    }
+                    self.norm_coefficients(&weights)
+                });
+                (matrix, polynomial, None)
+            } else {
+                (matrix, [K::ZERO; 4], Some(weights))
+            }
         };
-        let carried = self
-            .prior_point
-            .as_ref()
-            .map(|prior| self.carried_coefficients(&EqualityWeights::new(&prior[round + 1..])))
-            .unwrap_or([K::ZERO; 2]);
+        if general_weights.is_none() {
+            self.norm_polynomial = Some(norm);
+        }
+        let carried = if let Some(prior) = &self.prior_point {
+            let polynomial = self
+                .carried_polynomial
+                .unwrap_or_else(|| self.carried_coefficients(round, prior));
+            self.carried_polynomial = Some(polynomial);
+            polynomial
+        } else {
+            [K::ZERO; 2]
+        };
         Ok(points
             .iter()
             .zip(matrix)
             .map(|(&point, matrix)| {
-                let norm = if self.base == 2 {
+                let norm = if let Some(weights) = &general_weights {
+                    self.general_norm(weights, point)
+                } else {
                     norm.iter()
                         .rev()
                         .fold(K::ZERO, |value, &coefficient| value * point + coefficient)
-                } else {
-                    self.general_norm(&weights, point)
                 };
                 let alpha = self.challenges.alpha[round];
                 let equality = (K::ONE - point) * (K::ONE - alpha) + point * alpha;
@@ -244,11 +542,31 @@ impl PaperJointRoundOracle for OptimizedPaperJointOracle<'_> {
         if round >= self.dims.variables {
             return Err(PiCcsError::InvalidInput("completed optimized CPU oracle".into()));
         }
-        for table in &mut self.assignments {
-            table.fold(challenge);
+        if let Some((gate, norm)) = self
+            .device
+            .as_mut()
+            .and_then(|device| device.take_tables(round))
+        {
+            self.fresh_tables
+                .resume(&self.point, self.structure.n().div_ceil(1 << round), gate);
+            self.assignments[0] = Assignment::Folded(norm);
+            self.device = None;
         }
-        self.fresh_tables.fold(challenge);
-        prefix::fold(&mut self.evaluation_table, challenge);
+        if self.device.is_none() {
+            self.bind_norm(round, challenge);
+            if round + 1 < self.dims.variables {
+                let weights = EqualityWeights::new(&self.challenges.alpha[round + 2..]);
+                self.fresh_tables
+                    .fold_next_gate(challenge, self.structure.f(), &weights);
+            } else {
+                self.fresh_tables.fold(challenge);
+            }
+        }
+        if let Some(device) = &mut self.device {
+            let weights = EqualityWeights::new(&self.challenges.alpha[round + 2..]);
+            device.submit(round + 1, challenge, weights.factors())?;
+        }
+        self.bind_carried(round, challenge);
         let alpha = self.challenges.alpha[round];
         self.fixed_equality *= (K::ONE - challenge) * (K::ONE - alpha) + challenge * alpha;
         if let Some(prior) = &self.prior_point {
@@ -275,6 +593,7 @@ impl PaperJointRoundOracle for OptimizedPaperJointOracle<'_> {
             self.workspace_bytes,
             storage,
             complete,
+            self.openings,
         )
         .map(Some)
     }
@@ -294,32 +613,80 @@ fn carried_table(
     let powers = (0..running.len())
         .map(|source| gamma_power(gamma, source))
         .collect::<Vec<_>>();
-    let matrix_weights =
-        std::array::from_fn(|coefficient| gamma_power(gamma, running.len() * dims.matrix_count * coefficient));
-    let matrix_coefficients = (0..dims.matrix_count)
-        .map(|matrix| gamma_power(gamma, running.len() * matrix))
-        .collect::<Vec<_>>();
-    let width = dims.assignment_width;
-    let mut result = vec![K::ZERO; width.max(rows)];
-    fill_combined_projection(running, &powers, &matrix_weights, &mut result[..width]);
-    let mut matrix = vec![K::ZERO; rows];
-    crate::superneo_eval::fill_weighted_rows_from_source(
-        source,
-        &result[..width],
-        &matrix_coefficients,
-        &mut matrix,
-        workspace_bytes,
-    )?;
-    let pad_weights = std::array::from_fn(|coefficient| gamma_power(gamma, running.len() * coefficient));
-    fill_combined_projection(running, &powers, &pad_weights, &mut result[..width]);
-    let matrix_shift = gamma_power(gamma, running.len() * D);
+    let (mut result, matrix) = carried_matrix(source, running, gamma, dims, rows, workspace_bytes, &powers)?;
+    let pad_ratio = gamma_power(gamma, running.len());
+    fill_geometric_projection(running, &powers, pad_ratio, &mut result[..dims.assignment_width]);
     for (output, value) in result.iter_mut().zip(matrix) {
-        *output += matrix_shift * value;
+        *output += value;
     }
     while result.last().is_some_and(|value| *value == K::ZERO) {
         result.pop();
     }
     Ok(result)
+}
+
+fn single_carried_matrix(
+    source: &dyn MatrixRows,
+    witness: &SuperneoZBlocks,
+    gamma: K,
+    dims: JointDims,
+    rows: usize,
+    workspace_bytes: usize,
+) -> Result<Vec<K>, PiCcsError> {
+    let ratio = gamma_power(gamma, dims.matrix_count);
+    let factors = (0..dims.matrix_count)
+        .map(|matrix| gamma_power(gamma, matrix))
+        .collect::<Vec<_>>();
+    if let Some(mut matrix) =
+        crate::superneo_eval::geometric_weighted_rows_from_source(source, witness, ratio, &factors, workspace_bytes)?
+    {
+        let matrix_shift = gamma_power(gamma, D);
+        for value in &mut matrix {
+            *value *= matrix_shift;
+        }
+        return Ok(matrix);
+    }
+    carried_matrix(
+        source,
+        std::slice::from_ref(witness),
+        gamma,
+        dims,
+        rows,
+        workspace_bytes,
+        &[K::ONE],
+    )
+    .map(|(_, matrix)| matrix)
+}
+
+fn carried_matrix(
+    source: &dyn MatrixRows,
+    running: &[SuperneoZBlocks],
+    gamma: K,
+    dims: JointDims,
+    rows: usize,
+    workspace_bytes: usize,
+    powers: &[K],
+) -> Result<(Vec<K>, Vec<K>), PiCcsError> {
+    let matrix_ratio = gamma_power(gamma, running.len() * dims.matrix_count);
+    let matrix_coefficients = (0..dims.matrix_count)
+        .map(|matrix| gamma_power(gamma, running.len() * matrix))
+        .collect::<Vec<_>>();
+    let width = dims.assignment_width;
+    let mut projection = vec![K::ZERO; width.max(rows)];
+    fill_geometric_projection(running, powers, matrix_ratio, &mut projection[..width]);
+    let mut matrix = vec![K::ZERO; rows];
+    crate::superneo_eval::fill_weighted_rows_from_source(
+        source,
+        &projection[..width],
+        &matrix_coefficients,
+        &mut matrix,
+        workspace_bytes,
+    )?;
+    let matrix_shift = gamma_power(gamma, running.len() * D);
+    for value in &mut matrix {
+        *value *= matrix_shift;
+    }
+    Ok((projection, matrix))
 }
 
 #[cfg(test)]

@@ -1,5 +1,6 @@
 //! Lean `Export/Generic/SlotLayout`, `ProductionAssignment.logicalAssignment`.
 
+use neo_ccs::Mat;
 use neo_math::Fq;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use rayon::prelude::*;
@@ -13,7 +14,6 @@ use crate::package::{
 
 const FIELD_DIGITS: usize = 41;
 const FIELD_RATIO: u64 = 3;
-const NO_SLOT: u32 = u32::MAX;
 
 /// Lean `LowNormSlot.Kind`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -41,10 +41,23 @@ impl Kind {
 }
 
 pub struct LogicalLayout {
-    offsets: Vec<u32>,
-    kinds: Vec<Kind>,
-    slots: Vec<usize>,
+    spans: SlotSpans,
+    run_starts: Box<[u32]>,
+    centered: Vec<u64>,
     width: usize,
+}
+
+struct LayoutRun {
+    column: usize,
+    offset: usize,
+    end: usize,
+    width: usize,
+}
+
+impl LayoutRun {
+    fn count(&self) -> usize {
+        (self.end - self.offset) / self.width
+    }
 }
 
 pub struct SlotSpans {
@@ -54,6 +67,26 @@ pub struct SlotSpans {
 }
 
 impl LogicalLayout {
+    fn runs_from(&self, first: usize) -> impl Iterator<Item = LayoutRun> + '_ {
+        let starts = &self.run_starts[first..];
+        let ends = starts
+            .iter()
+            .skip(1)
+            .map(|&column| self.spans.starts[column as usize] as usize);
+        starts
+            .iter()
+            .zip(ends.chain(std::iter::once(self.width)))
+            .map(|(&column, end)| {
+                let column = column as usize;
+                LayoutRun {
+                    column,
+                    offset: self.spans.starts[column] as usize,
+                    end,
+                    width: usize::from(self.spans.widths[column]),
+                }
+            })
+    }
+
     pub fn width(&self) -> usize {
         self.width
     }
@@ -62,23 +95,23 @@ impl LogicalLayout {
         if column < PUBLIC {
             return Some((column, Kind::Centered));
         }
-        let offset = *self.offsets.get(column)?;
-        (offset != NO_SLOT).then(|| (offset as usize, self.kinds[column]))
+        let centered = || {
+            self.centered
+                .get(column / 64)
+                .is_some_and(|word| word & (1 << (column % 64)) != 0)
+        };
+        let kind = match *self.spans.widths.get(column)? {
+            0 => return None,
+            1 if centered() => Kind::Centered,
+            1 => Kind::Bit,
+            _ => Kind::Field,
+        };
+        Some((self.spans.starts[column] as usize, kind))
     }
 
     /// Lean `SlotLayout.layout`.
-    pub fn spans(&self) -> SlotSpans {
-        let (starts, widths) = (0..self.offsets.len())
-            .map(|column| {
-                self.slot(column)
-                    .map_or((0, 0), |(offset, kind)| (offset as u32, kind.width() as u8))
-            })
-            .unzip();
-        SlotSpans {
-            starts,
-            widths,
-            ratio: Fq::from_u64(FIELD_RATIO),
-        }
+    pub fn spans(&self) -> &SlotSpans {
+        &self.spans
     }
 
     pub fn assignment(&self, columns: &[Fq]) -> Result<Vec<Fq>, PackageError> {
@@ -86,60 +119,111 @@ impl LogicalLayout {
             return Err(PackageError::Input("bounded-depth source columns"));
         }
         let mut logical = vec![Fq::ZERO; self.width];
-        let (public, mut rest) = logical.split_at_mut(PUBLIC);
-        public.copy_from_slice(&columns[..PUBLIC]);
-        let range = self
-            .slots
-            .len()
-            .div_ceil(4 * rayon::current_num_threads())
-            .max(1);
-        let mut parts = Vec::new();
-        for slots in self.slots.chunks(range) {
-            let width: usize = slots.iter().map(|&column| self.kinds[column].width()).sum();
-            let (part, tail) = rest.split_at_mut(width);
-            parts.push((slots, part));
-            rest = tail;
+        logical[..PUBLIC].copy_from_slice(&columns[..PUBLIC]);
+        for run in self.runs_from(0) {
+            let first = run.column;
+            let values = columns
+                .get(first..first + run.count())
+                .ok_or(PackageError::Input("bounded-depth source columns"))?;
+            let digits = &mut logical[run.offset..run.end];
+            match run.width {
+                1 => digits.copy_from_slice(values),
+                _ => {
+                    digits
+                        .par_chunks_exact_mut(FIELD_DIGITS)
+                        .zip(values)
+                        .with_min_len(1024)
+                        .for_each(|(chunk, &value)| {
+                            let mut trits = [0i8; FIELD_DIGITS];
+                            balanced_ternary_digits(value.as_canonical_u64(), &mut trits);
+                            for (target, digit) in chunk.iter_mut().zip(trits) {
+                                *target = Fq::from_i64(i64::from(digit));
+                            }
+                        });
+                }
+            }
         }
-        parts.into_par_iter().try_for_each(|(slots, part)| {
-            let mut digits = [0i8; FIELD_DIGITS];
-            let mut offset = 0;
-            for &column in slots {
-                let value = *columns
-                    .get(column)
-                    .ok_or(PackageError::Input("bounded-depth source columns"))?;
-                let kind = self.kinds[column];
-                match kind {
-                    Kind::Bit | Kind::Centered => part[offset] = value,
-                    Kind::Field => {
-                        balanced_ternary_digits(value.as_canonical_u64(), &mut digits);
-                        for (target, &digit) in part[offset..offset + FIELD_DIGITS].iter_mut().zip(&digits) {
-                            *target = Fq::from_i64(i64::from(digit));
+        Ok(logical)
+    }
+
+    pub fn signed_assignment(&self, columns: &[Fq]) -> Result<Mat<Fq>, PackageError> {
+        if columns.len() < PUBLIC {
+            return Err(PackageError::Input("bounded-depth source columns"));
+        }
+        let blocks = self.width.div_ceil(RING_DEGREE);
+        let task_blocks = blocks.div_ceil(4 * rayon::current_num_threads()).max(1);
+        let (mut positive, mut negative) = (vec![0u64; blocks], vec![0u64; blocks]);
+        positive
+            .par_chunks_mut(task_blocks)
+            .zip(negative.par_chunks_mut(task_blocks))
+            .enumerate()
+            .try_for_each(|(task, (positive, negative))| {
+                let start = task * task_blocks * RING_DEGREE;
+                let end = start + positive.len() * RING_DEGREE;
+                let mut put = |offset: usize, (plus, minus): (u64, u64)| {
+                    let dropped = start.saturating_sub(offset);
+                    let offset = offset.saturating_sub(start);
+                    let block = offset / RING_DEGREE;
+                    let shift = offset % RING_DEGREE;
+                    positive[block] |= (plus >> dropped) << shift;
+                    negative[block] |= (minus >> dropped) << shift;
+                    if shift != 0 && block + 1 < positive.len() {
+                        positive[block + 1] |= (plus >> dropped) >> (RING_DEGREE - shift);
+                        negative[block + 1] |= (minus >> dropped) >> (RING_DEGREE - shift);
+                    }
+                };
+                for offset in start..end.min(PUBLIC) {
+                    put(offset, unit_masks(columns[offset])?);
+                }
+                let first = self
+                    .run_starts
+                    .partition_point(|&column| self.spans.starts[column as usize] as usize <= start)
+                    .saturating_sub(1);
+                for run in self.runs_from(first).take_while(|run| run.offset < end) {
+                    let width = run.width;
+                    let first = start.saturating_sub(run.offset) / width;
+                    let last = (end - run.offset).div_ceil(width).min(run.count());
+                    let column = run.column;
+                    let values = columns
+                        .get(column + first..column + last)
+                        .ok_or(PackageError::Input("bounded-depth source columns"))?;
+                    let mut offset = run.offset + first * width;
+                    match run.width {
+                        1 => {
+                            for &value in values {
+                                put(offset, unit_masks(value)?);
+                                offset += 1;
+                            }
+                        }
+                        _ => {
+                            for &value in values {
+                                put(offset, balanced_ternary_masks(value.as_canonical_u64()));
+                                offset += FIELD_DIGITS;
+                            }
                         }
                     }
                 }
-                offset += kind.width();
-            }
-            Ok::<_, PackageError>(())
-        })?;
-        Ok(logical)
+                Ok::<_, PackageError>(())
+            })?;
+        Mat::from_owned_column_masks(RING_DEGREE, blocks, positive, negative).map_err(PackageError::Malformed)
     }
 
     pub fn source_assignment(&self, logical: &[Fq]) -> Result<Vec<Fq>, PackageError> {
         if logical.len() != self.width {
             return Err(PackageError::Input("bounded-depth logical assignment width"));
         }
-        let mut columns = vec![Fq::ZERO; self.offsets.len().max(PUBLIC)];
+        let mut columns = vec![Fq::ZERO; self.spans.starts.len().max(PUBLIC)];
         columns[..PUBLIC].copy_from_slice(&logical[..PUBLIC]);
-        for &column in &self.slots {
-            let offset = self.offsets[column] as usize;
-            let width = self.kinds[column].width();
-            let mut coefficient = Fq::ONE;
-            let mut value = Fq::ZERO;
-            for &digit in &logical[offset..offset + width] {
-                value += coefficient * digit;
-                coefficient *= Fq::from_u64(FIELD_RATIO);
+        for run in self.runs_from(0) {
+            let digits = &logical[run.offset..run.end];
+            let start = run.column;
+            let target = &mut columns[start..start + run.count()];
+            for (value, digits) in target.iter_mut().zip(digits.chunks_exact(run.width)) {
+                *value = digits
+                    .iter()
+                    .rev()
+                    .fold(Fq::ZERO, |sum, &digit| sum * self.spans.ratio + digit);
             }
-            columns[column] = value;
         }
         Ok(columns)
     }
@@ -147,13 +231,67 @@ impl LogicalLayout {
     /// Lean `Parity.logicalSum`.
     pub fn checksum(&self, logical: &[Fq], limit: usize) -> u64 {
         let mut total = (0..PUBLIC).fold(Fq::ZERO, |sum, column| sum + logical[column] * mix(1, column as u64));
-        for &column in self.slots.iter().filter(|&&column| column < limit) {
-            let offset = self.offsets[column] as usize;
-            for index in offset..offset + self.kinds[column].width() {
-                total += logical[index] * mix(1, index as u64);
+        for run in self.runs_from(0) {
+            let count = limit.saturating_sub(run.column).min(run.count());
+            for (index, &value) in logical[run.offset..run.offset + count * run.width]
+                .iter()
+                .enumerate()
+            {
+                total += value * mix(1, (run.offset + index) as u64);
             }
         }
         total.as_canonical_u64()
+    }
+}
+
+const TRITS_PER_CHUNK: u32 = 6;
+const TERNARY_RADIX: usize = 3usize.pow(TRITS_PER_CHUNK);
+const TERNARY_MASKS: [[u8; 2]; TERNARY_RADIX] = {
+    let mut table = [[0; 2]; TERNARY_RADIX];
+    let mut index = 0;
+    while index < TERNARY_RADIX {
+        let mut value = index;
+        let mut trit = 0;
+        while trit < TRITS_PER_CHUNK {
+            let digit = value % 3;
+            if digit != 0 {
+                table[index][digit - 1] |= 1 << trit;
+            }
+            value = value / 3 + (digit == 2) as usize;
+            trit += 1;
+        }
+        index += 1;
+    }
+    table
+};
+
+fn balanced_ternary_masks(value: u64) -> (u64, u64) {
+    let negative = value > Fq::ORDER_U64 / 2;
+    let mut magnitude = if negative { Fq::ORDER_U64 - value } else { value };
+    let mut positive = 0;
+    let mut minus = 0;
+    let mut shift = 0;
+    while magnitude != 0 {
+        let chunk = (magnitude % TERNARY_RADIX as u64) as usize;
+        let [p, n] = TERNARY_MASKS[chunk];
+        positive |= u64::from(p) << shift;
+        minus |= u64::from(n) << shift;
+        magnitude = magnitude / TERNARY_RADIX as u64 + u64::from(chunk > TERNARY_RADIX / 2);
+        shift += TRITS_PER_CHUNK;
+    }
+    if negative {
+        (minus, positive)
+    } else {
+        (positive, minus)
+    }
+}
+
+fn unit_masks(value: Fq) -> Result<(u64, u64), PackageError> {
+    match value {
+        Fq::ZERO => Ok((0, 0)),
+        Fq::ONE => Ok((1, 0)),
+        Fq::NEG_ONE => Ok((0, 1)),
+        _ => Err(PackageError::Input("a signed-unit column is outside {-1, 0, 1}")),
     }
 }
 
@@ -271,30 +409,50 @@ impl StepPackage {
             .map(|&(start, count, _)| start + count)
             .max()
             .unwrap_or(PUBLIC);
-        let mut offsets = vec![NO_SLOT; size];
-        let mut kinds = vec![Kind::Field; size];
-        let mut slots = Vec::new();
+        let mut starts = vec![0; size];
+        let mut widths = vec![0; size];
+        for (column, (start, width)) in starts.iter_mut().zip(&mut widths).take(PUBLIC).enumerate() {
+            *start = column as u32;
+            *width = 1;
+        }
+        let mut centered = Vec::new();
+        let mut run_starts = Vec::new();
         let mut width = PUBLIC;
         for &(start, count, code) in &self.slots {
             if start < PUBLIC {
                 return Err(PackageError::Malformed("bounded-depth slot over a public column"));
             }
             let kind = Kind::from_code(code);
+            if count == 0 {
+                continue;
+            }
+            let last = start + count - 1;
+            u32::try_from(last).map_err(|_| PackageError::TooLarge("bounded-depth source column"))?;
+            run_starts.push(start as u32);
+            if kind == Kind::Centered && centered.len() <= last / 64 {
+                centered.resize(last / 64 + 1, 0);
+            }
             for column in start..start + count {
-                if offsets[column] != NO_SLOT {
+                if widths[column] != 0 {
                     return Err(PackageError::Malformed("bounded-depth column with two slots"));
                 }
-                offsets[column] =
+                starts[column] =
                     u32::try_from(width).map_err(|_| PackageError::TooLarge("bounded-depth logical width"))?;
-                kinds[column] = kind;
-                slots.push(column);
+                if kind == Kind::Centered {
+                    centered[column / 64] |= 1u64 << (column % 64);
+                }
+                widths[column] = kind.width() as u8;
                 width += kind.width();
             }
         }
         Ok(LogicalLayout {
-            offsets,
-            kinds,
-            slots,
+            spans: SlotSpans {
+                starts,
+                widths,
+                ratio: Fq::from_u64(FIELD_RATIO),
+            },
+            centered,
+            run_starts: run_starts.into_boxed_slice(),
             width,
         })
     }
@@ -370,3 +528,7 @@ fn run_value(digits: &[Fq], ratio: Fq) -> Fq {
         .rev()
         .fold(Fq::ZERO, |sum, &digit| sum * ratio + digit)
 }
+
+#[cfg(test)]
+#[path = "../../tests/unit/bounded_depth_signed_assignment.rs"]
+mod signed_assignment_tests;

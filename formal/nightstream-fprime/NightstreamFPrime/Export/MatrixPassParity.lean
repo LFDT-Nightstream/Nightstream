@@ -124,7 +124,7 @@ the factored rows. -/
 theorem pass_matrixSpec {claims : ℕ} (rel : ℕ → Factored F) (which : Fin claims → ℕ)
     (witness : Fin claims → Slice) (witnessVars zeros : ℕ) :
     MatrixSpec (⟨matrixPass (passParams rel which witness witnessVars (relationForm rel which))
-      rel which, 2, zeros⟩ :
+      rel which, zeros⟩ :
         VerifierData (passParams rel which witness witnessVars (relationForm rel which))) := by
   have form : ∀ c, (passParams rel which witness witnessVars (relationForm rel which)).matrixForm c =
       (rel (which c)).matrices.form
@@ -136,7 +136,7 @@ theorem pass_matrixSpec {claims : ℕ} (rel : ℕ → Factored F) (which : Fin c
       change (rel (which c)).columns / ringDegree = (rel (which c')).columns / ringDegree
       rw [same]
   exact matrixPass_spec (passParams rel which witness witnessVars (relationForm rel which)) rel
-    which form blocks 2 zeros
+    which form blocks zeros
 
 /-- Sample word `index` of list `seed`, spread over the field. -/
 def word (seed index : ℕ) : F :=

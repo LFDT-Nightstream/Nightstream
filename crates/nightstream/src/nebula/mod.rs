@@ -36,7 +36,7 @@ pub(crate) use carry::Carry;
 #[cfg(test)]
 pub(crate) use catalog::CatalogBinding;
 pub use catalog::{pack_regions, CatalogBindingError, CatalogRowError, Region};
-pub use expr::Expr;
+pub use expr::{Expr, Row};
 pub use geometry::Geometry;
 #[cfg(test)]
 pub(crate) use machine::{Machine, MachineError, MachineState, Step};
@@ -93,16 +93,16 @@ impl Package {
     pub(crate) fn bounded_depth_identity(self) -> [u64; 4] {
         match self {
             Package::V1 => [
-                10_521_736_676_566_981_841,
-                17_030_416_327_257_820_028,
-                762_377_323_855_278_287,
-                7_177_439_307_360_311_678,
+                13_308_163_263_996_693_613,
+                11_607_708_699_295_891_777,
+                10_734_721_865_406_202_618,
+                8_999_208_494_104_452_983,
             ],
             Package::N1 => [
-                16_239_158_707_257_270_793,
-                17_449_761_050_757_552_364,
-                16_056_053_691_499_397_085,
-                5_834_940_975_242_953_709,
+                12_797_624_220_674_914_886,
+                5_897_267_454_777_603_685,
+                1_772_400_508_754_995_941,
+                4_734_403_027_967_800_227,
             ],
         }
     }

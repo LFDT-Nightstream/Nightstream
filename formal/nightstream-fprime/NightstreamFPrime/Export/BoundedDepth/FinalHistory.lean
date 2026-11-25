@@ -91,23 +91,23 @@ theorem soundness (complete : StepExtend.Complete exports)
   classical
   let Rejected : Option (Option (Outcome logicalWidth publicFits)) → Prop := fun r =>
     ¬ ∀ a, r = some a → ∀ o, a = some o →
-      Verifies setup.ajtai setup.circuitKeys step complete.packageWidth 0 (fun _ _ => 0) o.1
+      Verifies setup.ajtai setup.circuitKeys step complete.packageWidth (fun _ _ => 0) o.1
         (setup.proofOf o)
   let Accepted : Option (Option (Outcome logicalWidth publicFits)) → Prop := fun r =>
-    FalseAcceptance setup.ajtai setup.circuitKeys exports (fun _ _ => 0) 0 (outputOf setup r)
+    FalseAcceptance setup.ajtai setup.circuitKeys exports (fun _ _ => 0) (outputOf setup r)
   have cover (r : Option (Option (Outcome logicalWidth publicFits)))
       (falseHistory : FalseHistory exports.program r) : Rejected r ∨ Accepted r := by
     obtain ⟨o, rfl, unreached⟩ := falseHistory
-    by_cases verifies : Verifies setup.ajtai setup.circuitKeys step complete.packageWidth 0 (fun _ _ => 0)
+    by_cases verifies : Verifies setup.ajtai setup.circuitKeys step complete.packageWidth (fun _ _ => 0)
       o.1 (setup.proofOf o)
     · exact Or.inr ⟨holds_of_verifies verifies, unreached⟩
     · exact Or.inl fun all => verifies (all _ rfl o rfl)
   have rejected : prob s (restore setup.game q []) Rejected ≤ q * finalError :=
-    restore_sound _ s _ _ (game_avoids setup step 0 (fun _ _ => 0)
+    restore_sound _ s _ _ (game_avoids setup step (fun _ _ => 0)
       (FinalRows.premises_of_rows setup exports complete rows))
       (game_densityLe setup) (by unfold finalError; positivity) q
   have accepted := probability_bound setup.ajtai setup.circuitKeys exports assumption closed
-    (adversary setup s q) admitted keysShaped (fun _ _ => 0) 0 depth (by
+    (adversary setup s q) admitted keysShaped (fun _ _ => 0) depth (by
       rintro (_ | _ | o) inside
       · exact Nat.zero_le depth
       · exact Nat.zero_le depth
@@ -155,14 +155,14 @@ theorem knowledge (complete : StepExtend.Complete exports)
   classical
   let Rejected : Option (Option (Outcome logicalWidth publicFits)) → Prop := fun r =>
     ¬ ∀ a, r = some a → ∀ o, a = some o →
-      Verifies setup.ajtai setup.circuitKeys step complete.packageWidth 0 (fun _ _ => 0) o.1
+      Verifies setup.ajtai setup.circuitKeys step complete.packageWidth (fun _ _ => 0) o.1
         (setup.proofOf o)
   have rejected : prob s (restore setup.game q []) Rejected ≤ q * finalError :=
-    restore_sound _ s _ _ (game_avoids setup step 0 (fun _ _ => 0)
+    restore_sound _ s _ _ (game_avoids setup step (fun _ _ => 0)
       (FinalRows.premises_of_rows setup exports complete rows))
       (game_densityLe setup) (by unfold finalError; positivity) q
   have failed := extraction_bound setup.ajtai setup.circuitKeys exports assumption closed
-    (adversary setup s q) admitted keysShaped (fun _ _ => 0) 0 depth (by
+    (adversary setup s q) admitted keysShaped (fun _ _ => 0) depth (by
       rintro (_ | _ | o) inside
       · exact Nat.zero_le depth
       · exact Nat.zero_le depth
@@ -170,10 +170,10 @@ theorem knowledge (complete : StepExtend.Complete exports)
   let start := origin assumption closed (walkAdversary (adversary setup s q)) admitted depth
   have cover : {tape | AdviceFailure setup exports assumption closed s q admitted depth tape} ⊆
       start ⁻¹' {r | Rejected r} ∪
-        {tape | ExtractionFailure setup.ajtai setup.circuitKeys exports (fun _ _ => 0) 0
+        {tape | ExtractionFailure setup.ajtai setup.circuitKeys exports (fun _ _ => 0)
           ((finalStages depth).1.input tape) ((finalStages depth).1.results tape)} := by
     rintro tape ⟨o, same, unreached⟩
-    by_cases verifies : Verifies setup.ajtai setup.circuitKeys step complete.packageWidth 0
+    by_cases verifies : Verifies setup.ajtai setup.circuitKeys step complete.packageWidth
       (fun _ _ => 0) o.1 (setup.proofOf o)
     · have input : (finalStages depth).1.input tape = initial (o.1, setup.proofOf o) := by
         rw [input_origin, same]
@@ -193,13 +193,13 @@ theorem knowledge (complete : StepExtend.Complete exports)
           {tape | AdviceFailure setup exports assumption closed s q admitted depth tape}).toReal
       ≤ ((finalStages depth).1.tape.toOuterMeasure (start ⁻¹' {r | Rejected r}) +
           (finalStages depth).1.tape.toOuterMeasure
-            {tape | ExtractionFailure setup.ajtai setup.circuitKeys exports (fun _ _ => 0) 0
+            {tape | ExtractionFailure setup.ajtai setup.circuitKeys exports (fun _ _ => 0)
               ((finalStages depth).1.input tape) ((finalStages depth).1.results tape)}).toReal :=
         ENNReal.toReal_mono (ENNReal.add_ne_top.mpr ⟨event_ne_top _ _, event_ne_top _ _⟩)
           ((MeasureTheory.measure_mono cover).trans (MeasureTheory.measure_union_le _ _))
     _ = ((finalStages depth).1.tape.toOuterMeasure (start ⁻¹' {r | Rejected r})).toReal +
           ((finalStages depth).1.tape.toOuterMeasure
-            {tape | ExtractionFailure setup.ajtai setup.circuitKeys exports (fun _ _ => 0) 0
+            {tape | ExtractionFailure setup.ajtai setup.circuitKeys exports (fun _ _ => 0)
               ((finalStages depth).1.input tape) ((finalStages depth).1.results tape)}).toReal :=
         ENNReal.toReal_add (event_ne_top _ _) (event_ne_top _ _)
     _ ≤ _ := add_le_add (by rw [pulled, ← prob_eq_law]; exact rejected) failed

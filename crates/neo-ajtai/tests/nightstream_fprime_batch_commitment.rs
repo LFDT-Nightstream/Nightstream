@@ -95,6 +95,44 @@ fn batched_prefix_commitments_match_scalar_and_independent_ring_products() {
 }
 
 #[test]
+fn four_plane_commitments_match_scalar_across_sparse_column_batches() {
+    let active_columns = 8_193;
+    let columns = active_columns * 2;
+    let mut witnesses = Vec::new();
+    for plane in 0..14 {
+        let mut positive = vec![0u64; columns];
+        let mut negative = vec![0u64; columns];
+        for active in 0..active_columns {
+            let column = 2 * active + (active % 2);
+            if active % 255 == 0 || active == active_columns - 1 {
+                for lane in 0..D {
+                    let subset = (lane + plane / 4 + active) % 16;
+                    let member = subset & (1 << (plane % 4)) != 0;
+                    match (lane / 16, member) {
+                        (0 | 2, true) | (3, false) => positive[column] |= 1 << lane,
+                        (1 | 3, true) | (2, false) => negative[column] |= 1 << lane,
+                        _ => {}
+                    }
+                }
+            } else if plane == active % 14 {
+                positive[column] = 1 << (active % D);
+            }
+        }
+        witnesses.push(Mat::compact_signed_unit_from_column_masks(D, columns, &positive, &negative).unwrap());
+    }
+    witnesses.insert(3, Mat::virtual_constant(D, 1, F::ZERO));
+    let batch = commit_production_signed_unit_prefix_matrices(&witnesses).unwrap();
+    assert_eq!(batch.len(), witnesses.len());
+    for (index, witness) in witnesses.iter().enumerate() {
+        assert_eq!(
+            batch[index],
+            commit_production_signed_unit_prefix_matrix(witness).unwrap(),
+            "child {index}"
+        );
+    }
+}
+
+#[test]
 fn commitments_add_partial_sums_across_key_column_ranges() {
     let columns = 2 * 65_536 + 7;
     let mut positive = vec![0u64; columns];

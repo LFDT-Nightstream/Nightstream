@@ -1,4 +1,5 @@
 import NightstreamFPrime.Circuit.Quadratic
+import NightstreamFPrime.Circuit.Execution
 import NightstreamFPrime.Lifecycle.Stage1.RunningTransition
 
 /-!
@@ -121,27 +122,32 @@ theorem soundness (interface : Interface) (env : Env) (offset : Nat)
           simp [assertions, initialStateAssertions])
     exact (assertion_holds_iff _ _ env).mp row
 
+theorem witnesses_opsAt (interface : Interface) (offset : Nat) :
+    witnesses (opsAt interface offset) = [] :=
+  Witness.witnesses_assertions _
+
+theorem spec_holdsFlat (interface : Interface) (env : Env) (offset : Nat)
+    (specification : SpecHolds interface offset env) :
+    holdsFlat env (opsAt interface offset) := by
+  change ConstraintsHold env (flatConstraints (opsAt interface offset))
+  rw [flatConstraints_opsAt]
+  intro expression member
+  rw [assertions, List.mem_cons] at member
+  rcases member with rfl | initialMember
+  · apply (assertion_holds_iff _ _ env).mpr
+    exact specification.iteration
+  · rw [initialStateAssertions, List.mem_map] at initialMember
+    rcases initialMember with ⟨index, _indexMember, rfl⟩
+    apply (assertion_holds_iff _ _ env).mpr
+    exact specification.initialState index
+
 theorem completeness (interface : Interface) (env : Env) (offset : Nat)
     (specification : SpecHolds interface offset env) :
     ∃ completed,
       AgreesOutside env completed offset
         (localLength (Circuit.ops (main interface) offset)) ∧
-      holdsFlat completed (Circuit.ops (main interface) offset) := by
-  refine ⟨env, ?_, ?_⟩
-  · intro _ _
-    rfl
-  · rw [main_ops]
-    change ConstraintsHold env (flatConstraints (opsAt interface offset))
-    rw [flatConstraints_opsAt]
-    intro expression member
-    rw [assertions, List.mem_cons] at member
-    rcases member with rfl | initialMember
-    · apply (assertion_holds_iff _ _ env).mpr
-      exact specification.iteration
-    · rw [initialStateAssertions, List.mem_map] at initialMember
-      rcases initialMember with ⟨index, _indexMember, rfl⟩
-      apply (assertion_holds_iff _ _ env).mpr
-      exact specification.initialState index
+      holdsFlat completed (Circuit.ops (main interface) offset) :=
+  ⟨env, fun _ _ => rfl, spec_holdsFlat interface env offset specification⟩
 
 structure Assumptions (interface : Interface) (offset : Nat)
     (_env : Env) : Prop where

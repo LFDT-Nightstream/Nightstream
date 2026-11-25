@@ -190,14 +190,6 @@ theorem pointLength_eq_of_positive {variableCount : Nat}
   exact PointEquality.localLength_eq_of_positive
     (pointInterfaceAt interface offset) offset positive
 
-theorem pointProgramLength_eq_of_positive {variableCount : Nat}
-    (interface : Interface variableCount) (offset : Nat)
-    (positive : 0 < variableCount) :
-    (PointEquality.program (pointInterfaceAt interface offset) offset
-      ).recipes.length = 4 * variableCount - 2 :=
-  PointEquality.program_recipes_length_of_positive
-    (pointInterfaceAt interface offset) offset positive
-
 theorem hornerLength_eq {variableCount : Nat}
     (interface : Interface variableCount) (offset : Nat) :
     hornerLength interface offset =
@@ -344,113 +336,61 @@ theorem opsAt_localLength {variableCount : Nat}
   rw [pointOp_localLength, hornerOp_localLength]
   simp only [Op.localLength, Nat.add_zero]
 
-private theorem pointRows_preserved {variableCount : Nat}
-    (interface : Interface variableCount) (offset : Nat)
-    (env middle after : Env) (assumptions : Assumptions interface offset env)
-    (positive : 0 < variableCount)
-    (pointRows : holdsFlat middle
-      (Circuit.ops (pointCircuitAt interface offset).main offset))
-    (hornerAgrees : AgreesOutside middle after
-      (hornerOffset interface offset) (hornerLength interface offset)) :
-    holdsFlat after (Circuit.ops (pointCircuitAt interface offset).main offset) := by
-  unfold holdsFlat at pointRows ⊢
-  apply constraintsHold_of_agree_below middle after _
-    (hornerOffset interface offset)
-  · have scope := PointEquality.flatConstraints_varsBelow
-      (pointInterfaceAt interface offset) offset env assumptions.point
-    intro expression member
-    have below := scope expression member
-    have boundEq : offset +
-        (PointEquality.program (pointInterfaceAt interface offset) offset
-          ).recipes.length = hornerOffset interface offset := by
-      rw [pointProgramLength_eq_of_positive interface offset positive]
-      unfold hornerOffset
-      rw [pointLength_eq_of_positive interface offset positive]
-    simpa [boundEq] using below
-  · intro index below
-    exact hornerAgrees index (Or.inl below)
-  · exact pointRows
+theorem witnesses_opsAt {variableCount : Nat} (interface : Interface variableCount)
+    (offset : Nat) :
+    witnesses (opsAt interface offset) =
+      witnesses (PointEquality.opsAt (pointInterfaceAt interface offset) offset) ++
+        witnesses (Horner.opsAt (hornerInterfaceAt interface offset)
+          (hornerOffset interface offset)) := by
+  rw [opsAt, Witness.witnesses_append, Witness.witnesses_assertions, List.append_nil,
+    Witness.witnesses_cons, Witness.witnesses_cons]
+  exact congrArg (_ ++ ·) (List.append_nil _)
 
-private theorem productRows_complete {variableCount : Nat}
-    (interface : Interface variableCount) (offset : Nat)
-    (env after : Env) (assumptions : Assumptions interface offset env)
-    (agrees : AgreesOutside env after offset
-      (pointLength interface offset + hornerLength interface offset))
-    (productSpec : (interface.expected offset).eval env =
-      (productExpr interface offset).eval env) :
-    ConstraintsHold after (productAssertions interface offset) := by
-  have agreesBelow : ∀ index, index < offset → after index = env index :=
-    fun index below => agrees index (Or.inl below)
-  have expectedEq : (interface.expected offset).eval after =
-      (interface.expected offset).eval env :=
-    (interface.expected offset).eval_eq_of_agree_below offset after env
-      assumptions.expectedBelow agreesBelow
-  have equalityEq : (interface.pointEquality offset).eval after =
-      (interface.pointEquality offset).eval env :=
-    (interface.pointEquality offset).eval_eq_of_agree_below offset after env
-      assumptions.point.2 agreesBelow
-  have sumEq : (interface.weightedSum offset).eval after =
-      (interface.weightedSum offset).eval env :=
-    (interface.weightedSum offset).eval_eq_of_agree_below offset after env
-      assumptions.hornerExternal.2.2 agreesBelow
-  apply (KExpr.equalities_hold_iff after (interface.expected offset)
-    (productExpr interface offset)).mpr
-  unfold productExpr
-  rw [expectedEq, KExpr.eval_mul, equalityEq, sumEq]
-  exact productSpec
+theorem ordered {variableCount : Nat} (interface : Interface variableCount) (offset : Nat)
+    (env : Env) (assumptions : Assumptions interface offset env) :
+    Witness.Ordered offset (witnesses (opsAt interface offset))
+      (offset + localLength (opsAt interface offset)) := by
+  rw [witnesses_opsAt, opsAt_localLength, ← Nat.add_assoc]
+  exact (PointEquality.ordered (pointInterfaceAt interface offset) offset env
+    assumptions.point).append
+      (Horner.ordered (hornerInterfaceAt interface offset) (hornerOffset interface offset) env
+        (hornerAssumptionsAt interface offset env assumptions.hornerExternal))
+
+theorem computed_holdsFlat {variableCount : Nat} (interface : Interface variableCount)
+    (env : Env) (offset : Nat) (specification : SpecHolds interface offset env)
+    (computed : Witness.Computed env (witnesses (opsAt interface offset))) :
+    holdsFlat env (opsAt interface offset) := by
+  rw [witnesses_opsAt, Witness.computed_append] at computed
+  unfold holdsFlat
+  rw [flatConstraints_opsAt]
+  exact (constraintsHold_append env _ _).mpr ⟨(constraintsHold_append env _ _).mpr
+    ⟨PointEquality.computed_holdsFlat (pointInterfaceAt interface offset) env offset
+        specification.point computed.1,
+      Horner.computed_holdsFlat (hornerInterfaceAt interface offset) env
+        (hornerOffset interface offset)
+        ((hornerSpecAt_iff interface offset env).mpr specification.horner) computed.2⟩,
+    (KExpr.equalities_hold_iff env _ _).mpr specification.product⟩
 
 theorem completeness {variableCount : Nat} (interface : Interface variableCount)
-    (env : Env) (offset : Nat) (positive : 0 < variableCount)
+    (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env)
     (specification : SpecHolds interface offset env) :
     ∃ completed,
       AgreesOutside env completed offset
         (localLength (Circuit.ops (main interface) offset)) ∧
-      holdsFlat completed (Circuit.ops (main interface) offset) := by
-  rcases PointEquality.completeness (pointInterfaceAt interface offset) env
-      offset assumptions.point specification.point with
-    ⟨middle, pointAgrees, pointRows⟩
-  have hornerSpecMiddleAtOffset := Horner.specHolds_of_agree_below
-    (hornerInterfaceAt interface offset) offset env middle
-    assumptions.hornerExternal
-    (fun index below => pointAgrees index (Or.inl below))
-    specification.horner
-  have hornerSpecMiddle : Horner.SpecHolds
-      (hornerInterfaceAt interface offset) (hornerOffset interface offset)
-      middle :=
-    (hornerSpecAt_iff interface offset middle).mpr
-      hornerSpecMiddleAtOffset
-  rcases Horner.completeness (hornerInterfaceAt interface offset) middle
-      (hornerOffset interface offset)
-      (hornerAssumptionsAt interface offset middle assumptions.hornerExternal)
-      hornerSpecMiddle with
-    ⟨completed, hornerAgrees, hornerRows⟩
-  have combinedAgrees : AgreesOutside env completed offset
-      (pointLength interface offset + hornerLength interface offset) := by
-    simpa [hornerOffset] using! pointAgrees.append hornerAgrees
-  have pointRowsAfter := pointRows_preserved interface offset env middle
-    completed assumptions positive pointRows hornerAgrees
-  have productRows := productRows_complete interface offset env completed
-    assumptions combinedAgrees specification.product
-  refine ⟨completed, ?_, ?_⟩
-  · change AgreesOutside env completed offset
-      (localLength (opsAt interface offset))
-    rw [opsAt_localLength]
-    exact combinedAgrees
-  · change ConstraintsHold completed (flatConstraints (opsAt interface offset))
-    rw [flatConstraints_opsAt]
-    exact (constraintsHold_append completed _ _).mpr
-      ⟨(constraintsHold_append completed _ _).mpr
-        ⟨pointRowsAfter, hornerRows⟩, productRows⟩
+      holdsFlat completed (Circuit.ops (main interface) offset) :=
+  Witness.complete (ordered interface offset env assumptions) fun completed below computed =>
+    computed_holdsFlat interface completed offset
+      (specHolds_of_agree_below interface offset env completed assumptions below specification)
+      computed
 
 def circuit {variableCount : Nat} (interface : Interface variableCount)
-    (positive : 0 < variableCount) : FormalCircuit where
+    (_positive : 0 < variableCount) : FormalCircuit where
   main := main interface
   assumptions := Assumptions interface
   spec := SpecHolds interface
   soundness := soundness interface
-  completeness := fun env offset assumptions specification =>
-    completeness interface env offset positive assumptions specification
+  completeness := completeness interface
 
 theorem flatConstraints_varsBelow {variableCount : Nat}
     (interface : Interface variableCount) (positive : 0 < variableCount)
@@ -761,74 +701,56 @@ theorem opsAt_localLength {variableCount : Nat}
       pointLength interface offset + hornerLength interface offset := by
   simp [opsAt, localLength, pointOp_localLength, hornerOp_localLength]
 
-private theorem pointRows_preserved {variableCount : Nat}
-    (interface : Interface variableCount) (offset : Nat)
-    (env middle after : Env) (assumptions : Assumptions interface offset env)
-    (positive : 0 < variableCount)
-    (pointRows : holdsFlat middle
-      (Circuit.ops (pointCircuitAt interface offset).main offset))
-    (hornerAgrees : AgreesOutside middle after
-      (hornerOffset interface offset) (hornerLength interface offset)) :
-    holdsFlat after
-      (Circuit.ops (pointCircuitAt interface offset).main offset) := by
-  unfold holdsFlat at pointRows ⊢
-  apply constraintsHold_of_agree_below middle after _
-    (hornerOffset interface offset)
-  · have scope := PointEquality.Owned.flatConstraints_varsBelow
-      (pointInterfaceAt interface offset) offset env assumptions.point
-    intro expression member
-    have below := scope expression member
-    have boundEq : offset +
-        (PointEquality.Owned.program
-          (pointInterfaceAt interface offset) offset).recipes.length =
-        hornerOffset interface offset := by
-      unfold hornerOffset
-      rw [pointLength_eq_of_positive interface offset positive,
-        PointEquality.Owned.program_recipes_length_of_positive
-          (pointInterfaceAt interface offset) offset positive]
-    simpa [boundEq] using below
-  · intro index below
-    exact hornerAgrees index (Or.inl below)
-  · exact pointRows
+theorem witnesses_opsAt {variableCount : Nat} (interface : Interface variableCount)
+    (offset : Nat) :
+    witnesses (opsAt interface offset) =
+      witnesses (PointEquality.Owned.opsAt (pointInterfaceAt interface offset) offset) ++
+        witnesses (Horner.Owned.opsAt (hornerInterfaceAt interface offset)
+          (hornerOffset interface offset)) := by
+  rw [opsAt, Witness.witnesses_cons, Witness.witnesses_cons]
+  exact congrArg (_ ++ ·) (List.append_nil _)
+
+theorem ordered {variableCount : Nat} (interface : Interface variableCount) (offset : Nat)
+    (env : Env) (assumptions : Assumptions interface offset env) :
+    Witness.Ordered offset (witnesses (opsAt interface offset))
+      (offset + localLength (opsAt interface offset)) := by
+  rw [witnesses_opsAt, opsAt_localLength, ← Nat.add_assoc]
+  exact (PointEquality.Owned.ordered (pointInterfaceAt interface offset) offset env
+    assumptions.point).append
+      (Horner.Owned.ordered (hornerInterfaceAt interface offset) (hornerOffset interface offset)
+        env (hornerAssumptionsAt interface offset env assumptions.hornerExternal))
+
+theorem computed_holdsFlat {variableCount : Nat} (interface : Interface variableCount)
+    (env : Env) (offset : Nat)
+    (computed : Witness.Computed env (witnesses (opsAt interface offset))) :
+    holdsFlat env (opsAt interface offset) := by
+  rw [witnesses_opsAt, Witness.computed_append] at computed
+  unfold holdsFlat
+  rw [flatConstraints_opsAt]
+  exact (constraintsHold_append env _ _).mpr
+    ⟨PointEquality.Owned.computed_holdsFlat (pointInterfaceAt interface offset) env offset
+        computed.1,
+      Horner.Owned.computed_holdsFlat (hornerInterfaceAt interface offset) env
+        (hornerOffset interface offset) computed.2⟩
 
 theorem build {variableCount : Nat} (interface : Interface variableCount)
-    (env : Env) (offset : Nat) (positive : 0 < variableCount)
+    (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env) :
     ∃ completed,
       AgreesOutside env completed offset
         (localLength (Circuit.ops (main interface) offset)) ∧
-      holdsFlat completed (Circuit.ops (main interface) offset) := by
-  rcases PointEquality.Owned.build (pointInterfaceAt interface offset) env
-      offset assumptions.point with
-    ⟨middle, pointAgrees, pointRows⟩
-  rcases Horner.Owned.build (hornerInterfaceAt interface offset) middle
-      (hornerOffset interface offset)
-      (hornerAssumptionsAt interface offset middle
-        assumptions.hornerExternal) with
-    ⟨completed, hornerAgrees, hornerRows⟩
-  have combinedAgrees : AgreesOutside env completed offset
-      (pointLength interface offset + hornerLength interface offset) := by
-    simpa [hornerOffset] using! pointAgrees.append hornerAgrees
-  have pointRowsAfter := pointRows_preserved interface offset env middle
-    completed assumptions positive pointRows hornerAgrees
-  refine ⟨completed, ?_, ?_⟩
-  · change AgreesOutside env completed offset
-      (localLength (opsAt interface offset))
-    rw [opsAt_localLength]
-    exact combinedAgrees
-  · change ConstraintsHold completed (flatConstraints (opsAt interface offset))
-    rw [flatConstraints_opsAt]
-    exact (constraintsHold_append completed _ _).mpr
-      ⟨pointRowsAfter, hornerRows⟩
+      holdsFlat completed (Circuit.ops (main interface) offset) :=
+  Witness.complete (ordered interface offset env assumptions) fun completed _ =>
+    computed_holdsFlat interface completed offset
 
 def circuit {variableCount : Nat} (interface : Interface variableCount)
-    (positive : 0 < variableCount) : FormalCircuit where
+    (_positive : 0 < variableCount) : FormalCircuit where
   main := main interface
   assumptions := Assumptions interface
   spec := SpecHolds interface
   soundness := soundness interface
   completeness := fun env offset assumptions _specification =>
-    build interface env offset positive assumptions
+    build interface env offset assumptions
 
 theorem completeness {variableCount : Nat}
     (interface : Interface variableCount) (env : Env) (offset : Nat)
@@ -840,7 +762,7 @@ theorem completeness {variableCount : Nat}
         (localLength (Circuit.ops (circuit interface positive).main offset)) ∧
       holdsFlat completed
         (Circuit.ops (circuit interface positive).main offset) :=
-  build interface env offset positive assumptions
+  build interface env offset assumptions
 
 theorem flatConstraints_varsBelow {variableCount : Nat}
     (interface : Interface variableCount) (positive : 0 < variableCount)

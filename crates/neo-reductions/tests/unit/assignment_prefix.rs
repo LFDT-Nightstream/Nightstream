@@ -63,3 +63,61 @@ fn early_norm_coefficients_match_the_per_pair_sum() {
     }
     assert_eq!(early_rounds, 3);
 }
+
+#[test]
+fn factorized_norm_handles_mask_boundaries_and_folded_codes() {
+    let positive = [u64::MAX, 0, 0b1_0000_0101, 0, 1 << 5];
+    let negative = [0, u64::MAX, 0b0_1100_0010, 0, 1 << 6];
+    let packed = Mat::compact_signed_unit_from_column_masks(D, positive.len(), &positive, &negative).unwrap();
+    let mut assignment = Assignment::new(&packed, D * positive.len());
+    let point: Vec<K> = (0..12)
+        .map(|i| match i {
+            5 => K::ZERO,
+            6 => K::ONE,
+            _ => K::from_coeffs([F::from_usize(11 * i + 29), F::from_usize(19 * i + 13)]),
+        })
+        .collect();
+    for round in 0..3 {
+        let weights = EqualityWeights::new(&point[round..]);
+        let pairs = assignment.len().div_ceil(2);
+        let expected = (0..pairs).fold([K::ZERO; 4], |total, index| {
+            let (low, high) = assignment.pair(index);
+            let norm = norm_pair(low, high);
+            std::array::from_fn(|coefficient| total[coefficient] + norm[coefficient] * weights.at(index))
+        });
+        assert_eq!(
+            early_norm_coefficients(&assignment.early_pairs().unwrap(), pairs, &weights),
+            expected,
+            "round {round}"
+        );
+        assignment.fold(K::from_coeffs([F::from_usize(round + 41), F::from_usize(round + 37)]));
+    }
+}
+
+#[test]
+fn fused_reduction_matches_separate_binding_and_retains_the_buffer() {
+    for size in [0usize, 1, 2, 3, 4, 15, 131, 8193, 19031] {
+        let mut seed = 49_637u64;
+        let mut field = || {
+            seed = seed.wrapping_mul(479_851_321_590_327).wrapping_add(123);
+            K::from_coeffs([F::from_u64(seed), F::from_u64(seed.rotate_left(23))])
+        };
+        let mut values = (0..size).map(|_| field()).collect::<Vec<_>>();
+        let mut reference = values.clone();
+        let challenge = field();
+        let bits = usize::BITS - size.div_ceil(4).saturating_sub(1).leading_zeros();
+        let weights = EqualityWeights::new(&(0..bits).map(|_| field()).collect::<Vec<_>>());
+        let (address, capacity) = (values.as_ptr(), values.capacity());
+        let fused = bind_sum_products(&mut values, challenge, &weights, norm_higher_coefficients);
+        fold(&mut reference, challenge);
+        let separate = (0..reference.len().div_ceil(2)).fold([K::ZERO; 3], |total, index| {
+            let (low, high) = pair(&reference, index);
+            let [_, linear, quadratic, cubic] = norm_pair(low, high);
+            add_coefficients(total, [linear, quadratic, cubic].map(|term| term * weights.at(index)))
+        });
+        assert_eq!(fused, separate);
+        assert_eq!(values, reference);
+        assert_eq!(values.as_ptr(), address);
+        assert_eq!(values.capacity(), capacity);
+    }
+}

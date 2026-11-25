@@ -1,23 +1,25 @@
 //! Lean `StepPackage.Package`.
 
-use neo_ccs::crypto::poseidon2::{permute_state, SBOX_DEGREE};
+use neo_ccs::crypto::poseidon2::{permute_state, INSTANCE_16, SBOX_DEGREE};
 use neo_math::Fq;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use super::expand::{mix, PlanRows};
 use super::{Linear, Piece, StepPackage};
-use crate::package::{PackageError, BLOCK_LOCALS, BLOCK_OUTPUTS, RING_DEGREE};
+use crate::package::{PackageError, BLOCK_LOCALS, BLOCK_OUTPUTS, RING_DEGREE, SBOX_ROWS};
 use crate::witness::{execute_witness_batch, WitnessBatch};
 
 enum Step<'a> {
     Batch(&'a WitnessBatch),
     Block {
+        index: usize,
         start: usize,
         lanes: &'a [Linear],
     },
     Ring {
         cells: usize,
         start: usize,
+        quotient: usize,
         lanes: &'a [Linear],
     },
 }
@@ -73,7 +75,25 @@ fn ring_operands(cells: usize, cell: usize, lanes: &[Linear], columns: &[Fq]) ->
     ]
 }
 
+fn stable_ring_inputs(start: usize, cells: usize, lanes: &[Linear]) -> bool {
+    lanes
+        .iter()
+        .take(RING_DEGREE * (1 + cells))
+        .all(|form| form.terms.iter().all(|&(i, _)| i < start))
+}
+
 impl super::ExpandedPackage {
+    pub fn assignment_columns(&self, shared: &[Fq], locals: Option<&[Fq]>) -> Result<Vec<Fq>, PackageError> {
+        let package = &self.package;
+        package.check_shared_columns(shared)?;
+        let mut columns = vec![Fq::ZERO; package.source_end()];
+        let (inputs, sboxes) = columns.split_at_mut(package.sbox_start);
+        let (inputs, quotients) = inputs.split_at_mut(package.first_fresh);
+        package.fill_circuit_columns(shared, locals, inputs, Some(sboxes), Some(quotients))?;
+        package.finish_relation_columns(&mut columns, &self.rows, &self.fresh_product_rows, true)?;
+        Ok(columns)
+    }
+
     pub fn source_assignment(&self, logical: &[Fq]) -> Result<Vec<Fq>, PackageError> {
         if logical.first() != Some(&Fq::ONE) {
             return Err(PackageError::Input("bounded-depth constant column"));
@@ -98,13 +118,30 @@ impl StepPackage {
     }
 
     pub fn circuit_columns_with(&self, shared: &[Fq], locals: Option<&[Fq]>) -> Result<Vec<Fq>, PackageError> {
+        self.check_shared_columns(shared)?;
+        let mut columns = vec![Fq::ZERO; self.first_fresh];
+        self.fill_circuit_columns(shared, locals, &mut columns, None, None)?;
+        Ok(columns)
+    }
+
+    fn check_shared_columns(&self, shared: &[Fq]) -> Result<(), PackageError> {
         if shared.first() != Some(&Fq::ONE) || shared.len() > self.first_fresh {
             return Err(PackageError::Input("bounded-depth shared columns"));
         }
         if shared.len() != self.application.local_start {
             return Err(PackageError::Input("bounded-depth shared column count"));
         }
-        let mut columns = vec![Fq::ZERO; self.first_fresh];
+        Ok(())
+    }
+
+    fn fill_circuit_columns(
+        &self,
+        shared: &[Fq],
+        locals: Option<&[Fq]>,
+        columns: &mut [Fq],
+        mut sboxes: Option<&mut [Fq]>,
+        mut quotients: Option<&mut [Fq]>,
+    ) -> Result<(), PackageError> {
         columns[..shared.len()].copy_from_slice(shared);
         if let Some(records) = &self.native {
             match locals {
@@ -114,19 +151,31 @@ impl StepPackage {
                     .filter(|columns| columns.len() == locals.len())
                     .ok_or(PackageError::Input("bounded-depth application locals"))?
                     .copy_from_slice(locals),
-                None => self.fill_application(records, &mut columns)?,
+                None => self.fill_application(records, columns)?,
             }
             for block in self.blocks() {
                 columns[block.start()..block.first_output()].fill(Fq::ZERO);
             }
         }
         let mut steps: Vec<_> = self.witness.iter().map(Step::Batch).collect();
+        let mut block_index = 0;
         for piece in &self.pieces {
             match piece {
-                Piece::Block { start, lanes } => steps.push(Step::Block { start: *start, lanes }),
+                Piece::Block { start, lanes } => {
+                    steps.push(Step::Block {
+                        index: block_index,
+                        start: *start,
+                        lanes,
+                    });
+                    block_index += 1;
+                }
                 Piece::Ring {
-                    cells, start, lanes, ..
+                    cells,
+                    start,
+                    lanes,
+                    quotient,
                 } => steps.push(Step::Ring {
+                    quotient: *quotient,
                     cells: *cells,
                     start: *start,
                     lanes,
@@ -137,21 +186,56 @@ impl StepPackage {
         steps.sort_by_key(Step::start);
         for step in &steps {
             match step {
-                Step::Batch(batch) => execute_witness_batch(batch, &mut columns),
-                Step::Block { start, lanes } => {
+                Step::Batch(batch) => execute_witness_batch(batch, columns),
+                Step::Block { index, start, lanes } => {
                     let state: [Fq; 16] = lanes
                         .iter()
-                        .map(|lane| evaluate(lane, &columns))
+                        .map(|lane| evaluate(lane, columns))
                         .collect::<Vec<_>>()
                         .try_into()
                         .map_err(|_| PackageError::Malformed("bounded-depth block lane count"))?;
                     let outputs = start + BLOCK_OUTPUTS;
-                    columns[outputs..start + BLOCK_LOCALS].copy_from_slice(&permute_state(state));
+                    let output = match sboxes.as_deref_mut() {
+                        Some(values) => {
+                            let mut target = &mut values[index * SBOX_ROWS..(index + 1) * SBOX_ROWS];
+                            INSTANCE_16.permute_with_sboxes(state, |round| {
+                                let (words, rest) = std::mem::take(&mut target).split_at_mut(round.len());
+                                words.copy_from_slice(round);
+                                target = rest;
+                            })
+                        }
+                        None => permute_state(state),
+                    };
+                    columns[outputs..start + BLOCK_LOCALS].copy_from_slice(&output);
                 }
-                Step::Ring { cells, start, lanes } => {
+                Step::Ring {
+                    cells,
+                    start,
+                    lanes,
+                    quotient,
+                } => {
+                    let mut out = if let Some(fresh) = quotients
+                        .as_deref_mut()
+                        .filter(|_| stable_ring_inputs(*start, *cells, lanes))
+                    {
+                        let at = quotient
+                            .checked_sub(self.first_fresh)
+                            .ok_or(PackageError::Malformed("bounded-depth ring quotient column"))?;
+                        Some(
+                            fresh
+                                .get_mut(at..)
+                                .and_then(|slice| slice.get_mut(..RING_DEGREE * cells))
+                                .ok_or(PackageError::Malformed("bounded-depth ring quotient column"))?,
+                        )
+                    } else {
+                        None
+                    };
                     for cell in 0..*cells {
-                        let [challenge, value, prior] = ring_operands(*cells, cell, lanes, &columns);
-                        let (_, remainder) = divide_by_ring_modulus(product(&challenge, &value));
+                        let [challenge, value, prior] = ring_operands(*cells, cell, lanes, columns);
+                        let (q, remainder) = divide_by_ring_modulus(product(&challenge, &value));
+                        if let Some(values) = out.as_deref_mut() {
+                            values[cell * RING_DEGREE..(cell + 1) * RING_DEGREE].copy_from_slice(&q);
+                        }
                         for lane in 0..RING_DEGREE {
                             columns[start + lane * cells + cell] = prior[lane] + remainder[lane];
                         }
@@ -159,7 +243,27 @@ impl StepPackage {
                 }
             }
         }
-        Ok(columns)
+        Ok(())
+    }
+
+    pub(super) fn fresh_product_rows(&self, rows: &PlanRows) -> Box<[usize]> {
+        let mut products = Vec::new();
+        let mut next = self.first_fresh;
+        for (piece, range) in self.pieces.iter().zip(rows.piece_ranges()) {
+            match piece {
+                Piece::Rows(_) => {
+                    for row in range.clone() {
+                        if rows.single(row, 2) == Some((next, Fq::ONE)) {
+                            products.push(row);
+                            next += 1;
+                        }
+                    }
+                }
+                Piece::Ring { cells, .. } => next += RING_DEGREE * cells,
+                Piece::Block { .. } => {}
+            }
+        }
+        products.into_boxed_slice()
     }
 
     /// `SPEC.md` sections 7.9 and 7.10.
@@ -172,30 +276,45 @@ impl StepPackage {
             };
             columns[column] = rows.evaluate(row, 3, &columns).exp_u64(SBOX_DEGREE);
         }
+        self.finish_relation_columns(&mut columns, rows, &self.fresh_product_rows(rows), false)?;
+        Ok(columns)
+    }
+
+    fn finish_relation_columns(
+        &self,
+        columns: &mut [Fq],
+        rows: &PlanRows,
+        product_rows: &[usize],
+        fused: bool,
+    ) -> Result<(), PackageError> {
         if rows.piece_ranges().len() != self.pieces.len() {
             return Err(PackageError::Malformed("bounded-depth witness row pieces"));
         }
         let mut next = self.first_fresh;
+        let mut products = product_rows.iter().copied().peekable();
         for (piece, range) in self.pieces.iter().zip(rows.piece_ranges()) {
             match piece {
                 Piece::Rows(_) => {
-                    for row in range.clone() {
-                        if let Some((column, coefficient)) = rows.single(row, 2) {
-                            if column == next && coefficient == Fq::ONE {
-                                columns[column] = rows.evaluate(row, 0, &columns) * rows.evaluate(row, 1, &columns);
-                                next += 1;
-                            }
-                        }
+                    while let Some(row) = products.next_if(|&row| row < range.end) {
+                        columns[next] = rows.evaluate(row, 0, columns) * rows.evaluate(row, 1, columns);
+                        next += 1;
                     }
                 }
                 Piece::Ring {
-                    cells, quotient, lanes, ..
+                    cells,
+                    quotient,
+                    lanes,
+                    start,
                 } => {
                     if *quotient != next {
                         return Err(PackageError::Malformed("bounded-depth ring quotient column"));
                     }
+                    if fused && stable_ring_inputs(*start, *cells, lanes) {
+                        next += RING_DEGREE * cells;
+                        continue;
+                    }
                     for cell in 0..*cells {
-                        let [challenge, value, _] = ring_operands(*cells, cell, lanes, &columns);
+                        let [challenge, value, _] = ring_operands(*cells, cell, lanes, columns);
                         let (coefficients, _) = divide_by_ring_modulus(product(&challenge, &value));
                         let target = quotient + cell * RING_DEGREE;
                         columns[target..target + RING_DEGREE].copy_from_slice(&coefficients);
@@ -211,7 +330,7 @@ impl StepPackage {
         for (index, &source) in self.packed_booleans.sources.iter().enumerate() {
             columns[self.packed_booleans.start + index] = Fq::ONE - columns[source];
         }
-        self.field_lowering.reconstruct(&mut columns)?;
+        self.field_lowering.reconstruct(columns)?;
         for (index, product) in self.packed_booleans.products.iter().enumerate() {
             let column = self.packed_booleans.product_start() + 2 * index;
             columns[column] =
@@ -219,9 +338,9 @@ impl StepPackage {
             columns[column + 1] = Fq::ONE - columns[column];
         }
         for (index, zero) in self.packed_booleans.zeros.iter().enumerate() {
-            columns[self.packed_booleans.zero_start() + index] = zero.left.value(&columns) + zero.right.value(&columns);
+            columns[self.packed_booleans.zero_start() + index] = zero.left.value(columns) + zero.right.value(columns);
         }
-        Ok(columns)
+        Ok(())
     }
 }
 

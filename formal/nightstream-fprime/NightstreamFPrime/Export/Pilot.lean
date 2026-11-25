@@ -997,7 +997,7 @@ private theorem sourceToPackage_outputPreimage
       index.val < PilotProduction.stateHashWords := index.isLt
       _ = 25329 := PilotProduction.stateHashWords_eq
   unfold PilotPackageOrder.sourceToPackage
-  all_goals try split
+  split
   all_goals try split
   all_goals try split
   all_goals try split
@@ -1036,7 +1036,7 @@ private theorem sourceToPackage_priorPublic
     rw [← PriorStateHash.publicWidth_eq]
     exact column.isLt
   unfold PilotPackageOrder.sourceToPackage
-  all_goals try split
+  split
   all_goals try split
   all_goals try split
   all_goals try split
@@ -1066,7 +1066,7 @@ private theorem sourceToPackage_outputDigest (lane : Fin 4) :
         (PilotProduction.outputDigestStart + lane.val) =
       PilotPackageOrder.secondPublicStart + lane.val := by
   unfold PilotPackageOrder.sourceToPackage
-  all_goals try split
+  split
   all_goals try split
   all_goals try split
   all_goals try split

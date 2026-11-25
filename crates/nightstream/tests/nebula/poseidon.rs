@@ -120,8 +120,8 @@ impl Application for PortHash {
     fn words(&self, state: &Self::State) -> Vec<u64> {
         state.to_vec()
     }
-    fn rows(&self, view: &View) -> Result<Vec<Expr>, crate::Error> {
-        Ok(self.source(view).0)
+    fn rows(&self, view: &View) -> Result<Vec<Row>, crate::Error> {
+        Ok(self.source(view).0.into_iter().map(Row::Expr).collect())
     }
     fn poseidon2_hints(&self, view: &View) -> Result<Vec<Poseidon2Hint>, crate::Error> {
         Ok(if self.optimized {

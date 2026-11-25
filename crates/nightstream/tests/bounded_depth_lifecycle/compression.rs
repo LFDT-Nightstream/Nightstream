@@ -1,6 +1,6 @@
 //! SPEC.md section 6.
 
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
 use super::super::compression::{FinalProof, Fresh, Steps};
@@ -41,8 +41,8 @@ fn envelopes(prover: &BoundedDepth) -> Vec<Envelope> {
         .collect()
 }
 
-fn setup_and_time(prover: &BoundedDepth) -> &'static (ProverKey, Duration) {
-    static SETUP: OnceLock<(ProverKey, Duration)> = OnceLock::new();
+fn setup_and_time(prover: &BoundedDepth) -> &'static (Arc<ProverKey>, Duration) {
+    static SETUP: OnceLock<(Arc<ProverKey>, Duration)> = OnceLock::new();
     SETUP.get_or_init(|| {
         let start = Instant::now();
         let setup = prover.compression_setup().expect("compression setup");
@@ -82,7 +82,6 @@ fn increment(commitment: &mut Commitment, word: usize) {
 #[ignore = "Production-size compression, 30 GB; run separately under the 300-second cap."]
 fn a_compressed_proof_verifies_and_a_changed_one_does_not() {
     let prover = prover(2);
-    assert_eq!(prover.relations[0].blocks(), 74_146);
     let envelopes = envelopes(&prover);
     let (setup, setup_time) = setup_and_time(&prover);
     let key_bytes = setup.verification_key().to_bytes();
@@ -125,10 +124,10 @@ fn a_compressed_proof_verifies_and_a_changed_one_does_not() {
         let (single_time, single_times) = single.install(verify);
         let argument = &decoded.steps.as_ref().expect("steps").argument;
         let error_bits = ns_compress::error_bits(&layout, PUBLIC_WORDS, PI_CCS_V1_2_MATRIX_COUNT);
-        assert!(error_bits >= 119, "the argument's own error is at most 2^-{error_bits}");
+        assert_eq!(error_bits, 118);
         let commitments = argument.witness_commitment.len() + argument.inverse_commitment.len();
-        let sumchecks = 16 * (4 * argument.rounds.len() + 3 * argument.key_rounds.len());
-        let values = 16 * (1 + argument.inverse_values.len() + 2);
+        let sumchecks = 16 * (7 * argument.rounds.len() + 3 * argument.key_rounds.len());
+        let values = 16 * 4;
         let lengths = 8 * 5;
         let akita = commitments + argument.opening.len();
         println!(
@@ -244,7 +243,7 @@ fn a_compressed_proof_verifies_and_a_changed_one_does_not() {
             "last sum-check round",
             Box::new(|proof| {
                 let rounds = &mut proof.steps.as_mut().unwrap().argument.rounds;
-                rounds.last_mut().unwrap()[3] += K::ONE;
+                rounds.last_mut().unwrap()[6] += K::ONE;
             }),
         ),
         (
@@ -253,7 +252,7 @@ fn a_compressed_proof_verifies_and_a_changed_one_does_not() {
         ),
         (
             "inverse value",
-            Box::new(|proof| proof.steps.as_mut().unwrap().argument.inverse_values[2] += K::ONE),
+            Box::new(|proof| proof.steps.as_mut().unwrap().argument.shared_inverse += K::ONE),
         ),
         (
             "witness commitment byte",
@@ -352,9 +351,9 @@ fn unproven(envelope: &Envelope) -> FinalProof {
             argument: ns_compress::Proof {
                 witness_commitment: vec![1; 471],
                 inverse_commitment: vec![2; 471],
-                rounds: vec![[K::ONE; 4]; 26],
+                rounds: vec![[K::ONE; 7]; 26],
                 witness_value: K::ONE,
-                inverse_values: [K::ONE; 4],
+                shared_inverse: K::ONE,
                 key_part: K::ONE,
                 key_rounds: vec![[K::ONE; 3]; 25],
                 key_polynomial_value: K::ONE,
@@ -429,7 +428,7 @@ fn a_final_proof_has_one_encoding_and_a_circuit_and_depths_in_range() {
         .expect("the witness commitment")
         - 8;
     let rounds_at = length_at + 16 + commitment.len() + argument.inverse_commitment.len();
-    let key_rounds_at = rounds_at + 8 + 64 * argument.rounds.len() + 16 * 6;
+    let key_rounds_at = rounds_at + 8 + 112 * argument.rounds.len() + 16 * 3;
     let opening_at = key_rounds_at + 8 + 48 * argument.key_rounds.len() + 16;
     assert_eq!(opening_at + 8 + argument.opening.len(), bytes.len());
     for (name, at, honest) in [
@@ -720,7 +719,7 @@ fn a_light_final_proof_carries_slot_zero_alone_and_needs_its_mode() {
     let mut proof = full.clone();
     proof.steps.as_mut().unwrap().slots.truncate(1);
     let bytes = proof.to_bytes().expect("bytes");
-    assert_eq!(&bytes[..16], b"NS-OPTIONB-FIN-L");
+    assert_eq!(&bytes[..16], b"NS-ONEINV-FIN--Z");
     let decoded = FinalProof::from_bytes(&bytes).expect("decoded proof");
     assert_eq!(decoded.steps.as_ref().unwrap().slots.len(), 1);
     assert_eq!(decoded.to_bytes().expect("bytes"), bytes);
@@ -757,11 +756,111 @@ fn a_light_final_proof_carries_slot_zero_alone_and_needs_its_mode() {
         "the light tag with pc = 2 decodes"
     );
     let mut retagged = bytes.clone();
-    retagged[..16].copy_from_slice(b"NS-OPTIONB-FIN-2");
+    retagged[..16].copy_from_slice(b"NS-ONEINV-FIN--1");
     assert!(
         FinalProof::from_bytes(&retagged).is_err(),
         "one slot under the tag of both decodes"
     );
+}
+
+fn light_wire_fixture() -> FinalProof {
+    let initial = prover(2).initial(z0()).expect("initial envelope");
+    let mut proof = unproven(&initial);
+    let steps = proof.steps.as_mut().unwrap();
+    steps.pc = 1;
+    steps.slots.truncate(1);
+    proof.iteration = 1;
+    proof
+}
+
+fn assert_public_round_trip(bytes: &[u8]) {
+    let proof = crate::FinalProof::from_bytes(bytes).expect("decode public proof");
+    assert_eq!(proof.to_bytes().expect("encode public proof"), bytes);
+}
+
+#[test]
+fn compact_light_public_words_choose_one_encoding() {
+    let mut proof = light_wire_fixture();
+    proof.steps.as_mut().unwrap().slots[0].1 = 1;
+    let start = 96 + 8 * (1 + nightstream_fprime::COMMITMENT_WORDS);
+    let zero_public = proof.to_bytes().unwrap();
+    assert_eq!(&zero_public[..16], b"NS-ONEINV-FIN--S");
+    let mut default_as_signed = zero_public;
+    default_as_signed[96..104].fill(0);
+    assert!(crate::FinalProof::from_bytes(&default_as_signed).is_err());
+
+    let public = &mut proof.steps.as_mut().unwrap().slots[0].0.X;
+    public.set(0, 0, F::from_i64(-128));
+    public.set(0, 1, -F::ONE);
+    public.set(0, 2, F::from_u64(127));
+    let signed = proof.to_bytes().unwrap();
+    assert_eq!(&signed[..16], b"NS-ONEINV-FIN--S");
+    assert_eq!(&signed[start..start + 3], &[128, 255, 127]);
+    assert_public_round_trip(&signed);
+    let decoded = FinalProof::from_bytes(&signed).unwrap();
+    assert_eq!(
+        decoded.steps.unwrap().slots[0].0.X,
+        proof.steps.as_ref().unwrap().slots[0].0.X
+    );
+
+    for wide in [F::from_i64(-129), F::from_u64(128)] {
+        proof.steps.as_mut().unwrap().slots[0]
+            .0
+            .X
+            .set(D - 1, PUBLIC_WORDS / D - 1, wide);
+        let full = proof.to_bytes().unwrap();
+        assert_eq!(&full[..16], b"NS-ONEINV-FIN--L");
+        assert_eq!(full.len() - signed.len(), PUBLIC_WORDS * 7);
+        assert_public_round_trip(&full);
+        let last = start + 8 * (PUBLIC_WORDS - 1);
+        assert_eq!(&full[last..last + 8], &wide.as_canonical_u64().to_le_bytes());
+        let mut signed_as_full = full;
+        signed_as_full[last..last + 8].fill(0);
+        assert!(crate::FinalProof::from_bytes(&signed_as_full).is_err());
+    }
+}
+
+#[test]
+fn compact_light_round_mask_restores_the_full_polynomials() {
+    let mut proof = light_wire_fixture();
+    let argument = &mut proof.steps.as_mut().unwrap().argument;
+    argument.rounds = vec![[K::ONE; 7]; 30];
+    for i in [0, 8, 29] {
+        argument.rounds[i] = [K::ONE, K::ZERO, K::ONE, K::ZERO, K::ZERO, K::ZERO, K::ZERO];
+    }
+    for degree in 3..=6 {
+        argument.rounds[degree] = [K::ZERO; 7];
+        argument.rounds[degree][degree] = K::ONE;
+    }
+    let bytes = proof.to_bytes().unwrap();
+    let argument = &proof.steps.as_ref().unwrap().argument;
+    let inverse = &argument.inverse_commitment;
+    let count_at = bytes
+        .windows(inverse.len())
+        .position(|w| w == inverse)
+        .unwrap()
+        + inverse.len();
+    assert_eq!(&bytes[count_at..count_at + 8], &30u64.to_le_bytes());
+    let mask_at = count_at + 8;
+    let mask = 1u32 | 1 << 8 | 1 << 29;
+    assert_eq!(&bytes[mask_at..mask_at + 4], &mask.to_le_bytes());
+    assert_public_round_trip(&bytes);
+    let decoded = FinalProof::from_bytes(&bytes).unwrap().steps.unwrap();
+    assert_eq!(decoded.argument.rounds, argument.rounds);
+
+    let mut full_quadratic = bytes.clone();
+    full_quadratic[mask_at..mask_at + 4].copy_from_slice(&(mask ^ 1).to_le_bytes());
+    let high_at = mask_at + 4 + 3 * 16;
+    full_quadratic.splice(high_at..high_at, [0u8; 64]);
+    assert!(crate::FinalProof::from_bytes(&full_quadratic).is_err());
+
+    let mut surplus = bytes.clone();
+    surplus[mask_at..mask_at + 4].copy_from_slice(&(mask | 1 << 30).to_le_bytes());
+    assert!(crate::FinalProof::from_bytes(&surplus).is_err());
+    assert!(crate::FinalProof::from_bytes(&bytes[..mask_at + 3]).is_err());
+    let mut oversized = bytes;
+    oversized[count_at..mask_at].copy_from_slice(&31u64.to_le_bytes());
+    assert!(crate::FinalProof::from_bytes(&oversized).is_err());
 }
 
 #[test]

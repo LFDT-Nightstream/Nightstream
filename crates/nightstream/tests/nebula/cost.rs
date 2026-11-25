@@ -7,7 +7,7 @@ use nightstream_fprime::{load_bounded_depth_packages, BoundedDepthPackages, BOUN
 
 use super::memory_circuit;
 use crate::application::ApplicationCircuit;
-use crate::nebula::{Application, Expr, Geometry, Memory, Transition, View};
+use crate::nebula::{Application, Geometry, Memory, Row, Transition, View};
 
 fn logical_width(circuit: &ApplicationCircuit) -> Result<usize, crate::Error> {
     static PACKAGES: OnceLock<BoundedDepthPackages> = OnceLock::new();
@@ -51,7 +51,7 @@ impl Application for Free {
         vec![0; self.width]
     }
 
-    fn rows(&self, _: &View) -> Result<Vec<Expr>, crate::Error> {
+    fn rows(&self, _: &View) -> Result<Vec<Row>, crate::Error> {
         Ok(Vec::new())
     }
 

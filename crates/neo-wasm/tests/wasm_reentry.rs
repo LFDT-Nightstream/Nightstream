@@ -111,7 +111,7 @@ impl neo_wasm::WasmTraceSink for EffectRuntime {
     }
 }
 
-fn scalar_export(entry: u64, exit: u64) -> ExportTemplate {
+fn scalar_export(entry: u32, exit: u32) -> ExportTemplate {
     ExportTemplate {
         entry: vec![event(&[
             SlotBinding::Const(entry),
@@ -129,7 +129,7 @@ fn scalar_export(entry: u64, exit: u64) -> ExportTemplate {
     }
 }
 
-fn scalar_import(call: u64, ret: u64) -> ImportTemplate {
+fn scalar_import(call: u32, ret: u32) -> ImportTemplate {
     ImportTemplate {
         events: vec![event(&[
             SlotBinding::Const(call),

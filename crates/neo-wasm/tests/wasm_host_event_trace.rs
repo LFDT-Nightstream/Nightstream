@@ -7,9 +7,9 @@ use neo_wasm::{WasmHostEventSlotKind, WasmMemoryId, WasmVmStep};
 use p3_field::PrimeCharacteristicRing;
 
 const ZERO: SlotBinding = SlotBinding::Const(0);
-const MUL_ARGS_TAG: u64 = 1;
-const MUL_RESULT_TAG: u64 = 2;
-const SINK_TAG: u64 = 3;
+const MUL_ARGS_TAG: u32 = 1;
+const MUL_RESULT_TAG: u32 = 2;
+const SINK_TAG: u32 = 3;
 
 fn slots(entries: &[(usize, SlotBinding)]) -> [SlotBinding; COMM_CHAIN_EVENT_ARGS] {
     let mut out = [ZERO; COMM_CHAIN_EVENT_ARGS];
@@ -348,7 +348,7 @@ fn advice_import_pushes_without_absorbing() {
     let f = neo_math::F::from_u64;
     let expected = neo_wasm::comm_chain::commit_event(
         [neo_math::F::ZERO; 4],
-        f(SINK_TAG),
+        f(SINK_TAG.into()),
         core::array::from_fn(|i| if i == 0 { f(42) } else { f(0) }),
     );
     assert_eq!(
@@ -358,7 +358,7 @@ fn advice_import_pushes_without_absorbing() {
 
     let events = neo_wasm::comm_chain::absorbed_event_blocks(&trace);
     assert_eq!(events.len(), 1);
-    assert_eq!(events[0].words, [SINK_TAG, 42, 0, 0, 0, 0, 0, 0]);
+    assert_eq!(events[0].words, [SINK_TAG, 42, 0, 0, 0, 0, 0, 0].map(u64::from));
     assert_eq!(events[0].metadata.attributed_fref, frefs[1]);
 
     let advice_rows: Vec<&neo_wasm::WasmVmStep> = trace
@@ -405,9 +405,9 @@ fn host_event_trace_folds_expanded_blocks() {
     assert_eq!(
         staged,
         vec![
-            [MUL_ARGS_TAG, 7, 6, 0, 0, 0, 0, 0],
-            [MUL_RESULT_TAG, 42, 0, 0, 0, 0, 0, 0],
-            [SINK_TAG, 42, 0, 0, 0, 0, 0, 0],
+            [MUL_ARGS_TAG, 7, 6, 0, 0, 0, 0, 0].map(u64::from),
+            [MUL_RESULT_TAG, 42, 0, 0, 0, 0, 0, 0].map(u64::from),
+            [SINK_TAG, 42, 0, 0, 0, 0, 0, 0].map(u64::from),
         ],
     );
 
@@ -507,7 +507,7 @@ fn memory_rows_reject_forged_rom_claim() {
         })
         .expect("const slot row");
     if let Some(rom) = &mut trace[idx].host_event_rom_slot {
-        rom.immediate0 ^= 1;
+        rom.payload ^= 1;
     }
 
     let component_bytes = wat::parse_str(mul_sink_component_wat()).expect("component wat");
@@ -636,6 +636,7 @@ fn packed_slot_descriptor_binds_each_decoded_field() {
         COL_HOST_EVENT_SLOT_ARG,
         COL_HOST_EVENT_SLOT_VARIANT,
         COL_HOST_EVENT_SLOT_DESCRIPTOR,
+        COL_HOST_EVENT_SLOT_TYPE_OR_INPUT,
     ] {
         let mut forged = witness.clone();
         forged[column] += F::ONE;
@@ -644,6 +645,7 @@ fn packed_slot_descriptor_binds_each_decoded_field() {
     for (low, high, radix) in [
         (COL_HOST_EVENT_SLOT_KIND, COL_HOST_EVENT_SLOT_ARG, 32),
         (COL_HOST_EVENT_SLOT_ARG, COL_HOST_EVENT_SLOT_VARIANT, 256),
+        (COL_HOST_EVENT_SLOT_VARIANT, COL_HOST_EVENT_SLOT_TYPE_OR_INPUT, 16),
     ] {
         let mut forged = witness.clone();
         forged[low] += F::from_u64(radix);

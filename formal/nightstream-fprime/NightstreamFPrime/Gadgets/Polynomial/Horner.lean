@@ -1,4 +1,5 @@
 import Mathlib.Tactic.Ring
+import NightstreamFPrime.Circuit.Execution
 import NightstreamFPrime.Circuit.Quadratic
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier.Algebra
 import NightstreamFPrime.Spec.SumCheck.Polynomial
@@ -402,105 +403,6 @@ theorem soundness (interface : Interface) (env : Env) (offset : Nat)
     outputSemantic.trans <|
       evaluate_eq_messageEvaluate _ _
 
-theorem completeness (interface : Interface) (env : Env) (offset : Nat)
-    (assumptions : Assumptions interface offset env)
-    (specification : SpecHolds interface offset env) :
-    ∃ completed,
-      AgreesOutside env completed offset
-        (localLength (Circuit.ops (main interface) offset)) ∧
-      holdsFlat completed (Circuit.ops (main interface) offset) := by
-  let recipes := (program interface offset).recipes
-  let completed := executeRecipes env offset recipes
-  have causal : RecipesCausal offset recipes :=
-    compile_causal offset (interface.point offset)
-      (interface.coefficients offset) assumptions.1 assumptions.2.1
-  have recipeRows : ConstraintsHold completed
-      (recipeConstraints offset recipes) :=
-    executeRecipes_holds_recipeConstraints env offset recipes causal
-  have agreesBelow : ∀ index, index < offset → completed index = env index :=
-    executeRecipes_agrees_below env offset recipes
-  have pointEval : (interface.point offset).eval completed =
-      (interface.point offset).eval env :=
-    (interface.point offset).eval_eq_of_agree_below offset completed env
-      assumptions.1 agreesBelow
-  have coefficientsEval :
-      (interface.coefficients offset).map (KExpr.eval completed) =
-        (interface.coefficients offset).map (KExpr.eval env) := by
-    apply List.map_congr_left
-    intro coefficient member
-    exact coefficient.eval_eq_of_agree_below offset completed env
-      (assumptions.2.1 coefficient member) agreesBelow
-  have expectedEval : (interface.expected offset).eval completed =
-      (interface.expected offset).eval env :=
-    (interface.expected offset).eval_eq_of_agree_below offset completed env
-      assumptions.2.2 agreesBelow
-  have outputSemantic := compile_output_sound completed offset
-    (interface.point offset) (interface.coefficients offset) recipeRows
-  have outputExpected : (program interface offset).output.eval completed =
-      (interface.expected offset).eval completed := by
-    calc
-      (program interface offset).output.eval completed =
-          evaluate ((interface.point offset).eval completed)
-            ((interface.coefficients offset).map (KExpr.eval completed)) :=
-        outputSemantic
-      _ = SumCheck.Finite.Message.evaluateCoefficients extensionOps.toOps
-          ((interface.point offset).eval completed)
-          ((interface.coefficients offset).map (KExpr.eval completed)) :=
-        evaluate_eq_messageEvaluate _ _
-      _ = SumCheck.Finite.Message.evaluateCoefficients extensionOps.toOps
-          ((interface.point offset).eval env)
-          ((interface.coefficients offset).map (KExpr.eval env)) := by
-        rw [pointEval, coefficientsEval]
-      _ = (interface.expected offset).eval env := specification.symm
-      _ = (interface.expected offset).eval completed := expectedEval.symm
-  have assertionRows : ConstraintsHold completed
-      (allAssertions interface offset) :=
-    (KExpr.equalities_hold_iff completed
-      (program interface offset).output (interface.expected offset)).mpr
-        outputExpected
-  refine ⟨completed, ?_, ?_⟩
-  · rw [main_ops]
-    change AgreesOutside env completed offset recipes.length
-    exact executeRecipes_agreesOutside env offset recipes
-  · change ConstraintsHold completed
-      (flatConstraints (opsAt interface offset))
-    rw [flatConstraints_opsAt]
-    exact (constraintsHold_append completed _ _).mpr
-      ⟨recipeRows, assertionRows⟩
-
-def circuit (interface : Interface) : FormalCircuit where
-  main := main interface
-  assumptions := Assumptions interface
-  spec := SpecHolds interface
-  soundness := soundness interface
-  completeness := completeness interface
-
-theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) =
-      3 * ((interface.coefficients offset).length - 1) := by
-  calc
-    localLength (Circuit.ops (circuit interface).main offset) =
-        (program interface offset).recipes.length := by
-      change localLength (opsAt interface offset) = _
-      simp [opsAt, localLength, allAssertions, KExpr.equalities,
-        Op.localLength]
-    _ = 3 * ((interface.coefficients offset).length - 1) := by
-      exact compile_recipes_length offset (interface.point offset)
-        (interface.coefficients offset)
-
-theorem operations_length (interface : Interface) (offset : Nat) :
-    (Circuit.ops (circuit interface).main offset).length = 3 := by
-  change (opsAt interface offset).length = 3
-  simp [opsAt, allAssertions, KExpr.equalities]
-
-theorem flatConstraints_length (interface : Interface) (offset : Nat) :
-    (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      3 * ((interface.coefficients offset).length - 1) + 2 := by
-  change (flatConstraints (opsAt interface offset)).length = _
-  rw [flatConstraints_opsAt, List.length_append,
-    recipeConstraints_length]
-  simp [allAssertions, KExpr.equalities, program, compile_recipes_length]
-
 theorem specHolds_of_agree_below (interface : Interface) (offset : Nat)
     (before after : Env) (assumptions : Assumptions interface offset before)
     (agrees : ∀ index, index < offset → after index = before index)
@@ -524,6 +426,80 @@ theorem specHolds_of_agree_below (interface : Interface) (offset : Nat)
   unfold SpecHolds at specification ⊢
   rw [expectedEq, pointEq, coefficientsEq]
   exact specification
+
+theorem witnesses_opsAt (interface : Interface) (offset : Nat) :
+    witnesses (opsAt interface offset) =
+      [WitnessBatch.arithmetic offset (program interface offset).recipes] := by
+  rw [opsAt, Witness.witnesses_append, Witness.witnesses_assertions]
+  rfl
+
+private theorem opsAt_localLength (interface : Interface) (offset : Nat) :
+    localLength (opsAt interface offset) = (program interface offset).recipes.length := by
+  simp [opsAt, localLength, allAssertions, KExpr.equalities, Op.localLength]
+
+theorem ordered (interface : Interface) (offset : Nat) (env : Env)
+    (assumptions : Assumptions interface offset env) :
+    Witness.Ordered offset (witnesses (opsAt interface offset))
+      (offset + localLength (opsAt interface offset)) :=
+  Witness.ordered_batch (witnesses_opsAt interface offset) (opsAt_localLength interface offset)
+    (compile_causal offset (interface.point offset) (interface.coefficients offset)
+      assumptions.1 assumptions.2.1)
+
+theorem computed_holdsFlat (interface : Interface) (env : Env) (offset : Nat)
+    (specification : SpecHolds interface offset env)
+    (computed : Witness.Computed env (witnesses (opsAt interface offset))) :
+    holdsFlat env (opsAt interface offset) := by
+  have recipeRows := Witness.computed_batch (witnesses_opsAt interface offset) computed
+  unfold holdsFlat
+  rw [flatConstraints_opsAt]
+  exact (constraintsHold_append env _ _).mpr ⟨recipeRows,
+    (KExpr.equalities_hold_iff env _ _).mpr
+      (((compile_output_sound env offset (interface.point offset)
+        (interface.coefficients offset) recipeRows).trans
+          (evaluate_eq_messageEvaluate _ _)).trans specification.symm)⟩
+
+theorem completeness (interface : Interface) (env : Env) (offset : Nat)
+    (assumptions : Assumptions interface offset env)
+    (specification : SpecHolds interface offset env) :
+    ∃ completed,
+      AgreesOutside env completed offset
+        (localLength (Circuit.ops (main interface) offset)) ∧
+      holdsFlat completed (Circuit.ops (main interface) offset) :=
+  Witness.complete (ordered interface offset env assumptions) fun completed below computed =>
+    computed_holdsFlat interface completed offset
+      (specHolds_of_agree_below interface offset env completed assumptions below specification)
+      computed
+
+def circuit (interface : Interface) : FormalCircuit where
+  main := main interface
+  assumptions := Assumptions interface
+  spec := SpecHolds interface
+  soundness := soundness interface
+  completeness := completeness interface
+
+theorem localLength_eq (interface : Interface) (offset : Nat) :
+    localLength (Circuit.ops (circuit interface).main offset) =
+      3 * ((interface.coefficients offset).length - 1) := by
+  calc
+    localLength (Circuit.ops (circuit interface).main offset) =
+        (program interface offset).recipes.length :=
+      opsAt_localLength interface offset
+    _ = 3 * ((interface.coefficients offset).length - 1) := by
+      exact compile_recipes_length offset (interface.point offset)
+        (interface.coefficients offset)
+
+theorem operations_length (interface : Interface) (offset : Nat) :
+    (Circuit.ops (circuit interface).main offset).length = 3 := by
+  change (opsAt interface offset).length = 3
+  simp [opsAt, allAssertions, KExpr.equalities]
+
+theorem flatConstraints_length (interface : Interface) (offset : Nat) :
+    (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
+      3 * ((interface.coefficients offset).length - 1) + 2 := by
+  change (flatConstraints (opsAt interface offset)).length = _
+  rw [flatConstraints_opsAt, List.length_append,
+    recipeConstraints_length]
+  simp [allAssertions, KExpr.equalities, program, compile_recipes_length]
 
 theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env) :
@@ -604,26 +580,27 @@ theorem soundness (interface : Interface) (env : Env) (offset : Nat)
     (interface.coefficients offset) recipeRows).trans
       (evaluate_eq_messageEvaluate _ _)
 
+theorem ordered (interface : Interface) (offset : Nat) (env : Env)
+    (assumptions : Assumptions interface offset env) :
+    Witness.Ordered offset (witnesses (opsAt interface offset))
+      (offset + localLength (opsAt interface offset)) :=
+  Witness.ordered_batch rfl (by simp [opsAt, localLength, Op.localLength])
+    (compile_causal offset (interface.point offset) (interface.coefficients offset)
+      assumptions.1 assumptions.2)
+
+theorem computed_holdsFlat (interface : Interface) (env : Env) (offset : Nat)
+    (computed : Witness.Computed env (witnesses (opsAt interface offset))) :
+    holdsFlat env (opsAt interface offset) :=
+  Witness.computed_holdsFlat (by simp [opsAt, Op.RecipesOnly]) computed
+
 theorem completeness (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env) :
     ∃ completed,
       AgreesOutside env completed offset
         (localLength (Circuit.ops (main interface) offset)) ∧
-      holdsFlat completed (Circuit.ops (main interface) offset) := by
-  let recipes := (program interface offset).recipes
-  let completed := executeRecipes env offset recipes
-  have causal : RecipesCausal offset recipes :=
-    compile_causal offset (interface.point offset)
-      (interface.coefficients offset) assumptions.1 assumptions.2
-  have recipeRows : ConstraintsHold completed
-      (recipeConstraints offset recipes) :=
-    executeRecipes_holds_recipeConstraints env offset recipes causal
-  refine ⟨completed, ?_, ?_⟩
-  · change AgreesOutside env completed offset recipes.length
-    exact executeRecipes_agreesOutside env offset recipes
-  · change ConstraintsHold completed (flatConstraints (opsAt interface offset))
-    rw [flatConstraints_opsAt]
-    exact recipeRows
+      holdsFlat completed (Circuit.ops (main interface) offset) :=
+  Witness.complete (ordered interface offset env assumptions) fun completed _ =>
+    computed_holdsFlat interface completed offset
 
 def circuit (interface : Interface) : FormalCircuit where
   main := main interface

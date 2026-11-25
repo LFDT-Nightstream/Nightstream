@@ -1,6 +1,6 @@
 import NightstreamFPrime.Gadgets.Poseidon2.LiveRows
 import NightstreamFPrime.Gadgets.Poseidon2.Hash
-import NightstreamFPrime.Circuit.StraightLine
+import NightstreamFPrime.Circuit.Execution
 
 namespace NightstreamFPrime.Gadgets.Poseidon2.RawFormal
 
@@ -106,22 +106,26 @@ theorem soundness (interface : Interface) (env : Env) (offset : Nat)
         simp [operations])
   exact Hash.compile_sound env offset (interface.input offset) recipeRows
 
+theorem ordered (interface : Interface) (offset : Nat) (env : Env)
+    (assumptions : Assumptions interface offset env) :
+    Witness.Ordered offset (witnesses (operations interface offset))
+      (offset + localLength (operations interface offset)) :=
+  Witness.ordered_batch rfl (localLength_eq interface offset)
+    (Hash.compile_causal offset (interface.input offset) assumptions)
+
+theorem computed_holdsFlat (interface : Interface) (env : Env) (offset : Nat)
+    (computed : Witness.Computed env (witnesses (operations interface offset))) :
+    holdsFlat env (operations interface offset) :=
+  Witness.computed_holdsFlat (by simp [operations, Op.RecipesOnly]) computed
+
 theorem complete (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env) :
     ∃ completed,
       AgreesOutside env completed offset
         (localLength (Circuit.ops (main interface) offset)) ∧
-      holdsFlat completed (Circuit.ops (main interface) offset) := by
-  let recipes := (program interface offset).recipes
-  let completed := executeRecipes env offset recipes
-  have causal : RecipesCausal offset recipes :=
-    Hash.compile_causal offset (interface.input offset) assumptions
-  refine ⟨completed, ?_, ?_⟩
-  · rw [localLength_eq]
-    exact executeRecipes_agreesOutside env offset recipes
-  · unfold holdsFlat
-    rw [flatConstraints_eq]
-    exact executeRecipes_holds_recipeConstraints env offset recipes causal
+      holdsFlat completed (Circuit.ops (main interface) offset) :=
+  Witness.complete (ordered interface offset env assumptions) fun completed _ =>
+    computed_holdsFlat interface completed offset
 
 theorem completeness (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env)

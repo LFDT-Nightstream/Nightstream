@@ -346,7 +346,7 @@ theorem supported_slice {W : ℕ → F} {offset blocks width : ℕ}
   simp only [sliceAssignment, ite_eq_right (not_lt.mpr beyond)]
 
 variable (setup : Setup mode logicalWidth publicFits) {packageWidths : Fin 2 → ℕ}
-  (step : AppState → AppWitness → AppState) (cap : ℕ) (control : AppState → AppWitness → Fin 2)
+  (step : AppState → AppWitness → AppState) (control : AppState → AppWitness → Fin 2)
 
 theorem runningWitness_slot (claims : Claims logicalWidth publicFits) (W : ℕ → F)
     (s : Fin mode.slots) :
@@ -376,7 +376,7 @@ theorem verifies_of_run (premises : Premises setup packageWidths)
       CCS.Holds (semantics setup.ajtai) productionGlobalParams
         (freshStatement (setup.circuitKeys (freshIndex claims)).relation
           (setup.fresh statement claims)) (setup.witness claims W (Fin.last _))) :
-    Verifies setup.ajtai setup.circuitKeys step packageWidths cap control statement
+    Verifies setup.ajtai setup.circuitKeys step packageWidths control statement
       (.recursive ⟨claims.running, setup.runningWitness claims W,
         setup.fresh statement claims, setup.witness claims W (Fin.last _), claims.pc⟩) := by
   obtain ⟨valid, positive, pcValid, depth_le, modeChecks⟩ := checks
@@ -395,7 +395,7 @@ theorem verifies_of_run (premises : Premises setup packageWidths)
     (setup.publicInput statement claims) probe (by simp [Setup.claimsOf])
   have freshHolds := ccs ambient
   rw [freshIndex_eq pcValid] at freshHolds
-  refine (verifies_recursive_iff _ _ _ _ _).mpr ⟨(Terminal.holdsFor_recursive_iff _ _ _ _ _ _ _).mpr
+  refine (verifies_recursive_iff _ _ _ _).mpr ⟨(Terminal.holdsFor_recursive_iff _ _ _ _ _ _).mpr
     ⟨valid, pcValid, positive, rfl, fun s => ?_, freshHolds⟩,
     ⟨depth_le, fun s => ?_, fun s => ?_, fun valid' => ?_⟩⟩
   · dsimp only
@@ -429,8 +429,8 @@ theorem verifies_of_run (premises : Premises setup packageWidths)
 theorem verifies_of_bottom {statement : TerminalStatement AppState}
     (bottom : Terminal.StatementValid statement ∧ statement.iteration = 0 ∧
       statement.zi = statement.z0) :
-    Verifies setup.ajtai setup.circuitKeys step packageWidths cap control statement .bottom :=
-  (verifies_bottom_iff _ _ _ _).mpr bottom
+    Verifies setup.ajtai setup.circuitKeys step packageWidths control statement .bottom :=
+  (verifies_bottom_iff _ _ _).mpr bottom
 
 /-- The honest proof of `RunCompleteness.light_run_complete` passes the checks of the light mode,
 with any commitment of the fresh instance. -/
@@ -441,12 +441,12 @@ theorem checks_light {ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidt
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
       (StepFresh logicalWidth publicFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2}
-    (holds : Terminal.HoldsFor cap ajtai circuitKeys step control statement (.recursive payload))
+    (holds : Terminal.HoldsFor ajtai circuitKeys step control statement (.recursive payload))
     (honest : Honest (ajtai := ajtai) packageWidths payload) (pcOne : payload.pc = 1)
     (slotOne : payload.running 1 = (defaultSlot, 0)) (commitment : PaperAlgebra.Commitment) :
     Checks .light statement ⟨payload.pc, payload.running, commitment⟩ := by
   obtain ⟨statementValid, pcValid, positive, -⟩ :=
-    (Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step control statement payload).mp holds
+    (Terminal.holdsFor_recursive_iff ajtai circuitKeys step control statement payload).mp holds
   exact ⟨statementValid, positive, pcValid, honest.depth, pcOne, slotOne⟩
 
 /-- In the light mode with `pc = 1`, both claims are on the rows of the light circuit. -/
@@ -499,32 +499,32 @@ and the gate of step 5, with any fresh commitment (`checks_light`, `laid_light`,
 `Spec.Compression.Rust.layoutNew_light_runBits`). -/
 theorem accepts_light (light : Setup .light logicalWidth publicFits)
     (key : Compression.Rust.keyBlocksFor (light.blocks 0) = some light.keyBlocks)
-    (shipped : light.keyBlocks = 2 ^ 19) (minimum_le : light.minimum ≤ 119)
+    (shipped : light.keyBlocks = 2 ^ 19) (minimum_le : light.minimum ≤ 118)
     (statement : TerminalStatement AppState)
     (payload : TerminalProof (SlotData logicalWidth publicFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
       (StepFresh logicalWidth publicFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2)
-    (verifies : Verifies light.ajtai light.circuitKeys step packageWidths cap control statement
+    (verifies : Verifies light.ajtai light.circuitKeys step packageWidths control statement
       (.recursive payload))
     (pcOne : payload.pc = 1) (slotOne : payload.running 1 = (defaultSlot, 0))
     (commitment : PaperAlgebra.Commitment) :
     Checks .light statement ⟨payload.pc, payload.running, commitment⟩ ∧
       light.Gate ⟨payload.pc, payload.running, commitment⟩ := by
-  have checks := checks_light step cap control verifies.1 verifies.2 pcOne slotOne commitment
+  have checks := checks_light step control verifies.1 verifies.2 pcOne slotOne commitment
   obtain ⟨above, fits⟩ := Compression.Rust.keyBlocksFor_eq_light.mp (shipped ▸ key)
   have laid := laid_light light shipped (by omega) fits (by simp only [ringDegree]; omega) checks
   obtain ⟨l, ok⟩ := laid.1
   refine ⟨checks, key, ⟨l, ok, ?_⟩, laid.2⟩
   rw [placed_light light pcOne] at ok
   rw [Compression.Rust.layoutNew_light_runBits ok (checks.2.2.2.1 0)]
-  exact minimum_le
+  simpa [shipped] using minimum_le
 
 /-- On each path that avoids the bad sets, the verifier of Algorithm 6 accepts each accepted
 statement with the proof that its outcome gives (`Setup.proofOf`). -/
 theorem game_avoids (premises : Premises setup packageWidths) :
     setup.game.Avoids fun a => ∀ o, a = some o →
-      Verifies setup.ajtai setup.circuitKeys step packageWidths cap control o.1
+      Verifies setup.ajtai setup.circuitKeys step packageWidths control o.1
         (setup.proofOf o) := by
   intro input
   obtain ⟨statement, claims?⟩ := input
@@ -534,7 +534,7 @@ theorem game_avoids (premises : Premises setup packageWidths) :
       dsimp only at equal
       split_ifs at equal with bottom
       cases equal
-      exact verifies_of_bottom setup step cap control bottom
+      exact verifies_of_bottom setup step control bottom
   | some claims =>
       dsimp only
       split_ifs with accepted
@@ -565,7 +565,7 @@ theorem game_avoids (premises : Premises setup packageWidths) :
             rw [avoids_bind]
             refine (Compression.Verifier.game_avoids (setup.verifier claims) wf
               (params_countsNonzero _ _ _ _ fun c _ => small c) (verifierData_matrixSpec _ _ _ _ _ _)
-              (le_of_eq rfl) (Nat.le_of_ble_eq_true rfl) key_fits
+              (Nat.le_of_ble_eq_true rfl) key_fits
               (setup.claimsOf statement claims probe) W).mono fun r relationGood => ?_
             intro o equal
             cases r with
@@ -576,13 +576,14 @@ theorem game_avoids (premises : Premises setup packageWidths) :
                 cases equal
                 have holds := relationGood found rfl
                 rw [same] at holds
-                exact verifies_of_run setup step cap control premises checks laid holds
+                exact verifies_of_run setup step control premises checks laid holds
                   (freshGood probe rfl)
       · exact fun _ equal => nomatch equal
 
 /-- The bound on the density of each bad set: the argument's and Π_CCS's. -/
 noncomputable def finalError : ℝ := 1 / 2 ^ 119 + 38 / (fieldModulus : ℝ) ^ 2
 
+attribute [local irreducible] Real.instLT in
 theorem game_densityLe : setup.game.DensityLe finalError := by
   have ccsLe : (38 / (fieldModulus : ℝ) ^ 2) ≤ finalError := by
     unfold finalError
@@ -598,7 +599,7 @@ theorem game_densityLe : setup.game.DensityLe finalError := by
         intro W
         obtain ⟨wf, small, -, span⟩ := setup.layout_facts gate.laid
         have errorLe : error (setup.verifier claims) ≤ finalError := by
-          have := params_error_lt _ _ _ _ (setup.verifier claims) mode.slots_le rfl
+          have := params_error_lt _ _ _ _ (setup.verifier claims) mode.slots_le
             (fun _ => checks.2.2.2.1 _) (fun c _ => small c) (span.trans (by decide))
           unfold finalError
           linarith [show (0 : ℝ) ≤ 38 / (fieldModulus : ℝ) ^ 2 by positivity]
@@ -620,20 +621,20 @@ theorem game_densityLe : setup.game.DensityLe finalError := by
 /-- The final verifier accepts a statement for which no proof with witnesses satisfies
 `Verifies`. -/
 def Wins (setup : Setup mode logicalWidth publicFits) (packageWidths : Fin 2 → ℕ)
-    (step : AppState → AppWitness → AppState) (cap : ℕ)
+    (step : AppState → AppWitness → AppState)
     (control : AppState → AppWitness → Fin 2) (r : Option (Option (Outcome logicalWidth publicFits))) :
     Prop :=
   ¬ ∀ a, r = some a → ∀ o, a = some o →
-    ∃ proof, Verifies setup.ajtai setup.circuitKeys step packageWidths cap control o.1 proof
+    ∃ proof, Verifies setup.ajtai setup.circuitKeys step packageWidths control o.1 proof
 
 /-- In the state-restoration experiment with `q` queries, the final verifier accepts a statement
 for which no proof with witnesses satisfies `Verifies` with probability at most
 `q · (1/2^119 + 38/fieldModulus²)`. -/
 theorem soundness (premises : Premises setup packageWidths)
     (s : Strategy (Option (Option (Outcome logicalWidth publicFits)))) (q : ℕ) :
-    prob s (restore setup.game q []) (Wins setup packageWidths step cap control) ≤
+    prob s (restore setup.game q []) (Wins setup packageWidths step control) ≤
       q * finalError :=
-  restore_sound _ s _ _ ((game_avoids setup step cap control premises).mono fun _ verifies o
+  restore_sound _ s _ _ ((game_avoids setup step control premises).mono fun _ verifies o
       equal => ⟨_, verifies o equal⟩)
     (game_densityLe setup) (by unfold finalError; positivity) q
 

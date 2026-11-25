@@ -4,8 +4,8 @@ import NightstreamFPrime.Lifecycle.Nebula.RowMeaning
 
 /-! Owns the completeness of the memory-application circuit: when the caller's
 wires lie below the call offset and the step is valid with its output state,
-honest execution of the nine sponge children satisfies every flattened row and
-changes only the circuit's own variables. It does not own soundness. -/
+every flattened row holds in an environment that has the rows of the nine sponge
+children. `MemoryProgram` executes the children. It does not own soundness. -/
 
 namespace NightstreamFPrime.Lifecycle.Nebula.MemoryApp
 
@@ -14,22 +14,6 @@ open NightstreamFPrime.Spec.Nebula
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Lifecycle.Stage1
-
-/-- Append one honestly executed sponge child at the end of a prefix. -/
-theorem appendSponge {initial : Env} {base : ℕ} (before : Sequence.Prefix initial base)
-    (name : String) (child : Sponge.Interface) (start : ℕ)
-    (startEq : base + localLength before.operations = start)
-    (assumptions : ∀ env, Sponge.Assumptions child start env) :
-    ∃ after : Sequence.Prefix initial base,
-      after.operations = before.operations ++ [Sequence.childOp name (Sponge.circuit child) start] ∧
-      base + localLength after.operations = start + (child.chunks start).length * 1096 := by
-  obtain ⟨completed, agrees, rows⟩ := Sponge.completeness child before.current start (assumptions _)
-  obtain ⟨after, operations, endEq, -, -⟩ := Sequence.appendBuiltAt before name (Sponge.circuit child)
-    start startEq (Sponge.flatConstraints_varsBelow child start (fun _ => 0) (assumptions _))
-    completed agrees rows
-  refine ⟨after, operations, ?_⟩
-  rw [endEq]
-  exact congrArg (start + ·) (Sponge.localLength_eq child start)
 
 variable (p : Geometry) (app : PortApp p) (i : AppInterface p app) (offset : ℕ)
 
@@ -108,66 +92,30 @@ theorem squeeze3_assumptions (inputs : Application.InputsBelow i offset) (env : 
 
 end Assumptions
 
-/-- Honest execution of the nine children: a prefix whose operations are the
-children, in order. -/
-theorem children_complete (inputs : Application.InputsBelow i offset) (env : Env) :
-    ∃ children : Sequence.Prefix env offset, children.operations = childOps p app i offset := by
-  obtain ⟨c1, ops1, end1⟩ := appendSponge (Sequence.empty env offset) "nebula.state_in"
-    (stateIn p app i offset) offset (by simp [Sequence.empty, localLength]) (stateIn_assumptions inputs)
-  obtain ⟨c2, ops2, end2⟩ := appendSponge c1 "nebula.state_out" (stateOut p app i offset)
-    (stateOutStart p app i offset) end1 (stateOut_assumptions inputs)
-  obtain ⟨c3, ops3, end3⟩ := appendSponge c2 "nebula.chain_ops" (chainOps p app i offset)
-    (chainOpsStart p app i offset) end2 (chainOps_assumptions inputs)
-  obtain ⟨c4, ops4, end4⟩ := appendSponge c3 "nebula.chain_is" (chainInitial p app i offset)
-    (chainInitialStart p app i offset) end3 (chainInitial_assumptions inputs)
-  obtain ⟨c5, ops5, end5⟩ := appendSponge c4 "nebula.chain_fs" (chainFinal p app i offset)
-    (chainFinalStart p app i offset) end4 (chainFinal_assumptions inputs)
-  obtain ⟨c6, ops6, end6⟩ := appendSponge c5 "nebula.eta" (eta p app i offset)
-    (etaStart p app i offset) end5 (eta_assumptions inputs)
-  obtain ⟨c7, ops7, end7⟩ := appendSponge c6 "nebula.eta_squeeze_1" (squeeze1 p app i offset)
-    (squeeze1Start p app i offset) (end6.trans (by rw [etaChunks_length]; rfl))
-    (squeeze1_assumptions inputs)
-  obtain ⟨c8, ops8, end8⟩ := appendSponge c7 "nebula.eta_squeeze_2" (squeeze2 p app i offset)
-    (squeeze2Start p app i offset) (end7.trans (by
-      simp only [squeeze2Start, squeeze1, permuting, List.length_singleton, one_mul]))
-    (squeeze2_assumptions inputs)
-  obtain ⟨c9, ops9, -⟩ := appendSponge c8 "nebula.eta_squeeze_3" (squeeze3 p app i offset)
-    (squeeze3Start p app i offset) (end8.trans (by
-      simp only [squeeze3Start, squeeze2, permuting, List.length_singleton, one_mul]))
-    (squeeze3_assumptions inputs)
-  refine ⟨c9, ?_⟩
-  rw [ops9, ops8, ops7, ops6, ops5, ops4, ops3, ops2, ops1]
-  rfl
-
-/-- Completeness: honest execution satisfies every flattened row of a valid
-step and changes only the circuit's own variables. -/
-theorem completeness (env : Env) (inputs : Application.InputsBelow i offset)
+theorem rows_of_children (env completed : Env) (inputs : Application.InputsBelow i offset)
     (specification : Application.Holds (step p app) i offset env ∧
-      Application.Valid (valid p app) i offset env) :
-    ∃ completed, AgreesOutside env completed offset (localLength (opsAt p app i offset)) ∧
-      holdsFlat completed (opsAt p app i offset) := by
+      Application.Valid (valid p app) i offset env)
+    (agreesBelow : ∀ index, index < offset → completed index = env index)
+    (flatRows : holdsFlat completed (childOps p app i offset)) :
+    holdsFlat completed (opsAt p app i offset) := by
   obtain ⟨holdsStep, rowsHold, appRows, auxHonest⟩ := specification
-  obtain ⟨children, operations⟩ := children_complete p app i offset inputs env
-  have agreesBelow : ∀ index, index < offset → children.current index = env index :=
-    fun index below => children.agrees index (Or.inl below)
-  have childRows : holds children.current (childOps p app i offset) := by
-    rw [← operations]
-    exact holdsFlat_implies_holds _ _ children.rows
+  have childRows : holds completed (childOps p app i offset) :=
+    holdsFlat_implies_holds _ _ flatRows
   have specOf : ∀ {name : String} {child : FormalCircuit} {start : ℕ},
       Sequence.childOp name child start ∈ childOps p app i offset →
-        child.assumptions start children.current → child.spec start children.current :=
+        child.assumptions start completed → child.spec start completed :=
     fun member assumptions => childRows _ member assumptions
-  have witnessEq : Application.witnessValue i offset children.current =
+  have witnessEq : Application.witnessValue i offset completed =
       Application.witnessValue i offset env := by
     unfold Application.witnessValue
     congr 1
     funext index
     exact (i.witness offset index).eval_eq_of_agree_below offset _ env (inputs.witness index)
       agreesBelow
-  have valuesEq : values p app i offset children.current = values p app i offset env := by
+  have valuesEq : values p app i offset completed = values p app i offset env := by
     unfold values
     rw [witnessEq]
-  have wireFinal : ∀ k, (wire p app i offset k).eval children.current = values p app i offset env k :=
+  have wireFinal : ∀ k, (wire p app i offset k).eval completed = values p app i offset env k :=
     fun k => by rw [wire_eval, valuesEq]
   have carryOut : ∀ (start : ℕ) (k : Fin 4), start + 3 < 39 →
       StepWitness.carryDigest (StepWitness.ofWords p app.toAppShape (values p app i offset env)).carryOut start k =
@@ -183,30 +131,30 @@ theorem completeness (env : Env) (inputs : Application.InputsBelow i offset)
   have fresh2 := congrArg (fun pair : K × K => pair.2.c0) fresh
   have fresh3 := congrArg (fun pair : K × K => pair.2.c1) fresh
   dsimp only at fresh0 fresh1 fresh2 fresh3
-  have etaAbsorbed := absorbing_state children.current
+  have etaAbsorbed := absorbing_state completed
     (specOf (name := "nebula.eta") (child := Sponge.circuit (eta p app i offset))
         (start := etaStart p app i offset) (by simp [childOps])
-      (eta_assumptions inputs children.current))
+      (eta_assumptions inputs completed))
   rw [etaBlocks_eval, valuesEq] at etaAbsorbed
-  have s1 : Sponge.evalState children.current (squeeze1State p app i offset) =
-      Spec.Poseidon2.permute (Sponge.evalState children.current (etaState p app i offset)) :=
-    permuting_state children.current (specOf (name := "nebula.eta_squeeze_1")
+  have s1 : Sponge.evalState completed (squeeze1State p app i offset) =
+      Spec.Poseidon2.permute (Sponge.evalState completed (etaState p app i offset)) :=
+    permuting_state completed (specOf (name := "nebula.eta_squeeze_1")
       (child := Sponge.circuit (squeeze1 p app i offset))
         (start := squeeze1Start p app i offset) (by simp [childOps])
-      (squeeze1_assumptions inputs children.current))
-  have s2 : Sponge.evalState children.current (squeeze2State p app i offset) =
-      Spec.Poseidon2.permute (Sponge.evalState children.current (squeeze1State p app i offset)) :=
-    permuting_state children.current (specOf (name := "nebula.eta_squeeze_2")
+      (squeeze1_assumptions inputs completed))
+  have s2 : Sponge.evalState completed (squeeze2State p app i offset) =
+      Spec.Poseidon2.permute (Sponge.evalState completed (squeeze1State p app i offset)) :=
+    permuting_state completed (specOf (name := "nebula.eta_squeeze_2")
       (child := Sponge.circuit (squeeze2 p app i offset))
         (start := squeeze2Start p app i offset) (by simp [childOps])
-      (squeeze2_assumptions inputs children.current))
-  have s3 : Sponge.evalState children.current (squeeze3State p app i offset) =
-      Spec.Poseidon2.permute (Sponge.evalState children.current (squeeze2State p app i offset)) :=
-    permuting_state children.current (specOf (name := "nebula.eta_squeeze_3")
+      (squeeze2_assumptions inputs completed))
+  have s3 : Sponge.evalState completed (squeeze3State p app i offset) =
+      Spec.Poseidon2.permute (Sponge.evalState completed (squeeze2State p app i offset)) :=
+    permuting_state completed (specOf (name := "nebula.eta_squeeze_3")
       (child := Sponge.circuit (squeeze3 p app i offset))
         (start := squeeze3Start p app i offset) (by simp [childOps])
-      (squeeze3_assumptions inputs children.current))
-  have etaState_eq : Sponge.evalState children.current (etaState p app i offset) =
+      (squeeze3_assumptions inputs completed))
+  have etaState_eq : Sponge.evalState completed (etaState p app i offset) =
       absorbed [textWords "Nightstream/Nebula/v3/eta", digestWords (planDigest p),
         [natWord ((StepWitness.ofWords p app.toAppShape (values p app i offset env)).cIn 2).val],
         digestWords ((StepWitness.ofWords p app.toAppShape (values p app i offset env)).proposalDigest 0) ++
@@ -223,76 +171,64 @@ theorem completeness (env : Env) (inputs : Application.InputsBelow i offset)
       change [e] ++ flatConstraints (rest.map Op.assertZero) = e :: rest
       rw [ih]
       rfl
-  have assertionsLength : ∀ l : List Circuit.Expr, localLength (l.map Op.assertZero) = 0 := by
-    intro l
-    induction l with
-    | nil => rfl
-    | cons e rest ih =>
-      change 0 + localLength (rest.map Op.assertZero) = 0
-      rw [ih]
-  refine ⟨children.current, ?_, ?_⟩
-  · have agrees := children.agrees
-    rw [operations] at agrees
-    rw [opsAt, Sequence.localLength_append, assertionsLength, Nat.add_zero]
-    exact agrees
-  · rw [holdsFlat, opsAt, flatConstraints_append, flatAssertions]
-    refine (constraintsHold_append _ _ _).mpr ⟨by rw [← operations]; exact children.rows, ?_⟩
-    intro e member
-    simp only [assertions, hashChecks, joinChecks, List.foldl_cons, List.foldl_nil, List.nil_append,
-      List.mem_append, List.mem_map, List.mem_finRange, true_and,
-      List.mem_cons, List.not_mem_nil, or_false] at member
-    rcases member with (((((⟨k, rfl⟩ | ⟨k, rfl⟩) | ⟨k, rfl⟩) | ⟨k, rfl⟩) | ⟨k, rfl⟩) |
-      (rfl | rfl | rfl | rfl)) | ⟨e', poly, rfl⟩
-    · rw [Circuit.Expr.eval_sub, sub_eq_zero]
-      have lanes := absorbing_lane children.current (specOf (name := "nebula.state_in")
-        (child := Sponge.circuit (stateIn p app i offset))
-        (start := offset) (by simp [childOps])
-        (stateIn_assumptions inputs children.current)) k
-      rw [stateBlocks_eval, valuesEq] at lanes
-      exact lanes.trans ((congrFun (List.ofFn_injective rowsHold.stateIn) k).trans
-        ((i.input offset k).eval_eq_of_agree_below offset _ env (inputs.input k) agreesBelow).symm)
-    · rw [Circuit.Expr.eval_sub, sub_eq_zero]
-      have lanes := absorbing_lane children.current (specOf (name := "nebula.state_out")
-        (child := Sponge.circuit (stateOut p app i offset))
-        (start := stateOutStart p app i offset) (by simp [childOps])
-        (stateOut_assumptions inputs children.current)) k
-      rw [stateBlocks_eval, valuesEq] at lanes
-      exact lanes.trans ((congrFun (List.ofFn_injective holdsStep) k).symm.trans
-        ((i.output offset k).eval_eq_of_agree_below offset _ env (inputs.output k) agreesBelow).symm)
-    · rw [Circuit.Expr.eval_sub, sub_eq_zero, wireFinal]
-      have lanes := absorbing_lane children.current (specOf (name := "nebula.chain_ops")
-        (child := Sponge.circuit (chainOps p app i offset))
-        (start := chainOpsStart p app i offset) (by simp [childOps])
-        (chainOps_assumptions inputs children.current)) k
-      rw [chainBlocks_eval p app i offset _ .ops 0 (by norm_num), opsLanes_eval, valuesEq] at lanes
-      exact lanes.trans ((congrFun rowsHold.chainOps k).symm.trans (carryOut 23 k (by norm_num)))
-    · rw [Circuit.Expr.eval_sub, sub_eq_zero, wireFinal]
-      have lanes := absorbing_lane children.current (specOf (name := "nebula.chain_is")
-        (child := Sponge.circuit (chainInitial p app i offset))
-        (start := chainInitialStart p app i offset) (by simp [childOps])
-        (chainInitial_assumptions inputs children.current)) k
-      rw [chainBlocks_eval p app i offset _ .mem 4 (by norm_num),
-        scanLanes_eval p app i offset _ _ _ fun j => Sym.eval_initialLane p app.toAppShape _ j, valuesEq] at lanes
-      exact lanes.trans ((congrFun rowsHold.chainInitial k).symm.trans (carryOut 27 k (by norm_num)))
-    · rw [Circuit.Expr.eval_sub, sub_eq_zero, wireFinal]
-      have lanes := absorbing_lane children.current (specOf (name := "nebula.chain_fs")
-        (child := Sponge.circuit (chainFinal p app i offset))
-        (start := chainFinalStart p app i offset) (by simp [childOps])
-        (chainFinal_assumptions inputs children.current)) k
-      rw [chainBlocks_eval p app i offset _ .mem 8 (by norm_num),
-        scanLanes_eval p app i offset _ _ _ fun j => Sym.eval_finalLane p app.toAppShape _ j, valuesEq] at lanes
-      exact lanes.trans ((congrFun rowsHold.chainFinal k).symm.trans (carryOut 31 k (by norm_num)))
-    · rw [Circuit.Expr.eval_sub, sub_eq_zero, wireFinal, lane, lane_eval, etaState_eq]
-      exact fresh0
-    · rw [Circuit.Expr.eval_sub, sub_eq_zero, wireFinal, lane, lane_eval, s1, etaState_eq]
-      exact fresh1
-    · rw [Circuit.Expr.eval_sub, sub_eq_zero, wireFinal, lane, lane_eval, s2, s1, etaState_eq]
-      exact fresh2
-    · rw [Circuit.Expr.eval_sub, sub_eq_zero, wireFinal, lane, lane_eval, s3, s2, s1, etaState_eq]
-      exact fresh3
-    · rw [sub_eval, valuesEq]
-      exact (Rows.polyRows_iff p _ app).mpr ⟨rowsHold.toPolyRows, auxHonest,
-        (congrArg (fun e => ConstraintsHold e app.rows) (view_env p app i offset env)).mp appRows⟩
-        e' poly
+  rw [holdsFlat, opsAt, flatConstraints_append, flatAssertions]
+  refine (constraintsHold_append _ _ _).mpr ⟨flatRows, ?_⟩
+  intro e member
+  simp only [assertions, hashChecks, joinChecks, List.foldl_cons, List.foldl_nil, List.nil_append,
+    List.mem_append, List.mem_map, List.mem_finRange, true_and,
+    List.mem_cons, List.not_mem_nil, or_false] at member
+  rcases member with (((((⟨k, rfl⟩ | ⟨k, rfl⟩) | ⟨k, rfl⟩) | ⟨k, rfl⟩) | ⟨k, rfl⟩) |
+    (rfl | rfl | rfl | rfl)) | ⟨e', poly, rfl⟩
+  · rw [Circuit.Expr.eval_sub, sub_eq_zero]
+    have lanes := absorbing_lane completed (specOf (name := "nebula.state_in")
+      (child := Sponge.circuit (stateIn p app i offset))
+      (start := offset) (by simp [childOps])
+      (stateIn_assumptions inputs completed)) k
+    rw [stateBlocks_eval, valuesEq] at lanes
+    exact lanes.trans ((congrFun (List.ofFn_injective rowsHold.stateIn) k).trans
+      ((i.input offset k).eval_eq_of_agree_below offset _ env (inputs.input k) agreesBelow).symm)
+  · rw [Circuit.Expr.eval_sub, sub_eq_zero]
+    have lanes := absorbing_lane completed (specOf (name := "nebula.state_out")
+      (child := Sponge.circuit (stateOut p app i offset))
+      (start := stateOutStart p app i offset) (by simp [childOps])
+      (stateOut_assumptions inputs completed)) k
+    rw [stateBlocks_eval, valuesEq] at lanes
+    exact lanes.trans ((congrFun (List.ofFn_injective holdsStep) k).symm.trans
+      ((i.output offset k).eval_eq_of_agree_below offset _ env (inputs.output k) agreesBelow).symm)
+  · rw [Circuit.Expr.eval_sub, sub_eq_zero, wireFinal]
+    have lanes := absorbing_lane completed (specOf (name := "nebula.chain_ops")
+      (child := Sponge.circuit (chainOps p app i offset))
+      (start := chainOpsStart p app i offset) (by simp [childOps])
+      (chainOps_assumptions inputs completed)) k
+    rw [chainBlocks_eval p app i offset _ .ops 0 (by norm_num), opsLanes_eval, valuesEq] at lanes
+    exact lanes.trans ((congrFun rowsHold.chainOps k).symm.trans (carryOut 23 k (by norm_num)))
+  · rw [Circuit.Expr.eval_sub, sub_eq_zero, wireFinal]
+    have lanes := absorbing_lane completed (specOf (name := "nebula.chain_is")
+      (child := Sponge.circuit (chainInitial p app i offset))
+      (start := chainInitialStart p app i offset) (by simp [childOps])
+      (chainInitial_assumptions inputs completed)) k
+    rw [chainBlocks_eval p app i offset _ .mem 4 (by norm_num),
+      scanLanes_eval p app i offset _ _ _ fun j => Sym.eval_initialLane p app.toAppShape _ j, valuesEq] at lanes
+    exact lanes.trans ((congrFun rowsHold.chainInitial k).symm.trans (carryOut 27 k (by norm_num)))
+  · rw [Circuit.Expr.eval_sub, sub_eq_zero, wireFinal]
+    have lanes := absorbing_lane completed (specOf (name := "nebula.chain_fs")
+      (child := Sponge.circuit (chainFinal p app i offset))
+      (start := chainFinalStart p app i offset) (by simp [childOps])
+      (chainFinal_assumptions inputs completed)) k
+    rw [chainBlocks_eval p app i offset _ .mem 8 (by norm_num),
+      scanLanes_eval p app i offset _ _ _ fun j => Sym.eval_finalLane p app.toAppShape _ j, valuesEq] at lanes
+    exact lanes.trans ((congrFun rowsHold.chainFinal k).symm.trans (carryOut 31 k (by norm_num)))
+  · rw [Circuit.Expr.eval_sub, sub_eq_zero, wireFinal, lane, lane_eval, etaState_eq]
+    exact fresh0
+  · rw [Circuit.Expr.eval_sub, sub_eq_zero, wireFinal, lane, lane_eval, s1, etaState_eq]
+    exact fresh1
+  · rw [Circuit.Expr.eval_sub, sub_eq_zero, wireFinal, lane, lane_eval, s2, s1, etaState_eq]
+    exact fresh2
+  · rw [Circuit.Expr.eval_sub, sub_eq_zero, wireFinal, lane, lane_eval, s3, s2, s1, etaState_eq]
+    exact fresh3
+  · rw [sub_eval, valuesEq]
+    exact (Rows.polyRows_iff p _ app).mpr ⟨rowsHold.toPolyRows, auxHonest,
+      (congrArg (fun e => ConstraintsHold e app.rows) (view_env p app i offset env)).mp appRows⟩
+      e' poly
 
 end NightstreamFPrime.Lifecycle.Nebula.MemoryApp

@@ -4,6 +4,7 @@
 #[path = "../bounded_depth_support/mod.rs"]
 mod support;
 
+mod checked_rows;
 mod compression;
 mod compression_error;
 mod encodings;
@@ -157,8 +158,39 @@ fn a_slot_is_held_to_the_bound_of_its_depth() {
 
 #[test]
 fn refresh_folds_under_both_relations_verify() {
-    let (_, circuits) = run(&prover(0), 3);
-    assert_eq!(circuits, [1, 2, 2]);
+    let prover = prover(0);
+    let verifier = crate::Circuit::compile(poseidon2_hash_chain_v1().unwrap())
+        .unwrap()
+        .verifier(crate::Engine::Optimized, fold_gate_bits())
+        .unwrap();
+    let (mut prior, _) = run(&prover, 1);
+    for inactive in [1, 0] {
+        assert_eq!(prior.pc as usize, 2 - inactive);
+        let message = words([21, 22, 23, 24]);
+        let next = hash_chain_step(prior.current, message);
+        let refresh = prover.extend(&prior, &message, next, None).unwrap();
+        assert_eq!(refresh.pc, 2);
+        let state = refresh.state();
+        let verify = |envelope: &Envelope| {
+            let bytes = prover.encode_proof(envelope).unwrap();
+            verifier.verify(&state, &verifier.decode_proof(&bytes).unwrap())
+        };
+        verify(&refresh).expect("honest refresh");
+
+        let mut changed = refresh.clone();
+        changed.slots[inactive].depth += 1;
+        assert!(verify(&changed).is_err());
+        let changed_digest = nightstream_fprime::encode_digest(prover.state(&changed).hash());
+        let fresh = changed.fresh.as_mut().unwrap();
+        for (column, &word) in changed_digest.iter().enumerate() {
+            fresh.witness.Z[(column % D, column / D)] = word;
+        }
+        fresh.claim.x = changed_digest;
+        fresh.claim.c = commit_production_signed_unit_prefix_matrix(&fresh.witness.Z).unwrap();
+        let error = verify(&changed).expect_err("recommitted inactive slot");
+        assert!(error.to_string().contains("a relation row fails"), "{error}");
+        prior = refresh;
+    }
 }
 
 fn addition() -> ApplicationCircuit {

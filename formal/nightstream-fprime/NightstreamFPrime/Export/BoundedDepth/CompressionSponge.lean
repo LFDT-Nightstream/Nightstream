@@ -31,10 +31,10 @@ open NightstreamFPrime.Lifecycle.RandomOracle.Sponge
 
 def ccsDomain : List F := BoundedDepth.domainChunk "Nightstream/OptionB/compress/ccs/v1"
 
-def argumentDomain : List F := BoundedDepth.domainChunk "Nightstream/compress/akita/v2"
+def argumentDomain : List F := BoundedDepth.domainChunk "Nightstream/compress/akita/shared-denominator/v1"
 
 def sessionLabel : List Byte :=
-  "Nightstream/compress/akita/v2/opening".toList.map fun char => Fin.ofNat 256 char.toNat
+  "Nightstream/compress/akita/shared-denominator/v1/opening".toList.map fun char => Fin.ofNat 256 char.toNat
 
 /-- A CE claim as the transcript absorbs it (row 6): the ring columns, the table bound plus 1 or
 0 for no table, then the words of the commitment, of the public input, of the point, of `Eval_K`
@@ -95,7 +95,7 @@ theorem Claim.words_injective {left right : Claim} {shape : ℕ × ℕ × ℕ}
   inverse : List Byte
   rounds : List (List F)
   witnessValue : List F
-  inverseValues : List F
+  inverseValue : List F
   keyWeight : List F
   keyRounds : List (List F)
   keyValue : List F
@@ -106,9 +106,9 @@ structure Messages.Shaped (messages : Messages) (shape : Rust.Shape) : Prop wher
   witness : messages.witness.length < fieldModulus
   inverse : messages.inverse.length < fieldModulus
   rounds : messages.rounds.length = shape.witnessVars
-  round : ∀ round ∈ messages.rounds, round.length = 8
+  round : ∀ round ∈ messages.rounds, round.length = 14
   witnessValue : messages.witnessValue.length = 2
-  inverseValues : messages.inverseValues.length = 8
+  inverseValue : messages.inverseValue.length = 2
   keyWeight : messages.keyWeight.length = 2
   keyRounds : messages.keyRounds.length = Rust.laneVars + shape.keyBlockVars
   keyRound : ∀ round ∈ messages.keyRounds, round.length = 6
@@ -124,8 +124,8 @@ def argumentPieces (shape : Rust.Shape) (messages : Messages) : List Piece :=
       ([.absorb (byteWords messages.witness), .draw 2, .absorb (byteWords messages.inverse),
           .draw (4 + 4 + 2 * shape.tables + shape.spanVars)] ++
         (messages.rounds.flatMap roundPieces ++
-          ([.absorb messages.witnessValue, .absorb messages.inverseValues,
-              .absorb messages.keyWeight, .draw 2] ++
+          ([.absorb messages.witnessValue, .absorb messages.inverseValue,
+              .absorb messages.keyWeight] ++
             (messages.keyRounds.flatMap roundPieces ++ [.absorb messages.keyValue])))))
 
 /-- The sizes of the Π_CCS run of the fresh instance (rows 1 to 3): the words of the fresh claim,
@@ -230,8 +230,8 @@ theorem scheduleCalls_eq (shape : Rust.Shape) : scheduleCalls shape =
     .absorb 12 :: .bytes :: ((shape.claims.map fun claim =>
         Rust.Call.absorb (5 + 18 * 64 + claim.1 + 2 * (claim.2.1 + 64 + claim.2.2 * 64))) ++
       ([.bytes, .draw 2, .bytes, .draw (4 + 4 + 2 * shape.tables + shape.spanVars)] ++
-        ((List.replicate shape.witnessVars [Rust.Call.absorb 8, .draw 1]).flatten ++
-          ([.absorb 2, .absorb 8, .absorb 2, .draw 2] ++
+        ((List.replicate shape.witnessVars [Rust.Call.absorb 14, .draw 1]).flatten ++
+          ([.absorb 2, .absorb 2, .absorb 2] ++
             ((List.replicate (Rust.laneVars + shape.keyBlockVars)
                 [Rust.Call.absorb 6, .draw 1]).flatten ++ [.absorb 2]))))) := by
   simp [scheduleCalls, Rust.schedule, Rust.labels, Rust.calls, replicate_calls]
@@ -275,8 +275,8 @@ theorem argumentPieces_fit {shape : Rust.Shape} {messages : Messages}
           (.cons (Fits.bytes shaped.inverse) (.cons (Fits.reads _) .nil))))
         (List.rel_append rounds
           (List.rel_append
-            (.cons (Fits.words shaped.witnessValue) (.cons (Fits.words shaped.inverseValues)
-              (.cons (Fits.words shaped.keyWeight) (.cons (Fits.reads _) .nil))))
+            (.cons (Fits.words shaped.witnessValue) (.cons (Fits.words shaped.inverseValue)
+              (.cons (Fits.words shaped.keyWeight) .nil)))
             (List.rel_append keyRounds (.cons (Fits.words shaped.keyValue) .nil)))))))
 
 variable {sizes : Sizes} {shape : Rust.Shape} {left right : Run}
@@ -342,8 +342,8 @@ theorem pieces_injective (leftShaped : left.Shaped sizes shape)
   obtain ⟨-, inverseWords, same⟩ := same
   obtain ⟨rounds, same⟩ := rounds_append_inj
     (by rw [leftArgument.rounds, rightArgument.rounds]) same
-  simp only [List.cons.injEq, Piece.absorb.injEq, true_and] at same
-  obtain ⟨witnessValue, inverseValues, keyWeight, same⟩ := same
+  simp only [List.cons.injEq, Piece.absorb.injEq] at same
+  obtain ⟨witnessValue, inverseValue, keyWeight, same⟩ := same
   obtain ⟨keyRounds, same⟩ := rounds_append_inj
     (by rw [leftArgument.keyRounds, rightArgument.keyRounds]) same
   simp only [List.cons.injEq, Piece.absorb.injEq, and_true] at same
@@ -352,7 +352,7 @@ theorem pieces_injective (leftShaped : left.Shaped sizes shape)
       (claims_injective leftArgument.claims rightArgument.claims claimPieces)
       (byteWords_injective leftArgument.witness rightArgument.witness witnessWords)
       (byteWords_injective leftArgument.inverse rightArgument.inverse inverseWords)
-      rounds witnessValue inverseValues keyWeight keyRounds same)
+      rounds witnessValue inverseValue keyWeight keyRounds same)
 
 /-- The sponge calls of the compression transcript fix the run, among the runs of one statement
 shape. -/

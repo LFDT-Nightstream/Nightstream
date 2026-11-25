@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.Generic.FinalAdvance
 import NightstreamFPrime.Export.WitnessEncoding
 import NightstreamFPrime.Layout.PiRLC.v1_2.SamplerSegments
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.Sampler
@@ -31,7 +32,6 @@ import NightstreamFPrime.Gadgets.Sampling.WideReduction.Footprint
 import NightstreamFPrime.Gadgets.Sampling.WideReduction.HelperExecution
 import NightstreamFPrime.Gadgets.Sampling.WideReduction.HelperExpressions
 import NightstreamFPrime.Gadgets.Sampling.WideReduction.HelperValues
-import NightstreamFPrime.Gadgets.Sampling.WideReduction.HintCertificate
 import NightstreamFPrime.Gadgets.Sampling.WideReduction.HintProgram
 import NightstreamFPrime.Gadgets.Sampling.WideReduction.HintSupport
 import NightstreamFPrime.Gadgets.Sampling.WideReduction.HintValues
@@ -159,7 +159,6 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.HelperExecution.division_pair
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.HelperExecution.division_round
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.HelperExecution.certificate
-#audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.HelperExecution.execute_reference
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.HelperExpressions.source_bit_val
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.HelperExpressions.accumulator_bit_val
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.HelperExpressions.limb_terms
@@ -174,11 +173,6 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.HelperValues.accumulator
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.HelperValues.accumulator_bit
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.HelperValues.division
-#audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.HintCertificate.append
-#audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.HintCertificate.range_map
-#audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.HintCertificate.range_flatMap
-#audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.HintCertificate.finRange_flatMap
-#audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.HintCertificate.execute
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.HintProgram.sourceBitHints_length
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.HintProgram.limbHints_length
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.HintProgram.divisionHints_length
@@ -213,7 +207,6 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.OutputHintValues.quotient_hint
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.OutputHintValues.digit_hint
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.OutputHintValues.completeNew_helpers
-#audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.CanonicalChildren.correct
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.CanonicalChildren.rows
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.CanonicalChildren.scope
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.CanonicalChildren.specifications
@@ -221,8 +214,6 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.OutputExecution.quotient_bits
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.OutputExecution.digit_bits
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.OutputExecution.check_bits
-#audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.OutputExecution.certificate
-#audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.OutputExecution.execute_reference
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.OutputHintValues.check_hint
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.Program.privateCount_eq
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.Program.localLength_eq
@@ -231,7 +222,6 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.Program.temporary_read_exclusion
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.Program.helper_reconstruction
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.Program.core_inputs
-#audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.Program.completeEnv_correct
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.Program.flatConstraints_varsBelow
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.Program.outputWord_eval
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.Program.outputChallenge_varsBelow
@@ -460,3 +450,26 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 #audit_axioms NightstreamFPrime.Lifecycle.Transcript.PiRlcSampler.piRlcChallengesWithState_challenges
 
 #audit_axioms NightstreamFPrime.Export.Stage1.PhaseReference.publicFits
+
+#audit_axioms NightstreamFPrime.Export.Generic.FinalAdvance.kept_sublist
+#audit_axioms NightstreamFPrime.Export.Generic.FinalAdvance.kept_packable
+#audit_axioms NightstreamFPrime.Export.Generic.FinalAdvance.complete
+#audit_axioms NightstreamFPrime.Export.Generic.FinalAdvance.sound
+#audit_axioms NightstreamFPrime.Export.Generic.FinalAdvance.agrees_prefix
+
+section
+open NightstreamFPrime.Circuit NightstreamFPrime.Export.Generic
+open NightstreamFPrime.Export.Generic.Pieces
+
+private def samplerBlock : Frame.Block := ⟨320, List.replicate 16 0⟩
+private def samplerPiece : Piece := .permutation samplerBlock.start samplerBlock.lanes
+
+example : (FinalAdvance.plan 320 (some samplerBlock) [samplerPiece] []).isSome = true := by decide
+
+example : (FinalAdvance.plan 320 (some samplerBlock)
+    [samplerPiece, .constraint (.var (320 + 1080))] []).isNone = true := by decide
+
+example : (FinalAdvance.plan 320 (some samplerBlock) [samplerPiece]
+    [WitnessBatch.hinted 1416 [.inverseOrZero (.var (320 + 1095))]]).isNone = true := by decide
+
+end

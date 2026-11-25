@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use neo_math::Fq as F;
 use p3_field::{Field, PrimeCharacteristicRing};
@@ -102,13 +102,10 @@ impl FieldLowering {
                 }
             }
         }
+        let no_forms = HashMap::new();
         let rows = source
             .iter()
-            .map(|row| Row {
-                a: normalized(row.a.clone()),
-                b: normalized(row.b.clone()),
-                c: normalized(row.c.clone()),
-            })
+            .map(|row| super::guard_fusion::resolved_row(row, &no_forms))
             .collect::<Vec<_>>();
         let mut result = Self::default();
         let mut first = 0;

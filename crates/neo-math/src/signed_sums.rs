@@ -1,3 +1,6 @@
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+pub mod accelerate;
+
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::{field::Q, ring::D, F};
@@ -33,6 +36,42 @@ pub struct SignedShiftSums {
     terms: u64,
 }
 
+const MAX_EVENT_DIGIT: u64 = 2048;
+
+pub struct SmallEventDigits([i32; D]);
+
+impl SmallEventDigits {
+    pub fn from_i8(digits: &[i8; D]) -> Self {
+        Self(digits.map(i32::from))
+    }
+    pub fn new(digits: &[F; D]) -> Option<Self> {
+        let mut small = [0i32; D];
+        for (out, input) in small.iter_mut().zip(digits) {
+            let value = input.as_canonical_u64();
+            if value <= MAX_EVENT_DIGIT {
+                *out = value as i32;
+            } else if Q - value <= MAX_EVENT_DIGIT {
+                *out = -((Q - value) as i32);
+            } else {
+                return None;
+            }
+        }
+        Some(Self(small))
+    }
+
+    pub fn from_centered(digits: &[F; D]) -> Option<Self> {
+        let mut small = [0i32; D];
+        let mut valid = true;
+        for (out, input) in small.iter_mut().zip(digits) {
+            let signed = input.as_canonical_u64() as i64;
+            let centered = signed + ((signed >> 63) & Q.wrapping_neg() as i64);
+            valid &= centered.unsigned_abs() <= MAX_EVENT_DIGIT;
+            *out = centered as i32;
+        }
+        valid.then_some(Self(small))
+    }
+}
+
 impl SignedShiftSums {
     pub fn zero() -> Self {
         Self {
@@ -44,14 +83,7 @@ impl SignedShiftSums {
 
     #[inline]
     pub fn add_signed_units(&mut self, element: &SplitRing, mut positive: u64, mut negative: u64) {
-        #[cfg(debug_assertions)]
-        {
-            self.terms += 1;
-            debug_assert!(
-                self.terms <= MAX_EXACT_TERMS,
-                "signed shift sums exceed the exact i64 term bound"
-            );
-        }
+        self.count_term();
         let cancelled = positive & negative;
         positive ^= cancelled;
         negative ^= cancelled;
@@ -74,6 +106,102 @@ impl SignedShiftSums {
                 *sum -= i64::from(limb);
             }
             negative &= negative - 1;
+        }
+    }
+
+    #[inline]
+    pub fn add_signed_event_pair(
+        output: [&mut Self; 2],
+        coefficients: [&[F; D]; 2],
+        mut events: u64,
+        positive: u64,
+        negative: u64,
+    ) {
+        let [real, imaginary] = output;
+        real.count_term();
+        imaginary.count_term();
+        let (positive, negative) = (positive & !negative, negative & !positive);
+        while events != 0 {
+            let degree = events.trailing_zeros() as usize;
+            events &= events - 1;
+            let [a, b] = coefficients.map(|form| form[degree].as_canonical_u64());
+            if a | b == 0 {
+                continue;
+            }
+            let [a_low, a_high, b_low, b_high] =
+                [a as u32, (a >> 32) as u32, b as u32, (b >> 32) as u32].map(i64::from);
+            let re = &mut real.limbs.as_chunks_mut::<2>().0[degree..][..D];
+            let im = &mut imaginary.limbs.as_chunks_mut::<2>().0[degree..][..D];
+            let mut mask = positive;
+            while mask != 0 {
+                let lane = mask.trailing_zeros() as usize;
+                re[lane][0] += a_low;
+                re[lane][1] += a_high;
+                im[lane][0] += b_low;
+                im[lane][1] += b_high;
+                mask &= mask - 1;
+            }
+            let mut mask = negative;
+            while mask != 0 {
+                let lane = mask.trailing_zeros() as usize;
+                re[lane][0] -= a_low;
+                re[lane][1] -= a_high;
+                im[lane][0] -= b_low;
+                im[lane][1] -= b_high;
+                mask &= mask - 1;
+            }
+        }
+    }
+
+    #[inline]
+    fn count_term(&mut self) {
+        #[cfg(debug_assertions)]
+        {
+            self.terms += 1;
+            debug_assert!(
+                self.terms <= MAX_EXACT_TERMS,
+                "signed shift sums exceed the exact i64 term bound"
+            );
+        }
+    }
+
+    pub fn add_small_event_pair(output: [&mut Self; 2], forms: [&[F; D]; 2], events: u64, digits: &[F; D]) -> bool {
+        let Some(small) = SmallEventDigits::new(digits) else {
+            return false;
+        };
+        Self::add_prepared_event_pair(output, forms, events, &small);
+        true
+    }
+
+    pub fn add_prepared_event_pair(
+        output: [&mut Self; 2],
+        forms: [&[F; D]; 2],
+        mut events: u64,
+        digits: &SmallEventDigits,
+    ) {
+        let [real, imaginary] = output;
+        #[cfg(debug_assertions)]
+        for accum in [&mut *real, &mut *imaginary] {
+            accum.terms += MAX_EVENT_DIGIT;
+            debug_assert!(accum.terms <= MAX_EXACT_TERMS);
+        }
+        while events != 0 {
+            let degree = events.trailing_zeros() as usize;
+            events &= events - 1;
+            let [x, y] = forms.map(|f| f[degree].as_canonical_u64());
+            if x | y == 0 {
+                continue;
+            }
+            let parts = [x as u32, (x >> 32) as u32, y as u32, (y >> 32) as u32].map(i64::from);
+            let re = &mut real.limbs.as_chunks_mut::<2>().0[degree..][..D];
+            let im = &mut imaginary.limbs.as_chunks_mut::<2>().0[degree..][..D];
+            for ((a, b), s) in re.iter_mut().zip(im).zip(digits.0) {
+                let d = i64::from(s);
+                a[0] += parts[0] * d;
+                a[1] += parts[1] * d;
+                b[0] += parts[2] * d;
+                b[1] += parts[3] * d;
+            }
         }
     }
 

@@ -4,7 +4,7 @@ use neo_ajtai::{nightstream_fprime_setup, Commitment};
 use neo_ccs::{CcsStructure, Mat, V1_2Evaluations};
 use neo_math::{F, K};
 use neo_reductions::optimized_engine::PaperJointOracleBackend;
-use neo_reductions::superneo_eval::{eval_real_v1_2_openings_from_rows, MatrixRows, SuperneoZBlocks};
+use neo_reductions::superneo_eval::{eval_real_v1_2_openings_from_rows_reusing, MatrixRows, SuperneoZBlocks};
 use neo_reductions::PiCcsError;
 
 #[cfg(feature = "metal")]
@@ -87,7 +87,14 @@ impl Backend {
         }
     }
 
-    pub(crate) fn oracle(&self) -> Result<Oracle<'_>, EngineError> {
+    pub(crate) fn oracle(&self, packed: bool) -> Result<Oracle<'_>, EngineError> {
+        if packed {
+            #[cfg(feature = "metal")]
+            if let Self::Metal(device) = self {
+                return Ok(Oracle::Packed(device.clone()));
+            }
+            return Ok(Oracle::Cpu(std::marker::PhantomData));
+        }
         Ok(match self {
             Self::Optimized => Oracle::Cpu(std::marker::PhantomData),
             #[cfg(feature = "metal")]
@@ -110,7 +117,8 @@ impl Backend {
                     .map(|witness| SuperneoZBlocks::from_witness_mat(witness, width))
                     .collect::<Result<Vec<_>, _>>()
                     .map_err(DeviceError::Rejected)?;
-                eval_real_v1_2_openings_from_rows(rows, point, &blocks, workspace_bytes).map_err(DeviceError::Rejected)
+                eval_real_v1_2_openings_from_rows_reusing(rows, point, &blocks, workspace_bytes, Vec::new(), None, None)
+                    .map_err(DeviceError::Rejected)
             }
             #[cfg(feature = "metal")]
             Self::Metal(device) => device
@@ -156,6 +164,8 @@ impl Backend {
 pub(crate) enum Oracle<'a> {
     Cpu(std::marker::PhantomData<&'a ()>),
     #[cfg(feature = "metal")]
+    Packed(metal::Device),
+    #[cfg(feature = "metal")]
     Metal(std::sync::MutexGuard<'a, neo_prover_metal::MetalRowProver>),
 }
 
@@ -165,6 +175,8 @@ impl Oracle<'_> {
             Self::Cpu(_) => None,
             #[cfg(feature = "metal")]
             Self::Metal(prover) => Some(&mut **prover),
+            #[cfg(feature = "metal")]
+            Self::Packed(device) => Some(device),
         }
     }
 }
@@ -180,3 +192,7 @@ impl From<EngineError> for DeviceError {
         Self::Engine(error)
     }
 }
+
+#[cfg(all(test, feature = "metal"))]
+#[path = "../../tests/unit/packed_engine.rs"]
+mod packed_engine_tests;

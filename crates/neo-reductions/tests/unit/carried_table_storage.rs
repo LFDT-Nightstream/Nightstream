@@ -1,5 +1,7 @@
 use super::*;
-use crate::superneo_eval::{weighted_identity_projection, CachedMatrixRows, MatrixWindow, SuperneoEvalCacheBuilder};
+use crate::superneo_eval::{
+    fill_combined_projection, weighted_identity_projection, CachedMatrixRows, MatrixWindow, SuperneoEvalCacheBuilder,
+};
 use neo_math::KExtensions;
 use std::{
     alloc::{GlobalAlloc, Layout, System},
@@ -299,4 +301,144 @@ fn encoded_prefix_folding_reuses_its_codes() {
             "encoded folding must not allocate a replacement code buffer"
         );
     });
+}
+
+#[test]
+fn geometric_projection_matches_the_ring_product_for_each_prior_lane() {
+    let mut first = Mat::<F>::zero(D, 3, F::ZERO);
+    for lane in 0..D {
+        first[(lane, 0)] = F::from_usize(lane * 19 + 71);
+        first[(lane, 2)] = -F::from_usize(lane * 11 + 221);
+    }
+    let blocks = (0..3)
+        .map(|i| {
+            if i == 1 {
+                SuperneoZBlocks::from_witness_mat(&first, D * 3).unwrap()
+            } else {
+                SuperneoZBlocks::with_block_len(3)
+            }
+        })
+        .collect::<Vec<_>>();
+    let gamma = K::from_coeffs([F::from_u64(11), F::from_u64(97)]);
+    for ratio in [K::ZERO, K::ONE, -K::ONE, gamma] {
+        let weights = std::array::from_fn(|lane| gamma_power(ratio, lane));
+        let coefficients = [gamma, gamma.double(), gamma.square()];
+        let mut expected = vec![K::ONE; D * 3];
+        fill_combined_projection(&blocks, &coefficients, &weights, &mut expected);
+        let mut actual = vec![K::ONE; D * 3];
+        fill_geometric_projection(&blocks, &coefficients, ratio, &mut actual);
+        assert_eq!(actual, expected);
+    }
+}
+
+#[test]
+fn geometric_child_projections_match_the_combined_ring_product() {
+    let blocks = 3;
+    let width = D * blocks;
+    let first = Mat::compact_signed_unit_from_column_masks(D, blocks, &[1 << 63, 0, 7], &[5, 0, 1 << 63]).unwrap();
+    let second = Mat::compact_signed_unit_from_column_masks(D, blocks, &[5, 0, 1 << 63], &[1 << 63, 0, 6]).unwrap();
+    let mut dense = Mat::zero(D, blocks, F::ZERO);
+    dense[(D - 1, 0)] = F::from_u64(13);
+    let witnesses = [first, Mat::virtual_constant(D, blocks, F::ZERO), second, dense];
+    let sources = witnesses
+        .each_ref()
+        .map(|w| SuperneoZBlocks::from_witness_mat(w, width).unwrap());
+    let gamma = K::from_coeffs([F::from_u64(11), F::from_u64(97)]);
+    for coefficients in [
+        [gamma, K::ONE, gamma.square(), K::ZERO],
+        [gamma, K::ZERO, gamma, gamma.square()],
+        [K::ZERO; 4],
+    ] {
+        let combined = (0..width)
+            .map(|i| {
+                witnesses
+                    .iter()
+                    .zip(coefficients)
+                    .map(|(witness, coefficient)| coefficient.scale_base(witness[(i % D, i / D)]))
+                    .sum()
+            })
+            .collect::<Vec<K>>();
+        let combined = SuperneoZBlocks::from_z(&combined);
+        for ratio in [K::ZERO, K::ONE, -K::ONE, gamma] {
+            let weights = std::array::from_fn(|lane| gamma_power(ratio, lane));
+            let expected = weighted_identity_projection(&combined, &weights);
+            let mut actual = vec![K::ONE; width];
+            fill_geometric_projection(&sources, &coefficients, ratio, &mut actual);
+            assert_eq!(actual, expected);
+        }
+    }
+}
+
+#[test]
+fn separated_carried_lane_and_matrix_rows_match_every_dense_round() {
+    let (rows, blocks, matrix_count) = (2 * D + 5, 5, 2);
+    let width = D * blocks;
+    let mut builder = SuperneoEvalCacheBuilder::new(rows, width, matrix_count).unwrap();
+    for row in 0..rows {
+        builder
+            .push_row(0, row, [(row, F::ONE), (width - 1, -F::ONE)])
+            .unwrap();
+        builder
+            .push_row(1, row, [(row + 1, F::from_u64(11))])
+            .unwrap();
+    }
+    let cache = builder.finish().unwrap();
+    let source = CachedMatrixRows::new(&cache).unwrap();
+    let workspace = MatrixWindow::required_workspace(&source, 0..rows, 0).unwrap();
+    let rounds = width.next_power_of_two().ilog2() as usize;
+    let dims = JointDims {
+        assignment_width: width,
+        row_count: width.next_power_of_two(),
+        variables: rounds,
+        matrix_count,
+        degree: 4,
+    };
+    let point = |offset: usize| {
+        (0..rounds)
+            .map(|i| match i {
+                1 => K::ZERO,
+                4 => K::ONE,
+                _ => K::from_coeffs([F::from_usize(i + offset), F::from_usize(7 * i + offset)]),
+            })
+            .collect::<Vec<_>>()
+    };
+    let prior = point(31);
+    let challenge = point(73);
+    let mut dense = Mat::zero(D, blocks, F::ZERO);
+    dense[(0, 0)] = F::from_u64(567);
+    dense[(D - 1, blocks - 1)] = -F::from_u64(78);
+    dense[(D / 2, blocks - 1)] = F::from_u64(48);
+    let packed =
+        Mat::compact_signed_unit_from_column_masks(D, blocks, &[1, 0, 1, 0, u64::MAX], &[0, 1, 0, 1, 0]).unwrap();
+    for witness in [dense, packed] {
+        let running = [SuperneoZBlocks::from_witness_mat(&witness, width).unwrap()];
+        for gamma in [K::ZERO, K::ONE, K::from_coeffs([F::from_u64(13), F::from_u64(19)])] {
+            let mut baseline = carried_table(&source, &running, gamma, dims, rows, workspace).unwrap();
+            let (_, mut table) = carried_matrix(&source, &running, gamma, dims, rows, workspace, &[K::ONE]).unwrap();
+            let mut pad = CarriedPad::new(&running[0], &prior[LANE_BITS..], gamma);
+            for round in 0..rounds {
+                let weights = EqualityWeights::new(&prior[round + 1..]);
+                let term = |low, high| [low, high - low];
+                let mut actual = prefix::sum_products(&table, &weights, term);
+                if round < LANE_BITS {
+                    let lane_weights = EqualityWeights::new(&prior[round + 1..LANE_BITS]);
+                    actual = prefix::add_coefficients(actual, prefix::sum_products(&pad.lanes, &lane_weights, term));
+                }
+                assert_eq!(actual, prefix::sum_products(&baseline, &weights, term), "round {round}");
+                prefix::fold(&mut baseline, challenge[round]);
+                prefix::fold(&mut table, challenge[round]);
+                if round + 1 < LANE_BITS {
+                    prefix::fold(&mut pad.lanes, challenge[round]);
+                } else if round + 1 == LANE_BITS {
+                    table.resize(blocks, K::ZERO);
+                    pad.projection.add_contracted_lanes(
+                        &running[0],
+                        challenge[..LANE_BITS].try_into().unwrap(),
+                        &mut table,
+                    );
+                    assert_eq!(baseline, table);
+                }
+            }
+        }
+    }
 }

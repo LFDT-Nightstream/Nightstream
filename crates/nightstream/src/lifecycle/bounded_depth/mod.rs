@@ -6,8 +6,10 @@ mod words;
 
 use crate::engine::{Backend, CommitError, EngineError};
 use crate::folding::bounded_depth::{prove, Kind};
-use crate::folding::{pi_dec, pi_rlc, CcsInstance, RunningInstance};
+use crate::folding::FoldContext;
+use crate::folding::{pi_dec, pi_rlc, CcsInstance, CeClaim, RunningInstance};
 pub(crate) use compression::FinalProof;
+use neo_ajtai::nightstream_fprime_setup::ExpandedKey;
 use neo_ccs::crypto::poseidon2::poseidon2_hash;
 use neo_math::F;
 use neo_transcript::domain_chunk_v1_2;
@@ -16,6 +18,7 @@ use nightstream_fprime::{
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 pub use relation::RelationError;
+use relation::{CheckedFreshRows, FreshMatrixRows};
 pub(crate) use relation::{CompiledStep, Holds, Relation};
 use std::sync::Arc;
 
@@ -106,6 +109,7 @@ pub(crate) struct Envelope {
     pc: u64,
     slots: [Slot; 2],
     fresh: Option<CcsInstance>,
+    checked_rows: Option<Arc<CheckedFreshRows>>,
 }
 
 impl Envelope {
@@ -154,8 +158,14 @@ pub(crate) struct BoundedDepth {
 }
 
 pub(crate) struct Folded {
+    prior: BoundedDepthState,
+    slots: [Slot; 2],
+    update: Option<FoldUpdate>,
+}
+
+struct FoldUpdate {
     kind: Kind,
-    accumulator: pi_rlc::Output,
+    commitment: neo_ajtai::Commitment,
     proof: crate::folding::bounded_depth::Proof,
 }
 
@@ -189,6 +199,23 @@ impl BoundedDepth {
         })
     }
 
+    pub(crate) fn prepare_folding_key(&self, retained: &mut Option<Arc<ExpandedKey>>, max_bytes: usize) -> bool {
+        let blocks = self.key_blocks() as u64;
+        if retained
+            .as_ref()
+            .is_some_and(|key| key.blocks() >= blocks && size_of_val(key.words()) <= max_bytes)
+        {
+            return true;
+        }
+        *retained = None;
+        *retained = match self.backend {
+            Backend::Optimized => ExpandedKey::within_budget(blocks, max_bytes),
+            #[cfg(feature = "metal")]
+            Backend::Metal(_) => None,
+        };
+        retained.is_some()
+    }
+
     pub(crate) fn with_compression(self, compression: Compression) -> Self {
         Self { compression, ..self }
     }
@@ -220,20 +247,29 @@ impl BoundedDepth {
             pc: 0,
             slots: [self.default_slot(0)?, self.default_slot(1)?],
             fresh: None,
+            checked_rows: None,
         })
     }
 
     fn state(&self, envelope: &Envelope) -> BoundedDepthState {
-        BoundedDepthState {
-            keys: self.keys,
-            iteration: envelope.iteration,
-            z0: envelope.z0,
-            current: envelope.current,
-            pc: envelope.pc,
-            slots: envelope
+        self.state_from_claims(
+            envelope.state(),
+            envelope.pc,
+            envelope
                 .slots
                 .each_ref()
-                .map(|slot| words::slot(&slot.accumulator.claim, slot.depth)),
+                .map(|slot| (&slot.accumulator.claim, slot.depth)),
+        )
+    }
+
+    fn state_from_claims(&self, state: crate::State, pc: u64, slots: [(&CeClaim, u64); 2]) -> BoundedDepthState {
+        BoundedDepthState {
+            keys: self.keys,
+            iteration: state.iteration(),
+            z0: state.z0(),
+            current: state.current(),
+            pc,
+            slots: slots.map(|(claim, depth)| words::slot(claim, depth)),
         }
     }
 
@@ -266,6 +302,7 @@ impl BoundedDepth {
     }
 
     /// Lean `FreshInstance.built_holds_iff`.
+    #[cfg(test)]
     pub(crate) fn extend(
         &self,
         envelope: &Envelope,
@@ -273,91 +310,150 @@ impl BoundedDepth {
         next: [F; 4],
         locals: Option<&[F]>,
     ) -> Result<Envelope, BoundedDepthError> {
-        let folded = self.fold(envelope)?;
-        self.step(envelope, folded, witness, next, locals)
+        let folded = self.fold_owned(envelope.clone())?;
+        self.step(folded, witness, next, locals)
     }
 
-    pub(crate) fn fold(&self, envelope: &Envelope) -> Result<Option<Folded>, BoundedDepthError> {
+    pub(crate) fn fold_owned(&self, envelope: Envelope) -> Result<Folded, BoundedDepthError> {
         let Some(fresh) = &envelope.fresh else {
-            return Ok(None);
+            return Ok(Folded {
+                prior: self.state(&envelope),
+                slots: envelope.slots,
+                update: None,
+            });
         };
-        let selected = (envelope.pc - 1) as usize;
-        let slot = &envelope.slots[selected];
+        let state = envelope.state();
+        let pc = envelope.pc;
+        let selected = (pc - 1) as usize;
+        let rows = FreshMatrixRows {
+            relation: &self.relations[selected],
+            prepared: envelope.checked_rows.as_deref(),
+            witness: &fresh.witness.Z,
+        };
+        let [first, second] = envelope.slots;
+        let (slot, other) = if selected == 0 {
+            (first, second)
+        } else {
+            (second, first)
+        };
         let kind = if slot.depth < self.cap {
             Kind::Light
         } else {
             Kind::Refresh
         };
+        let previous_claim = slot.accumulator.claim.clone();
+        let previous_depth = slot.depth;
         let (accumulator, proof) = prove(
             kind,
             &self.backend,
-            self.relations[selected].context(),
-            fresh.clone(),
-            slot.accumulator.clone(),
+            FoldContext {
+                rows: &rows,
+                ..rows.relation.context()
+            },
+            fresh,
+            slot.accumulator,
         )?;
-        Ok(Some(Folded {
-            kind,
+        let prior_claims = if selected == 0 {
+            [
+                (&previous_claim, previous_depth),
+                (&other.accumulator.claim, other.depth),
+            ]
+        } else {
+            [
+                (&other.accumulator.claim, other.depth),
+                (&previous_claim, previous_depth),
+            ]
+        };
+        let prior = self.state_from_claims(state, pc, prior_claims);
+        let slot = Slot {
             accumulator,
-            proof,
-        }))
+            depth: words::next_depth(kind, previous_depth),
+        };
+        let slots = if selected == 0 { [slot, other] } else { [other, slot] };
+        Ok(Folded {
+            prior,
+            slots,
+            update: Some(FoldUpdate {
+                kind,
+                commitment: fresh.claim.c.clone(),
+                proof,
+            }),
+        })
     }
 
     pub(crate) fn step(
         &self,
-        envelope: &Envelope,
-        folded: Option<Folded>,
+        folded: Folded,
         witness: &[F],
         next: [F; 4],
         locals: Option<&[F]>,
     ) -> Result<Envelope, BoundedDepthError> {
-        let prior = self.state(envelope);
-        let mut slots = envelope.slots.clone();
-        let (kind, step) = match (&envelope.fresh, folded) {
-            (Some(fresh), Some(folded)) => {
-                let selected = (envelope.pc - 1) as usize;
-                let kind = folded.kind;
+        let Folded { prior, slots, update } = folded;
+        let (kind, step) = match update {
+            Some(FoldUpdate {
+                kind,
+                commitment,
+                proof,
+            }) => {
+                let selected = (prior.pc - 1) as usize;
                 let (step, _) = words::fold_step(
                     &prior,
                     next,
                     witness,
                     kind,
-                    &folded.accumulator.claim,
-                    fresh.claim.c.data(),
-                    &folded.proof,
+                    &slots[selected].accumulator.claim,
+                    commitment.data(),
+                    &proof,
                 );
-                slots[selected] = Slot {
-                    accumulator: folded.accumulator,
-                    depth: words::next_depth(kind, envelope.slots[selected].depth),
-                };
                 (kind, step)
             }
-            _ => (Kind::Light, words::base_step(&prior, next, witness)?.0),
+            None => (Kind::Light, words::base_step(&prior, next, witness)?.0),
         };
         let relation = &self.relations[words::pc(kind) as usize - 1];
-        let logical = relation.assignment(&step, locals)?;
-        #[cfg(test)]
-        if KEEP_FAULTY_PROOF.get() {
-            FAILED_ROW.set(relation.first_failing_row(&step)?);
-        }
         #[cfg(test)]
         let keeps_faulty = KEEP_FAULTY_PROOF.get();
         #[cfg(not(test))]
         let keeps_faulty = false;
+        let reserved = (!keeps_faulty)
+            .then(|| relation.reserve_checked_rows())
+            .flatten();
+        let keep_checked = reserved.is_some();
+        let columns = relation.assignment_columns(&step, locals)?;
+        #[cfg(test)]
+        if keeps_faulty {
+            FAILED_ROW.set(relation.first_failing_row(&step)?);
+        }
         let (instance, held) = std::thread::scope(|scope| {
-            let check = (!keeps_faulty).then(|| scope.spawn(|| relation.rows_hold(&logical)));
-            let instance = relation.instance(&self.backend, &logical);
-            let held = check.map_or(Ok(()), |check| check.join().unwrap_or(Err("row check panicked")));
+            let check = (!keeps_faulty).then(|| {
+                scope.spawn(|| {
+                    if keep_checked {
+                        relation.checked_source_rows(&columns).map(Some)
+                    } else {
+                        relation.source_rows_hold(&columns).map(|()| None)
+                    }
+                })
+            });
+            let instance = relation.instance(&self.backend, &columns);
+            let held = check.map_or(Ok(None), |check| check.join().unwrap_or(Err("row check panicked")));
             (instance, held)
         });
         let instance = instance?;
-        held.map_err(BoundedDepthError::Fresh)?;
+        let checked_rows = held
+            .map_err(BoundedDepthError::Fresh)?
+            .zip(reserved)
+            .map(|(rows, mut slot)| {
+                let checked = Arc::new(CheckedFreshRows::new(&instance.witness.Z, rows));
+                *slot = Some(Arc::downgrade(&checked));
+                checked
+            });
         Ok(Envelope {
-            iteration: envelope.iteration + 1,
-            z0: envelope.z0,
+            iteration: prior.iteration + 1,
+            z0: prior.z0,
             current: next,
             pc: words::pc(kind),
             slots,
             fresh: Some(instance),
+            checked_rows,
         })
     }
 

@@ -8,7 +8,7 @@ use crate::package::PackageError;
 #[derive(Debug, Deserialize, Serialize)]
 pub(super) struct RawWitnessBatch(pub(super) u64, pub(super) Vec<Value>, pub(super) Vec<Value>);
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(super) enum WitnessExpr {
     Var(usize),
     Const(Fq),
@@ -18,10 +18,10 @@ pub(super) enum WitnessExpr {
 
 #[derive(Clone, Debug)]
 enum WitnessHint {
-    Bit(WitnessExpr, usize),
-    InverseOrZero(WitnessExpr),
-    QuotientFive(WitnessExpr),
-    RemainderFive(WitnessExpr),
+    Bit(usize),
+    InverseOrZero,
+    QuotientFive,
+    RemainderFive,
 }
 
 #[derive(Clone, Debug)]
@@ -29,6 +29,7 @@ pub(super) struct WitnessBatch {
     pub(super) start: usize,
     recipes: Vec<WitnessExpr>,
     hints: Vec<WitnessHint>,
+    sources: Vec<(usize, HintSource, bool)>,
 }
 
 impl WitnessBatch {
@@ -56,44 +57,113 @@ impl WitnessBatch {
                 .iter()
                 .map(|recipe| recipe.map_columns(map))
                 .collect::<Option<_>>()?,
-            hints: self
-                .hints
+            hints: self.hints.clone(),
+            sources: self
+                .sources
                 .iter()
-                .map(|hint| {
-                    Some(match hint {
-                        WitnessHint::Bit(source, index) => WitnessHint::Bit(source.map_columns(map)?, *index),
-                        WitnessHint::InverseOrZero(source) => WitnessHint::InverseOrZero(source.map_columns(map)?),
-                        WitnessHint::QuotientFive(source) => WitnessHint::QuotientFive(source.map_columns(map)?),
-                        WitnessHint::RemainderFive(source) => WitnessHint::RemainderFive(source.map_columns(map)?),
-                    })
+                .map(|(offset, expr, _)| {
+                    let expr = expr.map_columns(map)?;
+                    let reusable = expr.reads_before(start + self.recipes.len() + offset);
+                    Some((*offset, expr, reusable))
                 })
                 .collect::<Option<_>>()?,
         })
     }
 }
 
-impl WitnessHint {
+#[derive(Clone, Debug)]
+enum HintSource {
+    Linear(Fq, Vec<(usize, Fq)>),
+    Expression(WitnessExpr),
+}
+
+impl HintSource {
+    fn compile(expr: WitnessExpr) -> Self {
+        fn collect(expr: &WitnessExpr, scale: Fq, constant: &mut Fq, terms: &mut Vec<(usize, Fq)>) -> bool {
+            match expr {
+                WitnessExpr::Const(x) => *constant += scale * *x,
+                WitnessExpr::Var(c) => terms.push((*c, scale)),
+                WitnessExpr::Add(a, b) => {
+                    return collect(a, scale, constant, terms) && collect(b, scale, constant, terms)
+                }
+                WitnessExpr::Mul(a, b) => {
+                    return match (&**a, &**b) {
+                        (WitnessExpr::Const(v), e) | (e, WitnessExpr::Const(v)) => {
+                            collect(e, scale * *v, constant, terms)
+                        }
+                        _ => false,
+                    }
+                }
+            };
+            true
+        }
+        let mut constant = Fq::ZERO;
+        let mut terms = Vec::new();
+        if collect(&expr, Fq::ONE, &mut constant, &mut terms) {
+            Self::Linear(constant, terms)
+        } else {
+            Self::Expression(expr)
+        }
+    }
+    fn map_columns(&self, map: &impl Fn(usize) -> Option<usize>) -> Option<Self> {
+        match self {
+            Self::Expression(e) => Some(Self::Expression(e.map_columns(map)?)),
+            Self::Linear(c, terms) => Some(Self::Linear(
+                *c,
+                terms
+                    .iter()
+                    .map(|&(i, v)| Some((map(i)?, v)))
+                    .collect::<Option<_>>()?,
+            )),
+        }
+    }
+    fn reads_before(&self, limit: usize) -> bool {
+        match self {
+            Self::Expression(e) => e.reads_before(limit),
+            Self::Linear(_, terms) => terms.iter().all(|(i, _)| *i < limit),
+        }
+    }
     fn eval(&self, assignment: &[Fq]) -> Fq {
         match self {
-            Self::Bit(source, index) => {
-                let value = source.eval(assignment).as_canonical_u64();
-                Fq::from_u64(value.checked_shr(*index as u32).unwrap_or(0) & 1)
+            Self::Expression(e) => e.eval(assignment),
+            Self::Linear(c, terms) => {
+                *c + Fq::sum_of_products(
+                    terms
+                        .iter()
+                        .map(|&(index, scale)| (assignment[index], scale)),
+                )
             }
-            Self::InverseOrZero(source) => {
-                let value = source.eval(assignment);
-                if value == Fq::ZERO {
-                    Fq::ZERO
-                } else {
-                    value.inverse()
-                }
-            }
-            Self::QuotientFive(source) => Fq::from_u64(source.eval(assignment).as_canonical_u64() / 5),
-            Self::RemainderFive(source) => Fq::from_u64(source.eval(assignment).as_canonical_u64() % 5),
+        }
+    }
+}
+
+impl WitnessHint {
+    fn eval(&self, value: Fq) -> Fq {
+        match self {
+            Self::Bit(index) => Fq::from_u64(
+                value
+                    .as_canonical_u64()
+                    .checked_shr(*index as u32)
+                    .unwrap_or(0)
+                    & 1,
+            ),
+            Self::InverseOrZero if value != Fq::ZERO => value.inverse(),
+            Self::InverseOrZero => Fq::ZERO,
+            Self::QuotientFive => Fq::from_u64(value.as_canonical_u64() / 5),
+            Self::RemainderFive => Fq::from_u64(value.as_canonical_u64() % 5),
         }
     }
 }
 
 impl WitnessExpr {
+    fn reads_before(&self, limit: usize) -> bool {
+        match self {
+            Self::Var(column) => *column < limit,
+            Self::Const(_) => true,
+            Self::Add(l, r) | Self::Mul(l, r) => l.reads_before(limit) && r.reads_before(limit),
+        }
+    }
+
     fn map_columns(&self, map: &impl Fn(usize) -> Option<usize>) -> Option<Self> {
         Some(match self {
             Self::Var(column) => Self::Var(map(*column)?),
@@ -142,12 +212,28 @@ pub(super) fn validate_witness_batch(
         .map(|(offset, expression)| decode_expr(expression, start + offset, constant_column, total_column_count))
         .collect::<Result<Vec<_>, _>>()?;
     let hint_start = start + recipes.len();
+    let mut sources = Vec::<(usize, WitnessExpr, bool)>::new();
     let hints = hints
         .iter()
         .enumerate()
-        .map(|(offset, hint)| decode_hint(hint, hint_start + offset, constant_column, total_column_count))
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(WitnessBatch { start, recipes, hints })
+        .map(|(offset, hint)| {
+            let (kind, expr) = decode_hint(hint, hint_start + offset, constant_column, total_column_count)?;
+            if sources.last().is_none_or(|(_, prev, _)| prev != &expr) {
+                let reusable = expr.reads_before(hint_start + offset);
+                sources.push((offset, expr, reusable));
+            }
+            Ok(kind)
+        })
+        .collect::<Result<_, PackageError>>()?;
+    Ok(WitnessBatch {
+        start,
+        recipes,
+        hints,
+        sources: sources
+            .into_iter()
+            .map(|(offset, expr, reusable)| (offset, HintSource::compile(expr), reusable))
+            .collect(),
+    })
 }
 
 pub(super) fn validate_witness_batch_order(batches: &[WitnessBatch]) -> Result<(), PackageError> {
@@ -165,8 +251,16 @@ pub(super) fn execute_witness_batch(batch: &WitnessBatch, assignment: &mut [Fq])
         assignment[batch.start + offset] = recipe.eval(assignment);
     }
     let hint_start = batch.start + batch.recipes.len();
-    for (offset, hint) in batch.hints.iter().enumerate() {
-        assignment[hint_start + offset] = hint.eval(assignment);
+    for (group, (start, expr, reusable)) in batch.sources.iter().enumerate() {
+        let end = batch
+            .sources
+            .get(group + 1)
+            .map_or(batch.hints.len(), |(next, _, _)| *next);
+        let saved = reusable.then(|| expr.eval(assignment));
+        for offset in *start..end {
+            let value = saved.unwrap_or_else(|| expr.eval(assignment));
+            assignment[hint_start + offset] = batch.hints[offset].eval(value);
+        }
     }
 }
 
@@ -175,7 +269,7 @@ fn decode_hint(
     target: usize,
     constant_column: usize,
     total_column_count: usize,
-) -> Result<WitnessHint, PackageError> {
+) -> Result<(WitnessHint, WitnessExpr), PackageError> {
     let fields = value
         .as_array()
         .ok_or(PackageError::Malformed("witness hint"))?;
@@ -189,29 +283,23 @@ fn decode_hint(
                 .as_u64()
                 .and_then(|value| usize::try_from(value).ok())
                 .ok_or(PackageError::Malformed("witness bit index"))?;
-            Ok(WitnessHint::Bit(
+            Ok((
+                WitnessHint::Bit(index),
                 decode_expr(source, target, constant_column, total_column_count)?,
-                index,
             ))
         }
-        (1, [_, source]) => Ok(WitnessHint::InverseOrZero(decode_expr(
-            source,
-            target,
-            constant_column,
-            total_column_count,
-        )?)),
-        (2, [_, source]) => Ok(WitnessHint::QuotientFive(decode_expr(
-            source,
-            target,
-            constant_column,
-            total_column_count,
-        )?)),
-        (3, [_, source]) => Ok(WitnessHint::RemainderFive(decode_expr(
-            source,
-            target,
-            constant_column,
-            total_column_count,
-        )?)),
+        (1, [_, source]) => Ok((
+            WitnessHint::InverseOrZero,
+            decode_expr(source, target, constant_column, total_column_count)?,
+        )),
+        (2, [_, source]) => Ok((
+            WitnessHint::QuotientFive,
+            decode_expr(source, target, constant_column, total_column_count)?,
+        )),
+        (3, [_, source]) => Ok((
+            WitnessHint::RemainderFive,
+            decode_expr(source, target, constant_column, total_column_count)?,
+        )),
         _ => Err(PackageError::Malformed("witness hint")),
     }
 }
@@ -274,3 +362,7 @@ fn decode_expr_with(
         _ => Err(PackageError::Malformed("witness expression")),
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/unit/witness_hints.rs"]
+mod tests;

@@ -8,7 +8,9 @@ extern crate self as ns_compress;
 mod support;
 
 mod akita;
+mod column_runs;
 mod key;
+mod lane_prefix;
 mod layout;
 mod lookup;
 mod prover;
@@ -24,6 +26,7 @@ use neo_reductions::superneo_eval::MatrixRows;
 use neo_transcript::{domain_chunk_v1_2, Poseidon2Transcript};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
+pub use akita::{in_cpu_prover_pool, CpuProverPool};
 pub use key::{key_blocks, ProverKey, VerificationKey};
 pub use layout::Layout;
 pub use prover::{commit, Committed, ProverTimes};
@@ -33,8 +36,8 @@ pub use verifier::{verify, VerifierTimes};
 
 pub type CeClaim = neo_ccs::CeClaim<Commitment, F, K>;
 
-const DOMAIN: &[u8] = b"Nightstream/compress/akita/v2";
-const SESSION: &[u8] = b"Nightstream/compress/akita/v2/opening";
+const DOMAIN: &[u8] = b"Nightstream/compress/akita/shared-denominator/v1";
+const SESSION: &[u8] = b"Nightstream/compress/akita/shared-denominator/v1/opening";
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -79,7 +82,7 @@ pub struct Proof {
     pub inverse_commitment: Vec<u8>,
     pub rounds: Vec<Round>,
     pub witness_value: K,
-    pub inverse_values: [K; 1 << layout::LOOKUP_VARS],
+    pub shared_inverse: K,
     pub key_part: K,
     pub key_rounds: Vec<KeyRound>,
     pub key_polynomial_value: K,
@@ -181,13 +184,11 @@ fn challenges(
 }
 
 fn claimed_sum(statements: &[Statement<'_>], challenges: &weights::Challenges) -> K {
-    weights::targets(statements, challenges)
-        + challenges.psi.iter().copied().sum::<K>() * challenges.xi.iter().copied().sum::<K>()
+    weights::targets(statements, challenges) + challenges.xi.iter().copied().sum::<K>()
 }
 
-fn inverse_point(layout: &Layout, rho: &[K], column: &[K]) -> Vec<K> {
+fn inverse_point(layout: &Layout, rho: &[K]) -> Vec<K> {
     let mut point = rho[..layout.table_witness_vars].to_vec();
-    point.extend_from_slice(column);
     point.resize(layout.inverse_vars, K::ZERO);
     point
 }
@@ -206,7 +207,7 @@ pub fn error_bits(layout: &Layout, public_cells: usize, matrices: usize) -> u32 
     }
     let batch = weights::KAPPA + 1 + matrices + 63.max(public_cells.saturating_sub(1)) + layout.cells.len() - 1;
     let key = 2 * (layout::LANE_VARS + layout.key_block_vars());
-    count += (batch + 2 + layout.witness_vars + 3 * layout.witness_vars + 2 + key) as u128;
+    count += (batch + 2 + layout.witness_vars + 6 * layout.witness_vars + key) as u128;
     (q * q)
         .checked_div(count)
         .and_then(u128::checked_ilog2)

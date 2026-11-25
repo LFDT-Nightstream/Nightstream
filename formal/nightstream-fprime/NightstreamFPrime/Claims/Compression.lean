@@ -36,7 +36,6 @@ theorem argument_sound
     (wf : Verifier.WellFormed P)
     (counts : Verifier.CountsNonzero P)
     (matrix : Verifier.MatrixSpec vf)
-    (columns : P.lookups ≤ 2 ^ vf.columnVars)
     (rows : P.rows ≤ 2 ^ P.rowVars)
     (key_fits : ∀ (c : Fin P.claims), (P.shape c).witness.vars - P.laneVars ≤ P.keyBlockVars)
     (s : Game.Strategy (Option (Option (Verifier.Statement P × (ℕ → F)))))
@@ -49,7 +48,7 @@ theorem argument_sound
                   a = some o → Verifier.Relation P o.1 o.2) ≤
         (↑q : ℝ) * Verifier.error vf :=
   @Spec.Compression.Verifier.soundness F K fieldF fintypeF decidableF fieldK fintypeK decidableK algebra P vf wf counts
-    matrix columns rows key_fits s q
+    matrix rows key_fits s q
 
 /-- `SPEC.md` Algorithm 9: with ideal openings, the honest prover's run is the verifier game
 with its messages, and the verifier rejects claims that satisfy `Relation` with honest counts with
@@ -150,18 +149,16 @@ theorem production_error
     (layout : Production.Layout (n + 1))
     (vf : Verifier.VerifierData (Production.params key matrices depths layout))
     (slots : n ≤ 2)
-    (columns : vf.columnVars = 2)
     (depths_le : ∀ (s : Fin n), depths s ≤ Folding.Schedule.productionLightFoldCap)
     (slots_le : ∀ (c : Fin (n + 1)), (↑c : ℕ) < n → (layout.witness c).vars ≤ 25)
     (span_le : layout.spanVars ≤ 27) :
-    Verifier.error vf < 1 / 2 ^ 119 :=
-  @Spec.Compression.Production.params_error_lt n key matrices depths layout vf slots columns
-    depths_le
-    slots_le span_le
+    Verifier.error vf < 1 / 2 ^ 119 := by
+  with_reducible
+    exact @Spec.Compression.Production.params_error_lt n key matrices depths layout vf slots
+      depths_le slots_le span_le
 
 /-- In the light mode, each layout that the Lean model of Rust `Layout::new` accepts at a depth at
-most the cap has `error_bits` 119 with 320 public cells and 4 matrices. So the gate of `SPEC.md`
-Algorithm 10, step 5, passes each security minimum of at most 119 bits. -/
+most the cap has 119 bits for the small key and 118 bits for the large key. -/
 theorem light_error_bits
     {blocks : ℕ}
     {depth : ℕ}
@@ -169,7 +166,7 @@ theorem light_error_bits
     {l : Rust.Placed}
     (ok : Rust.layoutNew (Rust.lightClaims blocks depth) keyBlocks = Except.ok l)
     (depth_le : depth ≤ Folding.Schedule.productionLightFoldCap) :
-    Rust.runBits (l.counts 320 4) = 119 :=
+    Rust.runBits (l.counts 320 4) = (if keyBlocks = 2 ^ 9 then 119 else 118) :=
   @Spec.Compression.Rust.layoutNew_light_runBits blocks depth keyBlocks l ok depth_le
 
 /-- In the state-restoration experiment with `q` queries, a prover makes an accepted run whose

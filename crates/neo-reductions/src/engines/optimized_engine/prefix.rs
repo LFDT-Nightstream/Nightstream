@@ -4,6 +4,10 @@ use p3_field::PrimeCharacteristicRing;
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
+#[path = "packed_norm.rs"]
+mod packed_norm;
+pub(super) use packed_norm::{bind_encoded, encoded_moments, PackedNorm, PACKED_NORM_ROUNDS};
+
 use crate::superneo_eval::EqualityWeights;
 
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
@@ -259,9 +263,100 @@ impl EarlyPairs<'_> {
     }
 }
 
+const SMALL_NORM_CODES: usize = 81;
+const PAIRS_PER_BLOCK: usize = D / 2;
+const EVEN_LANES: u64 = 0x5555_5555_5555_5555;
+const _: () = assert!(D == 64);
+
+fn grouped_norm_buckets(
+    early: &EarlyPairs<'_>,
+    pairs: usize,
+    low: &[K],
+    high: &[K],
+    active: &[bool],
+) -> [K; SMALL_NORM_CODES] {
+    let bucket_group = |mut totals: [K; SMALL_NORM_CODES], group: usize| {
+        let first = group * low.len();
+        let low = &low[..(pairs - first).min(low.len())];
+        let high = high[group];
+        let mut buckets = [K::ZERO; SMALL_NORM_CODES];
+        match early {
+            EarlyPairs::Masks { positive, negative } => {
+                for (block, weights) in low.chunks(PAIRS_PER_BLOCK).enumerate() {
+                    let column = first / PAIRS_PER_BLOCK + block;
+                    let (Some(&p), Some(&n)) = (positive.get(column), negative.get(column)) else {
+                        break;
+                    };
+                    let mut different = ((p ^ (p >> 1)) | (n ^ (n >> 1))) & EVEN_LANES;
+                    while different != 0 {
+                        let pair = different.trailing_zeros() as usize / 2;
+                        if pair >= weights.len() {
+                            break;
+                        }
+                        let lane = pair * 2;
+                        let unit = |lane| (1 + (p >> lane & 1) - (n >> lane & 1)) as usize;
+                        buckets[unit(lane) + 3 * unit(lane + 1)] += weights[pair];
+                        different &= different - 1;
+                    }
+                }
+            }
+            EarlyPairs::Encoded { .. } => {
+                for (pair, &weight) in low.iter().enumerate() {
+                    let code = early.code(first + pair);
+                    if active[code] {
+                        buckets[code] += weight;
+                    }
+                }
+            }
+        }
+        for (total, &bucket) in totals.iter_mut().zip(&buckets).take(active.len()) {
+            if bucket != K::ZERO {
+                *total += bucket * high;
+            }
+        }
+        totals
+    };
+    let ranges = 0..pairs.div_ceil(low.len());
+    let zero = || [K::ZERO; SMALL_NORM_CODES];
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    {
+        ranges
+            .into_par_iter()
+            .with_min_len((MIN_JOB_PAIRS / low.len()).max(1))
+            .fold(zero, bucket_group)
+            .reduce(zero, |mut left, right| {
+                for (left, right) in left.iter_mut().zip(right) {
+                    *left += right;
+                }
+                left
+            })
+    }
+    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+    ranges.fold(zero(), bucket_group)
+}
+
 pub(super) fn early_norm_coefficients(early: &EarlyPairs<'_>, pairs: usize, weights: &EqualityWeights) -> [K; 4] {
     let values = early.values();
     let base = values.len();
+    let (low, high) = weights.factors();
+    if base * base <= SMALL_NORM_CODES && low.len() >= PAIRS_PER_BLOCK {
+        let mut terms = [[K::ZERO; 4]; SMALL_NORM_CODES];
+        let mut active = [false; SMALL_NORM_CODES];
+        for (code, out) in terms[..base * base].iter_mut().enumerate() {
+            *out = norm_pair(values[code % base], values[code / base]);
+            active[code] = *out != [K::ZERO; 4];
+        }
+        let buckets = grouped_norm_buckets(early, pairs, low, high, &active[..base * base]);
+        let mut result = [K::ZERO; 4];
+        for (&weight, term) in buckets.iter().zip(terms) {
+            if weight != K::ZERO {
+                for (total, value) in result.iter_mut().zip(term) {
+                    *total += value * weight;
+                }
+            }
+        }
+        return result;
+    }
     let zero = || vec![K::ZERO; base * base];
     let add = |mut buckets: Vec<K>, index: usize| {
         buckets[early.code(index)] += weights.at(index);
@@ -307,4 +402,177 @@ pub(super) fn norm_pair(low: K, high: K) -> [K; 4] {
         three * low * delta_squared,
         delta_squared * delta,
     ]
+}
+
+pub(super) fn sum_products<const N: usize>(
+    values: &[K],
+    weights: &EqualityWeights,
+    term: impl Fn(K, K) -> [K; N] + Sync,
+) -> [K; N] {
+    let (low, high) = weights.factors();
+    let group = |(index, values): (usize, &[K])| {
+        let mut products = [neo_math::ProductSum::default(); N];
+        for (pair, &weight) in values.chunks(2).zip(low) {
+            let values = term(pair[0], pair.get(1).copied().unwrap_or(K::ZERO));
+            for (product, value) in products.iter_mut().zip(values) {
+                *product = product.add(weight, value);
+            }
+        }
+        products.map(|product| product.value() * high[index])
+    };
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    {
+        values
+            .par_chunks(2 * low.len())
+            .with_min_len(MIN_JOB_PAIRS.div_ceil(low.len()))
+            .enumerate()
+            .map(group)
+            .reduce(|| [K::ZERO; N], add_coefficients)
+    }
+    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+    values
+        .chunks(2 * low.len())
+        .enumerate()
+        .map(group)
+        .fold([K::ZERO; N], add_coefficients)
+}
+
+pub(super) fn add_coefficients<const N: usize>(left: [K; N], right: [K; N]) -> [K; N] {
+    std::array::from_fn(|i| left[i] + right[i])
+}
+
+pub(super) fn bind_sum_products<const N: usize>(
+    values: &mut Vec<K>,
+    challenge: K,
+    weights: &EqualityWeights,
+    term: impl Fn(K, K) -> [K; N] + Sync,
+) -> [K; N] {
+    bind_weighted_pairs(values, challenge, weights, |products, low, high, weight| {
+        for (sum, value) in products.iter_mut().zip(term(low, high)) {
+            *sum = sum.add(weight, value);
+        }
+    })
+}
+
+fn bind_weighted_pairs<const N: usize>(
+    values: &mut Vec<K>,
+    challenge: K,
+    weights: &EqualityWeights,
+    add: impl Fn(&mut [neo_math::ProductSum; N], K, K, K) + Sync,
+) -> [K; N] {
+    if values.is_empty() {
+        return [K::ZERO; N];
+    }
+    let (low, high) = weights.factors();
+    let next_pairs = values.len().div_ceil(4);
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    let workers = rayon::current_num_threads().min(next_pairs.div_ceil(MIN_JOB_PAIRS));
+    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+    let workers = 1;
+    let groups_per_job = next_pairs.div_ceil(low.len() * workers);
+    let span = groups_per_job * low.len() * 4;
+    let bind = |(job, part): (usize, &mut [K])| {
+        let groups = part.len().div_ceil(4);
+        let mut sum = [K::ZERO; N];
+        for first in (0..groups).step_by(low.len()) {
+            let mut products = [neo_math::ProductSum::default(); N];
+            let count = (groups - first).min(low.len());
+            for (local, &weight) in low[..count].iter().enumerate() {
+                let pair = first + local;
+                let bound = bind_four(part, pair, challenge);
+                add(&mut products, bound[0], bound[1], weight);
+            }
+            let high = high[job * groups_per_job + first / low.len()];
+            sum = add_coefficients(sum, products.map(|product| product.value() * high));
+        }
+        sum
+    };
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    let sum = values
+        .par_chunks_mut(span)
+        .enumerate()
+        .map(bind)
+        .reduce(|| [K::ZERO; N], add_coefficients);
+    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+    let sum = values
+        .chunks_mut(span)
+        .enumerate()
+        .map(bind)
+        .fold([K::ZERO; N], add_coefficients);
+    compact_bound_chunks(values, span);
+    values.truncate(values.len().div_ceil(2));
+    sum
+}
+
+fn norm_moments(sums: &mut [neo_math::ProductSum; 3], low: K, high: K, weight: K) {
+    let delta = high - low;
+    if delta != K::ZERO {
+        const THIRD: F = F::new((neo_math::field::Q + 1) / 3);
+        let weighted_delta = weight * delta;
+        let terms = [
+            low.square() - K::from(THIRD),
+            high.square() - K::from(THIRD),
+            delta.square(),
+        ];
+        for (sum, term) in sums.iter_mut().zip(terms) {
+            *sum = sum.add(weighted_delta, term);
+        }
+    }
+}
+
+fn from_norm_moments([low, high, cubic]: [K; 3]) -> [K; 3] {
+    let quadratic = (high - low - cubic).halve();
+    [low.double() + low, quadratic.double() + quadratic, cubic]
+}
+
+pub(super) fn bind_norm_products(values: &mut Vec<K>, challenge: K, weights: &EqualityWeights) -> [K; 3] {
+    from_norm_moments(bind_weighted_pairs(values, challenge, weights, norm_moments))
+}
+
+pub(super) fn bind_four(values: &mut [K], pair: usize, challenge: K) -> [K; 2] {
+    let i = 4 * pair;
+    let low = interpolate(values[i], values.get(i + 1).copied().unwrap_or(K::ZERO), challenge);
+    let high = interpolate(
+        values.get(i + 2).copied().unwrap_or(K::ZERO),
+        values.get(i + 3).copied().unwrap_or(K::ZERO),
+        challenge,
+    );
+    values[2 * pair] = low;
+    if i + 2 < values.len() {
+        values[2 * pair + 1] = high;
+    }
+    [low, high]
+}
+
+pub(super) fn compact_bound_chunks<T: Copy>(values: &mut [T], span: usize) {
+    for start in (span..values.len()).step_by(span) {
+        let count = (values.len() - start).min(span).div_ceil(2);
+        values.copy_within(start..start + count, start / 2);
+    }
+}
+
+pub(super) fn norm_higher_coefficients(low: K, high: K) -> [K; 3] {
+    use neo_math::KExtensions;
+    let delta = high - low;
+    if delta == K::ZERO {
+        return [K::ZERO; 3];
+    }
+    let three = F::from_u8(3);
+    let squared = delta * delta;
+    [
+        delta * ((low * low).scale_base(three) - K::ONE),
+        (low * squared).scale_base(three),
+        squared * delta,
+    ]
+}
+
+pub(super) fn recover_weighted_constant<const N: usize, const HIGHER: usize>(
+    previous: K,
+    target: K,
+    higher: [K; HIGHER],
+) -> [K; N] {
+    let mut coefficients = [K::ZERO; N];
+    coefficients[0] = previous - target * higher.iter().copied().sum::<K>();
+    coefficients[1..].copy_from_slice(&higher);
+    coefficients
 }

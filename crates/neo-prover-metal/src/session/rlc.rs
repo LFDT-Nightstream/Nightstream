@@ -1,3 +1,5 @@
+mod light;
+
 use std::{mem::size_of, sync::atomic::Ordering};
 
 use neo_ccs::Mat;
@@ -13,14 +15,33 @@ type Command = objc2::rc::Retained<objc2::runtime::ProtocolObject<dyn MTLCommand
 
 const CHILDREN_PER_THREAD: usize = 14;
 
+pub struct RlcMix(Mix);
+
+enum Mix {
+    Mixed(Mat<F>),
+    Light(light::LightDeltas),
+}
+
+impl RlcMix {
+    pub fn finish(self, witnesses: &[&Mat<F>]) -> Mat<F> {
+        match self.0 {
+            Mix::Mixed(mixed) => mixed,
+            Mix::Light(deltas) => deltas.add_to(witnesses[1]),
+        }
+    }
+}
+
 impl MetalSession {
-    pub(crate) fn mix_rlc_witnesses(&self, rhos: &[Mat<F>], witnesses: &[&Mat<F>]) -> Result<Mat<F>, MetalError> {
+    pub(crate) fn mix_rlc_witnesses(&self, rhos: &[Mat<F>], witnesses: &[&Mat<F>]) -> Result<RlcMix, MetalError> {
         let columns = witnesses
             .first()
             .ok_or(MetalError::Shape("device PiRLC needs witnesses"))?
             .cols();
         if rhos.len() != witnesses.len() || columns == 0 {
             return Err(MetalError::Shape("device PiRLC mix shape"));
+        }
+        if let Some(deltas) = self.mix_light(rhos, witnesses)? {
+            return Ok(RlcMix(Mix::Light(deltas)));
         }
         let mut rho_entries = Vec::new();
         let mut sources = Vec::new();
@@ -75,7 +96,7 @@ impl MetalSession {
                 }
             }
         }
-        Ok(Mat::from_row_major(D, columns, parent))
+        Ok(RlcMix(Mix::Mixed(Mat::from_row_major(D, columns, parent))))
     }
 
     fn encode_rlc_mix(

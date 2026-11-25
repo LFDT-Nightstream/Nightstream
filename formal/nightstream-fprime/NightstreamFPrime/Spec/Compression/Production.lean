@@ -110,14 +110,15 @@ theorem slot_table_le {depth : ℕ} (le : depth ≤ productionLightFoldCap) :
   simp only [GlobalParams.accumulatorBound, productionGlobalParams, productionLightFoldCap] at le ⊢
   omega
 
+attribute [local irreducible] Real.instLT in
 /-- At the production bounds of the layout and at most two slots, the error of `soundness` is
 below `2^−119`. -/
 theorem params_error_lt (vf : VerifierData (params key matrices depths layout)) (slots : n ≤ 2)
-    (columns : vf.columnVars = 2) (depths_le : ∀ s, depths s ≤ productionLightFoldCap)
+    (depths_le : ∀ s, depths s ≤ productionLightFoldCap)
     (slots_le : ∀ c : Fin (n + 1), (c : ℕ) < n → (layout.witness c).vars ≤ 25)
     (span_le : layout.spanVars ≤ 27) : error vf < 1 / 2 ^ 119 := by
   refine lt_of_le_of_lt (error_le_production vf card_F card_K (by change n + 1 ≤ 3; omega) rfl
-    rfl (Finset.sup_le fun _ _ => le_refl _) span_le columns rfl fun c table => ?_)
+    rfl (Finset.sup_le fun _ _ => le_refl _) span_le rfl fun c table => ?_)
     production_error_lt
   have slot : (c : ℕ) < n := of_decide_eq_true table
   have cells : 2 ^ (layout.witness c).vars ≤ 2 ^ 25 :=
@@ -152,11 +153,11 @@ variable {n : ℕ} (key : ℕ → ℕ → ℕ → F) (rel : ℕ → Factored F) 
   (depths : Fin n → ℕ) (layout : Layout (n + 1)) (zeros : ℕ)
 
 /-- The verifier of Rust `verify`: the one pass of Rust `matrix_part` over the factored rows
-`rel (which c)` of the relation of claim `c`, `LOOKUP_VARS = 2` and `zeros` zeros in the opening
+`rel (which c)` of the relation of claim `c` and `zeros` zeros in the opening
 point of `V`. -/
 noncomputable def verifierData :
     VerifierData (params key (fun c => (rel (which c)).matrices) depths layout) :=
-  ⟨matrixPass _ rel which, 2, zeros⟩
+  ⟨matrixPass _ rel which, zeros⟩
 
 /-- The one pass computes the matrix part of the honest weights of the production parameters. -/
 theorem verifierData_matrixSpec : MatrixSpec (verifierData key rel which depths layout zeros) := by
@@ -172,7 +173,7 @@ theorem verifierData_matrixSpec : MatrixSpec (verifierData key rel which depths 
       change (rel (which c)).columns / ringDegree = (rel (which c')).columns / ringDegree
       rw [same]
   exact matrixPass_spec (params key (fun c => (rel (which c)).matrices) depths layout) rel which
-    form blocks 2 zeros
+    form blocks zeros
 
 /-- `soundness` at the production parameters with the one pass of Rust `matrix_part`. -/
 theorem params_soundness
@@ -185,7 +186,7 @@ theorem params_soundness
         (fun r => ¬ ∀ a, r = some a → ∀ o, a = some o → Relation _ o.1 o.2) ≤
       q * error (verifierData key rel which depths layout zeros) :=
   soundness _ wf (params_countsNonzero key _ depths layout slots_le)
-    (verifierData_matrixSpec key rel which depths layout zeros) (le_of_eq rfl)
+    (verifierData_matrixSpec key rel which depths layout zeros)
     (Nat.le_of_ble_eq_true rfl) key_fits s q
 
 end Pass

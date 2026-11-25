@@ -24,7 +24,7 @@ fn assert_host_scalar_rom_rejects(
     let error = neo_wasm::sanity_check_memory_rows(layout, &witnesses, &preload)
         .expect_err("the verifier-owned host-scalar type bit must reject the forged value");
     assert!(
-        error.contains("host_event_slot_immediate_0") && error.contains("expected 0, got 1"),
+        error.contains("host_event_slot_payload") && error.contains("expected 0, got 1"),
         "unexpected rejection: {error}"
     );
 }

@@ -48,7 +48,7 @@ pub(crate) fn prove(
     kind: Kind,
     backend: &Backend,
     context: FoldContext<'_>,
-    fresh: CcsInstance,
+    fresh: &CcsInstance,
     accumulator: pi_rlc::Output,
 ) -> Result<(pi_rlc::Output, Proof), Error> {
     let (running, children) = match kind {
@@ -66,7 +66,7 @@ pub(crate) fn prove(
     let (profile, weights) = kind.profile(&words);
     let mut tr = Transcript::session();
     let CcsInstance { claim, witness } = fresh;
-    let pi_ccs = pi_ccs::prove_from_parts_with_rows(&mut tr, backend, context, &profile, &claim, &witness, &running)?;
+    let pi_ccs = pi_ccs::prove_from_parts_with_rows(&mut tr, backend, context, &profile, claim, witness, &running)?;
     let sources: Vec<_> = std::iter::once(&witness.Z)
         .chain(running.witnesses.iter())
         .collect();

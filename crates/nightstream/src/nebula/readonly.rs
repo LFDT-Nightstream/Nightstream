@@ -1,15 +1,12 @@
 //! `Export.Generic.ReadOnlyValues`.
 
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    rc::Rc,
-};
+use std::collections::{BTreeMap, BTreeSet};
 
 use neo_math::Fq as F;
 use p3_field::PrimeCharacteristicRing;
 
 use super::{
-    expr::{lower_affine, rank_one_row},
+    expr::{lower_affine, rank_one_row, Row},
     words::Layout,
     Expr, Geometry,
 };
@@ -21,10 +18,10 @@ pub(super) struct ReadOnlyValues {
 }
 
 impl ReadOnlyValues {
-    pub(super) fn checked(rows: &[Expr], geometry: &Geometry, layout: &Layout, wires: &[Variable]) -> Self {
+    pub(super) fn checked(rows: &[Row], geometry: &Geometry, layout: &Layout, wires: &[Variable]) -> Self {
         let zero_columns: BTreeSet<_> = rows
             .iter()
-            .filter_map(lower_affine)
+            .filter_map(Row::lower_affine)
             .filter_map(|row| match row.terms() {
                 [(variable, coefficient)] if row.constant_term() == F::ZERO && *coefficient != F::ZERO => {
                     Some(*variable)
@@ -57,12 +54,15 @@ impl ReadOnlyValues {
             .collect()
     }
 
-    pub(super) fn rename(&self, expression: &Expr) -> Expr {
-        match expression {
-            Expr::Var(variable) => Expr::Var(*self.aliases.get(variable).unwrap_or(variable)),
-            Expr::Const(value) => Expr::Const(*value),
-            Expr::Add(left, right) => Expr::Add(Rc::new(self.rename(left)), Rc::new(self.rename(right))),
-            Expr::Mul(left, right) => Expr::Mul(Rc::new(self.rename(left)), Rc::new(self.rename(right))),
+    pub(super) fn rename(&self, row: &mut Row) {
+        if !self.is_empty() {
+            row.rename(&self.aliases);
+        }
+    }
+
+    pub(super) fn rename_expr(&self, expression: &mut Expr) {
+        if !self.is_empty() {
+            expression.rename(&self.aliases);
         }
     }
 }

@@ -4,7 +4,7 @@ use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
 use super::app::{Application, Memory, Transition};
-use super::expr::Expr;
+use super::expr::{Expr, Row};
 use super::records::PortAccess;
 use super::rows::{bit_row, chunk, View};
 
@@ -106,7 +106,7 @@ impl Application for Machine {
     }
 
     /// `Machine.rows`.
-    fn rows(&self, view: &View) -> Result<Vec<Expr>, crate::Error> {
+    fn rows(&self, view: &View) -> Result<Vec<Row>, crate::Error> {
         let idle = view.aux(0);
         let instruction = view.vr_bits(0);
         let is_load = instruction[0].clone() * (c(1) - instruction[1].clone());
@@ -114,7 +114,7 @@ impl Application for Machine {
         let is_loadi = instruction[0].clone() * instruction[1].clone();
         let argument = chunk(instruction[2..].to_vec());
         let touches = || is_load.clone() + is_store.clone();
-        Ok(vec![
+        Ok([
             bit_row(idle.clone()),
             view.pad(0) - idle.clone(),
             view.is_write(0),
@@ -130,7 +130,10 @@ impl Application for Machine {
                 - (is_load.clone() * view.vr(1)
                     + is_loadi.clone() * argument
                     + (c(1) - is_load - is_loadi) * view.input(1)),
-        ])
+        ]
+        .into_iter()
+        .map(Row::Expr)
+        .collect())
     }
 
     fn step(

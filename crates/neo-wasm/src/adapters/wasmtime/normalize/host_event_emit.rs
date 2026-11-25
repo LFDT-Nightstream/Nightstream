@@ -307,12 +307,12 @@ fn plan_event_blocks(
                         crate::host_event_bindings::Limb::Lo => WasmHostEventRomVariant::LowLimb,
                         crate::host_event_bindings::Limb::Hi => WasmHostEventRomVariant::HighLimb,
                     };
-                    let entry = |kind, arg, variant, immediate0, immediate1| crate::ir::WasmHostEventRomEntry {
+                    let entry = |kind, arg, variant, payload, type_or_input| crate::ir::WasmHostEventRomEntry {
                         kind,
                         arg,
                         variant,
-                        immediate0,
-                        immediate1,
+                        payload,
+                        type_or_input,
                         advice: !event.absorb,
                     };
                     let base_slot_row = |rom| EventSlotRow {
@@ -334,8 +334,8 @@ fn plan_event_blocks(
                             WasmHostEventSlotKind::Const,
                             0,
                             WasmHostEventRomVariant::None,
-                            constant as u32,
-                            (constant >> 32) as u32,
+                            constant,
+                            0,
                         )),
                         SlotBinding::ArgElem { arg, limb } => EventSlotRow {
                             read: Some((args_base + u64::from(arg), args[usize::from(arg)])),
@@ -359,7 +359,7 @@ fn plan_event_blocks(
                                 0,
                                 WasmHostEventRomVariant::HighLimb,
                                 1,
-                                u32::from(result_is_i64),
+                                u8::from(result_is_i64),
                             ))
                         },
                         SlotBinding::MemoryRead32 { base, byte_offset }
@@ -410,7 +410,7 @@ fn plan_event_blocks(
                                     arg,
                                     variant,
                                     byte_offset,
-                                    u32::from(input),
+                                    input,
                                 ))
                             }
                         }
@@ -453,8 +453,8 @@ pub(super) fn plan_export_blocks(
                         kind,
                         arg,
                         variant,
-                        immediate0: 0,
-                        immediate1: 0,
+                        payload: 0,
+                        type_or_input: 0,
                         advice: !event.absorb,
                     };
                     let base_slot_row = |rom| EventSlotRow {
@@ -476,8 +476,8 @@ pub(super) fn plan_export_blocks(
                             kind: WasmHostEventSlotKind::Const,
                             arg: 0,
                             variant: WasmHostEventRomVariant::None,
-                            immediate0: constant as u32,
-                            immediate1: (constant >> 32) as u32,
+                            payload: constant,
+                            type_or_input: 0,
                             advice: !event.absorb,
                         }),
                         SlotBinding::InputLocal { local, limb, .. } => {
@@ -486,8 +486,8 @@ pub(super) fn plan_export_blocks(
                                 local_write: Some((u32::from(local), bit, value as u32)),
                                 wide: local_is_i64[usize::from(local)],
                                 ..base_slot_row(crate::ir::WasmHostEventRomEntry {
-                                    immediate0: 1,
-                                    immediate1: u32::from(local_is_i64[usize::from(local)]),
+                                    payload: 1,
+                                    type_or_input: u8::from(local_is_i64[usize::from(local)]),
                                     ..entry(WasmHostEventSlotKind::InputLocal, local, limb_variant(limb))
                                 })
                             }
@@ -512,8 +512,8 @@ pub(super) fn plan_export_blocks(
                                     kind: WasmHostEventSlotKind::MemoryRead,
                                     arg,
                                     variant,
-                                    immediate0: byte_offset,
-                                    immediate1: 0,
+                                    payload: byte_offset,
+                                    type_or_input: 0,
                                     advice: !event.absorb,
                                 })
                             }
@@ -550,8 +550,8 @@ pub(super) fn plan_export_blocks(
                                     kind: WasmHostEventSlotKind::MemoryWrite,
                                     arg: local,
                                     variant,
-                                    immediate0: byte_offset,
-                                    immediate1: u32::from(input),
+                                    payload: byte_offset,
+                                    type_or_input: input,
                                     advice: !event.absorb,
                                 })
                             }

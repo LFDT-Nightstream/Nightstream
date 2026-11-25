@@ -278,7 +278,7 @@ def proofLogicalIndex (family : Fin familyCount) (_notOutput : family.val ≠ 3)
     laneCount
   split <;> try split <;> try split
   all_goals
-    try simp only [PiCCSInvocations.challengeWitnessStart,
+    simp only [PiCCSInvocations.challengeWitnessStart,
       PiCCSInvocations.roundWitnessStart]
   all_goals
     try simp only [PiCCSStarts.challengeWitnessStart_eq,
@@ -287,7 +287,7 @@ def proofLogicalIndex (family : Fin familyCount) (_notOutput : family.val ≠ 3)
   all_goals
     norm_num [PiCCSTranscriptDirectSemantics.roundCount,
       PiCCSInputs.phaseOffset_eq, PiCCSStarts.statementWitnessStart_eq] at *
-  all_goals omega
+  omega
 
 private theorem packageSourceColumn_congr
     (program : Lifecycle.Stage1.Application.Program)

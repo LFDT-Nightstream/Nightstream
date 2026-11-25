@@ -134,17 +134,17 @@ theorem verify_sound (facts : Facts program ajtai) (identity : List F)
       Admitted StageAdmitted Efficient)
     (adversary : IvcAdversary (Output StepRelation.keyWidth StepRelation.keyPublicFits))
     (admitted : StageAdmitted (Stage.start (walkAdversary adversary)))
-    (packageWidths : Fin 2 → Nat) (control : AppState → AppWitness → Fin 2) (cap depth : Nat)
+    (packageWidths : Fin 2 → Nat) (control : AppState → AppWitness → Fin 2) (depth : Nat)
     (depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).1.iteration ≤ depth) :
     (adversary.tape.toOuterMeasure
         {tape | VerifierSecurity.FalseVerification ajtai (keys identity relations)
-          (exports facts identity relations lightKey refreshKey) packageWidths control cap
+          (exports facts identity relations lightKey refreshKey) packageWidths control
           (adversary.output tape)}).toReal ≤
       walkBound ajtai (keys identity relations) (exports facts identity relations lightKey refreshKey)
         assumption closed adversary admitted depth :=
   VerifierSecurity.soundness ajtai (keys identity relations)
     (exports facts identity relations lightKey refreshKey) assumption closed adversary admitted
-    (CircuitKeyDigest.keys_shaped identity relations) packageWidths control cap depth depthBound
+    (CircuitKeyDigest.keys_shaped identity relations) packageWidths control depth depthBound
 
 section Final
 

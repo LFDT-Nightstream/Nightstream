@@ -31,10 +31,10 @@ use crate::witness::{validate_witness_batch, validate_witness_batch_order, RawWi
 
 const IDENTITY_DOMAIN: &[u8] = b"Nightstream/OptionB/packages/v1";
 pub const BOUNDED_DEPTH_PACKAGES_IDENTITY: [u64; 4] = [
-    12_096_774_549_834_946_229,
-    14_010_018_720_179_246_948,
-    8_308_383_773_775_391_137,
-    13_324_862_456_486_381_448,
+    616_112_228_699_134_922,
+    10_859_459_732_713_010_541,
+    1_301_713_692_523_339_791,
+    10_645_128_625_613_389_908,
 ];
 
 /// Lean `Pieces.linear?`.
@@ -182,6 +182,10 @@ impl StepPackage {
         (self.sbox_start + SBOX_ROWS * self.block_count()).max(self.packed_booleans.end())
     }
 
+    pub fn application_local_start(&self) -> usize {
+        self.application.local_start
+    }
+
     pub fn witness_words(&self) -> usize {
         self.application.witness_words
     }
@@ -302,6 +306,7 @@ impl Block<'_> {
 pub struct ExpandedPackage {
     package: StepPackage,
     rows: PlanRows,
+    fresh_product_rows: Box<[usize]>,
     layout: layout::LogicalLayout,
 }
 
@@ -339,6 +344,7 @@ impl StepPackage {
     pub fn expand(mut self) -> Result<ExpandedPackage, PackageError> {
         let (rows, layout) = rayon::join(|| self.plan_rows(), || self.layout());
         let (rows, layout) = (rows?, layout?);
+        let fresh_product_rows = self.fresh_product_rows(&rows);
         for piece in &mut self.pieces {
             if let Piece::Rows(rows) = piece {
                 *rows = Vec::new();
@@ -350,6 +356,7 @@ impl StepPackage {
         self.slots = Vec::new();
         Ok(ExpandedPackage {
             rows,
+            fresh_product_rows,
             layout,
             package: self,
         })

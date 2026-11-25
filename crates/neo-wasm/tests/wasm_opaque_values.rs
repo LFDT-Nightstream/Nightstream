@@ -13,19 +13,29 @@ use neo_wasm::{WasmHostEventSlotKind, WasmVmStep};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 const ZERO: SlotBinding = SlotBinding::Const(0);
-const SCHEMA: [u64; 4] = [11, 12, 13, 14];
+const SCHEMA: [u32; 4] = [11, 12, 13, 14];
 
 fn outer(word: usize) -> EventBlock {
-    let mut block = core::array::from_fn(|i| SlotBinding::Const(100 + i as u64));
+    let mut block = core::array::from_fn(|i| SlotBinding::Const(100 + i as u32));
     block[word..word + 4].fill(ZERO);
     EventBlock { block, absorb: true }
 }
 
 #[test]
+fn opaque_header_uses_u32_schema_words_and_payload_keeps_field_width() {
+    use neo_wasm::comm_chain::absorb_block;
+    let header = [u32::from_le_bytes(*b"NOBJ"), 1, u32::MAX, 2, 3, 4, 1, 0];
+    let value = F::ORDER_U64 - 1;
+    let initial = absorb_block([0; 4], header.map(u64::from));
+    let expected = absorb_block(initial, [value, 0, 0, 0, 0, 0, 0, 0]);
+    assert_eq!(opaque_value_root([u32::MAX, 2, 3, 4], &[value]).unwrap(), expected);
+}
+
+#[test]
 fn native_roots_cover_empty_partial_and_multiple_blocks_at_every_position() {
     for len in [0, 1, 7, 8, 9, 16, 21] {
-        let words: Vec<u64> = (0..len).map(|i| i as u64 + 1).collect();
-        let root = opaque_value_root(SCHEMA, &words).unwrap();
+        let words: Vec<u32> = (0..len).map(|i| i as u32 + 1).collect();
+        let root = opaque_value_root(SCHEMA, &words.iter().copied().map(u64::from).collect::<Vec<_>>()).unwrap();
         for word in 0..=4 {
             let template = ImportTemplate {
                 return_events: None,
@@ -50,7 +60,7 @@ fn native_roots_cover_empty_partial_and_multiple_blocks_at_every_position() {
     assert_ne!(root, opaque_value_root([12, 12, 13, 14], &[1, 2]).unwrap());
     assert_ne!(opaque_value_root(SCHEMA, &[]).unwrap(), [0; 4]);
     assert!(opaque_value_root(SCHEMA, &[F::ORDER_U64]).is_err());
-    assert!(opaque_value_root([F::ORDER_U64; 4], &[]).is_err());
+    assert!(opaque_value_root([u32::MAX; 4], &[]).is_ok());
 }
 
 #[test]
@@ -159,14 +169,16 @@ fn early_enter_skips_only_prefix_padding_at_every_root_position() {
     for prefix in 0..=4 {
         for len in [0usize, 9] {
             events.push(EventBlock::advice([SlotBinding::Const(77); 8]));
-            let words: Vec<_> = (1..=len as u64).collect();
+            let words: Vec<_> = (1..=len as u32).collect();
             events.extend(
                 outer(prefix)
                     .with_opaque(prefix, SCHEMA, words.iter().copied().map(SlotBinding::Const).collect())
                     .unwrap(),
             );
             let mut block = core::array::from_fn(|lane| 100 + lane as u64);
-            block[prefix..prefix + 4].copy_from_slice(&opaque_value_root(SCHEMA, &words).unwrap());
+            block[prefix..prefix + 4].copy_from_slice(
+                &opaque_value_root(SCHEMA, &words.iter().copied().map(u64::from).collect::<Vec<_>>()).unwrap(),
+            );
             expected.push(block);
             saved_rows += 7 - prefix;
             permutations += 2 + len.div_ceil(8);

@@ -76,7 +76,7 @@ fn i32_export_input_cannot_forge_a_nonzero_high_limb() {
         .host_event_rom_slot
         .as_mut()
         .expect("input-local slot ROM")
-        .immediate1 = 1;
+        .type_or_input = 1;
     trace[input_hi].local_write_value_hi = Some(1);
     trace[input_hi].state_after.event_absorb.evbuf[1] = 1;
     for row in &mut trace[input_hi + 1..] {
@@ -121,7 +121,8 @@ fn i32_export_input_cannot_forge_a_nonzero_high_limb() {
     let error = neo_wasm::sanity_check_memory_rows(layout, &witnesses, &preload)
         .expect_err("static i32 local type must reject a wide input row");
     assert!(
-        error.contains("host_event_slot_immediate_1") && error.contains("expected 0, got 1"),
+        error.contains("memory `host_event_slot_descriptor` ROM mismatch")
+            && error.ends_with("expected 8205, got 139277"),
         "unexpected rejection: {error}"
     );
 }
@@ -233,7 +234,7 @@ fn declared_local_cannot_become_an_export_input() {
         .as_mut()
         .expect("input-local slot ROM");
     rom.arg = 1;
-    rom.immediate0 = 0;
+    rom.payload = 0;
     trace[input_row].local_index = Some(1);
     trace[input_row].local_write_value = Some(7);
     trace[input_row].state_after.event_absorb.evbuf[cursor] = 7;

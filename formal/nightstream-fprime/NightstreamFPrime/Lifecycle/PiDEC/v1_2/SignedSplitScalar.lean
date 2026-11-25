@@ -1,4 +1,4 @@
-import NightstreamFPrime.Circuit.StraightLine
+import NightstreamFPrime.Circuit.Execution
 import NightstreamFPrime.Spec.FieldPrime
 import NightstreamFPrime.Spec.RingRelation.PiDECAlgebra.Radix.UniformSignedDigits
 
@@ -495,108 +495,54 @@ private theorem signHint_eq_honestSign
   · simp [Radix.UniformSignedDigits.honestSign, nonnegative]
   · simp [Radix.UniformSignedDigits.honestSign, nonnegative]
 
-def completeEnv (interface : Interface) (env : Env) (offset : Nat) : Env :=
-  executeHints env offset [signHint interface offset]
+theorem witnesses_operations (interface : Interface) (offset : Nat) :
+    witnesses (operations interface offset) =
+      [WitnessBatch.hinted offset [signHint interface offset]] := by
+  rw [operations, Witness.witnesses_cons, Witness.witnesses_assertions]
+  rfl
 
-private theorem hintReadsBelow
-    (interface : Interface) (offset : Nat) {env : Env}
+theorem ordered (interface : Interface) (offset : Nat) (env : Env)
     (assumptions : Assumptions interface offset env) :
-    HintsReadBelow offset [signHint interface offset] := by
-  intro hint member
-  simp only [List.mem_singleton] at member
-  subst hint
-  exact assumptions.1
+    Witness.Ordered offset (witnesses (operations interface offset))
+      (offset + localLength (operations interface offset)) := by
+  rw [witnesses_operations, localLength_eq]
+  exact ⟨le_rfl, ⟨trivial, assumptions.1, trivial⟩,
+    by simp [Witness.Ordered, WitnessBatch.finish, exactPrivateCount]⟩
 
-private theorem completeEnv_sign
-    (interface : Interface) (env : Env) (offset : Nat)
-    (assumptions : Assumptions interface offset env)
-    (bounded : centeredMagnitude (parentValue interface offset env) <
-      Radix.combinedBound) :
-    (signExpr offset).eval (completeEnv interface env offset) =
-      Radix.UniformSignedDigits.honestSign
-        (parentValue interface offset env) := by
-  have value := executeHints_value_of_readBelow env offset
-    [signHint interface offset]
-    (hintReadsBelow interface offset assumptions) 0 (by simp)
-  rw [signExpr_eval]
-  have slot : completeEnv interface env offset offset =
-      Hint.eval env (signHint interface offset) := by
-    simpa [completeEnv] using value
-  rw [slot]
-  exact signHint_eq_honestSign interface env offset bounded
-
-private theorem completeEnv_parent
-    (interface : Interface) (env : Env) (offset : Nat)
-    (assumptions : Assumptions interface offset env) :
-    parentValue interface offset (completeEnv interface env offset) =
-      parentValue interface offset env := by
-  apply Expr.eval_eq_of_agree_below _ offset _ _ assumptions.1
-  intro index below
-  change executeHints env offset [signHint interface offset] index = env index
-  exact executeHints_agrees_below env offset
-    [signHint interface offset] index below
-
-private theorem completeEnv_digit
-    (interface : Interface) (env : Env) (offset : Nat)
-    (assumptions : Assumptions interface offset env)
-    (index : Radix.ChildIndex) :
-    digitValues interface offset (completeEnv interface env offset) index =
-      digitValues interface offset env index := by
-  apply Expr.eval_eq_of_agree_below _ offset _ _ (assumptions.2 index)
-  intro sourceIndex below
-  change executeHints env offset [signHint interface offset] sourceIndex =
-    env sourceIndex
-  exact executeHints_agrees_below env offset
-    [signHint interface offset] sourceIndex below
-
-private theorem completeEnv_holdsFlat
-    (interface : Interface) (env : Env) (offset : Nat)
-    (assumptions : Assumptions interface offset env)
-    (specification : SpecHolds interface offset env) :
-    holdsFlat (completeEnv interface env offset)
-      (operations interface offset) := by
+theorem computed_holdsFlat (interface : Interface) (env : Env) (offset : Nat)
+    (specification : SpecHolds interface offset env)
+    (computed : Witness.Computed env (witnesses (operations interface offset))) :
+    holdsFlat env (operations interface offset) := by
+  rw [witnesses_operations] at computed
+  have slot : env offset = Hint.eval env (signHint interface offset) :=
+    (computed _ (List.mem_singleton.mpr rfl)).2.1
   rcases specification with ⟨_, accepted⟩
   have bounded := accepted.parentBounded
   have exactDigits := accepted.digits_eq_splitScalar
   have honest := Radix.UniformSignedDigits.honest_complete
     (parentValue interface offset env) bounded
-  have signValue := completeEnv_sign interface env offset assumptions bounded
-  have parentPreserved := completeEnv_parent interface env offset assumptions
-  have digitPreserved :
-      digitValues interface offset (completeEnv interface env offset) =
-        digitValues interface offset env := by
-    funext index
-    exact completeEnv_digit interface env offset assumptions index
+  have signValue : (signExpr offset).eval env =
+      Radix.UniformSignedDigits.honestSign (parentValue interface offset env) := by
+    rw [signExpr_eval, slot]
+    exact signHint_eq_honestSign interface env offset bounded
   unfold holdsFlat
   rw [flatConstraints_operations]
   intro expression member
   rw [constraints] at member
-  rcases List.mem_cons.mp member with signMember | tailMember
-  · subst expression
-    rw [signConstraint_eval]
-    have bitValue := executeHints_value_of_readBelow env offset
-      [signHint interface offset]
-      (hintReadsBelow interface offset assumptions) 0 (by simp)
-    rw [show completeEnv interface env offset offset =
-        Hint.eval env (signHint interface offset) by
-          simpa [completeEnv] using bitValue]
-    rw [signHint_eq_branchBit interface env offset bounded]
+  rcases List.mem_cons.mp member with rfl | tailMember
+  · rw [signConstraint_eval, slot, signHint_eq_branchBit interface env offset bounded]
     by_cases nonnegative : Radix.isNonnegative (parentValue interface offset env)
     · simp [nonnegative]
     · simp [nonnegative]
   · rcases List.mem_append.mp tailMember with digitMember | recompositionMember
     · rcases List.mem_ofFn.mp digitMember with ⟨index, rfl⟩
-      rw [digitConstraint_eval]
-      rw [congrFun digitPreserved index, signValue,
-        congrFun exactDigits index]
+      rw [digitConstraint_eval, signValue, congrFun exactDigits index]
       rcases honest.constraint.2 index with inactive | active
       · rw [inactive]
         exact zero_mul _
       · rw [active, sub_self]
         exact mul_zero _
-    · have exactRecomposition := List.mem_singleton.mp recompositionMember
-      subst expression
-      rw [recompositionConstraint_eval, digitPreserved, parentPreserved,
+    · rw [List.mem_singleton.mp recompositionMember, recompositionConstraint_eval,
         accepted.recomposition, sub_self]
 
 theorem completeness
@@ -606,12 +552,18 @@ theorem completeness
     ∃ completed,
       AgreesOutside env completed offset
         (localLength (operations interface offset)) ∧
-      holdsFlat completed (operations interface offset) := by
-  refine ⟨completeEnv interface env offset, ?_,
-    completeEnv_holdsFlat interface env offset assumptions specification⟩
-  rw [localLength_eq]
-  simpa [completeEnv, exactPrivateCount] using
-    executeHints_agreesOutside env offset [signHint interface offset]
+      holdsFlat completed (operations interface offset) :=
+  Witness.complete (ordered interface offset env assumptions) fun completed below computed =>
+    computed_holdsFlat interface completed offset
+      (by
+        have parent : parentValue interface offset completed = parentValue interface offset env :=
+          Expr.eval_eq_of_agree_below _ offset _ _ assumptions.1 below
+        have digits : digitValues interface offset completed = digitValues interface offset env :=
+          funext fun index => Expr.eval_eq_of_agree_below _ offset _ _ (assumptions.2 index) below
+        unfold SpecHolds
+        rw [parent, digits]
+        exact specification)
+      computed
 
 def circuit (interface : Interface) : FormalCircuit :=
   { main := main interface

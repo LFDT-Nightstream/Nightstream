@@ -1,4 +1,5 @@
 import NightstreamFPrime.Circuit.Execution
+import NightstreamFPrime.Export.Generic.MarkedBlocks
 import NightstreamFPrime.Export.Generic.RelationCompleteness
 
 /-! The native fills of a step package's witness program (`StepPackage.nativeRanges`,
@@ -6,7 +7,9 @@ import NightstreamFPrime.Export.Generic.RelationCompleteness
 its lanes (`fillBlock`) and the outputs of a ring piece with the prior plus the challenge times
 the value (`fillRing`), in place of the circuit's batches of the range. When the piece's rows
 hold after those batches, the fill gives their values off the block's dead locals
-(`agreeOff_block`, `agreeOff_ring`). -/
+(`agreeOff_block`, `agreeOff_ring`). A batch whose rows are the windows of its marks executes as
+the marks' batches (`execute_marks`), so the fills of the marks' blocks give its values
+(`agreeOff_batch`). -/
 
 set_option autoImplicit false
 
@@ -20,6 +23,7 @@ open NightstreamFPrime.Export.Generic.Frame
 open NightstreamFPrime.Export.Generic.PieceRows
 open NightstreamFPrime.Export.Generic.PieceRowsCompleteness
 open NightstreamFPrime.Export.Generic.RelationCompleteness
+open NightstreamFPrime.Export.Generic.MarkedBlocks
 open NightstreamFPrime.Gadgets.Poseidon2
 
 def fillBlock (block : Block) (env : Env) : Env := fun column =>
@@ -78,6 +82,92 @@ theorem agreeOff_block {dead : Nat → Prop} {block : Block} (linear : LinearLan
     rw [dite_eq_left ⟨output, upper⟩, ← value]
     exact congrArg (Witness.execute left inner)
       (by omega : column = block.start + 1080 + (column - (block.start + 1080)))
+
+/-! ### Marked permutations (SPEC.md section 4.4) -/
+
+def markBatch (mark : PermutationMark) : WitnessBatch :=
+  .arithmetic mark.start
+    (Permutation.compile mark.start (Permutation.laneState mark.lanes) Permutation.schedule).recipes
+
+def fillMarks (marks : List PermutationMark) (env : Env) : Env :=
+  marks.foldl (fun filled mark => fillBlock (blockOf mark) filled) env
+
+theorem markBatch_finish (mark : PermutationMark) :
+    (markBatch mark).finish = mark.start + 1096 := by
+  simp only [WitnessBatch.finish, markBatch, WitnessBatch.arithmetic_start,
+    WitnessBatch.arithmetic_outputLength, Permutation.compile_schedule_recipe_count]
+
+theorem markBatch_ordered {mark : PermutationMark}
+    (below : ∀ lane ∈ mark.lanes, lane.VarsBelow mark.start) :
+    Witness.Ordered mark.start [markBatch mark] (mark.start + 1096) := by
+  refine ⟨le_rfl, ⟨Permutation.compile_schedule_causal _ _ fun lane => ?_, trivial⟩,
+    (markBatch_finish mark).le⟩
+  unfold Permutation.laneState
+  by_cases inside : lane.val < mark.lanes.length
+  · rw [List.getD_eq_getElem _ _ inside]
+    exact below _ (List.getElem_mem inside)
+  · rw [List.getD_eq_default _ _ (by omega)]
+    trivial
+
+theorem agreeOff_mark {dead : Nat → Prop} {mark : PermutationMark}
+    (lanes : mark.Lanes fun column => ¬dead column)
+    (inner : ∀ column, mark.Inner column → dead column) {left right : Env}
+    (agree : AgreeOff dead left right) :
+    AgreeOff dead (Witness.execute left [markBatch mark]) (fillBlock (blockOf mark) right) := by
+  have below : ∀ lane ∈ mark.lanes, lane.VarsBelow mark.start := fun lane member =>
+    (Expr.varsSatisfy_lt_iff_varsBelow lane mark.start).mp
+      ((lanes.reads lane member).mono lane fun _ inside => inside.1)
+  have ordered := markBatch_ordered below
+  refine agreeOff_block (block := blockOf mark)
+    (List.all_eq_true.mpr fun lane member => linear_of_affine (lanes.affine lane member))
+    ordered
+    (fun column isDead => by
+      simp only [Block.dead, blockOf, Bool.and_eq_true] at isDead
+      exact inner column ⟨of_decide_eq_true isDead.1, of_decide_eq_true isDead.2⟩)
+    below (fun lane member => (lanes.reads lane member).mono lane fun _ inside => inside.2)
+    ?_ agree
+  show ConstraintsHold _ (window (PilotData.canonicalConstraints ()) mark)
+  rw [PermutationWindow.window_eq_markWindow]
+  exact (Witness.execute_computed ordered left (markBatch mark) (List.mem_singleton.mpr rfl)).1
+
+theorem agreeOff_marks {dead : Nat → Prop} (marks : List PermutationMark)
+    (lanes : ∀ mark ∈ marks, mark.Lanes fun column => ¬dead column)
+    (inner : ∀ mark ∈ marks, ∀ column, mark.Inner column → dead column) {left right : Env}
+    (agree : AgreeOff dead left right) :
+    AgreeOff dead (Witness.execute left (marks.map markBatch)) (fillMarks marks right) := by
+  induction marks generalizing left right with
+  | nil => exact agree
+  | cons mark rest ih =>
+      have head := agreeOff_mark (lanes mark List.mem_cons_self) (inner mark List.mem_cons_self)
+        agree
+      rw [List.map_cons, ← List.singleton_append, Witness.execute_append]
+      exact ih (fun later member => lanes later (List.mem_cons_of_mem _ member))
+        (fun later member => inner later (List.mem_cons_of_mem _ member)) head
+
+theorem execute_marks {start : Nat} {recipes : List Expr} {marks : List PermutationMark}
+    (rows : recipeConstraints start recipes = marks.flatMap Permutation.markWindow) (env : Env) :
+    Witness.execute env [WitnessBatch.arithmetic start recipes] =
+      Witness.execute env (marks.map markBatch) := by
+  refine Witness.execute_of_rows (marks.map markBatch) env start recipes ?_ ?_
+  · intro batch member
+    obtain ⟨mark, _, rfl⟩ := List.mem_map.mp member
+    exact ⟨rfl, List.ne_nil_of_length_pos (Nat.lt_of_lt_of_eq (by decide : 0 < 1096)
+      (Permutation.compile_schedule_recipe_count _ _).symm)⟩
+  · rw [rows, List.flatMap_map]
+    rfl
+
+/-- The Poseidon2 gadgets place such a batch (`Permutation.markWindow_markOf`,
+`Hash.compile_windows`, `Duplex.Formal.compile_windows`). -/
+theorem agreeOff_batch {dead : Nat → Prop} {start : Nat} {recipes : List Expr}
+    {marks : List PermutationMark}
+    (rows : recipeConstraints start recipes = marks.flatMap Permutation.markWindow)
+    (lanes : ∀ mark ∈ marks, mark.Lanes fun column => ¬dead column)
+    (inner : ∀ mark ∈ marks, ∀ column, mark.Inner column → dead column) {left right : Env}
+    (agree : AgreeOff dead left right) :
+    AgreeOff dead (Witness.execute left [WitnessBatch.arithmetic start recipes])
+      (fillMarks marks right) := by
+  rw [execute_marks rows]
+  exact agreeOff_marks marks lanes inner agree
 
 theorem agreeOff_ring {dead : Nat → Prop} (canonical : List Expr) {cells start : Nat}
     {lanes : List Expr} {inner : List WitnessBatch}

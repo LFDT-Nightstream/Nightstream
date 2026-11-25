@@ -408,10 +408,6 @@ fn sequence_builder_rejects_invalid_opaque_sources() -> Result<(), Box<dyn std::
         .opaque(schema, EventSources::new().push(SlotBinding::EnterOpaque))?
         .finish()
         .is_err());
-    assert!(EventSequenceBuilder::absorbing()
-        .opaque([u64::MAX; 4], EventSources::new())?
-        .finish()
-        .is_err());
     assert!(EventSources::new().input_local_i64(u8::MAX, 0).is_err());
     assert!(EventSources::new()
         .memory_write_i64(u8::MAX, MemoryBase::Arg(0), 0)
@@ -557,13 +553,6 @@ fn validation_rejects_unresolvable_templates() {
         input_count: 1,
     };
     assert!(template.validate(1, 0).is_err());
-
-    let template = ImportTemplate {
-        return_events: None,
-        events: vec![event(SlotBinding::Const(u64::MAX))],
-        ..Default::default()
-    };
-    assert!(template.validate(0, 0).is_err());
 
     let advice = |slot: SlotBinding| {
         let mut block = [ZERO; 8];

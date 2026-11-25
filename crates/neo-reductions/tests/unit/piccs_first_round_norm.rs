@@ -306,3 +306,90 @@ fn source_capture_rejects_malformed_records_even_outside_the_range() {
     assert!(field([F::ORDER_U64, 0]).is_err());
     assert!(field([0, F::ORDER_U64]).is_err());
 }
+
+#[test]
+fn packed_refresh_norm_matches_mixed_storage_through_all_binds() {
+    compare_packed_oracle::<{ 1 << 16 }>(1, 3);
+    compare_packed_oracle::<{ 1 << 19 }>(5, 6);
+}
+
+fn compare_packed_oracle<const WIDTH: usize>(fresh_count: usize, packed_rounds: usize) {
+    use super::{Challenges, JointDims, OptimizedPaperJointOracle, PaperJointRoundOracle};
+    use crate::superneo_eval::{CachedMatrixRows, SuperneoEvalCacheBuilder};
+    use neo_ccs::{
+        poly::{SparsePoly, Term},
+        CcsStructure, CcsWitness,
+    };
+
+    let columns = WIDTH / D;
+    let mut builder = SuperneoEvalCacheBuilder::new(1, WIDTH, 1).unwrap();
+    builder.push_row(0, 0, [(0, F::ONE)]).unwrap();
+    let cache = builder.finish().unwrap();
+    let relation = CachedMatrixRows::new(&cache).unwrap();
+    let gate = SparsePoly::new(
+        1,
+        vec![Term {
+            coeff: F::ONE,
+            exps: vec![1],
+        }],
+    );
+    let structure = CcsStructure::new_verifier_artifact_header(1, WIDTH, 1, gate).unwrap();
+    let dims = JointDims {
+        assignment_width: WIDTH,
+        row_count: WIDTH,
+        variables: WIDTH.ilog2() as usize,
+        matrix_count: 1,
+        degree: 4,
+    };
+    let gamma = K::from_coeffs([F::from_u64(3), F::from_u64(5)]);
+    let alpha = (0..dims.variables)
+        .map(|i| gamma + K::from_usize(i))
+        .collect();
+    let challenges = Challenges::new(alpha, gamma);
+    let params = neo_params::NeoParams::nightstream_p64_k14();
+
+    let large = Mat::compact_signed_unit_from_column_masks(D, columns, &vec![1 << (D - 1); columns], &vec![1; columns])
+        .unwrap();
+    let mut positive = vec![0; columns];
+    positive[0] = 0b1011;
+    let short = Mat::compact_signed_unit_from_column_masks(D, columns, &positive, &vec![0; columns]).unwrap();
+    let mut dense = Mat::zero(D, columns, F::ZERO);
+    for row in [0, 1, 3] {
+        dense[(row, 0)] = F::ONE;
+    }
+    let fresh = vec![CcsWitness { Z: large }; fresh_count];
+    let empty = Mat::virtual_constant(D, columns, F::ZERO);
+    let packed = [empty.clone(), short];
+    let mixed = [empty, dense];
+    let prior = vec![gamma; dims.variables];
+    let make_oracle = |running| {
+        OptimizedPaperJointOracle::new(
+            &structure,
+            &params,
+            &fresh,
+            running,
+            challenges.clone(),
+            Some(&prior),
+            dims,
+            &relation,
+            16 << 20,
+            fresh_count + packed.len(),
+        )
+        .unwrap()
+    };
+    let mut fast = make_oracle(&packed);
+    let mut reference = make_oracle(&mixed);
+    assert!(reference.packed_norm.is_none());
+    let points = [K::ZERO, K::ONE, gamma, gamma + K::ONE, -gamma];
+    for round in 0..dims.variables {
+        assert_eq!(fast.packed_norm.is_some(), round < packed_rounds, "round {round}");
+        assert_eq!(
+            fast.evals_at(&points).unwrap(),
+            reference.evals_at(&points).unwrap(),
+            "round {round}"
+        );
+        let challenge = gamma + K::from_usize(2 * round + 1);
+        fast.fold(challenge).unwrap();
+        reference.fold(challenge).unwrap();
+    }
+}

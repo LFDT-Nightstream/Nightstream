@@ -321,7 +321,7 @@ def WalkCollision (visit : Visit logicalWidth publicFits) : Prop :=
 open Classical in
 /-- The output of the Poseidon2 collision finder at a visit: none at a bottom visit. At a
 recursive visit, the pair that `collisionInputs` gives for the two states of
-`TerminalBridge.Collision`, else, for a light step, its next state's words and the terminal's
+`TerminalBridge.Collision`, else its next state's words and the terminal's
 state preimage when they collide (`WordCollision`). -/
 noncomputable def visitCollision (visit : Visit logicalWidth publicFits) :
     Option PoseidonCollision :=
@@ -333,9 +333,8 @@ noncomputable def visitCollision (visit : Visit logicalWidth publicFits) :
           ((Lifecycle.BoundedDepth.setup productionLightFoldCap ajtai
             (exports.last payload).keys).forCircuit (circuitOf payload.pc))
           (exports.last payload).input (exports.last payload).output)) terminal).or
-        (if words : circuitOf payload.pc = 0 ∧
-            WordCollision (exports.lightNextWords payload) (statePreimage terminal) then
-          some ⟨(exports.lightNextWords payload, statePreimage terminal), words.2⟩
+        (if words : WordCollision (exports.nextWords payload) (statePreimage terminal) then
+          some ⟨(exports.nextWords payload, statePreimage terminal), words⟩
         else none)
 
 /-- A collision at a visit gives an output of the finder. -/
@@ -381,29 +380,27 @@ theorem decode_shaped (circuit : Fin 2)
       lightInput_depth exports.program running _,
       DigestSelect.nextSlots_depth _ _ _ _ (lightInput_depth exports.program running _)
         (Fin.isLt _)⟩
-  · have represents := refreshRepresents exports.program relation ajtai circuitKeys 1
-      (refreshEnv exports.program relation ajtai exports.refreshFresh exports.refreshLayout
-        (Layout.ProductionRelation.Plan.logicalAssignment witness))
-    exact ⟨represents.iterationBound, represents.priorPcBound, by simp [refreshInput],
-      by simp [refreshInput], represents.priorDepth,
-      DigestSelect.nextSlots_depth _ _ _ _ represents.priorDepth (Fin.isLt _)⟩
+  · exact ⟨Fin.isLt _, Fin.isLt _, by simp [refreshInput], by simp [refreshInput],
+      refreshInput_depth exports.program running _,
+      DigestSelect.nextSlots_depth _ _ _ _ (refreshInput_depth exports.program running _)
+        (Fin.isLt _)⟩
 
-theorem initial_relaxed (control : AppState → AppWitness → Fin 2) (cap : Nat)
+theorem initial_relaxed (control : AppState → AppWitness → Fin 2)
     (output : TerminalStatement AppState ×
       Terminal.ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (accepted : Terminal.HoldsFor cap ajtai circuitKeys step control output.1 output.2) :
+    (accepted : Terminal.HoldsFor ajtai circuitKeys step control output.1 output.2) :
     Relaxed ajtai circuitKeys (initial output) := by
   obtain ⟨statement, proof⟩ := output
   cases proof with
   | bottom =>
       obtain ⟨_, zero, same⟩ :=
-        (Terminal.holdsFor_bottom_iff cap ajtai circuitKeys step control statement).1 accepted
+        (Terminal.holdsFor_bottom_iff ajtai circuitKeys step control statement).1 accepted
       exact ⟨zero, same⟩
   | recursive payload =>
       obtain ⟨_, _, _, _, running, _⟩ :=
-        (Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step control statement payload).1
+        (Terminal.holdsFor_recursive_iff ajtai circuitKeys step control statement payload).1
           accepted
-      exact ⟨linked_of_holdsFor control cap statement payload accepted,
+      exact ⟨linked_of_holdsFor control statement payload accepted,
         fun slot => (claimHolds_bigB ajtai _ _ _).2 (running slot), fun _ => Or.inl le_rfl⟩
 
 /-- One step of the walk at a relaxed recursive visit without a collision: the decoded last
@@ -599,12 +596,12 @@ theorem walk_leads (keysShaped : ∀ key, (circuitKeys key).digest.length = 4) :
 first `iteration` visits, a collision or a stage whose attempt succeeds and whose answer does not
 extract. -/
 theorem covered (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
-    (control : AppState → AppWitness → Fin 2) (cap : Nat)
+    (control : AppState → AppWitness → Fin 2)
     (output : TerminalStatement AppState ×
       Terminal.ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits))
     (answers : List (Answer logicalWidth publicFits))
     (depthBound : output.1.iteration ≤ answers.length)
-    (accepted : Terminal.HoldsFor cap ajtai circuitKeys step control output.1 output.2)
+    (accepted : Terminal.HoldsFor ajtai circuitKeys step control output.1 output.2)
     (unled : ¬ Leads exports.program output.1
       (trail ajtai circuitKeys exports (initial output) answers)) :
     ∃ j < answers.length,
@@ -614,7 +611,7 @@ theorem covered (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
           (WalkSucceeds ajtai) (WalkExtracted ajtai) (initial output) answers j := by
   refine Classical.byContradiction fun none => unled ?_
   exact walk_leads ajtai circuitKeys exports keysShaped answers (initial output)
-    (initial_relaxed ajtai circuitKeys control cap output accepted) depthBound
+    (initial_relaxed ajtai circuitKeys control output accepted) depthBound
     fun j inside => not_or.mp fun found => none ⟨j, inside, found⟩
 
 end Walk

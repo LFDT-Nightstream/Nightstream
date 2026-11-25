@@ -35,6 +35,27 @@ pub struct FinalProof {
     carry: Carry,
 }
 
+impl FinalProof {
+    /// The carry words as little-endian words, then
+    /// `crate::FinalProof::to_bytes`, for `FinalProof::from_bytes`.
+    pub fn to_bytes(&self) -> Result<Vec<u8>, crate::Error> {
+        let mut bytes = carry_bytes(&self.carry);
+        bytes.extend(self.stage1.to_bytes()?);
+        Ok(bytes)
+    }
+
+    /// Decode untrusted bytes: the canonical carry words, then
+    /// `crate::FinalProof::from_bytes`. Acceptance still needs
+    /// `Verifier::verify_final`.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, crate::Error> {
+        let (carry, rest) = decode_carry(bytes)?;
+        Ok(Self {
+            stage1: crate::FinalProof::from_bytes(rest)?,
+            carry,
+        })
+    }
+}
+
 /// What a verified memory proof shows beyond its two states.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Verified {
@@ -106,6 +127,11 @@ impl<A: Application + Clone> Prover<A> {
         ))
     }
 
+    /// Borrow the application that passed circuit validation.
+    pub fn application(&self) -> &A {
+        &self.app
+    }
+
     /// Start a run of `program` from `initial`.
     pub fn start(&self, program: &Program, initial: A::State) -> Result<Proving<'_, A>, ProveError> {
         if program.geometry != self.geometry {
@@ -125,6 +151,11 @@ impl<A: Application + Clone> Prover<A> {
         let mut bytes = carry_bytes(&proof.carry);
         bytes.extend(self.stage1.encode_proof(&proof.stage1)?);
         Ok(bytes)
+    }
+
+    /// Retain the expanded folding key (`crate::Prover::prepare_folding_key`).
+    pub fn prepare_folding_key(&mut self, max_bytes: usize) -> bool {
+        self.stage1.prepare_folding_key(max_bytes)
     }
 
     /// The prover's key of the compression (`crate::Prover::compression_setup`).
@@ -167,7 +198,7 @@ impl<A: Application + Clone> Proving<'_, A> {
             self.last = Some(
                 self.prover
                     .stage1
-                    .extend_invocation(&previous, &invocation.words, invocation.output)?,
+                    .extend_invocation(previous, &invocation.words, invocation.output)?,
             );
         }
         self.failed = false;

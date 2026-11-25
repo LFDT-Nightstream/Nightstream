@@ -120,15 +120,16 @@ fn dense_rows(package: &StepPackage) -> [u64; 4] {
             })
         })
         .collect();
-    let (offsets, columns, coefficients) = (rows.offsets(), rows.columns(), rows.coefficients());
     let mut total = Fq::ZERO;
-    for unit in 0..offsets.len() - 1 {
-        let port = (offsets[unit]..offsets[unit + 1]).fold(Fq::ZERO, |sum, index| {
-            let weight = column_weight
-                .get(columns[index] as usize)
-                .expect("each entry reads a source column with a span");
-            sum + coefficients[index] * *weight
-        });
+    for unit in 0..4 * rows.row_count() {
+        let port = rows
+            .port(unit / 4, unit % 4)
+            .fold(Fq::ZERO, |sum, (column, coefficient)| {
+                let weight = column_weight
+                    .get(column)
+                    .expect("each entry reads a source column with a span");
+                sum + coefficient * *weight
+            });
         total += mix(unit as u64, 1) * port;
     }
     let ordinary = rows.ordinary_row_count();
@@ -297,6 +298,10 @@ fn fresh_columns_satisfy_the_rows_that_define_them() {
         let columns = package
             .relation_columns(columns, rows)
             .expect("relation columns");
+        let direct = expanded
+            .assignment_columns(&shared_columns(summary), None)
+            .unwrap();
+        assert_eq!(columns, direct, "all fresh columns of circuit {}", package.circuit());
         let defining = rows.ring_rows().iter().cloned().chain([rows.sbox_rows()]);
         for row in defining.flatten() {
             assert_eq!(

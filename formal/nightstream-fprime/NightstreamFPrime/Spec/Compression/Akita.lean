@@ -77,10 +77,10 @@ end Extractor
 its schedule file, the profile `(λ_FS, Q_max)`, the worst-case count of honest `H_FS` queries,
 `ε_int` (Akita (194)), `N_setup` (Akita (34)), the draw width `w` of the setup expansion
 (Akita (36)), and the count of Module-SIS instances `I(sch)`. A schedule file holds none of these
-numbers. `rootBatching`, `compatible`, `extraction` and `msisFloor` are the conditions of Akita
-Section 9.3 that the file does not decide: the root batching conditions of I1; C1, C2 and C4 to
-C6; E1 to E3; and S1. They read the challenge families, the samplers, the setup registry and the
-Module-SIS instances, which Lean does not model. -/
+numbers. `rootBatching`, `compatible`, `chainCompatibility`, `extraction` and `msisFloor` are
+conditions of Akita Section 9.3 that the file does not decide: the root batching conditions of I1;
+C1, C2 and C4 to C6; the rest of C3; E1 to E3; and S1. For the rest of C3, Akita Section 5.1
+requires the successor commitment and the ordered witness segments to match at each edge. -/
 structure Schedule where
   row : Row
   lambdaFS : ℕ
@@ -92,6 +92,7 @@ structure Schedule where
   instances : ℕ
   rootBatching : Prop
   compatible : Prop
+  chainCompatibility : Prop
   extraction : Prop
   msisFloor : Prop
 
@@ -100,10 +101,10 @@ namespace Schedule
 variable (sch : Schedule)
 
 /-- The conditions of Akita Definition 9.2 that the schedule file does not decide: those of
-`rootBatching`, `compatible`, `extraction` and `msisFloor`, S2 (at most `Q_max` honest queries)
-and S3 (the budget of Akita (195)). -/
+`rootBatching`, `compatible`, `chainCompatibility`, `extraction` and `msisFloor`, S2 (at most
+`Q_max` honest queries) and S3 (the budget of Akita (195)). -/
 def Rest : Prop :=
-  sch.rootBatching ∧ sch.compatible ∧ sch.extraction ∧ sch.msisFloor ∧
+  sch.rootBatching ∧ sch.compatible ∧ sch.chainCompatibility ∧ sch.extraction ∧ sch.msisFloor ∧
     sch.honestQueries ≤ sch.queryMax ∧
     (sch.queryMax + 1 : ℝ) * sch.interactiveError ≤ 1 / 2 ^ sch.lambdaFS
 
@@ -128,9 +129,9 @@ end Schedule
 
 /-- The one Akita opening of a final proof: a batch of `claims` claims under `schedule` and
 `params`, whose claim `key` is on the commitment `keyCommitment` of the compression key, with the
-key polynomial `keyTable`; the admitted provers and the efficient extractors; and two error terms
-for each prover, `Adv_I(B_I)` of Theorem 10.46 (`advantage`) and the binding error
-(`bindingError`). -/
+key polynomial `keyTable`; the admitted provers and extractors of expected polynomial time; and
+two error terms for each prover, the Module-SIS advantages `Adv_I(B_I)` in the assumed extraction
+bound (`advantage`) and the binding error (`bindingError`). -/
 structure Use where
   scheme : Pcs
   claims : ℕ

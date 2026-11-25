@@ -88,8 +88,8 @@ fn state_machine_public_step_builders_do_not_panic_on_bad_inputs() {
             base: neo_wasm::ir::WasmHostEventMemoryBase::Argument,
             width: neo_wasm::WasmHostEventMemoryWidth::Byte,
         },
-        immediate0: 0,
-        immediate1: 0,
+        payload: 0,
+        type_or_input: 0,
         advice: false,
     });
     subword.linear_memory = Some(neo_wasm::LinearMemoryAccess {

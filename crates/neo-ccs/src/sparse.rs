@@ -5,6 +5,93 @@ use p3_field::{Field, PrimeCharacteristicRing};
 use rayon::prelude::*;
 use std::collections::BTreeMap;
 
+#[derive(Clone, Copy)]
+pub struct SharedPort {
+    pub slot_start: u32,
+    pub coefficient_start: u32,
+    pub len: u32,
+}
+
+#[derive(Clone, Copy)]
+pub enum FactoredPorts<'a> {
+    Offsets(&'a [usize]),
+    Shared {
+        ports: &'a [SharedPort],
+        entries: usize,
+    },
+}
+
+#[derive(Clone, Copy)]
+pub struct FactoredEntries<'a> {
+    pub ports: FactoredPorts<'a>,
+    pub slots: &'a [u32],
+    pub coefficients: &'a [neo_math::F],
+}
+
+impl<'a> FactoredEntries<'a> {
+    pub fn entry_count(&self) -> usize {
+        match self.ports {
+            FactoredPorts::Offsets(_) => self.slots.len(),
+            FactoredPorts::Shared { entries, .. } => entries,
+        }
+    }
+
+    #[inline]
+    pub fn port_len(&self, port: usize) -> usize {
+        match self.ports {
+            FactoredPorts::Offsets(offsets) => offsets[port + 1] - offsets[port],
+            FactoredPorts::Shared { ports, .. } => ports[port].len as usize,
+        }
+    }
+
+    pub fn valid(&self, count: usize) -> bool {
+        match self.ports {
+            FactoredPorts::Offsets(offsets) => {
+                offsets.len().checked_sub(1) == Some(count)
+                    && offsets.first() == Some(&0)
+                    && offsets.last() == Some(&self.slots.len())
+                    && self.slots.len() == self.coefficients.len()
+                    && offsets.windows(2).all(|pair| pair[0] <= pair[1])
+            }
+            FactoredPorts::Shared { ports, entries } => {
+                ports.len() == count
+                    && ports.iter().try_fold(0usize, |total, p| {
+                        let len = p.len as usize;
+                        if len > self.slots.len().checked_sub(p.slot_start as usize)?
+                            || len
+                                > self
+                                    .coefficients
+                                    .len()
+                                    .checked_sub(p.coefficient_start as usize)?
+                        {
+                            return None;
+                        }
+                        total.checked_add(len)
+                    }) == Some(entries)
+            }
+        }
+    }
+
+    #[inline]
+    pub fn port(&self, port: usize) -> (&'a [u32], &'a [neo_math::F]) {
+        match self.ports {
+            FactoredPorts::Offsets(offsets) => {
+                let range = offsets[port]..offsets[port + 1];
+                (&self.slots[range.clone()], &self.coefficients[range])
+            }
+            FactoredPorts::Shared { ports, .. } => {
+                let p = ports[port];
+                let a = p.slot_start as usize;
+                let b = p.coefficient_start as usize;
+                (
+                    &self.slots[a..a + p.len as usize],
+                    &self.coefficients[b..b + p.len as usize],
+                )
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CscMat<Ff> {
     nrows: usize,

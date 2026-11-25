@@ -62,12 +62,9 @@ def StepRepresents (program : Stage1.Application.Program)
       (RefreshAssembler.interface base program.witnessWordCount) ajtai circuitKeys circuit input
       output proof env) ∧
     output.runningNext = DigestSelect.nextSlots input.iteration input.running
-      (DigestSelect.selected (RefreshStepLayout.selectInterface program
-          (RefreshAssembler.interface (logicalWidth := logicalWidth) (publicFits := publicFits) base
-            program.witnessWordCount))
-        (RefreshStepLayout.selectOffset program relation circuit
-          (RefreshAssembler.interface base program.witnessWordCount)
-          (RefreshAssembler.sharedEnd base program.witnessWordCount)) env)
+      (RefreshStepLayout.selectedSlot program
+        (RefreshAssembler.interface (logicalWidth := logicalWidth) (publicFits := publicFits) base
+          program.witnessWordCount) env)
       ((RefreshStepLayout.newSlot program relation circuit
         (RefreshAssembler.interface base program.witnessWordCount)
         (RefreshAssembler.sharedEnd base program.witnessWordCount)).value env)

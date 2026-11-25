@@ -195,6 +195,19 @@ where
         );
     }
 
+    if let Some(witness) = light_popcount_mix(rhos, Zs) {
+        return witness;
+    }
+    if let Some(witness) = packed_popcount_mix(rhos, Zs, z_cols) {
+        return witness;
+    }
+    mix_validated(rhos, Zs, z_cols)
+}
+
+fn mix_validated<Ff>(rhos: &[Mat<Ff>], Zs: &[&Mat<Ff>], z_cols: usize) -> Mat<Ff>
+where
+    Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
+{
     let mut Z = Mat::zero(D, z_cols, Ff::ZERO);
     for (rho, z_in) in rhos.iter().zip(Zs.iter()) {
         if mat_is_zero(z_in) {
@@ -204,6 +217,145 @@ where
     }
     Z
 }
+
+const MAX_PACKED_SOURCES: usize = 32;
+const _: () = assert!(D == u64::BITS as usize && MAX_PACKED_SOURCES * 2 * D <= i16::MAX as usize);
+
+#[derive(Clone, Copy, Default)]
+struct CoefficientMasks {
+    negative: u64,
+    units: u64,
+    doubles: u64,
+}
+
+impl CoefficientMasks {
+    fn rows<Ff: PrimeField64>(rho: &Mat<Ff>) -> Option<[Self; D]> {
+        if rho.rows() != D || rho.cols() != D || rho.is_packed_signed_unit() || rho.is_virtual_constant() {
+            return None;
+        }
+        let mut rows = [Self::default(); D];
+        for (row, masks) in rho.as_slice().chunks_exact(D).zip(&mut rows) {
+            for (lane, coefficient) in row.iter().enumerate() {
+                let canonical = coefficient.as_canonical_u64();
+                let complement = Ff::ORDER_U64 - canonical;
+                let bit = 1u64 << lane;
+                match canonical.min(complement) {
+                    0 => continue,
+                    1 => masks.units |= bit,
+                    2 => masks.doubles |= bit,
+                    _ => return None,
+                }
+                if complement < canonical {
+                    masks.negative |= bit;
+                }
+            }
+        }
+        Some(rows)
+    }
+
+    fn dot(self, positive: u64, negative: u64) -> i16 {
+        let occupied = positive | negative;
+        let flipped = self.negative ^ negative;
+        let count_signed = |mask: u64| mask.count_ones() as i16 - 2 * (mask & flipped).count_ones() as i16;
+        count_signed(occupied & self.units) + 2 * count_signed(occupied & self.doubles)
+    }
+}
+
+fn packed_popcount_mix<Ff: PrimeField64>(rhos: &[Mat<Ff>], witnesses: &[&Mat<Ff>], columns: usize) -> Option<Mat<Ff>> {
+    if columns == 0 || !(3..=MAX_PACKED_SOURCES).contains(&rhos.len()) {
+        return None;
+    }
+    let mut sources = Vec::new();
+    for (rho, witness) in rhos.iter().zip(witnesses) {
+        if witness.virtual_constant_value() == Some(&Ff::ZERO) {
+            continue;
+        }
+        let (positive, negative) = witness.packed_signed_unit_column_masks()?;
+        sources.push((positive, negative, CoefficientMasks::rows(rho)?));
+    }
+
+    let mut out = Mat::zero(D, columns, Ff::ZERO);
+    let mix_row = |(row, output): (usize, &mut [Ff])| {
+        const TILE: usize = 256;
+        for (tile, chunk) in output.chunks_mut(TILE).enumerate() {
+            let mut sums = [0i16; TILE];
+            let start = tile * TILE;
+            for (positive, negative, coefficients) in &sources {
+                let masks = coefficients[row];
+                for ((sum, &pos), &neg) in sums[..chunk.len()]
+                    .iter_mut()
+                    .zip(&positive[start..])
+                    .zip(&negative[start..])
+                {
+                    *sum += masks.dot(pos, neg);
+                }
+            }
+            for (value, sum) in chunk.iter_mut().zip(sums) {
+                *value = Ff::from_i32(i32::from(sum));
+            }
+        }
+    };
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    out.as_mut_slice()
+        .par_chunks_exact_mut(columns)
+        .enumerate()
+        .for_each(mix_row);
+    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+    out.as_mut_slice()
+        .chunks_exact_mut(columns)
+        .enumerate()
+        .for_each(mix_row);
+    Some(out)
+}
+
+fn light_popcount_mix<Ff>(rhos: &[Mat<Ff>], witnesses: &[&Mat<Ff>]) -> Option<Mat<Ff>>
+where
+    Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
+{
+    let ([rho, weight], [fresh, running]) = (rhos, witnesses) else {
+        return None;
+    };
+    let columns = fresh.cols();
+    if columns == 0 || weight.rows() != D || !weight.is_identity() {
+        return None;
+    }
+    if running.is_packed_signed_unit() {
+        return None;
+    }
+    let (positive, negative) = fresh.packed_signed_unit_column_masks()?;
+    let coefficients = CoefficientMasks::rows(rho)?;
+    let mut out = Mat::zero(D, columns, Ff::ZERO);
+    let constant = running.virtual_constant_value().copied();
+    let previous = if constant.is_none() { running.as_slice() } else { &[] };
+    let add = |row: usize, output: &mut [Ff]| {
+        let masks = coefficients[row];
+        let prior = if constant.is_none() {
+            &previous[row * columns..(row + 1) * columns]
+        } else {
+            &[]
+        };
+        for (column, entry) in output.iter_mut().enumerate() {
+            let sum = masks.dot(positive[column], negative[column]);
+            *entry = constant.unwrap_or_else(|| prior[column]) + Ff::from_i32(i32::from(sum));
+        }
+    };
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    if rayon::current_num_threads() > 1 {
+        out.as_mut_slice()
+            .par_chunks_exact_mut(columns)
+            .enumerate()
+            .for_each(|(row, output)| add(row, output));
+        return Some(out);
+    }
+    for (row, output) in out.as_mut_slice().chunks_exact_mut(columns).enumerate() {
+        add(row, output);
+    }
+    Some(out)
+}
+
+#[cfg(test)]
+#[path = "../../../tests/unit/rlc_popcount.rs"]
+mod popcount_tests;
 
 pub fn rlc_combine_claims<Ff>(
     s: &CcsStructure<Ff>,

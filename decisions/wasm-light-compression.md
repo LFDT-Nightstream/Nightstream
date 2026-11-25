@@ -59,8 +59,11 @@ compression of the final proof is a project design
    light circuit, so the Akita key holds the light relation alone. Slot 0
    stays in the argument at depth 0, because the layout needs a claim with
    a table (`Spec.Compression.Rust.layoutNew_light`).
-4. **One proof form for each mode.** A light final proof has the tag
-   `NS-OPTIONB-FIN-L` and carries slot 0 alone. One verifier sees one mode,
+4. **One encoding for each light proof.** A light proof carries slot 0 alone.
+   Select its byte tag from the contents of that slot (SPEC.md section 4.5).
+   Omit the all-zero slot and the four high coefficients of each quadratic first
+   sum-check round. Otherwise pack the public projection into signed bytes
+   when each word fits. The decoder enforces that choice. One verifier sees one mode,
    so the transcript needs no mode word: the sponge calls fix the run among
    the runs of one statement shape
    (`Export.BoundedDepth.CompressionSponge.calls_injective`).

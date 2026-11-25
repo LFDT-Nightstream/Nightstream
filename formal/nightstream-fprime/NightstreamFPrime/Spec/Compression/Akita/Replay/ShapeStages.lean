@@ -109,7 +109,7 @@ theorem skeleton20_stages (ℓ : Fin 6) :
 theorem skeleton30_stages {r : Key30.Row} (member : r ∈ Key30.rows) (ℓ : Fin 7) :
     stagesShape (skeleton (layout30 r 0 0)).zipIdx ℓ (fold30 r ℓ) = true := by
   simp only [Key30.rows, List.mem_cons, List.mem_nil_iff, or_false] at member
-  rcases member with rfl | rfl
+  rcases member.symm with rfl | rfl
   · match ℓ with
     | 0 => exact skeleton30_w27_stages0
     | 1 => exact skeleton30_w27_stages1

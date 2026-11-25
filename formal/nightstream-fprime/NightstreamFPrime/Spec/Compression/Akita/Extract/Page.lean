@@ -7,8 +7,8 @@ revision of 2026-11-23, Figure 4: the messages of the prover), with the conditio
 
 - `Cell` has the data of one message of the checks: `width` elements of `E` and a natural number
   up to `cap`. `Cell.message` reads a message of a type from a cell: the number for the type `ℕ`,
-  `Cell.values` for the type `E × (ℕ → E) × E` of the values of the compression argument
-  (SPEC.md Algorithm 9, step 9), and `unpack` of the elements for each other type.
+  and `unpack` of the elements for each other type. `Cell.sendable_triple` is for the values of
+  the compression argument (SPEC.md Algorithm 9, step 9).
 - `Page` is a wire message: a value of the other data of the proof, and `slots` cells.
   `Page.read` reads message `index` after a draw from cell `index`.
 - `Cell.Sendable` states that a message is the message of a cell. `Page.sends` is the condition
@@ -30,19 +30,11 @@ abbrev Cell (E : Type) (width cap : ℕ) : Type := (Fin width → E) × Fin (cap
 def Cell.entry [Zero E] (cell : Cell E width cap) (index : ℕ) : E :=
   if inside : index < width then cell.1 ⟨index, inside⟩ else 0
 
-/-- The values `(w, column, k)` of a cell: `w` and `k` are the elements 0 and 1, and value `j` of
-`column` is the element `j + 2`. -/
-def Cell.values [Zero E] (cell : Cell E width cap) : E × (ℕ → E) × E :=
-  (cell.entry 0, fun index => cell.entry (index + 2), cell.entry 1)
-
 open Classical in
-/-- The message of the type `M` of a cell: the number of the cell for the natural numbers, the
-values `Cell.values` for the type `E × (ℕ → E) × E`, and `unpack` of its elements for each other
-type. -/
+/-- The message of the type `M` of a cell: the number of the cell for the natural numbers, and
+`unpack` of its elements for each other type. -/
 noncomputable def Cell.message [Zero E] (M : Type) [Nonempty M] (cell : Cell E width cap) : M :=
-  if natural : M = ℕ then cast natural.symm (cell.2 : ℕ)
-  else if triple : M = (E × (ℕ → E) × E) then cast triple.symm cell.values
-  else unpack width E M cell.1
+  if natural : M = ℕ then cast natural.symm (cell.2 : ℕ) else unpack width E M cell.1
 
 variable (E width cap) in
 /-- A message of the checks is the message of a cell. -/
@@ -70,60 +62,24 @@ theorem ne_nat (M : Type) [Finite M] : M ≠ ℕ := by
   rintro rfl
   exact not_finite ℕ
 
-theorem ne_values (E : Type) [Nontrivial E] (M : Type) [Finite M] : M ≠ (E × (ℕ → E) × E) := by
-  rintro rfl
-  exact not_finite (E × (ℕ → E) × E)
-
-open Classical in
-/-- The type of the values is not the type of the natural numbers: the sets of natural numbers
-have an injective map to the values. -/
-theorem values_ne_nat (E : Type) [Nontrivial E] : (E × (ℕ → E) × E) ≠ ℕ := by
-  intro same
-  obtain ⟨a, b, different⟩ := exists_pair_ne E
-  refine Function.cantor_injective
-    (fun members : Set ℕ => cast same (a, (fun n => if n ∈ members then a else b), a))
-    fun left right equal => ?_
-  have columns : (fun n => if n ∈ left then a else b) = fun n => if n ∈ right then a else b :=
-    congrArg (fun values : E × (ℕ → E) × E => values.2.1) ((cast_bijective same).1 equal)
-  ext n
-  have here := congrFun columns n
-  by_cases inLeft : n ∈ left <;> by_cases inRight : n ∈ right <;> simp_all
-
-theorem Cell.sendable_of_onto [Zero E] [Nontrivial E] {M : Type} [Finite M]
+theorem Cell.sendable_of_onto [Zero E] {M : Type} [Finite M]
     (onto : ∃ map : (Fin width → E) → M, Function.Surjective map) (message : M) :
     Cell.Sendable E width cap M message := fun _ => by
   obtain ⟨vector, sent⟩ := unpack_surjective onto message
-  exact ⟨(vector, 0), (dite_eq_right (ne_nat M)).trans ((dite_eq_right (ne_values E M)).trans sent)⟩
+  exact ⟨(vector, 0), (dite_eq_right (ne_nat M)).trans sent⟩
 
-/-- A cell has each value `(w, column, k)` whose column values are 0 from `width − 2`. -/
-theorem Cell.sendable_values [Zero E] [Nontrivial E] (two : 2 ≤ width) {values : E × (ℕ → E) × E}
-    (short : ∀ index, width ≤ index + 2 → values.2.1 index = 0) :
-    Cell.Sendable E width cap (E × (ℕ → E) × E) values := fun _ => by
-  refine ⟨(fun index => if (index : ℕ) = 0 then values.1 else if (index : ℕ) = 1 then values.2.2
-    else values.2.1 (index - 2), 0), (dite_eq_right (values_ne_nat E)).trans
-      ((dite_eq_left rfl).trans ?_)⟩
-  refine Prod.ext ?_ (Prod.ext (funext fun index => ?_) ?_)
-  · show Cell.entry _ 0 = _
-    unfold Cell.entry
-    rw [dite_eq_left (show 0 < width by omega)]
-    rfl
-  · show Cell.entry _ (index + 2) = _
-    unfold Cell.entry
-    by_cases inside : index + 2 < width
-    · rw [dite_eq_left inside]
-      show (if index + 2 = 0 then values.1 else if index + 2 = 1 then values.2.2
-        else values.2.1 (index + 2 - 2)) = _
-      rw [ite_eq_right (by omega), ite_eq_right (by omega), Nat.add_sub_cancel]
-    · rw [dite_eq_right inside]
-      exact (short index (by omega)).symm
-  · show Cell.entry _ 1 = _
-    unfold Cell.entry
-    rw [dite_eq_left (show 1 < width by omega)]
-    rfl
+/-- A cell has each triple of elements of `E`: the values `(w, v, k)` of the compression
+argument. -/
+theorem Cell.sendable_triple [Finite E] [Zero E] (three : 3 ≤ width) (values : E × E × E) :
+    Cell.Sendable E width cap (E × E × E) values :=
+  Cell.sendable_of_onto ⟨fun vector =>
+    (vector ⟨0, by omega⟩, vector ⟨1, by omega⟩, vector ⟨2, by omega⟩), fun value =>
+      ⟨fun index => if (index : ℕ) = 0 then value.1 else if (index : ℕ) = 1 then value.2.1
+        else value.2.2, rfl⟩⟩ values
 
 /-- The messages of the cells satisfy `Sends`: a cell has each element of `E`, each pair, each
 vector of at most `width` elements, and each natural number up to `cap`. -/
-theorem Page.sends [Finite E] [Zero E] [Nontrivial E] (two : 2 ≤ width) :
+theorem Page.sends [Finite E] [Zero E] (two : 2 ≤ width) :
     Sends (Cell.Sendable E width cap) E width cap where
   scalar := Cell.sendable_of_onto ⟨fun vector => vector ⟨0, by omega⟩,
     fun value => ⟨fun _ => value, rfl⟩⟩

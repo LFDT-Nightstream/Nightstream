@@ -199,10 +199,16 @@ private noncomputable def lift (x : Rq d) : ℤ[X] :=
 
 private theorem coeff_lift (x : Rq d) (i : ℕ) : (lift x).coeff i = (coeff x i).valMinAbs := by
   rw [lift, Polynomial.finsetSum_coeff]
-  simp only [Polynomial.coeff_monomial, Finset.sum_ite_eq', Finset.mem_range]
-  split_ifs with small
-  · rfl
+  by_cases small : i < d
+  · rw [Finset.sum_eq_single i]
+    · exact Finsupp.single_eq_same
+    · intro j _ differ
+      exact Finsupp.single_eq_of_ne' differ
+    · intro absent
+      exact absurd (Finset.mem_range.mpr small) absent
   · rw [coeff_eq_zero x (Nat.le_of_not_lt small), ZMod.valMinAbs_zero]
+    exact Finset.sum_eq_zero fun j member =>
+      Finsupp.single_eq_of_ne' fun equal => small (equal ▸ Finset.mem_range.mp member)
 
 private theorem degree_lift_lt (x : Rq d) : (lift x).degree < d :=
   (Polynomial.degree_lt_iff_coeff_zero _ _).mpr fun m large => by

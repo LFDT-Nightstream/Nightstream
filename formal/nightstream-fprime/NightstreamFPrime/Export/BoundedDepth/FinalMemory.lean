@@ -56,8 +56,7 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
     RingCarrierLayout.carrierWidth logicalWidth}
   {mode : Mode} (setup : FinalVerifier.Setup mode logicalWidth publicFits)
-  (step : AppState → AppWitness → AppState) (cap : ℕ)
-  (control : AppState → AppWitness → Fin 2) {Wire Coord : Type} {total : ℕ}
+  (step : AppState → AppWitness → AppState) (control : AppState → AppWitness → Fin 2) {Wire Coord : Type} {total : ℕ}
   (head : Wire → First logicalWidth publicFits)
   [Fintype Coord] [DecidableEq Coord] {ι : Type} [Fintype ι]
   (kind : Wire → Option ι) (accepts : ι → Prefix Wire (Option Coord → CodeSlot K) total → Prop)
@@ -160,7 +159,7 @@ theorem memory_sound (complete : StepExtend.Complete exports) {bounds : ι → �
     (each : ∀ index,
       𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget total,
         (if accepts index (played prover table) ∧
-            ¬ Verifies setup.ajtai setup.circuitKeys step complete.packageWidth cap control
+            ¬ Verifies setup.ajtai setup.circuitKeys step complete.packageWidth control
               (head (played prover table).first).statement (proofs index budget table tape)
           then (1 : ℝ) else 0) ≤ bounds index)
     (valid : p.Valid) (keysShaped : ∀ key, (setup.circuitKeys key).digest.length = 4)
@@ -182,11 +181,11 @@ theorem memory_sound (complete : StepExtend.Complete exports) {bounds : ι → �
           memoryError last) := by
   let stage := (stages (p.sMax * p.n)).1
   let rejects :=
-    FinalShapes.Rejected setup complete.packageWidth step cap control head kind accepts proofs
+    FinalShapes.Rejected setup complete.packageWidth step control head kind accepts proofs
       prover budget
   let Bad : Sample app.width logicalWidth publicFits → Prop :=
     (experiment app setup.ajtai setup.circuitKeys exports).Bad app
-      (Checked app setup.ajtai setup.circuitKeys (step := step) control cap)
+      (Checked app setup.ajtai setup.circuitKeys (step := step) control)
   have origins : stage.tape.map tapeAt = (memory).tape :=
     tape_map_origin assumption closed (walkAdversary memory) admitted (p.sMax * p.n)
   have firsts : (memory).tape.map Prod.fst = (shapes).tape := map_fst_bind _ _
@@ -194,7 +193,7 @@ theorem memory_sound (complete : StepExtend.Complete exports) {bounds : ι → �
         (tapeAt tape).1.1 (sampleAt tape)} ⊆
       {tape | rejects (tapeAt tape).1} ∪ {tape | Bad (sampleAt tape)} := by
     rintro tape ⟨accepted, checks, notGood⟩
-    by_cases verifies : Verifies setup.ajtai setup.circuitKeys step complete.packageWidth cap
+    by_cases verifies : Verifies setup.ajtai setup.circuitKeys step complete.packageWidth
       control (head (played prover (tapeAt tape).1.1).first).statement
       (FinalShapes.finalProof head kind proofs prover budget (tapeAt tape).1.1 (tapeAt tape).1.2)
     · have input : stage.input tape = initial
@@ -208,7 +207,7 @@ theorem memory_sound (complete : StepExtend.Complete exports) {bounds : ι → �
           (head (played prover (tapeAt tape).1.1).first).statement :=
         congrArg Visit.statement input
       refine Or.inr ⟨⟨?_, congrArg Visit.bounds input⟩, ?_, ?_⟩
-      · change Terminal.HoldsFor cap setup.ajtai setup.circuitKeys step control
+      · change Terminal.HoldsFor setup.ajtai setup.circuitKeys step control
           (stage.input tape).statement (stage.input tape).proof
         rw [input]
         exact holds_of_verifies verifies
@@ -227,10 +226,10 @@ theorem memory_sound (complete : StepExtend.Complete exports) {bounds : ι → �
       rw [← firsts, ← origins, PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_map_apply]
       rfl
     rw [moved]
-    exact FinalShapes.rejected_le setup complete.packageWidth step cap control head kind accepts
+    exact FinalShapes.rejected_le setup complete.packageWidth step control head kind accepts
       proofs prover budget each
   have bad := checked_le app setup.ajtai setup.circuitKeys exports assumption closed memory
-    admitted valid keysShaped programEq control cap Prod.snd round
+    admitted valid keysShaped programEq control Prod.snd round
   have sampled : stage.tape.toOuterMeasure {tape | Bad (sampleAt tape)} =
       (last).law.toOuterMeasure {sample | Bad sample} := by
     rw [ClaimedStage.law, PMF.toOuterMeasure_map_apply]

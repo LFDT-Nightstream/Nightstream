@@ -187,7 +187,7 @@ structure Opening (logicalWidth : Nat)
   sourceBound : ℕ
 
 variable (setup : FinalVerifier.Setup mode logicalWidth publicFits) (packageWidths : Fin 2 → ℕ)
-  (step : AppState → AppWitness → AppState) (cap : ℕ) (control : AppState → AppWitness → Fin 2)
+  (step : AppState → AppWitness → AppState) (control : AppState → AppWitness → Fin 2)
   {Wire Coord : Type} {total : ℕ} (read : Reader Wire)
   (head : Wire → First logicalWidth publicFits)
   [Fintype Coord] [DecidableEq Coord] [Nonempty Coord]
@@ -198,7 +198,7 @@ variable (o : Opening logicalWidth publicFits Wire Coord total)
 
 local notation "S₀" => laidSetup setup o.shape
 
-local notation "C" => compose S₀ packageWidths step cap control o.shape read head o.bound
+local notation "C" => compose S₀ packageWidths step control o.shape read head o.bound
 
 local notation "vf" => FinalVerifier.Setup.verifier S₀ o.shape
 
@@ -251,12 +251,12 @@ noncomputable def Opening.tower :=
   towerRoot (weight₃ := o.weight₃) (weight₄ := o.weight₄) (weight₅ := o.weight₅)
     Route.coefficient (Route.euclidean norm₃.operator norm₃.limit)
     (Route.euclidean norm₄.operator norm₄.limit) (Route.euclidean norm₅.operator norm₅.limit)
-    (o.accepts setup packageWidths step cap control read head) zeroth first second third fourth
+    (o.accepts setup packageWidths step control read head) zeroth first second third fourth
     fifth o.terminal 32 32 16 16 16 (Compose.root C vf) (Compose.read C) o.commit o.value o.place
 
 local notation "whole" =>
-  Compose.chain C vf (Opening.accepts setup packageWidths step cap control read head o)
-    (Opening.tower setup packageWidths step cap control read head o) o.key o.openKey o.mass
+  Compose.chain C vf (Opening.accepts setup packageWidths step control read head o)
+    (Opening.tower setup packageWidths step control read head o) o.key o.openKey o.mass
     Sum.inl
 
 /-- The hypotheses of `FinalKey20.sound` on the Akita opening of `o`. `laid`: the shape passes
@@ -318,21 +318,22 @@ structure Opening.Sized (p : ℝ) : Prop where
 its Akita opening with 142 retry loops and the sum of the stage errors at most `317479/(1024·|K|) +
 135·p`
 (`FinalAkita.mixed_ready` for the numbers of `Key20.lean`, with `Key20.towerError_le`).
-`blocks`: the key polynomial has 512 blocks. `coords`: an answer of the oracle has 28 slots. -/
+`blocks`: the key polynomial has 512 blocks. `coords`: an answer of the oracle has 30 slots. -/
 theorem Opening.ready {p : ℝ} (premises : Premises setup packageWidths)
-    (blocks : setup.keyBlocks = 512) (coords : 28 ≤ Fintype.card Coord)
-    (sized : o.Sized setup packageWidths step cap control read head p) :
+    (blocks : setup.keyBlocks = 512) (coords : 30 ≤ Fintype.card Coord)
+    (sized : o.Sized setup packageWidths step control read head p) :
     Compose.Sized C vf ∧ ∃ error loops tree,
-      Tier.Suffix (o.accepts setup packageWidths step cap control read head) (Compose.root C vf)
+      Tier.Suffix (o.accepts setup packageWidths step control read head) (Compose.root C vf)
         (OpensAt (Compose.root C vf) o.commit o.value o.place o.key o.mass)
-        (o.tower setup packageWidths step cap control read head) error loops tree ∧
+        (o.tower setup packageWidths step control read head) error loops tree ∧
       error ≤ 317479 / (1024 * Fintype.card K) + 135 * p ∧ 2 + loops = 144 := by
   have use := laidSetup_use setup o.shape sized.laid blocks
   obtain ⟨-, -, -, span⟩ := key20_points S₀ o.shape use
-  have slots : 22 ≤ Fintype.card Coord := (by decide : 22 ≤ 28).trans coords
+  have slots : 22 ≤ Fintype.card Coord := (by decide : 22 ≤ 30).trans coords
   have lookupsFit : (FinalVerifier.Setup.params S₀ o.shape).lookups ≤ Fintype.card Coord :=
-    (by decide : 4 ≤ 28).trans coords
-  have cube : CompressionFresh.oneShape.cubeVariables ≤ Fintype.card Coord := coords
+    (by decide : 4 ≤ 30).trans coords
+  have cube : CompressionFresh.oneShape.cubeVariables ≤ Fintype.card Coord :=
+    (by decide : 28 ≤ 30).trans coords
   have challengesFit : 4 + ((FinalVerifier.Setup.params S₀ o.shape).lookups +
       ((FinalVerifier.Setup.params S₀ o.shape).claims +
         (FinalVerifier.Setup.params S₀ o.shape).claims +
@@ -342,10 +343,10 @@ theorem Opening.ready {p : ℝ} (premises : Premises setup packageWidths)
     have lookups : (FinalVerifier.Setup.params S₀ o.shape).lookups = 4 := rfl
     omega
   have both : Compose.Sized C vf ∧
-      Tier.Suffix (o.accepts setup packageWidths step cap control read head) (Compose.root C vf)
+      Tier.Suffix (o.accepts setup packageWidths step control read head) (Compose.root C vf)
         (OpensAt (Compose.root C vf) o.commit o.value o.place o.key o.mass)
-        (o.tower setup packageWidths step cap control read head) _ _ _ :=
-    mixed_ready S₀ packageWidths step cap control o.shape read head o.bound
+        (o.tower setup packageWidths step control read head) _ _ _ :=
+    mixed_ready S₀ packageWidths step control o.shape read head o.bound
       ⟨premises.represents, premises.support⟩ use.laid lookupsFit challengesFit cube sized.early
       sized.injective sized.units sized.sparse root_sized.2.2.1 root_sized.2.2.2.1
       root_sized.2.2.2.2 ((by decide : rootVars ≤ 22).trans slots)
@@ -404,9 +405,9 @@ variable [Finite Wire]
 (`FinalAkita.breakChance`): for the key commitment, for a matrix of a group, of a level, or for
 `A_term`. -/
 noncomputable def Opening.breakChance (budget : ℕ) : ℝ :=
-  FinalAkita.breakChance S₀ packageWidths step cap control o.shape read head o.bound
-    (o.accepts setup packageWidths step cap control read head)
-    (o.tower setup packageWidths step cap control read head) o.key o.openKey o.mass Sum.inl prover
+  FinalAkita.breakChance S₀ packageWidths step control o.shape read head o.bound
+    (o.accepts setup packageWidths step control read head)
+    (o.tower setup packageWidths step control read head) o.key o.openKey o.mass Sum.inl prover
     o.honest ((root.fold 0).innerBound (root.shape 0)) budget
 
 /-- Knowledge soundness of the final verifier for the shape of `o` (Akita Theorem 10.17). For
@@ -417,24 +418,24 @@ probability
 is over the table of the oracle and the tape of the extractor. The terms are those of
 `FinalKey20.sound`. -/
 theorem Opening.knowledge {p : ℝ} (premises : Premises setup packageWidths)
-    (blocks : setup.keyBlocks = 512) (coords : 28 ≤ Fintype.card Coord)
-    (sized : o.Sized setup packageWidths step cap control read head p) {queries : ℕ}
+    (blocks : setup.keyBlocks = 512) (coords : 30 ≤ Fintype.card Coord)
+    (sized : o.Sized setup packageWidths step control read head p) {queries : ℕ}
     (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
     𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget total,
-        (if o.accepts setup packageWidths step cap control read head (played prover table) ∧
-            ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths cap control
+        (if o.accepts setup packageWidths step control read head (played prover table) ∧
+            ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths control
               (head (played prover table).first).statement
-              (o.proof setup packageWidths step cap control read head prover budget table tape)
+              (o.proof setup packageWidths step control read head prover budget table tape)
           then (1 : ℝ) else 0) ≤
       (queries + 1) * (FinalVerifier.Setup.runCost S₀ o.shape +
           (317479 / (1024 * Fintype.card K) + 135 * p)) +
         (queries + 1) * (144 : ℕ) / budget +
-        o.breakChance setup packageWidths step cap control read head prover budget := by
+        o.breakChance setup packageWidths step control read head prover budget := by
   obtain ⟨composed, error, loops, tree, later, small, count⟩ :=
-    o.ready setup packageWidths step cap control read head premises blocks coords sized
-  have suffix := final_suffix S₀ packageWidths step cap control o.shape read head o.bound Sum.inl
+    o.ready setup packageWidths step control read head premises blocks coords sized
+  have suffix := final_suffix S₀ packageWidths step control o.shape read head o.bound Sum.inl
     composed (fun _ accepted => accepted.1) (fun _ found => found) later
-  have missed := final_extraction_le S₀ packageWidths step cap control o.shape read head o.bound
+  have missed := final_extraction_le S₀ packageWidths step control o.shape read head o.bound
     Sum.inl prover composed (fun _ accepted => accepted.1) (fun _ found => found) later bounded
     positive
   rw [count] at missed
@@ -444,16 +445,16 @@ theorem Opening.knowledge {p : ℝ} (premises : Premises setup packageWidths)
   simp only [← Finset.expect_add_distrib]
   refine Finset.expect_le_expect fun table _ => Finset.expect_le_expect fun tape _ => ?_
   have same : (Structure.protocol whole).final prover table = played prover table :=
-    played_eq (o.accepts setup packageWidths step cap control read head) prover table
-  have cases : o.accepts setup packageWidths step cap control read head (played prover table) ∧
-      ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths cap control
+    played_eq (o.accepts setup packageWidths step control read head) prover table
+  have cases : o.accepts setup packageWidths step control read head (played prover table) ∧
+      ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths control
         (head (played prover table).first).statement
-        (o.proof setup packageWidths step cap control read head prover budget table tape) →
-      (o.accepts setup packageWidths step cap control read head
+        (o.proof setup packageWidths step control read head prover budget table tape) →
+      (o.accepts setup packageWidths step control read head
           ((Structure.protocol whole).final prover table) ∧
         Checkpoint.extract whole prover budget table tape = none) ∨
       ∃ out, Checkpoint.extract whole prover budget table tape = some out ∧
-        Solved (o.tower setup packageWidths step cap control read head) o.key o.honest
+        Solved (o.tower setup packageWidths step control read head) o.key o.honest
           ((root.fold 0).innerBound (root.shape 0)) out := by
     rintro ⟨accepted, refuted⟩
     rw [played_first] at refuted
@@ -492,7 +493,7 @@ def finalAccepts (point : Prefix Wire (Option Coord → CodeSlot K) total) : Pro
       (head point.first).statement.iteration = 0 ∧
       (head point.first).statement.zi = (head point.first).statement.z0) ∨
     ∃ index, kind point.first = some index ∧
-      (family index).accepts setup packageWidths step cap control read head point
+      (family index).accepts setup packageWidths step control read head point
 
 variable (prover : OracleComp (Address Wire total) (Option Coord → CodeSlot K) (ℕ → Wire))
 
@@ -509,7 +510,7 @@ noncomputable def finalProof (budget : ℕ) (table : Address Wire total → Opti
   else
     match kind (prover.run table 0) with
     | none => .bottom
-    | some index => (family index).proof setup packageWidths step cap control read head prover
+    | some index => (family index).proof setup packageWidths step control read head prover
         budget table tape
 
 variable [Finite Wire]
@@ -524,7 +525,7 @@ noncomputable def shapesBound (p : ℝ) (queries budget : ℕ) : ℝ :=
       (FinalVerifier.Setup.runCost (laidSetup setup (family index).shape) (family index).shape +
         (317479 / (1024 * Fintype.card K) + 135 * p)) +
     (queries + 1) * (144 : ℕ) / budget +
-    (family index).breakChance setup packageWidths step cap control read head prover budget)
+    (family index).breakChance setup packageWidths step control read head prover budget)
 
 /-- Knowledge soundness of the final verifier over the Akita openings of `key20.aks`, for all
 shapes of the family and for the proof of zero steps. For each prover with at most `Q` queries
@@ -533,23 +534,23 @@ to the oracle, the probability that `finalAccepts` accepts and `Verifies` reject
 `Opening.knowledge` over the shapes of the family. A statement of zero steps adds no term: it has
 no draw, and `Verifies` accepts its proof (`FinalVerifier.verifies_of_bottom`). -/
 theorem knowledge_all {p : ℝ} (premises : Premises setup packageWidths)
-    (blocks : setup.keyBlocks = 512) (coords : 28 ≤ Fintype.card Coord)
+    (blocks : setup.keyBlocks = 512) (coords : 30 ≤ Fintype.card Coord)
     (sized : ∀ index,
-      (family index).Sized setup packageWidths step cap control read head p) {queries : ℕ}
+      (family index).Sized setup packageWidths step control read head p) {queries : ℕ}
     (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
     𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget total,
-        (if finalAccepts setup packageWidths step cap control read head kind family
+        (if finalAccepts setup packageWidths step control read head kind family
               (played prover table) ∧
-            ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths cap control
+            ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths control
               (head (played prover table).first).statement
-              (finalProof setup packageWidths step cap control read head kind family prover budget
+              (finalProof setup packageWidths step control read head kind family prover budget
                 table tape)
           then (1 : ℝ) else 0) ≤
-      shapesBound setup packageWidths step cap control read head family prover p queries
+      shapesBound setup packageWidths step control read head family prover p queries
         budget := by
   unfold shapesBound
   refine le_trans ?_ (Finset.sum_le_sum fun index _ =>
-    (family index).knowledge setup packageWidths step cap control read head prover premises blocks
+    (family index).knowledge setup packageWidths step control read head prover premises blocks
       coords (sized index) bounded positive)
   simp only [← Finset.expect_sum_comm]
   refine Finset.expect_le_expect fun table _ => Finset.expect_le_expect fun tape _ => ?_
@@ -563,23 +564,23 @@ theorem knowledge_all {p : ℝ} (premises : Premises setup packageWidths)
     · refine absurd ?_ refuted
       unfold finalProof
       rw [ite_eq_left bottom]
-      exact FinalVerifier.verifies_of_bottom setup step cap control bottom
+      exact FinalVerifier.verifies_of_bottom setup step control bottom
     · rcases accepted with zero | ⟨index, named, accepted⟩
       · exact absurd zero bottom
-      · have same : finalProof setup packageWidths step cap control read head kind family prover
+      · have same : finalProof setup packageWidths step control read head kind family prover
             budget table tape =
-            (family index).proof setup packageWidths step cap control read head prover budget
+            (family index).proof setup packageWidths step control read head prover budget
               table tape := by
           unfold finalProof
           rw [ite_eq_right bottom, named]
         rw [same, ← played_first] at refuted
         refine le_trans (le_of_eq (ite_eq_left (show _ ∧ _ from ⟨accepted, refuted⟩)).symm)
           (Finset.single_le_sum (f := fun index =>
-            if (family index).accepts setup packageWidths step cap control read head
+            if (family index).accepts setup packageWidths step control read head
                   (played prover table) ∧
-                ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths cap control
+                ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths control
                   (head (played prover table).first).statement
-                  ((family index).proof setup packageWidths step cap control read head prover
+                  ((family index).proof setup packageWidths step control read head prover
                     budget table tape)
               then (1 : ℝ) else 0)
             (fun _ _ => by split_ifs <;> norm_num) (Finset.mem_univ index))
@@ -591,26 +592,26 @@ the probability that `finalAccepts` accepts and no proof with witnesses satisfie
 the statement of the first message is at most `shapesBound`: the sum over the shapes of the
 family of `(Q + 1)·(runCost + 317479/(1024·|K|) + 135·p) + (Q + 1)·144/budget + breakChance`.
 `blocks`: the
-key polynomial has 512 blocks. `coords`: an answer of the oracle has 28 slots. `sized`: the
+key polynomial has 512 blocks. `coords`: an answer of the oracle has 30 slots. `sized`: the
 hypotheses of `FinalKey20.sound` on the opening of each shape. -/
 theorem sound_all {p : ℝ} (premises : Premises setup packageWidths)
-    (blocks : setup.keyBlocks = 512) (coords : 28 ≤ Fintype.card Coord)
+    (blocks : setup.keyBlocks = 512) (coords : 30 ≤ Fintype.card Coord)
     (sized : ∀ index,
-      (family index).Sized setup packageWidths step cap control read head p) {queries : ℕ}
+      (family index).Sized setup packageWidths step control read head p) {queries : ℕ}
     (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
     𝔼 table,
-        (if finalAccepts setup packageWidths step cap control read head kind family
+        (if finalAccepts setup packageWidths step control read head kind family
               (played prover table) ∧
-            ¬ ∃ proof, Verifies setup.ajtai setup.circuitKeys step packageWidths cap control
+            ¬ ∃ proof, Verifies setup.ajtai setup.circuitKeys step packageWidths control
               (head (played prover table).first).statement proof
           then (1 : ℝ) else 0) ≤
-      shapesBound setup packageWidths step cap control read head family prover p queries
+      shapesBound setup packageWidths step control read head family prover p queries
         budget := by
   have flat (value : ℝ) : value =
       𝔼 _tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget total, value :=
     (Finset.expect_const Finset.univ_nonempty value).symm
   refine le_trans (Finset.expect_le_expect fun table _ => ?_)
-    (knowledge_all setup packageWidths step cap control read head kind family prover premises
+    (knowledge_all setup packageWidths step control read head kind family prover premises
       blocks coords sized bounded positive)
   refine (flat _).le.trans (Finset.expect_le_expect fun tape _ => ?_)
   split_ifs with lost found
@@ -630,19 +631,19 @@ theorem verifier_sound {p : ℝ} {relation : ProductionKey.LogicalRelation logic
     (complete : StepExtend.Complete exports)
     (rows : ∀ circuit : Fin 2, (setup.rows circuit).matrices =
       (FinalRows.packageRows exports complete circuit).matrices)
-    (blocks : setup.keyBlocks = 512) (coords : 28 ≤ Fintype.card Coord)
+    (blocks : setup.keyBlocks = 512) (coords : 30 ≤ Fintype.card Coord)
     (sized : ∀ index,
-      (family index).Sized setup complete.packageWidth step cap control read head p)
+      (family index).Sized setup complete.packageWidth step control read head p)
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
     𝔼 table,
-        (if finalAccepts setup complete.packageWidth step cap control read head kind family
+        (if finalAccepts setup complete.packageWidth step control read head kind family
               (played prover table) ∧
-            ¬ ∃ proof, Verifies setup.ajtai setup.circuitKeys step complete.packageWidth cap
+            ¬ ∃ proof, Verifies setup.ajtai setup.circuitKeys step complete.packageWidth
               control (head (played prover table).first).statement proof
           then (1 : ℝ) else 0) ≤
-      shapesBound setup complete.packageWidth step cap control read head family prover p queries
+      shapesBound setup complete.packageWidth step control read head family prover p queries
         budget :=
-  sound_all setup complete.packageWidth step cap control read head kind family prover
+  sound_all setup complete.packageWidth step control read head kind family prover
     (FinalRows.premises_of_rows setup exports complete rows) blocks coords sized bounded positive
 
 end All

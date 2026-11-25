@@ -182,8 +182,8 @@ def layout30With (order : ∀ n, Equiv.Perm (Fin n)) (r : Key30.Row) (zMax rice 
       ofBatch (order 2) (level₁ r) (R 1) (family 1) vars₁ batch₁ ((level₁ r).shape 0).openingBase false
         quotientDigits,
       ofLevel (level₂ r) (R 2) (family 2 0) (digits := quotientDigits),
-      ofLevel level₃ (R 3) (family 3 0) (digits := quotientDigits),
-      ofLevel level₄ (R 4) (family 4 0), ofLevel level₅ (R 5) (family 5 0) norm₅,
+      ofLevel (level₃ r) (R 3) (family 3 0) (digits := quotientDigits),
+      ofLevel level₄ (R 4) (family 4 0), ofLevel level₅ (R 5) (family 5 0) (norm₅ r),
       ofLevel level₆ (R 6) (family 6 0) norm₆]
     setupVars terminal (family 7 0) normTerminal.limit zMax rice
 
@@ -214,7 +214,7 @@ theorem layout30_relations (r : Key30.Row) (zMax rice : ℕ) :
         relation (fun k => (Key30.level₁ r).shape (groupOrder 2 k)) (Key30.level₁ r).openRank
           (Key30.level₁ r).openDegree (Key30.level₁ r).chain
           (batchSource (groupOrder 2) (R 1) false),
-        levelRelation (Key30.level₂ r), levelRelation Key30.level₃, levelRelation Key30.level₄,
+        levelRelation (Key30.level₂ r), levelRelation (Key30.level₃ r), levelRelation Key30.level₄,
         levelRelation Key30.level₅, levelRelation Key30.level₆] :=
   rfl
 

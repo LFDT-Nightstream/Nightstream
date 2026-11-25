@@ -16,7 +16,7 @@ has no such hypothesis.
   commitment of the witness of level 1 with the commitments, the values and the points of the
   two claims of level 1, the claim of level 1, the commitment and the claim of each level from
   level 2, and the state, the statement, the clear partials and the clear response of the
-  terminal. The points are vectors of 30, `vars` and 28 coordinates for the root and of 23 and 28
+  terminal. The points are vectors of 30, `vars` and 26 coordinates for the root and of 23 and 28
   coordinates for level 1, and `Note.place` and `Note.places` read them as lists. `Wire` is
   `Page` for this data, with 4 cells of 8 elements and a number up to `3029804899`.
   `Note.finite`: a note is finite, so `Wire r E` is finite for a finite `E`.
@@ -60,12 +60,12 @@ attribute [local instance low] Classical.propDecidable
 
 /-- The data of a wire message of the opening of the row `r` other than the messages of the
 checks (Akita Figure 4 and (136): the messages of the prover). The points of the three claims of
-the root are vectors of 30, `vars` and 28 coordinates, and the points of the two claims of level 1
+the root are vectors of 30, `vars` and 26 coordinates, and the points of the two claims of level 1
 are vectors of 23 and 28 coordinates. -/
 structure Note (r : Row) (E : Type) [CommRing E] [Algebra Zq E] where
   commit : (g : Fin 3) → ((root r).shape g).Payload
   value : Fin 3 → E
-  point : (g : Fin 3) → Fin (![30, r.vars, 28] g) → E
+  point : (g : Fin 3) → Fin (![30, r.vars, 26] g) → E
   claim : (root r).Claim E
   commit₁ : ((level₁ r).shape 1).Payload
   commits : (g : Fin 2) → ((level₁ r).shape g).Payload
@@ -74,8 +74,8 @@ structure Note (r : Row) (E : Type) [CommRing E] [Algebra Zq E] where
   claim₁ : (level₁ r).Claim E
   commit₂ : (level₂ r).shape.Payload
   claim₂ : Claim (level₂ r).opening E
-  commit₃ : level₃.shape.Payload
-  claim₃ : Claim level₃.opening E
+  commit₃ : (level₃ r).shape.Payload
+  claim₃ : Claim (level₃ r).opening E
   commit₄ : level₄.shape.Payload
   claim₄ : TraceClaim level₄.opening E
   commit₅ : level₅.shape.Payload
@@ -158,9 +158,9 @@ variable {r : Row} (member : r ∈ rows) (flat : Table)
   (β₂ : Module.Basis (Fin (level₂ r).opening.planes) Zq E) (key₂ : Key (level₂ r).shape)
   (openKey₂ : OpeningKey (level₂ r).opening) (block₂ : Fin (level₂ r).shape.blocks → Coord)
   (decode₂ : Slot → Option (Rq (level₂ r).opening.carrierDegree)) (weight₂ : ℕ)
-  (β₃ : Module.Basis (Fin level₃.opening.planes) Zq E) (key₃ : Key level₃.shape)
-  (openKey₃ : OpeningKey level₃.opening) (block₃ : Fin level₃.shape.blocks → Coord)
-  (decode₃ : Slot → Option (Rq level₃.opening.carrierDegree)) (weight₃ : ℕ)
+  (β₃ : Module.Basis (Fin (level₃ r).opening.planes) Zq E) (key₃ : Key (level₃ r).shape)
+  (openKey₃ : OpeningKey (level₃ r).opening) (block₃ : Fin (level₃ r).shape.blocks → Coord)
+  (decode₃ : Slot → Option (Rq (level₃ r).opening.carrierDegree)) (weight₃ : ℕ)
   (key₄ : Key level₄.shape) (openKey₄ : OpeningKey level₄.opening)
   (block₄ : Fin level₄.shape.blocks → Coord)
   (decode₄ : Slot → Option (Rq level₄.shape.innerDegree)) (weight₄ : ℕ)
@@ -198,10 +198,10 @@ local notation "second" =>
     (Tier.finish first)
 
 local notation "third" =>
-  Tier.tensored (liftFold β₃ key₃ openKey₃ (Note.claim₃ ∘ Page.data : Wire r E → _) level₃.vars
-    (And.left level₃_sized) quotientDigits (And.left (And.right level₃_sized)) level₃.batch
-    (And.left (And.right (And.right level₃_sized))) block₃ decode₃ Page.read weight₃
-    (Tier.finish second)) level₃.tail
+  Tier.tensored (liftFold β₃ key₃ openKey₃ (Note.claim₃ ∘ Page.data : Wire r E → _) (Key20.Level.vars (level₃ r))
+    (And.left (level₃_sized r member)) quotientDigits (And.left (And.right (level₃_sized r member))) (Key20.Level.batch (level₃ r))
+    (And.left (And.right (And.right (level₃_sized r member)))) block₃ decode₃ Page.read weight₃
+    (Tier.finish second)) (Key20.Level.tail (level₃ r))
 
 local notation "fourth" =>
   Tier.tensored (committedTrace (fold := level₄.fold) key₄ openKey₄
@@ -214,7 +214,7 @@ local notation "fifth" =>
     (Note.claim₅ ∘ Page.data : Wire r E → _) level₅.vars
     (And.left (tails_sized level₅ (List.mem_cons_self ..))) level₅.batch
     (And.left (And.right (tails_sized level₅ (List.mem_cons_self ..)))) block₅ decode₅
-    Page.read weight₅ norm₅.operator norm₅.limit (Tier.finish fourth)) level₅.tail
+    Page.read weight₅ (Key20.Squared.operator (norm₅ r)) (Key20.Squared.limit (norm₅ r)) (Tier.finish fourth)) level₅.tail
 
 local notation "sixth" =>
   Tier.tensored (committedTraceSq (fold := level₆.fold) key₆ openKey₆
@@ -228,7 +228,7 @@ local notation "sixth" =>
 and Lemma 10.7) for the setup prefix `flat` and the tables `tables` of the key polynomial, `W` and
 `V`: the conditions `BatchFit` of the root, `StateFit` of level 1 for the decommitment of the
 setup prefix of the Lean commitment algorithm and the bounded source of the witness, `LiftFit` of
-the levels 2 and 3, `TraceFit` of the levels 4 to 6 with `S_max` of `norm₅` and `norm₆`, and
+the levels 2 and 3, `TraceFit` of the levels 4 to 6 with `S_max` of `(norm₅ r)` and `norm₆`, and
 `‖z‖_2² ≤ S_max,term` at the terminal. Each condition is for each opening point and each fold
 challenge vector that the decoders give. -/
 def Fit (tables : Fin 3 → Table) : Prop :=
@@ -239,12 +239,12 @@ def Fit (tables : Fin 3 → Table) : Prop :=
   LiftFit β₂ key₂ openKey₂ (level₂ r).fold (level₂ r).vars (And.left (level₂_sized r member))
     quotientDigits decode₂ (fun i => (level₂ r).shape.embed ((level₂ r).shape.pack w₁ i))
     fun w₂ =>
-  LiftFit β₃ key₃ openKey₃ level₃.fold level₃.vars (And.left level₃_sized) quotientDigits
-    decode₃ (fun i => level₃.shape.embed (level₃.shape.pack w₂ i)) fun w₃ =>
+  LiftFit β₃ key₃ openKey₃ (level₃ r).fold (level₃ r).vars (And.left (level₃_sized r member)) quotientDigits
+    decode₃ (fun i => (level₃ r).shape.embed ((level₃ r).shape.pack w₂ i)) fun w₃ =>
   TraceFit (E := E) (And.left quarters) key₄ openKey₄ level₄.fold (fun _ => decode₄) (fun _ => True)
     (packed w₃) fun w₄ =>
   TraceFit (E := E) (And.left (And.right quarters)) key₅ openKey₅ level₅.fold (fun _ => decode₅)
-    (fun z => vecNormSq z ≤ norm₅.limit) (packed w₄) fun w₅ =>
+    (fun z => vecNormSq z ≤ (norm₅ r).limit) (packed w₄) fun w₅ =>
   TraceFit (E := E) (And.left (And.right (And.right quarters))) key₆ openKey₆ level₆.fold
     (fun _ => decode₆) (fun z => vecNormSq z ≤ norm₆.limit) (packed w₅) fun w₆ =>
   ∀ c : Fin terminal.blocks → Rq terminal.innerDegree,
@@ -283,9 +283,9 @@ theorem fit_zero :
     (stateFit_zero (fun g => (openings g).1) (fun g => (openings g).2)
       (fun g => (level₁_folds r member g).1) (fun g => (level₁_folds r member g).2)
       (level₁_path r member) opens zero (by decide)
-      (liftFit_zero (lifts.1 r member).1 (lifts.1 r member).2.1 (lifts.1 r member).2.2.1
-        (lifts.1 r member).2.2.2 (by decide : 2 ≤ 16)
-        (liftFit_zero lifts.2.1 lifts.2.2.1 lifts.2.2.2.1 lifts.2.2.2.2 (by decide)
+      (liftFit_zero ((lifts r member).1).1 ((lifts r member).1).2.1 ((lifts r member).1).2.2.1
+        ((lifts r member).1).2.2.2 (by decide : 2 ≤ 16)
+        (liftFit_zero (lifts r member).2.1 (lifts r member).2.2.1 (lifts r member).2.2.2.1 (lifts r member).2.2.2.2 (by decide : 2 ≤ 16)
           (traceFit_zero quarters.1 (by decide) (by decide) trivial
             (traceFit_zero quarters.2.1 (by decide) (by decide)
               (by rw [vecNormSq_zero]; exact Nat.zero_le _)
@@ -308,9 +308,9 @@ theorem fit_quiet (tables : Fin 3 → Table) :
     (fun _ _ _ decoded => (Option.some.inj decoded).symm) fun _ _ =>
   stateFit_quiet (fun g => (level₁_folds r member g).1.two)
     (fun _ _ _ decoded => (Option.some.inj decoded).symm) fun _ _ =>
-  liftFit_quiet (lifts.1 r member).2.1.two (fun _ _ decoded => (Option.some.inj decoded).symm)
+  liftFit_quiet ((lifts r member).1).2.1.two (fun _ _ decoded => (Option.some.inj decoded).symm)
     fun _ =>
-  liftFit_quiet lifts.2.2.1.two (fun _ _ decoded => (Option.some.inj decoded).symm) fun _ =>
+  liftFit_quiet (lifts r member).2.2.1.two (fun _ _ decoded => (Option.some.inj decoded).symm) fun _ =>
   traceFit_quiet quarters.1 (by decide) (fun _ _ _ decoded => (Option.some.inj decoded).symm)
     trivial fun _ =>
   traceFit_quiet quarters.2.1 (by decide) (fun _ _ _ decoded => (Option.some.inj decoded).symm)
@@ -341,7 +341,7 @@ the link `RootLinked` of their batching stage, the links `Tier.Linked` of the le
 links `Tier.TraceLinked` of the levels 3 to 6, the link `Terminal.Linked` and the checks
 `Terminal.Passed` (`Key30.tower_complete`). `inside`: the fold challenge of the terminal is a
 stage of the transcript. `worked`: each work slot of the table has 57 zero work bits. `live`: the
-tables are 0 after `2^30`, `2^vars` and `2^28` cells. `lengths`: the points have 30, `vars` and 28
+tables are 0 after `2^30`, `2^vars` and `2^26` cells. `lengths`: the points have 30, `vars` and 26
 coordinates. `fit`: the fit conditions `Fit`, which `fit_zero` and `fit_quiet` give in two
 cases. -/
 theorem accepts {total : ℕ} (inside : Tier.finish sixth < total)
@@ -356,8 +356,8 @@ theorem accepts {total : ℕ} (inside : Tier.finish sixth < total)
     (decodes₆ : ∀ input i, (decode₆ (table input (some (block₆ i)))).isSome)
     (decodesL : ∀ input i, (decodeL (table input (some (blockL i)))).isSome)
     (worked : ∀ input, table input none ∈ workZeros Slot 57) {tables : Fin 3 → Table}
-    (live : ∀ g cell, 2 ^ ![30, r.vars, 28] g ≤ cell → tables g cell = 0)
-    {places : Fin 3 → List E} (lengths : ∀ g, (places g).length = ![30, r.vars, 28] g)
+    (live : ∀ g cell, 2 ^ ![30, r.vars, 26] g ≤ cell → tables g cell = 0)
+    {places : Fin 3 → List E} (lengths : ∀ g, (places g).length = ![30, r.vars, 26] g)
     (fit : Fit member flat β key openKey decode β₁ key₁ openKey₁ decode₁ β₂ key₂ openKey₂ decode₂ β₃ key₃
       openKey₃ decode₃ key₄ openKey₄ decode₄ key₅ openKey₅ decode₅ key₆ openKey₆ decode₆ decodeL tables) :
     ∃ proof : ℕ → Wire r E,
@@ -365,7 +365,7 @@ theorem accepts {total : ℕ} (inside : Tier.finish sixth < total)
       (proof 0).data.place = places ∧
       (proof 0).data.value = (fun g => mle (places g) (lifted E (tables g))) ∧
       offLinks (weight₅ := weight₅) (weight₆ := weight₆) (route₄ := Route.coefficient)
-        (route₅ := Route.euclidean norm₅.operator norm₅.limit)
+        (route₅ := Route.euclidean (norm₅ r).operator (norm₅ r).limit)
         (route₆ := Route.euclidean norm₆.operator norm₆.limit) zeroth first second third fourth
         fifth sixth (terminalOf r total matrix blockL decodeL (Tier.finish sixth)) 0 Page.read
         (Note.commit ∘ Page.data : Wire r E → _) (Note.value ∘ Page.data : Wire r E → _)
@@ -415,7 +415,7 @@ theorem accepts {total : ℕ} (inside : Tier.finish sixth < total)
       commit₂ := (commitSource key₂ 0).1
       claim₂ := sourceClaim β₂ key₂ openKey₂ 0 (Point.ofSegments (level₂ r).opening [] [] [] [])
       commit₃ := (commitSource key₃ 0).1
-      claim₃ := sourceClaim β₃ key₃ openKey₃ 0 (Point.ofSegments level₃.opening [] [] [] [])
+      claim₃ := sourceClaim β₃ key₃ openKey₃ 0 (Point.ofSegments (level₃ r).opening [] [] [] [])
       commit₄ := (commitSource key₄ 0).1
       claim₄ := honestTraceClaim quarters.1 key₄ openKey₄ 0 [] [] [] 0
       commit₅ := (commitSource key₅ 0).1
@@ -504,8 +504,8 @@ theorem accepts_at {total stage : ℕ} (next : stage = Tier.finish sixth) (insid
     (decodes₆ : ∀ input i, (decode₆ (table input (some (block₆ i)))).isSome)
     (decodesL : ∀ input i, (decodeL (table input (some (blockL i)))).isSome)
     (worked : ∀ input, table input none ∈ workZeros Slot 57) {tables : Fin 3 → Table}
-    (live : ∀ g cell, 2 ^ ![30, r.vars, 28] g ≤ cell → tables g cell = 0)
-    {places : Fin 3 → List E} (lengths : ∀ g, (places g).length = ![30, r.vars, 28] g)
+    (live : ∀ g cell, 2 ^ ![30, r.vars, 26] g ≤ cell → tables g cell = 0)
+    {places : Fin 3 → List E} (lengths : ∀ g, (places g).length = ![30, r.vars, 26] g)
     (fit : Fit member flat β key openKey decode β₁ key₁ openKey₁ decode₁ β₂ key₂ openKey₂ decode₂
       β₃ key₃ openKey₃ decode₃ key₄ openKey₄ decode₄ key₅ openKey₅ decode₅ key₆ openKey₆ decode₆
       decodeL tables) :
@@ -514,7 +514,7 @@ theorem accepts_at {total stage : ℕ} (next : stage = Tier.finish sixth) (insid
       (proof 0).data.place = places ∧
       (proof 0).data.value = (fun g => mle (places g) (lifted E (tables g))) ∧
       offLinks (weight₅ := weight₅) (weight₆ := weight₆) (route₄ := Route.coefficient)
-        (route₅ := Route.euclidean norm₅.operator norm₅.limit)
+        (route₅ := Route.euclidean (norm₅ r).operator (norm₅ r).limit)
         (route₆ := Route.euclidean norm₆.operator norm₆.limit) zeroth first second third fourth
         fifth sixth (terminalOf r total matrix blockL decodeL stage) 0 Page.read
         (Note.commit ∘ Page.data : Wire r E → _) (Note.value ∘ Page.data : Wire r E → _)
@@ -554,9 +554,9 @@ variable {r : Row} (member : r ∈ rows) (flat : Table)
   (β₂ : Module.Basis (Fin (level₂ r).opening.planes) Zq E) (key₂ : Key (level₂ r).shape)
   (openKey₂ : OpeningKey (level₂ r).opening) (block₂ : Fin (level₂ r).shape.blocks → Coord)
   (decode₂ : Replay.CodeSlot E → Option (Rq (level₂ r).opening.carrierDegree)) (weight₂ : ℕ)
-  (β₃ : Module.Basis (Fin level₃.opening.planes) Zq E) (key₃ : Key level₃.shape)
-  (openKey₃ : OpeningKey level₃.opening) (block₃ : Fin level₃.shape.blocks → Coord)
-  (decode₃ : Replay.CodeSlot E → Option (Rq level₃.opening.carrierDegree)) (weight₃ : ℕ)
+  (β₃ : Module.Basis (Fin (level₃ r).opening.planes) Zq E) (key₃ : Key (level₃ r).shape)
+  (openKey₃ : OpeningKey (level₃ r).opening) (block₃ : Fin (level₃ r).shape.blocks → Coord)
+  (decode₃ : Replay.CodeSlot E → Option (Rq (OpeningShape.carrierDegree (Key20.Level.opening (level₃ r))))) (weight₃ : ℕ)
   (key₄ : Key level₄.shape) (openKey₄ : OpeningKey level₄.opening)
   (block₄ : Fin level₄.shape.blocks → Coord)
   (decode₄ : Replay.CodeSlot E → Option (Rq level₄.shape.innerDegree)) (weight₄ : ℕ)
@@ -594,10 +594,10 @@ local notation "second" =>
     (Tier.finish first)
 
 local notation "third" =>
-  Tier.tensored (liftFold β₃ key₃ openKey₃ (Note.claim₃ ∘ Page.data : Wire r E → _) level₃.vars
-    (And.left level₃_sized) quotientDigits (And.left (And.right level₃_sized)) level₃.batch
-    (And.left (And.right (And.right level₃_sized))) block₃ decode₃ Page.read weight₃
-    (Tier.finish second)) level₃.tail
+  Tier.tensored (liftFold β₃ key₃ openKey₃ (Note.claim₃ ∘ Page.data : Wire r E → _) (Key20.Level.vars (level₃ r))
+    (And.left (level₃_sized r member)) quotientDigits (And.left (And.right (level₃_sized r member))) (Key20.Level.batch (level₃ r))
+    (And.left (And.right (And.right (level₃_sized r member)))) block₃ decode₃ Page.read weight₃
+    (Tier.finish second)) (Key20.Level.tail (level₃ r))
 
 local notation "fourth" =>
   Tier.tensored (committedTrace (fold := level₄.fold) key₄ openKey₄
@@ -610,7 +610,7 @@ local notation "fifth" =>
     (Note.claim₅ ∘ Page.data : Wire r E → _) level₅.vars
     (And.left (tails_sized level₅ (List.mem_cons_self ..))) level₅.batch
     (And.left (And.right (tails_sized level₅ (List.mem_cons_self ..)))) block₅ decode₅
-    Page.read weight₅ norm₅.operator norm₅.limit (Tier.finish fourth)) level₅.tail
+    Page.read weight₅ (Key20.Squared.operator (norm₅ r)) (Key20.Squared.limit (norm₅ r)) (Tier.finish fourth)) level₅.tail
 
 local notation "sixth" =>
   Tier.tensored (committedTraceSq (fold := level₆.fold) key₆ openKey₆
@@ -634,8 +634,8 @@ theorem accepts_code {total : ℕ} (inside : Tier.finish sixth < total)
     (decodes₆ : ∀ input i, (decode₆ (table input (some (block₆ i)))).isSome)
     (decodesL : ∀ input i, (decodeL (table input (some (blockL i)))).isSome)
     (worked : ∀ input, table input none ∈ workZeros (Replay.CodeSlot E) 57) {tables : Fin 3 → Table}
-    (live : ∀ g cell, 2 ^ ![30, r.vars, 28] g ≤ cell → tables g cell = 0)
-    {places : Fin 3 → List E} (lengths : ∀ g, (places g).length = ![30, r.vars, 28] g)
+    (live : ∀ g cell, 2 ^ ![30, r.vars, 26] g ≤ cell → tables g cell = 0)
+    {places : Fin 3 → List E} (lengths : ∀ g, (places g).length = ![30, r.vars, 26] g)
     (fit : Fit member flat β key openKey decode β₁ key₁ openKey₁ decode₁ β₂ key₂ openKey₂ decode₂ β₃ key₃
       openKey₃ decode₃ key₄ openKey₄ decode₄ key₅ openKey₅ decode₅ key₆ openKey₆ decode₆ decodeL tables) :
     ∃ proof : ℕ → Wire r E,
@@ -643,7 +643,7 @@ theorem accepts_code {total : ℕ} (inside : Tier.finish sixth < total)
       (proof 0).data.place = places ∧
       (proof 0).data.value = (fun g => mle (places g) (lifted E (tables g))) ∧
       offLinks (weight₅ := weight₅) (weight₆ := weight₆) (route₄ := Route.coefficient)
-        (route₅ := Route.euclidean norm₅.operator norm₅.limit)
+        (route₅ := Route.euclidean (norm₅ r).operator (norm₅ r).limit)
         (route₆ := Route.euclidean norm₆.operator norm₆.limit) zeroth first second third fourth
         fifth sixth (terminalOf r total matrix blockL decodeL (Tier.finish sixth)) 0 Page.read
         (Note.commit ∘ Page.data : Wire r E → _) (Note.value ∘ Page.data : Wire r E → _)
@@ -668,7 +668,7 @@ local notation "code₂" =>
 
 local notation "code₃" =>
   (Replay.CodeSlot.open Key20.open64 Key20.open64_fits :
-    Replay.CodeSlot E → Option (Rq level₃.opening.carrierDegree))
+    Replay.CodeSlot E → Option (Rq (OpeningShape.carrierDegree (Key20.Level.opening (level₃ r)))))
 
 local notation "code₄" =>
   (Replay.CodeSlot.open Key20.open128 Key20.open128_fits :
@@ -762,8 +762,8 @@ hypotheses `decodes` of `accepts` hold by `Tower.Drawn.decodes`. -/
 theorem noteTower_accepts [Nonempty Coord] (shared : (notes).Shared)
     (drawn : (notes).Drawn shared Page.read 0) (table : Address (Wire r E) total → Option Coord → Replay.CodeSlot E)
     (worked : ∀ input, table input none ∈ workZeros (Replay.CodeSlot E) 57) {tables : Fin 3 → Table}
-    (live : ∀ g cell, 2 ^ ![30, r.vars, 28] g ≤ cell → tables g cell = 0)
-    {places : Fin 3 → List E} (lengths : ∀ g, (places g).length = ![30, r.vars, 28] g)
+    (live : ∀ g cell, 2 ^ ![30, r.vars, 26] g ≤ cell → tables g cell = 0)
+    {places : Fin 3 → List E} (lengths : ∀ g, (places g).length = ![30, r.vars, 26] g)
     (fit : Fit member flat β key openKey (rootDecode E r) β₁ key₁ openKey₁ (Key30.decode₁ E r) β₂
       key₂ openKey₂ code₂ β₃ key₃ openKey₃ code₃ key₄ openKey₄ code₄ key₅ openKey₅ code₅ key₆
       openKey₆ code₆ codeL tables) :
@@ -802,7 +802,7 @@ theorem noteTower_zero [Nonempty Coord] (shared : (notes₀).Shared)
     key₁ openKey₁ block₁ β₂ key₂ openKey₂ block₂ β₃ key₃ openKey₃ block₃ key₄ openKey₄ block₄ key₅
     openKey₅ block₅ key₆ openKey₆ block₆ matrix blockL shared drawn table worked
     (tables := fun _ => 0) (fun _ _ _ => rfl)
-    (places := fun g => List.replicate (![30, r.vars, 28] g) 0) (fun _ => List.length_replicate)
+    (places := fun g => List.replicate (![30, r.vars, 26] g) 0) (fun _ => List.length_replicate)
     (fit_zero member β key openKey (rootDecode E r) β₁ key₁ openKey₁ (Key30.decode₁ E r) β₂ key₂
       openKey₂ code₂ β₃ key₃ openKey₃ code₃ key₄ openKey₄ code₄ key₅ openKey₅ code₅ key₆ openKey₆
       code₆ codeL)

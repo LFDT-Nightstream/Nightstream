@@ -151,7 +151,7 @@ variable {d : ℕ} [NeZero d] {ι : Type}
 
 theorem coeff_sum {κ : Type} (s : Finset κ) (f : κ → Rq d) (i : ℕ) :
     coeff (∑ u ∈ s, f u) i = ∑ u ∈ s, coeff (f u) i := by
-  simp [coeff, rep, Polynomial.finsetSum_coeff]
+  simp [coeff, rep]
 
 theorem coeff_natCast_pow_mul (b u : ℕ) (x : Rq d) (i : ℕ) :
     coeff ((b : Rq d) ^ u * x) i = (b : Zq) ^ u * coeff x i := by

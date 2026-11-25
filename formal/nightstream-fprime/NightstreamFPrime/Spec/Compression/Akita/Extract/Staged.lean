@@ -88,7 +88,6 @@ theorem fair_slot {Coord Slot : Type} [Fintype Coord] [DecidableEq Coord] [Finty
   refine le_of_eq ?_
   unfold mass
   convert uniform
-  exact Iff.rfl
 
 /-- The slots of an answer at `count` different coordinates are a uniform vector. -/
 theorem fair_slots {Coord Slot : Type} [Fintype Coord] [DecidableEq Coord] [Fintype Slot]
@@ -102,7 +101,6 @@ theorem fair_slots {Coord Slot : Type} [Fintype Coord] [DecidableEq Coord] [Fint
   refine le_of_eq ?_
   unfold mass
   convert uniform
-  exact Iff.rfl
 
 /-- An answer with a slot gives a uniform field element. -/
 theorem exists_fair_slot {Coord Slot : Type} [Fintype Coord] [DecidableEq Coord] [Nonempty Coord]

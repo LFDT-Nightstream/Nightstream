@@ -22,15 +22,14 @@ use serde_json::{json, Value};
 use self::replay::{replay, Statement};
 use self::trace::{base_words, extension_words, hex, Step, MODULUS};
 use crate::akita::prover::Prover;
-use crate::akita::verifier::{Opening, Verifier};
-use crate::akita::{base, commitment, extension, setup_prefixes, Base, Polynomial, Schedules, Shape, SCHEDULES};
+use crate::akita::verifier::{commitment, setup_prefixes, Opening, Verifier};
+use crate::akita::{base, extension, Base, Polynomial, Schedules, Shape, SCHEDULES};
 use crate::key;
-use crate::layout::LOOKUP_VARS;
 use crate::support::{instances, key as prover_key, layout as layout_of, statements};
-use crate::transcript::{absorb_bytes, absorb_extension, challenges as draw, session};
+use crate::transcript::{absorb_bytes, absorb_extension, session};
 use crate::{
-    absorb_statements, challenges, claimed_sum, commit, inverse_point, lookup_challenges, sumcheck, verify, weights,
-    Error, SESSION,
+    absorb_statements, challenges, claimed_sum, commit, inverse_point, lookup_challenges, sumcheck, verify, Error,
+    SESSION,
 };
 
 /// The checks of `akita-verifier` that need its private code. The replay does not evaluate them.
@@ -131,17 +130,11 @@ fn compressed() -> Case {
     let (row_point, _) = key::row_point(challenges.omega).expect("row point");
     let (rho, _) = sumcheck::verify(transcript, &proof.rounds, claimed_sum(&statements, &challenges)).expect("rounds");
     absorb_extension(transcript, &[proof.witness_value]);
-    absorb_extension(transcript, &proof.inverse_values);
+    absorb_extension(transcript, &[proof.shared_inverse]);
     absorb_extension(transcript, &[proof.key_part]);
-    let column = draw(transcript, LOOKUP_VARS);
     let (mut key_point, _) = sumcheck::verify(transcript, &proof.key_rounds, proof.key_part).expect("key rounds");
     absorb_extension(transcript, &[proof.key_polynomial_value]);
     key_point.extend(row_point);
-    let inverse_value = weights::equality(&column, proof.inverse_values.len())
-        .iter()
-        .zip(&proof.inverse_values)
-        .map(|(&weight, &value)| weight * value)
-        .sum();
     let shape = SCHEDULES[0].first();
     Case {
         schedules: &SCHEDULES[0],
@@ -152,8 +145,8 @@ fn compressed() -> Case {
             proof.witness_commitment.clone(),
             proof.inverse_commitment.clone(),
         ],
-        points: [key_point, rho.clone(), inverse_point(&layout, &rho, &column)],
-        values: [proof.key_polynomial_value, proof.witness_value, inverse_value],
+        points: [key_point, rho.clone(), inverse_point(&layout, &rho)],
+        values: [proof.key_polynomial_value, proof.witness_value, proof.shared_inverse],
         session: session(transcript, SESSION),
         proof: proof.opening,
         registry: SetupPrefixVerifierRegistry::new(sample_akita_setup_seed()),
@@ -216,6 +209,7 @@ fn direct(schedules: &'static Schedules, row: usize, file: &'static str, cells: 
                 (third, &points[2], values[2]),
             ],
             &session,
+            false,
         )
         .expect("opening");
     let prefixes = prover.setup_prefixes().expect("prefixes");
@@ -512,12 +506,12 @@ fn files() -> Vec<(&'static str, String)> {
     );
     files.push(("key20-opening-retry.json", text(&retried)));
 
-    for (row, file) in [(0, "key30-opening-26-28.json"), (1, "key30-opening-27-28.json")] {
+    for (row, file) in [(0, "key30-opening-26-26.json"), (1, "key30-opening-27-26.json")] {
         let case = direct(&SCHEDULES[1], row, file, 5, row as u64);
         let positive = vector(&case);
         if row == 0 {
             files.push((
-                "key30-opening-26-28-negative.json",
+                "key30-opening-26-26-negative.json",
                 text(&negative(&case, &positive, |site| site.starts_with("stage3."))),
             ));
         }

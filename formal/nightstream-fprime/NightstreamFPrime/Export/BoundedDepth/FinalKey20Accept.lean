@@ -66,8 +66,7 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
     RingCarrierLayout.carrierWidth logicalWidth}
   {mode : Mode} (setup : FinalVerifier.Setup mode logicalWidth publicFits)
-  (packageWidths : Fin 2 → ℕ) (step : AppState → AppWitness → AppState) (cap : ℕ)
-  (control : AppState → AppWitness → Fin 2) (shape : Claims logicalWidth publicFits)
+  (packageWidths : Fin 2 → ℕ) (step : AppState → AppWitness → AppState) (control : AppState → AppWitness → Fin 2) (shape : Claims logicalWidth publicFits)
   {Coord : Type} [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] {total slots width limit : ℕ}
 
 /-- The commitments that a stage input fixes: the commitments of the key polynomial and of `W`
@@ -136,7 +135,7 @@ local notation "Content" =>
 local notation "placeOf" => (Prod.snd ∘ Prod.fst ∘ Page.data : Leaf → Fin 3 → List K)
 
 local notation "C" =>
-  compose setup packageWidths step cap control shape (Page.read : Reader Leaf)
+  compose setup packageWidths step control shape (Page.read : Reader Leaf)
     (Prod.fst ∘ Prod.fst ∘ Page.data : Leaf → _) (sheetBound (Coord := Coord) (total := total))
 
 local notation "vf" => FinalVerifier.Setup.verifier setup shape
@@ -178,7 +177,7 @@ local notation "fifth" =>
 
 /-- The final verifier `towerAccepts` of `sound` accepts the honest prover of a final proof with
 the wire messages `Sheet`, without the probability that a response of the Akita opening does not
-fit (`complete` with `Page.sends`, `Cell.sendable_values` and `Page.carries`). The terminal is
+fit (`complete` with `Page.sends`, `Cell.sendable_triple` and `Page.carries`). The terminal is
 `sheetTerminal` at the stage after the level 5, and the commitments of a stage input are
 `sheetBound`. For a setup with `Use`, each matrix of each level, each decoder of the fold
 challenges and each table of the oracle with `calm`, `regular` and `decodes` to `decodesL`, a
@@ -283,7 +282,7 @@ theorem accepts (use : Use setup shape) (wide : 8 ≤ width) (capped : 302980489
     show 0 + (_ ++ [_]).length = _
     rw [List.length_append, List.length_singleton, Nat.zero_add]
     rfl
-  obtain ⟨proof, zero, holds⟩ := complete setup packageWidths step cap control shape
+  obtain ⟨proof, zero, holds⟩ := complete setup packageWidths step control shape
     (Page.read : Reader Leaf) (Prod.fst ∘ Prod.fst ∘ Page.data : Leaf → _)
     (sheetBound (Coord := Coord) (total := total)) (β := β) (key := key) (openKey := openKey)
     (claim := (Key20.Note.claim ∘ noteOf)) (block := block) (decode := decode)
@@ -310,7 +309,7 @@ theorem accepts (use : Use setup shape) (wide : 8 ≤ width) (capped : 302980489
     (statementOf := (Key20.Note.statement ∘ noteOf))
     (partialsOf := (Key20.Note.partials ∘ noteOf)) (accept := accept) use
     (Page.sends (by omega)) wide capped room
-    (fun values zero => Cell.sendable_values (by omega) fun index large => zero index (by omega))
+    (Cell.sendable_triple (by omega))
     (Page.carries (fun data : Content => data.2.commit)
       fun target => ⟨((given, fun _ => []), { base with commit := target }), rfl⟩)
     (Page.carries (fun data : Content => (data.2.commit, data.2.value, data.1.2))

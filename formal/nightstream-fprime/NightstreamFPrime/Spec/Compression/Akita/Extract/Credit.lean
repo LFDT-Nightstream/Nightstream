@@ -72,8 +72,8 @@ theorem foldCredit_eq (bad alpha vars batch base : ℕ) (bin : Bool) :
     credit_append (by rw [List.length_map]; exact rangeLosses_length (E := E) _ _),
     credit_append (by rw [List.length_map, binLosses_length, binCosts_length]), credit_cons,
     credit_replicate]
-  simp only [List.sum_cons, List.sum_append, List.sum_replicate, nsmul_eq_mul, range,
-    binCredit_eq]
+  rw [List.sum_cons, List.sum_cons, List.sum_cons, List.sum_append, List.sum_append, List.sum_cons,
+    List.sum_replicate, nsmul_eq_mul, range, binCredit_eq]
 
 /-- The stage errors of the draws of `foldCheckSq` (`foldCostsSq` with `foldLossesSq`). -/
 noncomputable def foldCreditSq (bad alpha vars batch base : ℕ) (bin : Bool) : ℝ :=
@@ -103,8 +103,9 @@ theorem foldCreditSq_eq (bad alpha vars batch base : ℕ) (bin : Bool) :
     credit_replicate, credit_cons,
     credit_append (by rw [List.length_map, binLosses_length, binCosts_length]), credit_cons,
     credit_replicate]
-  simp only [List.sum_cons, List.sum_append, List.sum_replicate, nsmul_eq_mul, treeCredit_eq,
-    binCredit_eq]
+  rw [List.sum_cons, List.sum_cons, List.sum_cons, List.sum_append, List.sum_append,
+    treeCredit_eq, List.sum_cons, List.sum_replicate, nsmul_eq_mul, List.sum_cons,
+    List.sum_append, binCredit_eq, List.sum_cons, List.sum_replicate, nsmul_eq_mul]
 
 /-- The stage errors of the draws of `tensorCheck` (`tensorCosts` with `tensorLosses`). -/
 noncomputable def tensorCredit (ν : ℕ) : ℝ :=

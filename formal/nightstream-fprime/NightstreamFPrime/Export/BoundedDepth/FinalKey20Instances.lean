@@ -33,7 +33,7 @@ variable {logicalWidth : Nat}
     RingCarrierLayout.carrierWidth logicalWidth}
   {mode : Mode}
   {setup : FinalVerifier.Setup mode logicalWidth publicFits} {packageWidths : Fin 2 → ℕ}
-  {step : AppState → AppWitness → AppState} {cap : ℕ} {control : AppState → AppWitness → Fin 2}
+  {step : AppState → AppWitness → AppState} {control : AppState → AppWitness → Fin 2}
   {Wire Coord : Type} {total : ℕ} {read : Reader Wire}
   {head : Wire → First logicalWidth publicFits}
   [Fintype Coord] [DecidableEq Coord]
@@ -50,7 +50,7 @@ levels 1 and 2 that `Opening.Drawn` gives. The radius of the reduction for the k
 theorem Opening.reduced (mass : o.mass = Key20.rootMass) (weight₁ : o.weight₁ = 51)
     (weight₂ : o.weight₂ = 31)
     {out : _ ⊕ _}
-    (solved : Solved (o.tower setup packageWidths step cap control read head) o.key o.honest
+    (solved : Solved (o.tower setup packageWidths step control read head) o.key o.honest
       ((root.fold 0).innerBound (root.shape 0)) out) :
     Key20.Reduced Key20.instances o.key o.openKey o.key₁ o.openKey₁ o.key₂ o.openKey₂ o.key₃
       o.openKey₃ o.key₄ o.openKey₄ o.key₅ o.openKey₅ o.terminal.matrix := by
@@ -69,7 +69,7 @@ theorem Opening.reduced_shared (mass : o.mass = Key20.rootMass) (weight₁ : o.w
     (keys : Key20.Shared S o.key o.openKey o.key₁ o.openKey₁ o.key₂ o.openKey₂ o.key₃ o.openKey₃
       o.key₄ o.openKey₄ o.key₅ o.openKey₅ o.terminal.matrix)
     {out : _ ⊕ _}
-    (solved : Solved (o.tower setup packageWidths step cap control read head) o.key o.honest
+    (solved : Solved (o.tower setup packageWidths step control read head) o.key o.honest
       ((root.fold 0).innerBound (root.shape 0)) out) :
     Setup.Solved Key20.views S := by
   rcases out with certificate | brk

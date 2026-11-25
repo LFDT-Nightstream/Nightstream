@@ -100,7 +100,7 @@ theorem skeleton30_shaped {r : Key30.Row} (member : r ∈ Key30.rows) (ℓ : Fin
     levelShaped (layout30 r 0 0) ℓ = true ∧ endsFit (skeleton (layout30 r 0 0)).zipIdx = true ∧
       tensorShapeAt (skeleton (layout30 r 0 0)).zipIdx 7 (layout30 r 0 0).terminal.rounds = true := by
   simp only [Key30.rows, List.mem_cons, List.mem_nil_iff, or_false] at member
-  rcases member with rfl | rfl
+  rcases member.symm with rfl | rfl
   · refine ⟨?_, skeleton30_w27_ends, skeleton30_w27_tensor⟩
     match ℓ with
     | 0 => exact skeleton30_w27_level0

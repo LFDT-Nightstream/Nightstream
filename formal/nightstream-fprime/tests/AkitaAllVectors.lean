@@ -33,8 +33,8 @@ open AkitaVectors
     writesGate v ops
     if name == "key20-opening.json" then
       discard <| gate3Negative "key20-opening-negative.json" ops v.proof
-    if name == "key30-opening-26-28.json" then
-      discard <| gate3Negative "key30-opening-26-28-negative.json" ops v.proof
+    if name == "key30-opening-26-26.json" then
+      discard <| gate3Negative "key30-opening-26-26-negative.json" ops v.proof
     let layout ← layoutOf v
     let pub ← publicOf v o layout
     shapedGate v pub
@@ -71,8 +71,8 @@ open AkitaVectors
     orderGate v o pub
     if v.name == "key20-opening.json" then
       gate4Negative "key20-opening-negative.json" ops pub v.proof
-    if v.name == "key30-opening-26-28.json" then
-      gate4Negative "key30-opening-26-28-negative.json" ops pub v.proof
+    if v.name == "key30-opening-26-26.json" then
+      gate4Negative "key30-opening-26-26-negative.json" ops pub v.proof
     AkitaSumcheckVectors.gate r
     let (count, _) ← AkitaSamplerVectors.gate r
     groups := groups ++ [count]

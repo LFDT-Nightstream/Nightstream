@@ -8,7 +8,7 @@ the numbers that `Key30.lean` does not state, in the form of `Key20Complete.lean
 `Key20Root.lean`.
 
 - `root_folds`, `root_cells` and `root_path`: the response base 8 of each group of the root, its
-  tables of `2^30`, `2^vars` and `2^28` cells, and the compression maps of its matrix `D`.
+  tables of `2^30`, `2^vars` and `2^26` cells, and the compression maps of its matrix `D`.
 - `level₁_folds`, `level₁_path` and `level₁_bounded`: the response base 16 of each group of
   level 1, the compression maps of its matrix `D`, and the bounded source of its witness group.
   The group of the setup prefix has the full-field source (`honest`).
@@ -41,9 +41,9 @@ theorem root_folds : ∀ r ∈ rows, ∀ g, Radix ((root r).fold g).responseBase
   exact fun r member g => ⟨⟨(facts r member g).1, (facts r member g).2.1,
     (facts r member g).2.2.1⟩, (facts r member g).2.2.2⟩
 
-/-- The blocks of the groups of the root have `2^30`, `2^vars` and `2^28` cells. -/
+/-- The blocks of the groups of the root have `2^30`, `2^vars` and `2^26` cells. -/
 theorem root_cells : ∀ r ∈ rows, ∀ g, ((root r).shape g).blockLength *
-    ((root r).shape g).innerDegree * ((root r).shape g).blocks = 2 ^ ![30, r.vars, 28] g := by
+    ((root r).shape g).innerDegree * ((root r).shape g).blocks = 2 ^ ![30, r.vars, 26] g := by
   decide
 
 /-- The inputs of the compression maps of the shared matrix `D` of the root have a position for
@@ -94,20 +94,22 @@ theorem level₁_openings : ∀ r ∈ rows, ∀ g,
 /-- The levels 2 and 3 satisfy the conditions `Shape.Bounded`, have `b_z = 16 ≤ b⋆` with the
 conditions `Radix`, and the compression maps of their matrix `D` have a position for each binary
 digit. -/
-theorem lifts : (∀ r ∈ rows, (level₂ r).shape.Bounded ∧ Radix (level₂ r).fold.responseBase ∧
+theorem lifts : ∀ r ∈ rows, ((level₂ r).shape.Bounded ∧ Radix (level₂ r).fold.responseBase ∧
       (level₂ r).fold.responseBase ≤ (level₂ r).shape.certifiedBase ∧
       PathFits (level₂ r).opening.openDegree (1 * (level₂ r).opening.openRank)
         (level₂ r).opening.chain) ∧
-    level₃.shape.Bounded ∧ Radix level₃.fold.responseBase ∧
-      level₃.fold.responseBase ≤ level₃.shape.certifiedBase ∧
-      PathFits level₃.opening.openDegree (1 * level₃.opening.openRank) level₃.opening.chain := by
-  refine ⟨fun r member => ?_, ⟨⟨by decide, by decide, by decide, by decide⟩, by decide, by decide,
-    by decide, pathFits_of (by decide) (by decide)⟩, ⟨by decide, by decide, by decide⟩, by decide,
-    pathFits_of (by decide) (by decide)⟩
+    (level₃ r).shape.Bounded ∧ Radix (level₃ r).fold.responseBase ∧
+      (level₃ r).fold.responseBase ≤ (level₃ r).shape.certifiedBase ∧
+      PathFits (level₃ r).opening.openDegree (1 * (level₃ r).opening.openRank)
+        (level₃ r).opening.chain := by
+  intro r member
   simp only [rows, List.mem_cons, List.not_mem_nil, or_false] at member
   rcases member with rfl | rfl <;>
-    exact ⟨⟨⟨by decide, by decide, by decide, by decide⟩, by decide, by decide, by decide,
+    exact ⟨⟨⟨⟨by decide, by decide, by decide, by decide⟩, by decide, by decide, by decide,
       pathFits_of (by decide) (by decide)⟩, ⟨by decide, by decide, by decide⟩, by decide,
+      pathFits_of (by decide) (by decide)⟩,
+      ⟨⟨by decide, by decide, by decide, by decide⟩, by decide, by decide, by decide,
+        pathFits_of (by decide) (by decide)⟩, ⟨by decide, by decide, by decide⟩, by decide,
       pathFits_of (by decide) (by decide)⟩
 
 /-- The largest number of field elements in one message of the range tree: 6 for the bases 8
@@ -139,12 +141,12 @@ theorem fold₆ : FoldSized level₆.shape level₆.opening level₆.fold 8 := K
 and the cells of the quotient digits of level 3 and of each flat witness of the levels 4 to 6 in
 the live blocks of its receiver, as `2·B·M·(d_A/k)` coordinates of `Z_q` (Akita Section 4.5, (40)
 to (42)). -/
-theorem links :
-    (level₃.vars = level₃.tail + 1 ∧ level₄.vars = level₄.tail + 1 ∧
+theorem links : ∀ r ∈ rows,
+    ((level₃ r).vars = (level₃ r).tail + 1 ∧ level₄.vars = level₄.tail + 1 ∧
       level₅.vars = level₅.tail + 1 ∧ level₆.vars = level₆.tail + 1) ∧
-    (level₃.tail = 6 + (9 + 3) ∧ level₄.tail = 5 + (9 + 3) ∧ level₅.tail = 5 + (8 + 3) ∧
+    ((level₃ r).tail = 6 + (9 + 3) ∧ level₄.tail = 5 + (9 + 3) ∧ level₅.tail = 5 + (8 + 3) ∧
       level₆.tail = 5 + (8 + 3)) ∧
-    level₃.opening.quotientRoom level₃.fold quotientDigits ≤
+    (level₃ r).opening.quotientRoom (level₃ r).fold quotientDigits ≤
         2 * (level₄.shape.blocks * (level₄.shape.blockLength * (2 * 32))) ∧
       level₄.opening.cells level₄.fold ≤
         2 * (level₅.shape.blocks * (level₅.shape.blockLength * (2 * 16))) ∧
@@ -155,6 +157,7 @@ theorem links :
 
 /-- The bounds `S_max` of the levels 5 and 6 are at most `3029804899`, the energy that a wire
 message of the checks can have. -/
-theorem capped : norm₅.limit ≤ 3029804899 ∧ norm₆.limit ≤ 3029804899 := by decide
+theorem capped : ∀ r ∈ rows, (norm₅ r).limit ≤ 3029804899 ∧ norm₆.limit ≤ 3029804899 := by
+  decide
 
 end NightstreamFPrime.Spec.Compression.Akita.Key30

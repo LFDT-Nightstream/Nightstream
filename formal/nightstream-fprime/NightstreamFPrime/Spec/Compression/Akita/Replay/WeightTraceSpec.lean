@@ -317,7 +317,7 @@ theorem responseTerm_value (quarter : 4 * (S.innerDegree / 4) = S.innerDegree) (
   simp only [List.map_append, List.map_map, List.sum_append, sum_finRange, List.map_cons,
     List.map_nil, List.sum_cons, List.sum_nil, add_zero, Function.comp_apply, kernel_reads,
     Ext.into_neg, neg_mul, Finset.sum_neg_distrib, sub_eq_add_neg]
-  congr 1
+  refine congrArg₂ (· + ·) ?_ ?_
   · refine congrArg _ (Finset.sum_congr rfl fun a _ => congrArg _ (Finset.sum_congr rfl fun f _ =>
       Finset.sum_congr rfl fun j _ => ?_))
     rw [keyed, shared_flatOf, Nat.cast_pow]

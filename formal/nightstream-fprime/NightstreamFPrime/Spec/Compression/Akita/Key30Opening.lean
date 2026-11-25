@@ -126,11 +126,11 @@ structure Tower (r : Row) (member : r ∈ rows) (E : Type) [Field E] [Fintype E]
   openKey₂ : OpeningKey (level₂ r).opening
   claim₂ : Wire → Claim (level₂ r).opening E
   block₂ : Fin (level₂ r).shape.blocks → Coord
-  β₃ : Module.Basis (Fin level₃.opening.planes) Zq E
-  key₃ : Key level₃.shape
-  openKey₃ : OpeningKey level₃.opening
-  claim₃ : Wire → Claim level₃.opening E
-  block₃ : Fin level₃.shape.blocks → Coord
+  β₃ : Module.Basis (Fin (level₃ r).opening.planes) Zq E
+  key₃ : Key (level₃ r).shape
+  openKey₃ : OpeningKey (level₃ r).opening
+  claim₃ : Wire → Claim (level₃ r).opening E
+  block₃ : Fin (level₃ r).shape.blocks → Coord
   key₄ : Key level₄.shape
   openKey₄ : OpeningKey level₄.opening
   claim₄ : Wire → TraceClaim level₄.opening E
@@ -153,7 +153,7 @@ structure Tower (r : Row) (member : r ∈ rows) (E : Type) [Field E] [Fintype E]
   places : Wire → Fin 2 → List E
   commit₁ : Wire → ((level₁ r).shape 1).Payload
   commit₂ : Wire → (level₂ r).shape.Payload
-  commit₃ : Wire → level₃.shape.Payload
+  commit₃ : Wire → (level₃ r).shape.Payload
   commit₄ : Wire → level₄.shape.Payload
   commit₅ : Wire → level₅.shape.Payload
   commit₆ : Wire → level₆.shape.Payload
@@ -216,7 +216,7 @@ local notation "code₂" =>
 
 local notation "code₃" =>
   (Replay.CodeSlot.open open64 open64_fits :
-    Replay.CodeSlot E → Option (Rq level₃.opening.carrierDegree))
+    Replay.CodeSlot E → Option (Rq (OpeningShape.carrierDegree (Key20.Level.opening (level₃ r)))))
 
 local notation "code₄" =>
   (Replay.CodeSlot.open open128 open128_fits :
@@ -271,10 +271,10 @@ local notation "second" =>
     (Tier.finish first)
 
 local notation "third" =>
-  Tier.tensored (liftFold o.β₃ o.key₃ o.openKey₃ o.claim₃ level₃.vars (And.left level₃_sized)
-    quotientDigits (And.left (And.right level₃_sized)) level₃.batch
-    (And.left (And.right (And.right level₃_sized))) o.block₃ code₃ read 51
-    (Tier.finish second)) level₃.tail
+  Tier.tensored (liftFold o.β₃ o.key₃ o.openKey₃ o.claim₃ (Key20.Level.vars (level₃ r)) (And.left (level₃_sized r member))
+    quotientDigits (And.left (And.right (level₃_sized r member))) (Key20.Level.batch (level₃ r))
+    (And.left (And.right (And.right (level₃_sized r member)))) o.block₃ code₃ read 51
+    (Tier.finish second)) (Key20.Level.tail (level₃ r))
 
 local notation "fourth" =>
   Tier.tensored (committedTrace (fold := level₄.fold) o.key₄ o.openKey₄ o.claim₄ level₄.vars
@@ -285,7 +285,7 @@ local notation "fifth" =>
   Tier.tensored (committedTraceSq (fold := level₅.fold) o.key₅ o.openKey₅ o.claim₅ level₅.vars
     (And.left (tails_sized level₅ (List.mem_cons_self ..))) level₅.batch
     (And.left (And.right (tails_sized level₅ (List.mem_cons_self ..)))) o.block₅ code₅
-    read 53 norm₅.operator norm₅.limit (Tier.finish fourth)) level₅.tail
+    read 53 (Key20.Squared.operator (norm₅ r)) (Key20.Squared.limit (norm₅ r)) (Tier.finish fourth)) level₅.tail
 
 local notation "sixth" =>
   Tier.tensored (committedTraceSq (fold := level₆.fold) o.key₆ o.openKey₆ o.claim₆ level₆.vars
@@ -301,7 +301,7 @@ and of the level 1 and for the level 4, `(31, 10)` for the levels 2 and 3, and `
 the filter `TrigTable.codeAccepts` of the code for `Γ` = 18 for the levels 5 and 6. -/
 def Tower.links : Prefix Wire (Option Coord → Replay.CodeSlot E) total → Prop :=
   offLinks (weight₅ := 53) (weight₆ := 53) (route₄ := Route.coefficient)
-    (route₅ := Route.euclidean norm₅.operator norm₅.limit)
+    (route₅ := Route.euclidean (norm₅ r).operator (norm₅ r).limit)
     (route₆ := Route.euclidean norm₆.operator norm₆.limit) zeroth first second third fourth fifth
     sixth o.terminal start read o.commit o.value o.place o.commits o.values o.places o.registry
     o.commit₁ o.commit₂ o.commit₃ (And.left quarters) (And.left (And.right quarters))
@@ -315,7 +315,7 @@ level, or for `A_term`. -/
 noncomputable def Tower.body (accept : Prefix Wire (Option Coord → Replay.CodeSlot E) total →
     Prop) :=
   offRoot (weight₅ := 53) (weight₆ := 53) (route₄ := Route.coefficient)
-    (route₅ := Route.euclidean norm₅.operator norm₅.limit)
+    (route₅ := Route.euclidean (norm₅ r).operator (norm₅ r).limit)
     (route₆ := Route.euclidean norm₆.operator norm₆.limit) accept zeroth first second third
     fourth fifth sixth o.terminal 32 16 16 16 start read o.commit o.value o.place o.commits
     o.values o.places o.flat
@@ -388,18 +388,18 @@ theorem Tower.Drawn.fits (drawn : o.Drawn shared read start) : start ≤ total :
 
 /-- Akita Proposition 10.44, Theorem 10.46 and Lemma 9.1 for the opening of a row of `key30.aks`
 with the decoders of the code: the stages of `Tower.body` are a suffix from the stage `start` under
-each verifier that accepts only with `Tower.links`, with `1467 + B_1 + B_2` retry loops, the tree
-size `54400647168·(129 + B_1)·(B_2 + 1)`, and a sum of the stage errors of at most
-`1623435/(4096·|E|) + (1458 + B_1 + B_2)/q²` (`tower_suffix` and `towerError_le`: the slot
+each verifier that accepts only with `Tower.links`, with `1188 + B_1 + B_2 + B_3` retry loops, the tree
+size `1813708800·(129 + B_1)·(B_2 + 1)·(B_3 + 1)`, and a sum of the stage errors of at most
+`1622923/(4096·|E|) + (1179 + B_1 + B_2 + B_3)/q²` (`tower_suffix` and `towerError_le`: the slot
 probability of each decoder is at most `2^-128 ≤ 1/q²`, `Replay.slotChance_open_field`,
 `Replay.slotChance_kept64_field`). `slots`: an answer of the oracle has 28 slots. -/
 theorem Tower.suffix (drawn : o.Drawn shared read start) (slots : 28 ≤ Fintype.card Coord)
     (linked : ∀ point, accept point → o.links shared read start point) :
     ∃ error, Tier.Suffix accept start (OpensAt start o.commit o.value o.place o.key mass)
-        (o.body shared read start accept) error (1467 + r.blocks₁ + r.blocks₂)
-        (54400647168 * ((129 + r.blocks₁) * (r.blocks₂ + 1))) ∧
-      error ≤ 1623435 / (4096 * Fintype.card E) +
-        ((1458 + r.blocks₁ + r.blocks₂ : ℕ) : ℝ) * (1 / (fieldModulus : ℝ) ^ 2) := by
+        (o.body shared read start accept) error (1188 + r.blocks₁ + r.blocks₂ + r.blocks₃)
+        (1813708800 * ((129 + r.blocks₁) * (r.blocks₂ + 1) * (r.blocks₃ + 1))) ∧
+      error ≤ 1622923 / (4096 * Fintype.card E) +
+        ((1179 + r.blocks₁ + r.blocks₂ + r.blocks₃ : ℕ) : ℝ) * (1 / (fieldModulus : ℝ) ^ 2) := by
   have registered : Batch.Registered (o.key₁ 0) o.registry o.flat o.reference := by
     obtain ⟨table, payload, padded, decommitment⟩ := drawn.registered
     rw [payload, padded, decommitment]
@@ -442,7 +442,7 @@ theorem Tower.suffix (drawn : o.Drawn shared read start) (slots : 28 ≤ Fintype
       (fun _ => sparse_of_mem decode₁_mem) registered (by decide)
       drawn.injective₂ (units_of_mem 5 rfl fun decoded => (Replay.open_mem decoded).1)
       ⟨2, sparse_of_mem (ones := 31) (twos := 10) fun decoded => (Replay.open_mem decoded).1⟩
-      drawn.injective₃ (units_of_mem 5 (by decide) fun decoded => (Replay.open_mem decoded).1)
+      drawn.injective₃ (units_of_mem 5 rfl fun decoded => (Replay.open_mem decoded).1)
       ⟨2, sparse_of_mem (ones := 31) (twos := 10) fun decoded => (Replay.open_mem decoded).1⟩
       drawn.injective₄ (units_of_mem 6 (by decide) fun decoded => (Replay.open_mem decoded).1)
       ⟨1, sparse_of_mem (ones := 31) (twos := 0) fun decoded => (Replay.open_mem decoded).1⟩
@@ -517,7 +517,7 @@ variable [Finite Wire]
 row of `key30.aks` with the decoders of the code. For each prover with at most `Q` queries to the
 table of the oracle on keys, the probability that `Tower.accepts` accepts and the extractor
 returns no output is at most
-`(Q + 1)·(1623435/(4096·|E|) + (1458 + B_1 + B_2)/q²) + (Q + 1)·(1467 + B_1 + B_2)/budget`,
+`(Q + 1)·(1622923/(4096·|E|) + (1179 + B_1 + B_2 + B_3)/q²) + (Q + 1)·(1188 + B_1 + B_2 + B_3)/budget`,
 with
 `|E| = q²` (`Key20.card_field`). The probability is over the uniform table and the tape of the
 extractor. The bound has no term for the probability that the output is a solution of
@@ -531,9 +531,9 @@ theorem Tower.extraction_le (drawn : o.Drawn shared read 0) (slots : 28 ≤ Fint
         (if o.accepts shared read ((Structure.protocol whole).final prover table) ∧
           Checkpoint.extract whole prover budget table tape = none
             then (1 : ℝ) else 0) ≤
-      (queries + 1) * (1623435 / (4096 * Fintype.card E) +
-          ((1458 + r.blocks₁ + r.blocks₂ : ℕ) : ℝ) * (1 / (fieldModulus : ℝ) ^ 2)) +
-        (queries + 1) * (1467 + r.blocks₁ + r.blocks₂ : ℕ) / budget := by
+      (queries + 1) * (1622923 / (4096 * Fintype.card E) +
+          ((1179 + r.blocks₁ + r.blocks₂ + r.blocks₃ : ℕ) : ℝ) * (1 / (fieldModulus : ℝ) ^ 2)) +
+        (queries + 1) * (1188 + r.blocks₁ + r.blocks₂ + r.blocks₃ : ℕ) / budget := by
   obtain ⟨_, suffix, small⟩ := Tower.suffix drawn slots fun _ accepted => accepted
   have bound := suffix.extraction_le rfl prover bounded positive
   rw [congrArg Protocol.accept suffix.protocol] at bound

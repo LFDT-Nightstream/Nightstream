@@ -345,15 +345,21 @@ example : PackGroup.Fits ⟨(Key30.level₂ Key30.w26).shape, (Key30.level₂ Ke
     by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide,
     by decide, by decide⟩
 
-example : PackGroup.Fits ⟨Key30.level₃.shape, Key30.level₃.opening, Key30.level₃.fold, [], [], [],
-    Ext.one⟩ Key30.level₃.vars :=
+example : PackGroup.Fits ⟨(Key30.level₃ Key30.w27).shape, (Key30.level₃ Key30.w27).opening,
+    (Key30.level₃ Key30.w27).fold, [], [], [], Ext.one⟩ (Key30.level₃ Key30.w27).vars :=
+  ⟨⟨6, rfl⟩, ⟨7, rfl⟩, ⟨7, rfl⟩, ⟨7, rfl⟩, ⟨6, rfl⟩, ⟨5, rfl⟩, ⟨6, rfl⟩, ⟨5, rfl⟩, by decide,
+    by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide,
+    by decide, by decide⟩
+
+example : PackGroup.Fits ⟨(Key30.level₃ Key30.w26).shape, (Key30.level₃ Key30.w26).opening,
+    (Key30.level₃ Key30.w26).fold, [], [], [], Ext.one⟩ (Key30.level₃ Key30.w26).vars :=
   ⟨⟨6, rfl⟩, ⟨7, rfl⟩, ⟨7, rfl⟩, ⟨7, rfl⟩, ⟨6, rfl⟩, ⟨5, rfl⟩, ⟨6, rfl⟩, ⟨5, rfl⟩, by decide,
     by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide,
     by decide, by decide⟩
 
 example : 2 ^ Nat.log 2 Key20.level₁.shape.openingBase = Key20.level₁.shape.certifiedBase ∧
-    2 ^ Nat.log 2 Key30.level₃.shape.openingBase = Key30.level₃.shape.certifiedBase :=
-  ⟨pow_log_top ⟨3, rfl⟩, pow_log_top ⟨4, rfl⟩⟩
+    ∀ r, 2 ^ Nat.log 2 (Key30.level₃ r).shape.openingBase = (Key30.level₃ r).shape.certifiedBase :=
+  ⟨pow_log_top ⟨3, rfl⟩, fun _ => pow_log_top ⟨4, rfl⟩⟩
 
 example (r : Key30.Row) :
     2 ^ Nat.log 2 (Key30.level₂ r).shape.openingBase = (Key30.level₂ r).shape.certifiedBase :=

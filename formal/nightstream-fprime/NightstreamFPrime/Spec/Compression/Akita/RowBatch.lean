@@ -247,7 +247,7 @@ variable {J}
 when the polynomial of one of its ring rows is not zero. -/
 theorem poly_ne_zero (independent : J.Independent) {P : Fin ring → Zq[X]} {r : Fin ring}
     (nonzero : P r ≠ 0) : J.poly (J.slot r) P ≠ 0 := fun zero =>
-  nonzero (Polynomial.ext fun j => by
+  nonzero (AddMonoidAlgebra.ext <| Finsupp.ext fun j => by
     rw [Polynomial.coeff_zero]
     refine independent (J.slot r) (fun x => (P x).coeff j) ?_ r rfl
     have coefficient : (J.poly (J.slot r) P).coeff j = 0 := by rw [zero, Polynomial.coeff_zero]

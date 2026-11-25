@@ -151,7 +151,7 @@ theorem profiles30 : ∀ r ∈ Key30.rows, ∀ g,
         ⟨2, 256, 1, 22528, 7⟩⟩,
       ⟨r.vars, 256 * r.length, r.length, 256, 8, 16, 4,
         ⟨1, 2048, 1, r.length * 4, 16642998148⟩, 3, 22, ⟨2, 128, 1, 11264, 7⟩⟩,
-      ⟨28, 524288, 1024, 512, 4, 13, 5, ⟨1, 512, 3, 5120, 2080374660⟩, 3, 22,
+      ⟨26, 131072, 512, 256, 2, 13, 5, ⟨1, 512, 3, 2560, 2080374660⟩, 3, 22,
         ⟨2, 256, 1, 16896, 7⟩⟩] g := by
   decide
 
@@ -159,7 +159,7 @@ theorem root20_vars (g : Fin 3) : (rootGroup Key20.root g).vars = ![20, 16, 16] 
   (congrArg Profile.vars (profiles20 g)).trans (by revert g; decide)
 
 theorem root30_vars {r : Key30.Row} (member : r ∈ Key30.rows) (g : Fin 3) :
-    (rootGroup (Key30.root r) g).vars = ![30, r.vars, 28] g :=
+    (rootGroup (Key30.root r) g).vars = ![30, r.vars, 26] g :=
   (congrArg Profile.vars (profiles30 r member g)).trans (by fin_cases g <;> rfl)
 
 theorem rootGroup_header_size (B : Batch (Fin 3)) (g : Fin 3) :
@@ -339,7 +339,7 @@ count of the values, and each commitment has 471 bytes, the profile header of it
 canonical coefficients of its rows. -/
 theorem shaped30 {pub : Public} {r : Key30.Row} (member : r ∈ Key30.rows)
     (root : pub.root = root30 r) (shaped : pub.shaped = true) :
-    (∀ g : Fin 3, ((pub.groups[g.val]?.map (·.point)).getD #[]).size = ![30, r.vars, 28] g) ∧
+    (∀ g : Fin 3, ((pub.groups[g.val]?.map (·.point)).getD #[]).size = ![30, r.vars, 26] g) ∧
     (pub.groups.flatMap (·.value)).size = 3 ∧
     ∀ g : Fin 3, ∃ s, pub.groups[g.val]? = some s ∧ s.commitment.size = 471 ∧
       (s.commitment.extract 0 215).data = (rootGroup (Key30.root r) g).header.data ∧

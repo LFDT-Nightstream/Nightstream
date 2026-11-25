@@ -154,7 +154,7 @@ theorem costs_sum (claims : Claims logicalWidth publicFits) :
 end Setup
 
 variable (setup : Setup mode logicalWidth publicFits) {packageWidths : Fin 2 → ℕ}
-  (step : AppState → AppWitness → AppState) (cap : ℕ) (control : AppState → AppWitness → Fin 2)
+  (step : AppState → AppWitness → AppState) (control : AppState → AppWitness → Fin 2)
 
 /-- On each path of the run that avoids its bad sets, an accepted run whose output claims hold
 gives the fresh instance under `Spec.CCS.Holds`. -/
@@ -175,14 +175,14 @@ theorem freshRun_avoids (statement : TerminalStatement AppState)
 avoids the bad sets `W` does not satisfy `Relation` for the output claim of the run. -/
 theorem lead_sound (premises : Premises setup packageWidths)
     {statement : TerminalStatement AppState} {claims : Claims logicalWidth publicFits} {W : ℕ → F}
-    (refuted : ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths cap control statement
+    (refuted : ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths control statement
       (setup.envelope statement claims W)) :
     (setup.lead statement claims W).Avoids fun result => ∀ probe, result = some probe →
       ¬ Relation (setup.params claims) (setup.claimsOf statement claims probe) W := by
   unfold Setup.lead
   split_ifs with accepted
   · exact (freshRun_avoids setup statement claims W).mono fun _ fresh probe equal holds =>
-      refuted (verifies_of_run setup step cap control premises accepted.1 accepted.2.laid holds
+      refuted (verifies_of_run setup step control premises accepted.1 accepted.2.laid holds
         (fresh probe equal))
   · exact fun _ equal => nomatch equal
 
@@ -191,13 +191,12 @@ theorem lead_sound (premises : Premises setup packageWidths)
 theorem laid_facts {claims : Claims logicalWidth publicFits} (laid : setup.Laid claims) :
     WellFormed (setup.params claims) ∧ CountsNonzero (setup.params claims) ∧
       MatrixSpec (setup.verifier claims) ∧
-      (setup.params claims).lookups ≤ 2 ^ (setup.verifier claims).columnVars ∧
       (setup.params claims).rows ≤ 2 ^ (setup.params claims).rowVars ∧
       ∀ c, ((setup.params claims).shape c).witness.vars - (setup.params claims).laneVars ≤
         (setup.params claims).keyBlockVars := by
   obtain ⟨wf, small, key_fits, -⟩ := setup.layout_facts laid
   exact ⟨wf, params_countsNonzero _ _ _ _ fun c _ => small c,
-    verifierData_matrixSpec _ _ _ _ _ _, le_of_eq rfl, Nat.le_of_ble_eq_true rfl, key_fits⟩
+    verifierData_matrixSpec _ _ _ _ _ _, Nat.le_of_ble_eq_true rfl, key_fits⟩
 
 /-- Akita Definition 10.16 (vii)(a) for checkpoint 1: for a table `W` whose proof the verifier
 of Algorithm 6 rejects, on each path of Π_CCS and the draw of `τ` that avoids the bad sets, no
@@ -205,12 +204,12 @@ table `V` is without error for the output claim of the run. -/
 theorem front_avoids (premises : Premises setup packageWidths)
     {statement : TerminalStatement AppState} {claims : Claims logicalWidth publicFits}
     (laid : setup.Laid claims) {W : ℕ → F}
-    (refuted : ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths cap control statement
+    (refuted : ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths control statement
       (setup.envelope statement claims W)) :
     (led (setup.params claims) (setup.lead statement claims W) W).Avoids fun result =>
       ∀ probe τ, result = some (probe, τ) → ¬ (Apart (setup.params claims) τ ∧
         ∃ V, ¬ Fails (setup.params claims) (setup.claimsOf statement claims probe) W V τ) :=
-  led_avoids (laid_facts setup laid).2.1 _ W (lead_sound setup step cap control premises refuted)
+  led_avoids (laid_facts setup laid).2.1 _ W (lead_sound setup step control premises refuted)
 
 /-- Akita Definition 10.16 (vii)(a) for checkpoint 2: on each path of `Verifier.back` that
 avoids the bad sets, opening claims that are true for the key polynomial, `W` and `V` give
@@ -224,8 +223,7 @@ theorem back_avoids {claims : Claims logicalWidth publicFits} (laid : setup.Laid
         (fun x => algebraMap F K (V x)) opening →
       Apart (setup.params claims) τ ∧ ¬ Fails (setup.params claims) st W V τ :=
   Compression.Verifier.back_avoids _ (laid_facts setup laid).1 (laid_facts setup laid).2.2.1
-    (laid_facts setup laid).2.2.2.1 (laid_facts setup laid).2.2.2.2.1
-    (laid_facts setup laid).2.2.2.2.2 st W V τ
+    (laid_facts setup laid).2.2.2.1 (laid_facts setup laid).2.2.2.2 st W V τ
 
 section Stages
 

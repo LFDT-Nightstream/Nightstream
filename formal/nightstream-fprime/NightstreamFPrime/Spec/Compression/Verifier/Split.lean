@@ -62,17 +62,15 @@ def Checked (st : Statement P) (τ : Fin P.lookups → F) (ch : Challenges P) (�
   Shaped P st ∧ Apart P τ ∧ (∀ i < P.rowVars, 1 + ch.omega ^ 2 ^ i ≠ 0) ∧
   kfinal = rowScale P.rowVars ch.omega * kv *
     weightAt P.lanes P.laneVars (laneForm P ch ρ) (uses P ch ρ) kp ∧
-  value = vals.1 * (vals.2.2 + vf.matrixPart st ch ρ + closedPart P st τ ch ρ -
-      checkAt P ch ρ * (lowAt P ρ * ∑ k, ch.psi k * vals.2.1 k)) +
-    checkAt P ch ρ * (lowAt P ρ * ∑ k, ch.psi k * ι (τ k) * vals.2.1 k) +
-    sumAt P ch ρ * (lowAt P ρ * ∑ k, ch.psi k * vals.2.1 k)
+  value = mainSummand (fun k => ι (τ k)) ch.psi vals.1
+    (vals.2.2 + vf.matrixPart st ch ρ + closedPart P st τ ch ρ)
+    (checkAt P ch ρ) (lowAt P ρ * vals.2.1) (sumAt P ch ρ)
 
 /-- The opening claims of a transcript of the verifier. -/
-def finals (ch : Challenges P) (ρ : List K) (vals : Values K) (col : Fin vf.columnVars → K)
-    (kp : List K) (kv : K) : Finals K :=
+def finals (ch : Challenges P) (ρ : List K) (vals : Values K) (kp : List K) (kv : K) :
+    Finals K :=
   ⟨(kp ++ rowPoint P.rowVars ch.omega, kv), (ρ, vals.1),
-    (ρ.take P.spanVars ++ List.ofFn col ++ List.replicate vf.zeros 0,
-      mle (List.ofFn col) vals.2.1)⟩
+    (ρ.take P.spanVars ++ List.replicate vf.zeros 0, vals.2.1)⟩
 
 /-- The key polynomial of `Params.key` as a table. -/
 def keyCells (P : Params F K) : ℕ → K :=
@@ -80,12 +78,11 @@ def keyCells (P : Params F K) : ℕ → K :=
 
 omit [Fintype F] [DecidableEq F] [Fintype K] [DecidableEq K] in
 theorem accepts_iff (st : Statement P) (W V : ℕ → F) (τ : Fin P.lookups → F) (ch : Challenges P)
-    (ρ : List K) (value : K) (vals : Values K) (col : Fin vf.columnVars → K) (kp : List K)
-    (kfinal kv : K) :
-    Accepts vf st W V τ ch ρ value vals col kp kfinal kv ↔
+    (ρ : List K) (value : K) (vals : Values K) (kp : List K) (kfinal kv : K) :
+    Accepts vf st W V τ ch ρ value vals kp kfinal kv ↔
       Checked vf st τ ch ρ value vals kp kfinal kv ∧
         Opened (keyCells P) (fun x => ι (W x)) (fun x => ι (V x))
-          (finals vf ch ρ vals col kp kv) := by
+          (finals vf ch ρ vals kp kv) := by
   simp only [Accepts, Checked, Apart, Opened, finals, keyCells, and_assoc]
 
 /-- The draw of the lookup challenges, after the commitment of `W`. -/
@@ -94,32 +91,32 @@ noncomputable def front (P : Params F K) (W : ℕ → F) : Game (Fin P.lookups �
 
 /-- `back` after the key sum-check. -/
 noncomputable def backKey (st : Statement P) (τ : Fin P.lookups → F) (ch : Challenges P)
-    (ρ : List K) (value : K) (vals : Values K) (col : Fin vf.columnVars → K) :
+    (ρ : List K) (value : K) (vals : Values K) :
     Option (List K × K) → Game (Option (Finals K))
   | none => .pure none
   | some (kp, kfinal) => .recv K fun kv => by
       classical
       exact .pure (if Checked vf st τ ch ρ value vals kp kfinal kv then
-        some (finals vf ch ρ vals col kp kv) else none)
+        some (finals vf ch ρ vals kp kv) else none)
 
 /-- `back` after the first sum-check. -/
-noncomputable def backMain (st : Statement P) (V : ℕ → F) (τ : Fin P.lookups → F)
+noncomputable def backMain (st : Statement P) (τ : Fin P.lookups → F)
     (ch : Challenges P) : Option (List K × K) → Game (Option (Finals K))
   | none => .pure none
   | some (ρ, value) =>
       .recv (Values K) fun vals =>
-        .draw (Fin vf.columnVars → K) (columnBad vf.columnVars vals.2.1 (columnAt P V ρ))
-          fun col => bind (sumcheck 2 (combRound (P.laneVars + P.keyBlockVars) (keyTables ch ρ)
-            productComb) (P.laneVars + P.keyBlockVars) [] vals.2.2)
-            (backKey vf st τ ch ρ value vals col)
+        bind (sumcheck 2 (combRound (P.laneVars + P.keyBlockVars) (keyTables ch ρ)
+          productComb) (P.laneVars + P.keyBlockVars) [] vals.2.2)
+          (backKey vf st τ ch ρ value vals)
 
 /-- The verifier after the commitment of `V`, for the lookup challenges `τ`. It ends in the
 opening claims, or in `none` when a check fails. The tables are in the bad sets only. -/
 noncomputable def back (st : Statement P) (W V : ℕ → F) (τ : Fin P.lookups → F) :
     Game (Option (Finals K)) :=
   .draw (Challenges P) (challengeBad P st W V τ) fun ch =>
-    bind (sumcheck 3 (combRound P.witnessVars (mainTables P st W V τ ch) mainComb)
-      P.witnessVars [] (claimedSum P st ch)) (backMain vf st V τ ch)
+    bind (sumcheck (P.lookups + 2)
+      (combRound P.witnessVars (mainTables P st W V τ ch) (mainComb P τ ch))
+      P.witnessVars [] (claimedSum P st ch)) (backMain vf st τ ch)
 
 /-- The result of `game` for a result of `back`: the test of the ideal openings. -/
 noncomputable def verdict (st : Statement P) (W V : ℕ → F) (result : Option (Finals K)) :
@@ -139,22 +136,22 @@ theorem afterTables_eq (st : Statement P) (W : ℕ → F) :
   refine congrArg _ (funext fun first => ?_)
   rcases first with _ | ⟨ρ, value⟩
   · rfl
-  refine congrArg (Game.recv _) (funext fun vals => congrArg (Game.draw _ _) (funext fun col => ?_))
+  refine congrArg (Game.recv _) (funext fun vals => ?_)
   rw [Game.bind_assoc]
   refine congrArg _ (funext fun second => ?_)
   rcases second with _ | ⟨kp, kfinal⟩
   · rfl
   refine congrArg (Game.recv _) (funext fun kv => ?_)
   show Game.pure _ = Game.pure _
-  have iff := accepts_iff vf st W V τ ch ρ value vals col kp kfinal kv
+  have iff := accepts_iff vf st W V τ ch ρ value vals kp kfinal kv
   by_cases checked : Checked vf st τ ch ρ value vals kp kfinal kv
   · by_cases opened : Opened (keyCells P) (fun x => ι (W x)) (fun x => ι (V x))
-        (finals vf ch ρ vals col kp kv)
+        (finals vf ch ρ vals kp kv)
     · simp [verdict, checked, opened, iff.mpr ⟨checked, opened⟩]
-    · have rejected : ¬ Accepts vf st W V τ ch ρ value vals col kp kfinal kv :=
+    · have rejected : ¬ Accepts vf st W V τ ch ρ value vals kp kfinal kv :=
         fun accepted => opened (iff.mp accepted).2
       simp [verdict, checked, opened, rejected]
-  · have rejected : ¬ Accepts vf st W V τ ch ρ value vals col kp kfinal kv :=
+  · have rejected : ¬ Accepts vf st W V τ ch ρ value vals kp kfinal kv :=
       fun accepted => checked (iff.mp accepted).1
     simp [verdict, checked, rejected]
 
@@ -178,20 +175,20 @@ omit [Fintype F] [DecidableEq F] in
 /-- On each path of `back` that avoids the bad sets, opening claims that are true for the key
 polynomial, `W` and `V` give lookup challenges that are no table values and no error for
 `(W, V)`. -/
-theorem back_avoids (wf : WellFormed P) (matrix : MatrixSpec vf)
-    (columns : P.lookups ≤ 2 ^ vf.columnVars) (rows : P.rows ≤ 2 ^ P.rowVars)
+theorem back_avoids (wf : WellFormed P) (matrix : MatrixSpec vf) (rows : P.rows ≤ 2 ^ P.rowVars)
     (key_fits : ∀ c, (P.shape c).witness.vars - P.laneVars ≤ P.keyBlockVars)
     (st : Statement P) (W V : ℕ → F) (τ : Fin P.lookups → F) :
     (back vf st W V τ).Avoids fun result => ∀ claims, result = some claims →
       Opened (keyCells P) (fun x => ι (W x)) (fun x => ι (V x)) claims →
         Apart P τ ∧ ¬ Fails P st W V τ := by
   intro ch ch_good
-  have main_truth := combRound_truth P.witnessVars 3 (mainTables P st W V τ ch) mainComb
-    mainComb_degree
+  have main_truth := combRound_truth P.witnessVars (P.lookups + 2) (mainTables P st W V τ ch)
+    (mainComb P τ ch) (mainComb_degree P τ ch)
   show (bind _ _).Avoids _
   rw [avoids_bind]
-  refine ((sumcheck_avoids 3 P.witnessVars _ _ main_truth P.witnessVars [] (claimedSum P st ch)
-    (by simp)).and_ends (sumcheck_ends 3 _ P.witnessVars [] _)).mono ?_
+  refine ((sumcheck_avoids (P.lookups + 2) P.witnessVars _ _ main_truth P.witnessVars []
+    (claimedSum P st ch) (by simp)).and_ends
+    (sumcheck_ends (P.lookups + 2) _ P.witnessVars [] _)).mono ?_
   rintro first ⟨sound₁, ends₁⟩
   rcases first with _ | ⟨ρ, value⟩
   · intro claims none_eq
@@ -199,7 +196,7 @@ theorem back_avoids (wf : WellFormed P) (matrix : MatrixSpec vf)
   have ρ_length : ρ.length = P.witnessVars := by
     obtain ⟨cs, eq, len⟩ := ends₁ ρ value rfl
     rw [eq, List.nil_append, len]
-  intro vals col col_good
+  intro vals
   have key_truth := combRound_truth (P.laneVars + P.keyBlockVars) 2 (keyTables ch ρ) productComb
     productComb_degree
   show (bind _ _).Avoids _
@@ -221,17 +218,9 @@ theorem back_avoids (wf : WellFormed P) (matrix : MatrixSpec vf)
     have kv_open : kv = mle (kp ++ rowPoint P.rowVars ch.omega)
         (keyTable P.lanes P.keyBlockVars P.rows fun i j h => ι (P.key i j h)) := opened.1
     have wv_open : vals.1 = mle ρ (fun x => ι (W x)) := opened.2.1
-    have v_open : mle (List.ofFn col) vals.2.1 =
-        mle (ρ.take P.spanVars ++ List.ofFn col ++ List.replicate vf.zeros 0)
-          (fun x => ι (V x)) := opened.2.2
-    have cols : ∀ k < 2 ^ vf.columnVars, vals.2.1 k = columnAt P V ρ k := by
-      by_contra differ
-      push Not at differ
-      apply col_good
-      simp only [columnBad, differ, ite_true, mem_filter, mem_univ, true_and]
-      rw [mle_sub, v_open, mle_V_opening V ρ wf ρ_length, sub_self]
-    have cols' : ∀ k : Fin P.lookups, vals.2.1 k = columnAt P V ρ k :=
-      fun k => cols k (lt_of_lt_of_le k.isLt columns)
+    have v_open : vals.2.1 =
+        mle (ρ.take P.spanVars ++ List.replicate vf.zeros 0) (fun x => ι (V x)) := opened.2.2
+    rw [mle_V_opening] at v_open
     have point_length (c : Fin P.claims) :
         (uses P ch ρ c).point.length = (P.shape c).witness.vars - P.laneVars := by
       have := (wf.witness_fits c).2.2
@@ -256,15 +245,14 @@ theorem back_avoids (wf : WellFormed P) (matrix : MatrixSpec vf)
       simp only [Params.lanes]
       ring
     have claimed : claimedSum P st ch = ∑ x ∈ range (2 ^ P.witnessVars),
-        (ι (W x) * (weightTable P st τ ch x - checkTable P ch x * aTable P V ch x) +
-          checkTable P ch x * bTable P V τ ch x + sumTable P ch x * aTable P V ch x) := by
+        mainSummand (fun k => ι (τ k)) ch.psi (ι (W x)) (weightTable P st τ ch x)
+          (checkTable P ch x) (inverseTable P V x) (sumTable P ch x) := by
       by_contra differ
       apply sound₁ ρ value rfl (by rw [main_truth_nil]; exact differ)
       rw [main_truth_final st W V τ ch ρ ρ_length, main_check, wv_open, kw,
         matrix st ch ρ ρ_length, mle_weightTable st τ ch ρ wf shaped ρ_length,
         mle_checkTable ch ρ wf ρ_length, mle_sumTable ch ρ wf ρ_length,
-        mle_aTable V ch ρ wf ρ_length, mle_bTable V τ ch ρ wf ρ_length]
-      simp only [cols']
+        mle_inverseTable V ρ wf ρ_length, v_open]
     have zero := sum_sub_claimed st W V τ ch wf
     rw [← claimed, sub_self] at zero
     refine ⟨τ_ok, fun fails => ch_good ?_⟩
@@ -274,8 +262,7 @@ theorem back_avoids (wf : WellFormed P) (matrix : MatrixSpec vf)
 
 /-- `game_avoids` from the two parts: on each path of `game` that avoids the bad sets, an
 accepted proof gives `Relation` for the committed `W`. -/
-theorem split_avoids (wf : WellFormed P) (counts : CountsNonzero P) (matrix : MatrixSpec vf)
-    (columns : P.lookups ≤ 2 ^ vf.columnVars) (rows : P.rows ≤ 2 ^ P.rowVars)
+theorem split_avoids (wf : WellFormed P) (counts : CountsNonzero P) (matrix : MatrixSpec vf) (rows : P.rows ≤ 2 ^ P.rowVars)
     (key_fits : ∀ c, (P.shape c).witness.vars - P.laneVars ≤ P.keyBlockVars) :
     (game vf).Avoids fun r => ∀ o, r = some o → Relation P o.1 o.2 := by
   intro st W
@@ -284,7 +271,7 @@ theorem split_avoids (wf : WellFormed P) (counts : CountsNonzero P) (matrix : Ma
   refine (front_sound counts st W).mono fun τ sound V => ?_
   show (bind _ _).Avoids _
   rw [avoids_bind]
-  refine (back_avoids vf wf matrix columns rows key_fits st W V τ).mono fun result passes o
+  refine (back_avoids vf wf matrix rows key_fits st W V τ).mono fun result passes o
     equal => ?_
   rcases result with _ | claims
   · cases equal

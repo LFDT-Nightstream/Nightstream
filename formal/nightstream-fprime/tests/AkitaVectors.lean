@@ -180,8 +180,8 @@ def load (name : String) : IO (Vector × Oracles) := do
   IO.ofExcept do vector name (← Json.parse text)
 
 def positives : List String :=
-  ["key20-opening.json", "key20-opening-retry.json", "key30-opening-26-28.json",
-    "key30-opening-27-28.json"]
+  ["key20-opening.json", "key20-opening-retry.json", "key30-opening-26-26.json",
+    "key30-opening-27-26.json"]
 
 /-- The count of variables of a table of a shape. -/
 def shapeVars (S : Shape) : ℕ := Nat.log 2 (S.blocks * S.blockLength * S.innerDegree)
@@ -985,21 +985,21 @@ def moved : List (String × List (ℕ × String × String × ℕ × String × �
     (16, "fold_response", "witness_evaluation", 0, "fold_nonce", 1, "fused.end", 0),
     (23, "proof_of_work", "fused.round", 1, "tensor.partials", 2, "fused.end", 1),
     (34, "proof_of_work", "witness_evaluation", 1, "tensor.partials", 2, "fused.end", 1),
-    (35, "equation", "witness_evaluation", 1, "tensor.opening", 2, "fused.end", 1),
+    (35, "proof_of_work", "witness_evaluation", 1, "tensor.partials", 2, "fused.end", 1),
     (67, "proof_of_work", "witness_evaluation", 2, "tensor.partials", 3, "fused.end", 2),
-    (68, "proof_of_work", "witness_evaluation", 2, "tensor.partials", 3, "fused.end", 2),
+    (68, "equation", "witness_evaluation", 2, "tensor.opening", 3, "fused.end", 2),
     (75, "proof_of_work", "fused.round", 3, "tensor.partials", 4, "fused.end", 3),
     (104, "proof_of_work", "witness_evaluation", 3, "tensor.partials", 4, "fused.end", 3),
     (105, "proof_of_work", "witness_evaluation", 3, "tensor.partials", 4, "fused.end", 3),
+    (111, "proof_of_work", "fused.round", 4, "tensor.partials", 5, "fused.end", 4),
     (147, "proof_of_work", "witness_evaluation", 4, "tensor.partials", 5, "fused.end", 4),
     (148, "proof_of_work", "witness_evaluation", 4, "tensor.partials", 5, "fused.end", 4),
-    (150, "proof_of_work", "work", 4, "tensor.sumcheck.round", 5, "fused.end", 4),
-    (192, "proof_of_work", "witness_evaluation", 5, "tensor.partials", 6, "fused.end", 5),
-    (193, "proof_of_work", "witness_evaluation", 5, "tensor.partials", 6, "fused.end", 5),
-    (195, "proof_of_work", "work", 5, "tensor.sumcheck.round", 6, "fused.end", 5)]),
-  ("key30-opening-26-28-negative.json", [
+    (155, "proof_of_work", "fused.round", 5, "tensor.partials", 6, "fused.end", 5),
+    (192, "equation", "witness_evaluation", 5, "tensor.opening", 6, "fused.end", 5),
+    (193, "equation", "witness_evaluation", 5, "tensor.opening", 6, "fused.end", 5)]),
+  ("key30-opening-26-26-negative.json", [
     (0, "proof_of_work", "stage3.prefix_evaluation", 0, "row_coefficients", 1, "stage3.end", 0),
-    (1, "proof_of_work", "stage3.prefix_evaluation", 0, "row_coefficients", 1, "stage3.end", 0)])]
+    (1, "fold_response", "stage3.prefix_evaluation", 0, "fold_nonce", 1, "stage3.end", 0)])]
 
 /-- The changes of a negative file with nothing from the events, one task for each change. Each
 change is a `reject` of the Rust verifier, and the replay rejects it too: at the failed site of

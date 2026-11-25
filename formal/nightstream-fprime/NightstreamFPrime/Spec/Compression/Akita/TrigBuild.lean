@@ -195,6 +195,7 @@ private theorem le_cshr (x : ℤ) (shift : ℕ) : (x / 2 ^ shift : ℝ) ≤ cshr
   push_cast at above
   exact above
 
+attribute [local irreducible] Real.instLT Real.instLE in
 private theorem imul_encloses {a b : ℤ × ℤ} {x y : ℝ} (first : Encloses 61 a x)
     (second : Encloses 61 b y) (firstNonneg : 0 ≤ a.1) (secondNonneg : 0 ≤ b.1) :
     Encloses 61 (imul a b) (x * y) ∧ 0 ≤ (imul a b).1 := by
@@ -341,6 +342,7 @@ private theorem sin_close {x : ℝ} (small : |x| ≤ 1) :
   refine le_trans (le_of_eq ?_) ((Complex.abs_im_le_norm _).trans (exp_close small))
   simp [Complex.exp_ofReal_mul_I_im]
 
+attribute [local irreducible] Real.instLT Real.instLE in
 private theorem taylor_encloses {phi start : ℤ × ℤ} {odd : ℕ} {x f : ℝ}
     (enclosed : Encloses 61 phi x) (phiNonneg : 0 ≤ phi.1) (small : odd ≤ 1)
     (first : Encloses 61 start (x ^ odd)) (firstNonneg : 0 ≤ start.1) (unit : |x| ≤ 1)
@@ -349,9 +351,9 @@ private theorem taylor_encloses {phi start : ℤ × ℤ} {odd : ℕ} {x f : ℝ}
       (taylorLoop (imul phi phi) start odd nterms).power
       (taylorLoop (imul phi phi) start odd nterms).fact (2 * nterms + 1 + odd)) f := by
   have scale : (0 : ℝ) < 2 ^ 61 := by positivity
-  have x₀ : 0 ≤ x := by
-    have := (by exact_mod_cast phiNonneg : (0 : ℝ) ≤ phi.1).trans enclosed.1
-    nlinarith
+  have x₀ : 0 ≤ x :=
+    nonneg_of_mul_nonneg_right
+      ((by exact_mod_cast phiNonneg : (0 : ℝ) ≤ phi.1).trans enclosed.1) scale
   obtain ⟨square, squareNonneg⟩ := imul_encloses enclosed enclosed phiNonneg phiNonneg
   obtain ⟨sum, power, powerNonneg, fact⟩ :=
     taylorLoop_encloses (square.of_eq (sq x).symm) squareNonneg first firstNonneg small nterms

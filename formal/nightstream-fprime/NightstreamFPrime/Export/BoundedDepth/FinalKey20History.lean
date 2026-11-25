@@ -61,8 +61,7 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
     RingCarrierLayout.carrierWidth logicalWidth}
   {mode : Mode} (setup : FinalVerifier.Setup mode logicalWidth publicFits)
-  (packageWidths : Fin 2 → ℕ) (step : AppState → AppWitness → AppState) (cap : ℕ)
-  (control : AppState → AppWitness → Fin 2) {Wire Coord : Type} {total : ℕ} (read : Reader Wire)
+  (packageWidths : Fin 2 → ℕ) (step : AppState → AppWitness → AppState) (control : AppState → AppWitness → Fin 2) {Wire Coord : Type} {total : ℕ} (read : Reader Wire)
   (head : Wire → First logicalWidth publicFits)
   [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] {ι : Type} [Fintype ι]
   (kind : Wire → Option ι) (family : ι → Opening logicalWidth publicFits Wire Coord total)
@@ -80,10 +79,10 @@ noncomputable def adversary :
     Tape (Address Wire total) (Option Coord) (CodeSlot K) budget total
   tape := Compression.Game.uniform _
   output sample :=
-    if finalAccepts setup packageWidths step cap control read head kind family
+    if finalAccepts setup packageWidths step control read head kind family
         (played prover sample.1) then
       ((head (played prover sample.1).first).statement,
-        finalProof setup packageWidths step cap control read head kind family prover budget
+        finalProof setup packageWidths step control read head kind family prover budget
           sample.1 sample.2)
     else (⟨0, [], []⟩, .bottom)
 
@@ -91,41 +90,41 @@ noncomputable def adversary :
 of `program`, each with a witness of the word count of the program, lead from `z0` to `zi`. -/
 def FalseHistory (program : Stage1.Application.Program)
     (table : Address Wire total → Option Coord → CodeSlot K) : Prop :=
-  finalAccepts setup packageWidths step cap control read head kind family (played prover table) ∧
+  finalAccepts setup packageWidths step control read head kind family (played prover table) ∧
     ¬ IvcWalk.Reaches program (head (played prover table).first).statement
 
 section Uniform
 
 local notation "ivc" =>
-  adversary setup packageWidths step cap control read head kind family prover budget
+  adversary setup packageWidths step control read head kind family prover budget
 
 /-- The final verifier accepts for the table of the oracle, and `Verifies` rejects the proof
 `finalProof` of the extractor for the tape: the event of `knowledge_all`. -/
 def Rejected (sample : (Address Wire total → Option Coord → CodeSlot K) ×
     Tape (Address Wire total) (Option Coord) (CodeSlot K) budget total) : Prop :=
-  finalAccepts setup packageWidths step cap control read head kind family
+  finalAccepts setup packageWidths step control read head kind family
       (played prover sample.1) ∧
-    ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths cap control
+    ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths control
       (head (played prover sample.1).first).statement
-      (finalProof setup packageWidths step cap control read head kind family prover budget
+      (finalProof setup packageWidths step control read head kind family prover budget
         sample.1 sample.2)
 
 local notation "rejects" =>
-  Rejected setup packageWidths step cap control read head kind family prover budget
+  Rejected setup packageWidths step control read head kind family prover budget
 
 /-- The probability of `Rejected` under the law of the tape of `adversary` is at most
 `shapesBound` (`knowledge_all` under the uniform law). -/
 theorem rejected_le {p : ℝ} (premises : Premises setup packageWidths)
-    (blocks : setup.keyBlocks = 512) (coords : 28 ≤ Fintype.card Coord)
+    (blocks : setup.keyBlocks = 512) (coords : 30 ≤ Fintype.card Coord)
     (sized : ∀ index,
-      (family index).Sized setup packageWidths step cap control read head p) {queries : ℕ}
+      (family index).Sized setup packageWidths step control read head p) {queries : ℕ}
     (bounded : prover.QueryBound queries) (positive : 0 < budget) :
     ((ivc).tape.toOuterMeasure {sample | rejects sample}).toReal ≤
-      shapesBound setup packageWidths step cap control read head family prover p queries
+      shapesBound setup packageWidths step control read head family prover p queries
         budget := by
   refine (uniform_event (Sample := (Address Wire total → Option Coord → CodeSlot K) ×
     Tape (Address Wire total) (Option Coord) (CodeSlot K) budget total) _).trans_le
-    (le_trans (le_of_eq ?_) (knowledge_all setup packageWidths step cap control read head kind
+    (le_trans (le_of_eq ?_) (knowledge_all setup packageWidths step control read head kind
       family prover premises blocks coords sized bounded positive))
   rw [← Finset.univ_product_univ, Finset.expect_product]
   exact Finset.expect_congr rfl fun table _ => Finset.expect_congr rfl fun tape _ =>
@@ -136,10 +135,10 @@ omit [Nonempty Coord] [Fintype ι] in
 statement has at most `depth` steps. -/
 theorem adversary_depth (depth : ℕ)
     (depthBound : ∀ table,
-      finalAccepts setup packageWidths step cap control read head kind family
+      finalAccepts setup packageWidths step control read head kind family
         (played prover table) → (head (played prover table).first).statement.iteration ≤ depth)
     (sample : (ivc).Tape) : ((ivc).output sample).1.iteration ≤ depth := by
-  by_cases accepted : finalAccepts setup packageWidths step cap control read head kind family
+  by_cases accepted : finalAccepts setup packageWidths step control read head kind family
     (played prover sample.1)
   · rw [show (ivc).output sample = _ from ite_eq_left accepted]
     exact depthBound _ accepted
@@ -169,10 +168,10 @@ variable {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
   (complete : StepExtend.Complete exports)
 
 local notation "ivc" =>
-  adversary setup complete.packageWidth step cap control read head kind family prover budget
+  adversary setup complete.packageWidth step control read head kind family prover budget
 
 local notation "rejects" =>
-  Rejected setup complete.packageWidth step cap control read head kind family prover budget
+  Rejected setup complete.packageWidth step control read head kind family prover budget
 
 /-- The final verifier with Akita openings against a false history, in the form of
 `Claims.Final.history_sound`. For each prover with at most `Q` queries to the oracle, the
@@ -187,43 +186,43 @@ theorem history_sound {p : ℝ}
     (rows : ∀ circuit : Fin 2, (setup.rows circuit).matrices =
       (FinalRows.packageRows exports complete circuit).matrices)
     (keysShaped : ∀ key, (setup.circuitKeys key).digest.length = 4)
-    (blocks : setup.keyBlocks = 512) (coords : 28 ≤ Fintype.card Coord)
+    (blocks : setup.keyBlocks = 512) (coords : 30 ≤ Fintype.card Coord)
     (sized : ∀ index,
-      (family index).Sized setup complete.packageWidth step cap control read head p) {queries : ℕ}
+      (family index).Sized setup complete.packageWidth step control read head p) {queries : ℕ}
     (bounded : prover.QueryBound queries) (positive : 0 < budget)
     (admitted : StageAdmitted
       (HyperNova.ReverseStages.Stage.start (IvcSecurity.walkAdversary ivc))) (depth : ℕ)
     (depthBound : ∀ table,
-      finalAccepts setup complete.packageWidth step cap control read head kind family
+      finalAccepts setup complete.packageWidth step control read head kind family
         (played prover table) → (head (played prover table).first).statement.iteration ≤ depth) :
     ((ivc).tape.toOuterMeasure {sample |
-        FalseHistory setup complete.packageWidth step cap control read head kind family prover
+        FalseHistory setup complete.packageWidth step control read head kind family prover
           exports.program sample.1}).toReal ≤
-      shapesBound setup complete.packageWidth step cap control read head family prover p queries
+      shapesBound setup complete.packageWidth step control read head family prover p queries
           budget +
         IvcSecurity.walkBound setup.ajtai setup.circuitKeys exports assumption closed ivc admitted
           depth := by
-  have rejected := rejected_le setup complete.packageWidth step cap control read head kind family
+  have rejected := rejected_le setup complete.packageWidth step control read head kind family
     prover budget (FinalRows.premises_of_rows setup exports complete rows) blocks coords sized
     bounded positive
   have accepted := IvcSecurity.probability_bound setup.ajtai setup.circuitKeys exports assumption
-    closed ivc admitted keysShaped control cap depth fun sample _ =>
-      adversary_depth setup complete.packageWidth step cap control read head kind family prover
+    closed ivc admitted keysShaped control depth fun sample _ =>
+      adversary_depth setup complete.packageWidth step control read head kind family prover
         budget depth depthBound sample
   have cover : {sample : (ivc).Tape |
-      FalseHistory setup complete.packageWidth step cap control read head kind family prover
+      FalseHistory setup complete.packageWidth step control read head kind family prover
         exports.program sample.1} ⊆
       {sample | rejects sample} ∪
-        {sample | IvcSecurity.FalseAcceptance setup.ajtai setup.circuitKeys exports control cap
+        {sample | IvcSecurity.FalseAcceptance setup.ajtai setup.circuitKeys exports control
           ((ivc).output sample)} := by
     rintro sample ⟨accepts, unreached⟩
-    by_cases verifies : Verifies setup.ajtai setup.circuitKeys step complete.packageWidth cap
+    by_cases verifies : Verifies setup.ajtai setup.circuitKeys step complete.packageWidth
       control
       (head (played prover sample.1).first).statement
-      (finalProof setup complete.packageWidth step cap control read head kind family prover budget
+      (finalProof setup complete.packageWidth step control read head kind family prover budget
         sample.1 sample.2)
     · refine Or.inr ?_
-      show IvcSecurity.FalseAcceptance _ _ _ _ _ ((ivc).output sample)
+      show IvcSecurity.FalseAcceptance _ _ _ _ ((ivc).output sample)
       rw [show (ivc).output sample = _ from ite_eq_left accepts]
       exact ⟨holds_of_verifies verifies, unreached⟩
     · exact Or.inl ⟨accepts, verifies⟩
@@ -252,7 +251,7 @@ def AdviceFailure
     (admitted : StageAdmitted
       (HyperNova.ReverseStages.Stage.start (IvcSecurity.walkAdversary ivc))) (depth : ℕ)
     (tape : (finalStages admitted depth).1.Tape) : Prop :=
-  finalAccepts setup complete.packageWidth step cap control read head kind family
+  finalAccepts setup complete.packageWidth step control read head kind family
       (played prover ((start admitted depth tape : (ivc).Tape).1)) ∧
     ¬ IvcWalk.ReachedBy exports.program
       (head (played prover ((start admitted depth tape : (ivc).Tape).1)).first).statement
@@ -268,44 +267,44 @@ theorem history_knowledge {p : ℝ}
     (rows : ∀ circuit : Fin 2, (setup.rows circuit).matrices =
       (FinalRows.packageRows exports complete circuit).matrices)
     (keysShaped : ∀ key, (setup.circuitKeys key).digest.length = 4)
-    (blocks : setup.keyBlocks = 512) (coords : 28 ≤ Fintype.card Coord)
+    (blocks : setup.keyBlocks = 512) (coords : 30 ≤ Fintype.card Coord)
     (sized : ∀ index,
-      (family index).Sized setup complete.packageWidth step cap control read head p) {queries : ℕ}
+      (family index).Sized setup complete.packageWidth step control read head p) {queries : ℕ}
     (bounded : prover.QueryBound queries) (positive : 0 < budget)
     (admitted : StageAdmitted
       (HyperNova.ReverseStages.Stage.start (IvcSecurity.walkAdversary ivc))) (depth : ℕ)
     (depthBound : ∀ table,
-      finalAccepts setup complete.packageWidth step cap control read head kind family
+      finalAccepts setup complete.packageWidth step control read head kind family
         (played prover table) → (head (played prover table).first).statement.iteration ≤ depth) :
     ((finalStages admitted depth).1.tape.toOuterMeasure {tape |
-        AdviceFailure setup step cap control read head kind family prover budget exports
+        AdviceFailure setup step control read head kind family prover budget exports
           assumption closed complete admitted depth tape}).toReal ≤
-      shapesBound setup complete.packageWidth step cap control read head family prover p queries
+      shapesBound setup complete.packageWidth step control read head family prover p queries
           budget +
         IvcSecurity.walkBound setup.ajtai setup.circuitKeys exports assumption closed ivc admitted
           depth := by
-  have rejected := rejected_le setup complete.packageWidth step cap control read head kind family
+  have rejected := rejected_le setup complete.packageWidth step control read head kind family
     prover budget (FinalRows.premises_of_rows setup exports complete rows) blocks coords sized
     bounded positive
   have failed := IvcSecurity.extraction_bound setup.ajtai setup.circuitKeys exports assumption
-    closed ivc admitted keysShaped control cap depth fun sample _ =>
-      adversary_depth setup complete.packageWidth step cap control read head kind family prover
+    closed ivc admitted keysShaped control depth fun sample _ =>
+      adversary_depth setup complete.packageWidth step control read head kind family prover
         budget depth depthBound sample
-  have cover : {tape | AdviceFailure setup step cap control read head kind family prover budget
+  have cover : {tape | AdviceFailure setup step control read head kind family prover budget
         exports assumption closed complete admitted depth tape} ⊆
       start admitted depth ⁻¹' {sample : (ivc).Tape | rejects sample} ∪
-        {tape | IvcSecurity.ExtractionFailure setup.ajtai setup.circuitKeys exports control cap
+        {tape | IvcSecurity.ExtractionFailure setup.ajtai setup.circuitKeys exports control
           ((finalStages admitted depth).1.input tape)
           ((finalStages admitted depth).1.results tape)} := by
     rintro tape ⟨accepts, unreached⟩
-    by_cases verifies : Verifies setup.ajtai setup.circuitKeys step complete.packageWidth cap
+    by_cases verifies : Verifies setup.ajtai setup.circuitKeys step complete.packageWidth
       control
       (head (played prover ((start admitted depth tape : (ivc).Tape).1)).first).statement
-      (finalProof setup complete.packageWidth step cap control read head kind family prover budget
+      (finalProof setup complete.packageWidth step control read head kind family prover budget
         (start admitted depth tape : (ivc).Tape).1 (start admitted depth tape : (ivc).Tape).2)
     · have input : (finalStages admitted depth).1.input tape = IvcWalk.initial
           ((head (played prover ((start admitted depth tape : (ivc).Tape).1)).first).statement,
-            finalProof setup complete.packageWidth step cap control read head kind family prover
+            finalProof setup complete.packageWidth step control read head kind family prover
               budget (start admitted depth tape : (ivc).Tape).1
               (start admitted depth tape : (ivc).Tape).2) := by
         rw [HyperNova.ReverseStages.input_origin]

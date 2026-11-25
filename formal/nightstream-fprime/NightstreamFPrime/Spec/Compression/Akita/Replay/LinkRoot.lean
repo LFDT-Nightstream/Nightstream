@@ -81,7 +81,7 @@ variable (pub : Public) (proof : ByteArray) {ops : Array Op}
 
 omit [Fintype E] [DecidableEq E] in
 /-- `RootLinked` for the root of `key20.aks` on the replay (Akita Section 5.4, (72) with `φ = 1`):
-when `verifyProof` accepts, the root absorbs the point of each public group `g` at `p g` and the
+when `runProof` accepts, the root absorbs the point of each public group `g` at `p g` and the
 values of the public groups at `o`, and draws three weights `row_coefficients` before its
 `fused.end` at `c`, the statement `batchStatementFor` of the root is the folding statement of the
 claim with the payload of each group `g` from the commitment of the public group `g`, the opening
@@ -94,7 +94,7 @@ theorem verifyProof_key20_rootLink {zMax rice : ℕ}
     (scripted : script pub.layout pub.plan = .ok ops)
     (ends : endsFit ops.zipIdx.toList = true) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
+    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
     (decoded : decode ops proof = .ok (messages, rest)) {c o : ℕ} {key : Key} {F : Fold}
     (at_ : ops[c]? = some (.check key (.fused 0 F)))
     (root : (layout20 zMax rice).folds[0]? = some F)

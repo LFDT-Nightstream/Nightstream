@@ -7,6 +7,9 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.ShapeKey20
 revision `d50f700`; ePrint 2026/1983, revision of 2026-11-23, Figure 4 and Section 8.2;
 `Key20.noteTower` of `Key20Accept.lean`, `docs/akita-work/w16/design.md` section 2).
 
+- `rootClaimIn`, `claimIn₁`, `traceClaimIn`, `terminalStatementIn` and `responseIn` are the claims
+  of the levels 0 to 5, the statement and the response of the terminal from the recorded values of
+  a state of the replay, and `noteOf` is the `Key20.Note` of these values for one state.
 - `rootClaim20`, `claim20₁` and `traceClaim20` are the claims of the levels 0 to 5 from the
   values of the replay: the claim of `RootLinked` (`verifyProof_key20_rootLink`), of `Tier.Linked`
   (`verifyProof_key20_packLink`) and of `Tier.TraceLinked` (`verifyProof_key20_traceLink`), each
@@ -47,12 +50,11 @@ abbrev rootRun20 (g : Fin 3) : RhsRun :=
 /-- The point of the public group `g`. -/
 def rootPoint20 (g : Fin 3) : List Ext := ((pub.groups[g.val]?.map (·.point)).getD #[]).toList
 
-/-- The claim of the root fold of `RootLinked` on the state before the `fused.end` of the level 0:
-the payloads of the commitments of the public groups, the opening payload, the point of each group
-from the segments `(r_pack, r_tail, r_pos, r_blk)` of the point of its public group, the weights
-`row_coefficients` and the target `Σ_g ϑ_g·v_g`. -/
-noncomputable def rootClaim20 : Key20.root.Claim E :=
-  let s := stateBefore pub proof messages pub.ops (fusedIndex pub.layout 0)
+/-- The claim of the root fold of `RootLinked` on the state `s`: the payloads of the commitments
+of the public groups, the opening payload, the point of each group from the segments
+`(r_pack, r_tail, r_pos, r_blk)` of the point of its public group, the weights `row_coefficients`
+and the target `Σ_g ϑ_g·v_g`. -/
+noncomputable def rootClaimIn (s : Replayer) : Key20.root.Claim E :=
   let ϑ := fun g : Fin 3 =>
     (((recordedIn s ⟨0, "row_coefficients", none⟩).getD g Ext.zero).into : E)
   let v := fun g : Fin 3 => (((pub.groups.flatMap (·.value)).getD g Ext.zero).into : E)
@@ -71,13 +73,16 @@ noncomputable def rootClaim20 : Key20.root.Claim E :=
     fun g => Point.ofSegments (Key20.root.opening g) (block g) (position g) (pack g) (tail g),
     ϑ, ∑ g, ϑ g * v g⟩
 
-/-- The claim of the level 1 of `Tier.Linked` on the states before the `fused.end` of the levels
-0 and 1: the payload of the words `next_witness` of the level 0, the opening payload of the level
-1, the point of the segments `(r_pack, r_tail, r_pos, r_blk)` of `fused.point` of the level 0 and
-its `witness_evaluation`. -/
-noncomputable def claim20₁ : Extract.Claim Key20.level₁.opening E :=
-  let s := stateBefore pub proof messages pub.ops (fusedIndex pub.layout 0)
-  let s' := stateBefore pub proof messages pub.ops (fusedIndex pub.layout 1)
+/-- The claim of the root fold of `RootLinked`: `rootClaimIn` on the state before the `fused.end`
+of the level 0. -/
+noncomputable def rootClaim20 : Key20.root.Claim E :=
+  rootClaimIn pub (stateBefore pub proof messages pub.ops (fusedIndex pub.layout 0))
+
+/-- The claim of the level 1 of `Tier.Linked` on the states `s` and `s'`: the payload of the words
+`next_witness` of the level 0 and the opening payload of the level 1 of `s'`, the point of the
+segments `(r_pack, r_tail, r_pos, r_blk)` of `fused.point` of the level 0 of `s` and its
+`witness_evaluation`. -/
+noncomputable def claimIn₁ (s s' : Replayer) : Extract.Claim Key20.level₁.opening E :=
   let r2 := (recordedIn s ⟨0, "fused.point", none⟩).toList
   let pack := (r2.take 4).map (Ext.into (E := E))
   let tail := ((r2.drop 4).take 6).map (Ext.into (E := E))
@@ -89,13 +94,18 @@ noncomputable def claim20₁ : Extract.Claim Key20.level₁.opening E :=
     Point.ofSegments Key20.level₁.opening block position pack tail,
     (firstIn s ⟨0, "witness_evaluation", none⟩).into⟩
 
-/-- The claim of the level `level + 1` (the level `L'`) of `Tier.TraceLinked` on the state before
-its `fused.end`: `TraceClaim.ofPoint` for the payload of the words `next_witness` of the level
-`level`, the opening payload, the segments `(ρ_pack, ρ_pos, ρ_blk)` of the tensor point `ρ`, the
-factor `θ = A_η(ρ)` and the final claim `ṽ`. -/
-noncomputable def traceClaim20 (level : ℕ) (L' : Key20.Level) {m : ℕ}
+/-- The claim of the level 1 of `Tier.Linked`: `claimIn₁` on the states before the `fused.end` of
+the levels 0 and 1. -/
+noncomputable def claim20₁ : Extract.Claim Key20.level₁.opening E :=
+  claimIn₁ (stateBefore pub proof messages pub.ops (fusedIndex pub.layout 0))
+    (stateBefore pub proof messages pub.ops (fusedIndex pub.layout 1))
+
+/-- The claim of the level `level + 1` (the level `L'`) of `Tier.TraceLinked` on the state `s`:
+`TraceClaim.ofPoint` for the payload of the words `next_witness` of the level `level`, the opening
+payload, the segments `(ρ_pack, ρ_pos, ρ_blk)` of the tensor point `ρ`, the factor `θ = A_η(ρ)`
+and the final claim `ṽ`. -/
+noncomputable def traceClaimIn (s : Replayer) (level : ℕ) (L' : Key20.Level) {m : ℕ}
     (quarter : 4 * m = L'.shape.innerDegree) : Extract.TraceClaim L'.opening E :=
-  let s := stateBefore pub proof messages pub.ops (fusedIndex pub.layout (level + 1))
   let r2 := (recordedIn s ⟨level, "fused.point", none⟩).toList
   let ρ := (recordedIn s ⟨level + 1, "tensor.sumcheck.point", none⟩).toList
   let η := firstIn s ⟨level + 1, "tensor.eta", none⟩
@@ -109,6 +119,13 @@ noncomputable def traceClaim20 (level : ℕ) (L' : Key20.Level) {m : ℕ}
     (mle (ρ.map Ext.into) (tensorWeight (r2.tail.map Ext.into) η.into))
     (firstIn s ⟨level + 1, "tensor.final_claims", none⟩).into
 
+/-- The claim of the level `level + 1` (the level `L'`) of `Tier.TraceLinked`: `traceClaimIn` on
+the state before its `fused.end`. -/
+noncomputable def traceClaim20 (level : ℕ) (L' : Key20.Level) {m : ℕ}
+    (quarter : 4 * m = L'.shape.innerDegree) : Extract.TraceClaim L'.opening E :=
+  traceClaimIn (stateBefore pub proof messages pub.ops (fusedIndex pub.layout (level + 1))) level L'
+    quarter
+
 /-- The state before the terminal: the last operation of the script. -/
 abbrev terminalState20 : Replayer := stateBefore pub proof messages pub.ops (pub.ops.size - 1)
 
@@ -118,12 +135,11 @@ def setup20 (ℓ : Fin 6) : Array Fq := (pub.setupFor (fold20 ℓ).setupCount).g
 /-- The setup prefix of the terminal. -/
 def full20 : Array Fq := (pub.setupFor pub.layout.terminal.setupCount).getD #[]
 
-/-- The statement of the terminal of `verifyProof_key20_terminal` on the state before the
-terminal, for the last block `tLast` of `t`: `TerminalStatement.ofPoint` for `A_term` of the setup
-prefix, the segments of the tensor point `ρ`, `θ = A_η(ρ)` and the final claim `ṽ`. -/
-noncomputable def terminalStatement20 (tLast : ℕ → Rq Key20.terminal.innerDegree) :
+/-- The statement of the terminal of `verifyProof_key20_terminal` on the state `s`, for the last
+block `tLast` of `t`: `TerminalStatement.ofPoint` for `A_term` of the setup prefix, the segments
+of the tensor point `ρ`, `θ = A_η(ρ)` and the final claim `ṽ`. -/
+noncomputable def terminalStatementIn (s : Replayer) (tLast : ℕ → Rq Key20.terminal.innerDegree) :
     TerminalStatement Key20.terminal E :=
-  let s := terminalState20 pub proof messages
   let r2 := (recordedIn s ⟨5, "fused.point", none⟩).toList
   let ρ := (recordedIn s ⟨6, "tensor.sumcheck.point", none⟩).toList
   let η := firstIn s ⟨6, "tensor.eta", none⟩
@@ -136,10 +152,44 @@ noncomputable def terminalStatement20 (tLast : ℕ → Rq Key20.terminal.innerDe
     (mle (ρ.map Ext.into) (tensorWeight (r2.tail.map Ext.into) η.into))
     (firstIn s ⟨6, "tensor.final_claims", none⟩).into
 
-/-- The response `z` of the payload of the terminal, and 0 when the payload does not decode. -/
-def response20 : Array ℤ :=
-  (Golomb.decode pub.layout.terminal.params
-    (terminalMessagesIn (terminalState20 pub proof messages) 6).payload).getD #[]
+/-- The statement of the terminal: `terminalStatementIn` on the state before the terminal. -/
+noncomputable def terminalStatement20 (tLast : ℕ → Rq Key20.terminal.innerDegree) :
+    TerminalStatement Key20.terminal E :=
+  terminalStatementIn pub (terminalState20 pub proof messages) tLast
+
+/-- The response `z` of the payload of the terminal on the state `s`, and 0 when the payload does
+not decode. -/
+def responseIn (s : Replayer) : Array ℤ :=
+  (Golomb.decode pub.layout.terminal.params (terminalMessagesIn s 6).payload).getD #[]
+
+/-- The response `z` of the payload of the terminal: `responseIn` on the state before the
+terminal. -/
+def response20 : Array ℤ := responseIn pub (terminalState20 pub proof messages)
+
+/-- The data of a wire message of the model from one state `s` of the replay: the commitments,
+values and points of the public statement, the claims of the levels 0 to 5 with their
+commitments, and the state with the last block `tLast`, the statement, the clear partials with the
+last block `eLast` and the response of the terminal, each on the recorded values of `s`. -/
+noncomputable def noteOf (s : Replayer) (tLast : ℕ → Rq Key20.terminal.innerDegree)
+    (eLast : Rq Key20.terminal.innerDegree) : Key20.Note E where
+  commit := (rootClaimIn (E := E) pub s).payload
+  value g := (((pub.groups.flatMap (·.value)).getD g Ext.zero).into : E)
+  point g i := (((rootPoint20 pub g).getD i Ext.zero).into : E)
+  claim := rootClaimIn pub s
+  commit₁ := (claimIn₁ (E := E) s s).payload
+  claim₁ := claimIn₁ s s
+  commit₂ := (traceClaimIn (E := E) s 1 Key20.level₂ Key20.quarters.1).payload
+  claim₂ := traceClaimIn s 1 Key20.level₂ Key20.quarters.1
+  commit₃ := (traceClaimIn (E := E) s 2 Key20.level₃ Key20.quarters.2.1).payload
+  claim₃ := traceClaimIn s 2 Key20.level₃ Key20.quarters.2.1
+  commit₄ := (traceClaimIn (E := E) s 3 Key20.level₄ Key20.quarters.2.2.1).payload
+  claim₄ := traceClaimIn s 3 Key20.level₄ Key20.quarters.2.2.1
+  commit₅ := (traceClaimIn (E := E) s 4 Key20.level₅ Key20.quarters.2.2.2.1).payload
+  claim₅ := traceClaimIn s 4 Key20.level₅ Key20.quarters.2.2.2.1
+  state := stateOf Key20.terminal (terminalMessagesIn s 6) tLast
+  statement := terminalStatementIn pub s tLast
+  partials := partialsOf Key20.terminal (terminalMessagesIn s 6) eLast
+  response := zSource Key20.terminal (responseIn pub s)
 
 /-- The data of a wire message of the model for the replay of a proof of `key20.aks`: the
 commitments, values and points of the public statement, the claims of the levels 0 to 5 with

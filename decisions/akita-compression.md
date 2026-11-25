@@ -1189,19 +1189,33 @@ decision.
   `Spec.Compression.Akita.Replay.verifyProof_exists_accepts20`). The script
   shapes, `endsFit` and the fold of each end check are theorems for each plan
   of the two layouts (`Spec.Compression.Akita.Replay.script20`,
-  `Spec.Compression.Akita.Replay.script30`). The hypotheses that stay are the
-  layout, the setup prefixes of the seed, the decoded messages, and the
-  lengths of the points and the values of the public statement, which the
-  replay does not check and the code does. These parts are open. The converse
-  (the verifier of the claims accepts, so the byte verifier accepts) has no
-  theorem. `key30.aks` has no join. No theorem states that wire message `j`
-  depends only on the bytes that the code absorbs before challenge `j`: each
-  wire message carries the data of the whole replay, so the two theorems do
-  not yet carry a probability bound of a claim to the code. The work bits of
-  the model are those of the plan of the two real `key20.aks` proofs at each
-  of the 473 stages, by an executed check and not by a theorem about the
-  planner of the code. The last blocks of the terminal are preimages of the
-  digests of the proof (difference (b)).
+  `Spec.Compression.Akita.Replay.script30`). The last blocks of the terminal
+  are preimages of the digests of the proof (difference (b)). The work bits
+  of the model are those of the plan of the two real `key20.aks` proofs, by
+  an executed check. Difference (x) has the state of the open parts.
+
+- (x) The byte verifier and the code on the same input, for `key20.aks`
+  (`Replay.` is `Spec.Compression.Akita.Replay.`).
+  - `Replay.verifyProof` rejects a statement without the shape of the
+    schedule row (`Public.shaped`, `Replay.shaped20`), as the code does. No
+    group has a point shorter than its axis bits (`Replay.axes20`,
+    `Replay.axes30`), so Lean does not model the zero padding of the code.
+    `Setup.page` stops after 64 rejected words where the code reads on
+    (probability below `2^-3000`); Lean then rejects, as at each stop.
+  - Wire message `k` of the transcript of an accepted proof can have the
+    data of the state before the work of stage `k`
+    (`Replay.verifyProof_accepts20`), a function of the public input, the
+    events of the sponge before the stage and the last blocks
+    (`Replay.noteAt20_causal`; difference (b) for the last blocks). Not
+    proved: the same for the cells of the wire message.
+  - With an ideal sponge and the hypothesis that the transcript of a prover
+    of the model presents the bytes for each table, the bound of the opening
+    claim holds for `verifyProof` (`Replay.verifyProof_bound20`). Lean does
+    not construct that prover and sponge from an adversary against the code
+    (it needs the cells, the pool words as slots, the reader of a check
+    stage, an injective image of the absorbed bytes, and the last blocks).
+  - Converse: Lean has it from the level functions of the replay
+    (`Replay.verifyProof_accept_iff_levels`). `key30.aks` has no join.
 
 ### The results for `key30.aks`
 

@@ -4,17 +4,20 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.RunStop
 against the level games on the path of the code (Akita revision `d50f700`;
 `docs/akita-work/match-design.md` section 5.1).
 
-- `verifyProof pub proof` is total: `reject 0 "plan"` when the layout does not take the plan
+- `verifyProof pub proof` is the verifier: `reject 0 "statement"` when the statement does not have
+  the shape of the schedule row (`Public.shaped`), and otherwise `runProof` on the public input
+  without the setup prefix of the caller (`Public.sealed`). `verifyProof_accept_iff`.
+- `runProof pub proof` is total: `reject 0 "plan"` when the layout does not take the plan
   (`script` fails; `VerifierGrinding::finish` of the code), and otherwise `verifyBytes` with the
   verdict of the replay of the script.
 - `verifyProof_malformed`, `verifyProof_trailing`, `verifyProof_noWork`, `verifyProof_accept` and
   `verifyProof_reject` are the five statements of section 5.1 for `ops = script …`. `endsFit` of
-  the script and the setup prefix of the terminal exclude a `mismatch` stop (`replay_matches`):
-  `verdictOf` gives a `mismatch` stop the verdict `accept`.
+  the script and the setup prefix of the terminal exclude a `mismatch` stop (`replay_matches`);
+  `verdictOf` gives a `mismatch` stop the verdict `mismatch`, which rejects.
 - `verifyProof_accept_of` is the converse of `verifyProof_accept`: the proof decodes with no byte
   left, the works hold, each check holds on the state before it and the terminal accepts.
 - `verifyProof_trace_game`, `verifyProof_traceSq_game` and `verifyProof_tensor_game`: when
-  `verifyProof` accepts, the game of the specification level (and of the tensor reduction) runs
+  `runProof` accepts, the game of the specification level (and of the tensor reduction) runs
   on the path of the recorded values to acceptance; the packing levels are in
   `Replay/FinalGame.lean`. `verifyProof_level`: the state hypotheses of
   the games and the level function at `fused.end`. `verifyProof_terminal_accepts`: the terminal
@@ -35,11 +38,29 @@ open NightstreamFPrime.Spec.Compression.Lib NightstreamFPrime.Spec.Compression.G
 open NightstreamFPrime.Spec.Compression (Game)
 open NightstreamFPrime.Spec.Compression.Akita
 
-/-- The verifier on the public inputs and the bytes of a proof. -/
-def verifyProof (pub : Public) (proof : ByteArray) : Outcome :=
+/-- The replay of the script of the layout on the public inputs and the bytes of a proof. -/
+def runProof (pub : Public) (proof : ByteArray) : Outcome :=
   match script pub.layout pub.plan with
   | .error _ => .verdict (.reject 0 "plan")
   | .ok ops => verifyBytes (verdict pub ops proof fun _ => .accept) ops proof
+
+/-- The verifier on the public inputs and the bytes of a proof: the checks of the statement
+(`Public.shaped`), and then `runProof` with the setup prefix of the seed only. -/
+def verifyProof (pub : Public) (proof : ByteArray) : Outcome :=
+  if pub.shaped then runProof pub.sealed proof else .verdict (.reject 0 "statement")
+
+/-- `verifyProof` accepts exactly when the statement has the shape of the schedule row and
+`runProof` accepts without the setup prefix of the caller. -/
+theorem verifyProof_accept_iff (pub : Public) (proof : ByteArray) :
+    verifyProof pub proof = .verdict .accept ↔
+      pub.shaped = true ∧ runProof pub.sealed proof = .verdict .accept := by
+  unfold verifyProof
+  cases pub.shaped <;> simp
+
+/-- A statement without the shape of the schedule row is rejected before the proof is read. -/
+theorem verifyProof_unshaped (pub : Public) (proof : ByteArray) (unshaped : pub.shaped = false) :
+    verifyProof pub proof = .verdict (.reject 0 "statement") := by
+  simp [verifyProof, unshaped]
 
 open Replayer
 
@@ -48,16 +69,16 @@ section Proof
 variable (pub : Public) (proof : ByteArray) {ops : Array Op}
 
 theorem verifyProof_plan {reason : String} (failed : script pub.layout pub.plan = .error reason) :
-    verifyProof pub proof = .verdict (.reject 0 "plan") := by
-  simp only [verifyProof, failed]
+    runProof pub proof = .verdict (.reject 0 "plan") := by
+  simp only [runProof, failed]
 
 theorem verifyProof_script (scripted : script pub.layout pub.plan = .ok ops) :
-    verifyProof pub proof = verifyBytes (verdict pub ops proof fun _ => .accept) ops proof := by
-  simp only [verifyProof, scripted]
+    runProof pub proof = verifyBytes (verdict pub ops proof fun _ => .accept) ops proof := by
+  simp only [runProof, scripted]
 
 theorem verifyProof_malformed (scripted : script pub.layout pub.plan = .ok ops)
     (site : Malformed) :
-    verifyProof pub proof = .malformed site ↔ decode ops proof = .error site := by
+    runProof pub proof = .malformed site ↔ decode ops proof = .error site := by
   rw [verifyProof_script pub proof scripted]
   exact verifyBytes_malformed _ ops proof site
 
@@ -78,7 +99,7 @@ theorem verdict_accept_iff {messages : Array Message} {rest : ℕ}
 theorem verifyProof_trailing (scripted : script pub.layout pub.plan = .ok ops)
     (ends : endsFit ops.zipIdx.toList = true) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full) :
-    verifyProof pub proof = .trailing ↔
+    runProof pub proof = .trailing ↔
       ∃ messages rest, decode ops proof = .ok (messages, rest) ∧ rest ≠ 0 ∧
         (replay pub ops proof messages).1 = none := by
   rw [verifyProof_script pub proof scripted, verifyBytes_trailing]
@@ -93,7 +114,7 @@ theorem verifyProof_trailing (scripted : script pub.layout pub.plan = .ok ops)
 /-- `noWork` is the outcome exactly when the proof decodes and the replay stops first at a work. -/
 theorem verifyProof_noWork_iff (scripted : script pub.layout pub.plan = .ok ops) {i : ℕ}
     {site : String} :
-    verifyProof pub proof = .verdict (.noWork i site) ↔
+    runProof pub proof = .verdict (.noWork i site) ↔
       ∃ messages rest, decode ops proof = .ok (messages, rest) ∧
         (replay pub ops proof messages).1 = some (.noWork i site) := by
   rw [verifyProof_script pub proof scripted]
@@ -108,7 +129,7 @@ theorem verifyProof_noWork_iff (scripted : script pub.layout pub.plan = .ok ops)
 operation `i`, a work, a squeeze of challenges, a response nonce or a draw of fold challenges,
 after the operations before it without a stop. -/
 theorem verifyProof_noWork (scripted : script pub.layout pub.plan = .ok ops) {i : ℕ}
-    {site : String} (outcome : verifyProof pub proof = .verdict (.noWork i site)) :
+    {site : String} (outcome : runProof pub proof = .verdict (.noWork i site)) :
     ∃ messages rest op, decode ops proof = .ok (messages, rest) ∧
       works pub ops proof messages = false ∧ ops[i]? = some op ∧ op.grinds = true ∧
       (runFrom pub proof messages (ops.zipIdx.toList.take i) (channelStart pub)).1 = .ok () ∧
@@ -127,7 +148,7 @@ that decodes with no byte left and whose replay has no stop. -/
 theorem verifyProof_replay (scripted : script pub.layout pub.plan = .ok ops)
     (ends : endsFit ops.zipIdx.toList = true) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) :
+    (accepted : runProof pub proof = .verdict .accept) :
     ∃ messages, decode ops proof = .ok (messages, 0) ∧ (replay pub ops proof messages).1 = none := by
   rw [verifyProof_script pub proof scripted] at accepted
   obtain ⟨messages, rest, decoded, empty, stops⟩ := (verifyBytes_accept pub ops proof).mp accepted
@@ -136,13 +157,13 @@ theorem verifyProof_replay (scripted : script pub.layout pub.plan = .ok ops)
   rcases stop : (replay pub ops proof messages).1 with _ | (op | op | k)
   · rfl
   · exact absurd stop (stops _ _).1
-  · exact absurd stop (stops _ _).2
+  · exact absurd stop (stops _ _).2.1
   · exact absurd stop (replay_matches pub proof messages ops decoded ends terminalSetup k)
 
 theorem replay_of_decoded (scripted : script pub.layout pub.plan = .ok ops)
     (ends : endsFit ops.zipIdx.toList = true) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
+    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
     (decoded : decode ops proof = .ok (messages, rest)) :
     rest = 0 ∧ (replay pub ops proof messages).1 = none := by
   obtain ⟨m, decoded', none_⟩ := verifyProof_replay pub proof scripted ends terminalSetup accepted
@@ -189,7 +210,7 @@ the shape `offloadShape`), the tensor reduction accepts, and `terminalRun` accep
 theorem verifyProof_accept (scripted : script pub.layout pub.plan = .ok ops)
     (ends : endsFit ops.zipIdx.toList = true) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) :
+    (accepted : runProof pub proof = .verdict .accept) :
     ∃ messages, decode ops proof = .ok (messages, 0) ∧ works pub ops proof messages = true ∧
       (replay pub ops proof messages).1 = none ∧
       (∀ c key check out, ops[c]? = some (.check key check) →
@@ -298,7 +319,7 @@ theorem verifyProof_accept_of (scripted : script pub.layout pub.plan = .ok ops)
         pub.layout.terminal.params full
         (terminalMessagesIn (stateBefore pub proof messages ops c) level)
         (terminalChallengesIn (stateBefore pub proof messages ops c) level) = .ok out) :
-    verifyProof pub proof = .verdict .accept := by
+    runProof pub proof = .verdict .accept := by
   rw [verifyProof_script pub proof scripted, verifyBytes_verdict _ ops proof messages decoded]
   congr 1
   refine (verdict_accept_iff pub proof decoded ends terminalSetup).mpr ?_
@@ -329,7 +350,7 @@ the replay stops at the operation `i` after the operations before it without a s
 the name of the stop that does not hold on the state before it, or the terminal, whose
 `terminalValue` is the error of the stop. -/
 theorem verifyProof_reject (scripted : script pub.layout pub.plan = .ok ops) {i : ℕ}
-    {site : String} (rejected : verifyProof pub proof = .verdict (.reject i site)) :
+    {site : String} (rejected : runProof pub proof = .verdict (.reject i site)) :
     ∃ messages rest, decode ops proof = .ok (messages, rest) ∧
       (replay pub ops proof messages).1 = some (.reject i site) ∧
       (runFrom pub proof messages (ops.zipIdx.toList.take i) (channelStart pub)).1 = .ok () ∧
@@ -368,7 +389,7 @@ theorem verifyProof_reject (scripted : script pub.layout pub.plan = .ok ops) {i 
 /-- A reject at `fused.end` of a fold of the shape `foldShape`: the level function is `none` on
 the state before it. -/
 theorem verifyProof_reject_fused (scripted : script pub.layout pub.plan = .ok ops) {i : ℕ}
-    {site : String} (rejected : verifyProof pub proof = .verdict (.reject i site))
+    {site : String} (rejected : runProof pub proof = .verdict (.reject i site))
     {messages : Array Message} {rest : ℕ} (decoded : decode ops proof = .ok (messages, rest))
     {key : Key} {level : ℕ} {F : Fold} (at_ : ops[i]? = some (.check key (.fused level F)))
     {r a e : ℕ} (shape : foldShape (ops.zipIdx.toList.take i) level F r a e = true) :
@@ -389,7 +410,7 @@ theorem verifyProof_reject_fused (scripted : script pub.layout pub.plan = .ok op
 /-- A reject at the last check of the range proof (`range.leaf.end` or `norm.end`): the level
 function is `none` on the state before it. -/
 theorem verifyProof_reject_range (scripted : script pub.layout pub.plan = .ok ops) {i : ℕ}
-    {site : String} (rejected : verifyProof pub proof = .verdict (.reject i site))
+    {site : String} (rejected : runProof pub proof = .verdict (.reject i site))
     {messages : Array Message} {rest : ℕ} (decoded : decode ops proof = .ok (messages, rest))
     {key : Key} {level : ℕ} {F : Fold} (at_ : ops[i]? = some (.check key (rangeCheckOf level F))) :
     foldRunIn pub (stateBefore pub proof messages ops i) level F = none := by
@@ -443,7 +464,7 @@ theorem foldRunIn_of_energy_reject (messages : Array Message) (s : Replayer) (ke
 /-- A reject at `norm.integer` on the Euclidean route: the level function is `none` on the state
 before it. -/
 theorem verifyProof_reject_energy (scripted : script pub.layout pub.plan = .ok ops) {i : ℕ}
-    {site : String} (rejected : verifyProof pub proof = .verdict (.reject i site))
+    {site : String} (rejected : runProof pub proof = .verdict (.reject i site))
     {messages : Array Message} {rest : ℕ} (decoded : decode ops proof = .ok (messages, rest))
     {key : Key} {level : ℕ} {F : Fold} (euclidean : F.euclidean = true)
     (at_ : ops[i]? = some (.check key (.energy ⟨level, "norm.response_l2_sq", none⟩ F.limit))) :
@@ -460,7 +481,7 @@ theorem verifyProof_reject_energy (scripted : script pub.layout pub.plan = .ok o
 
 /-- A reject at `stage3.end`: `stage3In` is `none` on the state before it. -/
 theorem verifyProof_reject_stage3 (scripted : script pub.layout pub.plan = .ok ops) {i : ℕ}
-    {site : String} (rejected : verifyProof pub proof = .verdict (.reject i site))
+    {site : String} (rejected : runProof pub proof = .verdict (.reject i site))
     {messages : Array Message} {rest : ℕ} (decoded : decode ops proof = .ok (messages, rest))
     {key : Key} {level : ℕ} {plan : SetupPlan}
     (at_ : ops[i]? = some (.check key (.stage3 level plan))) :
@@ -484,7 +505,7 @@ theorem verifyProof_reject_stage3 (scripted : script pub.layout pub.plan = .ok o
 /-- A reject at `tensor.opening`: `tensorRun` is `none` on the state before it, for each later
 `η`, rounds and final claim. -/
 theorem verifyProof_reject_opening (scripted : script pub.layout pub.plan = .ok ops) {i : ℕ}
-    {site : String} (rejected : verifyProof pub proof = .verdict (.reject i site))
+    {site : String} (rejected : runProof pub proof = .verdict (.reject i site))
     {messages : Array Message} {rest : ℕ} (decoded : decode ops proof = .ok (messages, rest))
     {key point value partials : Key}
     (at_ : ops[i]? = some (.check key (.tensorOpening point value partials)))
@@ -506,12 +527,12 @@ theorem verifyProof_reject_opening (scripted : script pub.layout pub.plan = .ok 
 variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree2 E]
 
 /-- The tensor reduction at `tensor.end` with its sum-check of the shape `roundsAt`: when
-`verifyProof` accepts, `tensorCheck` of the specification runs on the path of the recorded values
+`runProof` accepts, `tensorCheck` of the specification runs on the path of the recorded values
 of the state before it to acceptance. -/
 theorem verifyProof_tensor_game (scripted : script pub.layout pub.plan = .ok ops)
     (ends : endsFit ops.zipIdx.toList = true) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
+    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
     (decoded : decode ops proof = .ok (messages, rest)) {c : ℕ} {key : Key}
     {level count : ℕ} {point opening : Key}
     (at_ : ops[c]? = some (.check key (.tensor level count point opening)))
@@ -561,7 +582,7 @@ theorem verifyProof_tensor_game (scripted : script pub.layout pub.plan = .ok ops
 the state before it and `tensorCheck` of the specification runs on the path of the recorded values
 to `none`. -/
 theorem verifyProof_reject_tensor_game (scripted : script pub.layout pub.plan = .ok ops) {i : ℕ}
-    {site : String} (rejected : verifyProof pub proof = .verdict (.reject i site))
+    {site : String} (rejected : runProof pub proof = .verdict (.reject i site))
     {messages : Array Message} {rest : ℕ} (decoded : decode ops proof = .ok (messages, rest))
     {key : Key} {level count : ℕ} {point opening : Key}
     (at_ : ops[i]? = some (.check key (.tensor level count point opening)))
@@ -610,14 +631,14 @@ theorem verifyProof_reject_tensor_game (scripted : script pub.layout pub.plan = 
       exact g
 
 omit [Fintype E] [DecidableEq E] in
-/-- The terminal: when `verifyProof` accepts, for a payload of `z` that decodes and fold
+/-- The terminal: when `runProof` accepts, for a payload of `z` that decodes and fold
 challenges that the sampler drew for the terminal group, `‖z‖_2² ≤ S_max`, the challenges are
 valid and the terminal statement of the specification accepts on the state before the terminal
 (Akita Section 8.2; `step_terminal_accepts`). -/
 theorem verifyProof_terminal_accepts (scripted : script pub.layout pub.plan = .ok ops)
     (ends : endsFit ops.zipIdx.toList = true) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
+    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
     (decoded : decode ops proof = .ok (messages, rest)) {c level : ℕ}
     (at_ : ops[c]? = some (.terminal level)) {s : Replayer}
     (state : stateBefore pub proof messages ops c = s)
@@ -656,13 +677,13 @@ theorem verifyProof_terminal_accepts (scripted : script pub.layout pub.plan = .o
   · exact (step_terminal_accepts (E := E) pub proof messages c level s terminalSetup n power
       quarter two blocks degree ones same drawn payload).mp ⟨s', found⟩
 
-/-- A trace level on the coefficient route: when `verifyProof` accepts, `foldCheck` of
+/-- A trace level on the coefficient route: when `runProof` accepts, `foldCheck` of
 `traceReduction` runs on the path of the code to acceptance with the recorded
 `(fused.point, witness_evaluation)` on the state before its `fused.end`. -/
 theorem verifyProof_trace_game (scripted : script pub.layout pub.plan = .ok ops)
     (ends : endsFit ops.zipIdx.toList = true) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
+    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
     (decoded : decode ops proof = .ok (messages, rest)) {c : ℕ} {key : Key} {level : ℕ}
     {F : Fold} (at_ : ops[c]? = some (.check key (.fused level F))) {r a e : ℕ}
     (shape : foldShape (ops.zipIdx.toList.take c) level F r a e = true)
@@ -700,7 +721,7 @@ theorem verifyProof_trace_game (scripted : script pub.layout pub.plan = .ok ops)
 theorem verifyProof_traceSq_game (scripted : script pub.layout pub.plan = .ok ops)
     (ends : endsFit ops.zipIdx.toList = true) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
+    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
     (decoded : decode ops proof = .ok (messages, rest)) {c : ℕ} {key : Key} {level : ℕ}
     {F : Fold} (at_ : ops[c]? = some (.check key (.fused level F))) {r a e : ℕ}
     (shape : foldShape (ops.zipIdx.toList.take c) level F r a e = true)
@@ -738,14 +759,14 @@ theorem verifyProof_traceSq_game (scripted : script pub.layout pub.plan = .ok op
     state shaped expanded rows low leaf quarter two challenge challenged fits rowsFit w positive small
     digits euclidean compressed arities
 
-/-- At `fused.end` of a fold of the shapes `foldShape` and `gameShape`, when `verifyProof`
+/-- At `fused.end` of a fold of the shapes `foldShape` and `gameShape`, when `runProof`
 accepts: the state before it has the state hypotheses of the games (`LevelState`) and the level
 function is the recorded `(r_2, v_W)`, so each game theorem `foldRunIn_*_runs` of the level runs
 to it. -/
 theorem verifyProof_level (scripted : script pub.layout pub.plan = .ok ops)
     (ends : endsFit ops.zipIdx.toList = true) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
+    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
     (decoded : decode ops proof = .ok (messages, rest)) {c : ℕ} {key : Key} {level : ℕ}
     {F : Fold} (at_ : ops[c]? = some (.check key (.fused level F))) {r a e : ℕ}
     (shape : foldShape (ops.zipIdx.toList.take c) level F r a e = true)
@@ -765,7 +786,7 @@ theorem verifyProof_level (scripted : script pub.layout pub.plan = .ok ops)
 it has the state hypotheses of the games (`LevelState`) and the level function is `none` there, so
 each game theorem `foldRunIn_*_runs` of the level runs to `none`. -/
 theorem verifyProof_reject_level (scripted : script pub.layout pub.plan = .ok ops) {i : ℕ}
-    {site : String} (rejected : verifyProof pub proof = .verdict (.reject i site))
+    {site : String} (rejected : runProof pub proof = .verdict (.reject i site))
     {messages : Array Message} {rest : ℕ} (decoded : decode ops proof = .ok (messages, rest))
     {key : Key} {level : ℕ} {F : Fold} (at_ : ops[i]? = some (.check key (.fused level F)))
     {r a e : ℕ} (shape : foldShape (ops.zipIdx.toList.take i) level F r a e = true)
@@ -782,7 +803,7 @@ theorem verifyProof_reject_level (scripted : script pub.layout pub.plan = .ok op
 /-- A reject at `fused.end` of a trace level on the coefficient route: `foldCheck` of
 `traceReduction` runs on the path of the code to `none`. -/
 theorem verifyProof_reject_trace_game (scripted : script pub.layout pub.plan = .ok ops) {i : ℕ}
-    {site : String} (rejected : verifyProof pub proof = .verdict (.reject i site))
+    {site : String} (rejected : runProof pub proof = .verdict (.reject i site))
     {messages : Array Message} {rest : ℕ} (decoded : decode ops proof = .ok (messages, rest))
     {key : Key} {level : ℕ} {F : Fold} (at_ : ops[i]? = some (.check key (.fused level F)))
     {r a e : ℕ} (shape : foldShape (ops.zipIdx.toList.take i) level F r a e = true)

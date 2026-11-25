@@ -152,7 +152,7 @@ theorem script30 {r : Key30.Row} (member : r ∈ Key30.rows) {zMax rice : ℕ} {
 /-- The schedule facts of an accepted proof of `layout30` on `pub.ops`. -/
 theorem verifyProof_script30 {r : Key30.Row} (member : r ∈ Key30.rows) {zMax rice : ℕ}
     {pub : Public} {proof : ByteArray} (layout : pub.layout = layout30 r zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) :
+    (accepted : runProof pub proof = .verdict .accept) :
     script pub.layout pub.plan = .ok pub.ops ∧ endsFit pub.ops.zipIdx.toList = true ∧
       OffloadAt pub.ops 0 (fold30 r 0) (SetupPlan.ofBatch (Key30.root r) (groupOrder 3)
         (fold30 r 0).low 3) Key30.setupVars (fusedIndex pub.layout 0) ∧

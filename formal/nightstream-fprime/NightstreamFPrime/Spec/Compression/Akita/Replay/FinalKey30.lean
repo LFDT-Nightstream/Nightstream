@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.Replay.FinalGame
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Schedules
 
-/-! The game of the offloaded root of a row of `key30.aks` when `verifyProof` accepts, with no
+/-! The game of the offloaded root of a row of `key30.aks` when `runProof` accepts, with no
 hypothesis of the layout (Akita revision `d50f700`; the root of `layout30`, `Key30.root`,
 `Key30.Tower.scan`).
 
@@ -151,7 +151,7 @@ theorem key30Root_fold {r : Key30.Row} (member : r ∈ Key30.rows) {zMax rice : 
 
 variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree2 E]
 
-/-- The offloaded root of a row of `key30.aks`: when `verifyProof` accepts and the check
+/-- The offloaded root of a row of `key30.aks`: when `runProof` accepts and the check
 `fused.end` at `c` has the fold `F` of the root of `layout30 r zMax rice` (`fold`), Stage 3 gives
 `some o` and `offloadCheck` of `Batch.liftedReduction` of the root over the setup prefix `flat`,
 with the split `Batch.codeScan` of the claims, runs on the path of the code to acceptance with the
@@ -160,7 +160,7 @@ theorem verifyProof_key30_root (r : Key30.Row) (member : r ∈ Key30.rows) {zMax
     (pub : Public) (proof : ByteArray) {ops : Array Op}
     (scripted : script pub.layout pub.plan = .ok ops) (ends : endsFit ops.zipIdx.toList = true)
     {full : Array Fq} (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
+    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
     (decoded : decode ops proof = .ok (messages, rest)) {c : ℕ} {key : Key} {level : ℕ}
     {F : Fold} (at_ : ops[c]? = some (.check key (.fused level F)))
     (fold : (layout30 r zMax rice).folds[0]? = some F) {i a e b t : ℕ}

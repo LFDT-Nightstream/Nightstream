@@ -10,7 +10,11 @@ and SHA3-256 (Sections 5.1 and 6) on byte arrays.
 - `Duplex.absorb` writes the input over the rate from the absorb position and applies the
   permutation only when the rate is full and input remains; it sets the squeeze position to the
   rate. `Duplex.squeeze` sets the absorb position to 0 and applies the permutation when the
-  squeeze position is at the rate. An empty absorb or squeeze changes nothing.
+  squeeze position is at the rate. An empty absorb or squeeze does not change the state.
+- `Duplex.events` is the list of the absorbs and squeezes of a sponge, the last one first. With
+  `Duplex.ideal = some answer`, a squeeze returns `answer events count` for the events before
+  it: the sponge in the reading `[KECCAK]` of `SECURITY_MODEL.md`. `Duplex.empty` has no `ideal`
+  and is the sponge of the code.
 - `hash rate domain` is the FIPS 202 sponge with the padding `domain ‖ 0* ‖ 0x80`:
   `shake128` has the rate 168 and the domain `0x1F`, `sha3_256` the rate 136 and `0x06`.
 
@@ -76,22 +80,30 @@ def sha3_256 (input : ByteArray) : ByteArray := hash 136 0x06 input 32
 
 end Keccak
 
+/-- An absorb of bytes or a squeeze of `count` bytes. -/
+inductive Duplex.Event
+  | absorb (input : ByteArray)
+  | squeeze (count : Nat)
+
 /-- The duplex sponge of spongefish over Keccak-f[1600]: the state, the absorb position and the
-squeeze position, in bytes. -/
+squeeze position, in bytes; its events, the last one first; and the answers of its squeezes when
+it is ideal. -/
 structure Duplex where
   lanes : Array UInt64
   absorbPos : Nat
   squeezePos : Nat
+  events : List Duplex.Event := []
+  ideal : Option (List Duplex.Event → Nat → ByteArray) := none
 
 namespace Duplex
 
 def rate : Nat := 136
 
 /-- The state of `DuplexSponge::with_permutation`. -/
-def empty : Duplex := ⟨Keccak.zeroLanes, 0, rate⟩
+def empty : Duplex := { lanes := Keccak.zeroLanes, absorbPos := 0, squeezePos := rate }
 
-def absorb (s : Duplex) (input : ByteArray) : Duplex := Id.run do
-  if input.size = 0 then return s
+/-- The state and the absorb position after the bytes of `input`. -/
+def absorbed (s : Duplex) (input : ByteArray) : Array UInt64 × Nat := Id.run do
   let mut lanes := s.lanes
   let mut pos := s.absorbPos
   for b in input do
@@ -100,10 +112,16 @@ def absorb (s : Duplex) (input : ByteArray) : Duplex := Id.run do
       pos := 0
     lanes := Keccak.setByte lanes pos b
     pos := pos + 1
-  return ⟨lanes, pos, rate⟩
+  return (lanes, pos)
 
-def squeeze (s : Duplex) (count : Nat) : ByteArray × Duplex := Id.run do
-  if count = 0 then return (ByteArray.empty, s)
+def absorb (s : Duplex) (input : ByteArray) : Duplex :=
+  if input.size = 0 then { s with events := .absorb input :: s.events }
+  else
+    { lanes := (s.absorbed input).1, absorbPos := (s.absorbed input).2, squeezePos := rate,
+      events := .absorb input :: s.events, ideal := s.ideal }
+
+/-- The next `count` bytes of the state, with the state and the squeeze position after them. -/
+def squeezed (s : Duplex) (count : Nat) : ByteArray × Array UInt64 × Nat := Id.run do
   let mut lanes := s.lanes
   let mut pos := s.squeezePos
   let mut out := ByteArray.emptyWithCapacity count
@@ -113,7 +131,48 @@ def squeeze (s : Duplex) (count : Nat) : ByteArray × Duplex := Id.run do
       pos := 0
     out := out.push (Keccak.getByte lanes pos)
     pos := pos + 1
-  return (out, ⟨lanes, 0, pos⟩)
+  return (out, lanes, pos)
+
+def squeeze (s : Duplex) (count : Nat) : ByteArray × Duplex :=
+  if count = 0 then (ByteArray.empty, { s with events := .squeeze count :: s.events })
+  else match s.ideal with
+    | some answer => (answer s.events count, { s with events := .squeeze count :: s.events })
+    | none =>
+        ((s.squeezed count).1,
+          { lanes := (s.squeezed count).2.1, absorbPos := 0, squeezePos := (s.squeezed count).2.2,
+            events := .squeeze count :: s.events, ideal := none })
+
+theorem absorb_events (s : Duplex) (input : ByteArray) :
+    (s.absorb input).events = .absorb input :: s.events := by
+  unfold absorb
+  split <;> rfl
+
+theorem absorb_ideal (s : Duplex) (input : ByteArray) : (s.absorb input).ideal = s.ideal := by
+  unfold absorb
+  split <;> rfl
+
+theorem squeeze_events (s : Duplex) (count : Nat) :
+    (s.squeeze count).2.events = .squeeze count :: s.events := by
+  unfold squeeze
+  split
+  · rfl
+  · split <;> rfl
+
+theorem squeeze_ideal (s : Duplex) (count : Nat) : (s.squeeze count).2.ideal = s.ideal := by
+  unfold squeeze
+  split
+  · rfl
+  · split
+    · rfl
+    · rename_i none_
+      exact none_.symm
+
+/-- A squeeze of an ideal sponge is the answer for the events before it. -/
+theorem squeeze_of_ideal (s : Duplex) {count : Nat} (positive : count ≠ 0)
+    {answer : List Event → Nat → ByteArray} (ideal : s.ideal = some answer) :
+    (s.squeeze count).1 = answer s.events count := by
+  unfold squeeze
+  simp only [positive, ↓reduceIte, ideal]
 
 end Duplex
 

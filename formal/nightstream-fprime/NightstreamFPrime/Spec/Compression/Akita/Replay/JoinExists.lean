@@ -116,7 +116,7 @@ of `tower20` with `total ≥ 473` stages presents the bytes (`Presents20`). The 
 those of `presents20_accepts` without `Last20`, injective coordinates of the fold challenges, and
 an answer with 22 slots or more. -/
 theorem exists_presents20 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
     (expanded : ∀ ℓ : Fin 6, (pub.setupFor (fold20 ℓ).setupCount).isSome) {rest : ℕ}
     (decoded : decode pub.ops proof = .ok (messages, rest))
@@ -286,12 +286,12 @@ theorem exists_presents20 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax
     by simp [length0, length1, length2, length3], length4] at at4
   rw [show ([[(Extract.withWork (W 0) restR, page)], b0, b1, b2, b3, b4]).flatten.length = 378
     by simp [length0, length1, length2, length3, length4], length5] at at5
-  refine ⟨?_, fun k => ?_, fun j _ => ?_, fun k below reply answered => ?_, ?_, shows0 _ at0.2 at0.1,
+  refine ⟨?_, Reads20.of_all _ _ _ _ _ fun k => (wires k).1, fun j _ => ?_,
+    fun k below reply answered => ?_, ?_, shows0 _ at0.2 at0.1,
     shows1 _ at1.2 at1.1, shows2 _ at2.2 at2.1, shows3 _ at3.2 at3.1, shows4 _ at4.2 at4.1,
     shows5 _ at5.2 at5.1, ⟨_, replyL, fun i => ?_⟩⟩
   · show 473 ≤ (List.flatten _).length
     rw [lengthAll]
-  · exact (wires k).1
   · refine iff_of_true ?_ (ok _)
     rw [(wires _).2]
     decide
@@ -319,7 +319,7 @@ theorem exists_presents20 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax
 bytes with them, and `Key20.Tower.accepts` of `tower20` accepts this transcript. So the claims of
 `Key20.Tower.accepts` are claims about the proofs that the verifier on bytes accepts. -/
 theorem verifyProof_exists_accepts20 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
     (expanded : ∀ ℓ : Fin 6, (pub.setupFor (fold20 ℓ).setupCount).isSome) {rest : ℕ}
     (decoded : decode pub.ops proof = .ok (messages, rest))

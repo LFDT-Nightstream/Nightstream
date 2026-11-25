@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.Replay.FinalGame
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Schedules
 
-/-! The games of the packing levels of `key20.aks` when `verifyProof` accepts, with no hypothesis
+/-! The games of the packing levels of `key20.aks` when `runProof` accepts, with no hypothesis
 of the layout (Akita revision `d50f700`; the folds of `layout20`, `Key20.root`, `Key20.level₁`).
 
 - `fold_field`: a field of the fold `F` at the place `i` of a list of folds is the value that the
@@ -46,13 +46,13 @@ theorem key20Root_fits : ∀ k, (batchGroup Key20.root (fun _ => []) (fun _ => [
 
 variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree2 E]
 
-/-- The root of `key20.aks`: when `verifyProof` accepts and the check `fused.end` at `c` has the
+/-- The root of `key20.aks`: when `runProof` accepts and the check `fused.end` at `c` has the
 fold `F` of the root of `layout20 zMax rice`, `foldCheck` of `Batch.liftedReduction` of the root
 runs on the path of the code to acceptance with the recorded `(fused.point, witness_evaluation)`. -/
 theorem verifyProof_key20_root {zMax rice : ℕ} (pub : Public) (proof : ByteArray) {ops : Array Op}
     (scripted : script pub.layout pub.plan = .ok ops) (ends : endsFit ops.zipIdx.toList = true)
     {full : Array Fq} (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
+    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
     (decoded : decode ops proof = .ok (messages, rest)) {c : ℕ} {key : Key} {level : ℕ}
     {F : Fold} (at_ : ops[c]? = some (.check key (.fused level F)))
     (fold : (layout20 zMax rice).folds[0]? = some F) {i a e : ℕ}
@@ -98,14 +98,14 @@ theorem verifyProof_key20_root {zMax rice : ℕ} (pub : Public) (proof : ByteArr
       Key20.root.carrierDegree g, (Key20.family 0 g).1, (Key20.family 0 g).2, false⟩)
     (fold_field fold Fold.groups rfl) (fun _ => rfl) (fun _ => rfl) 0
 
-/-- Level 1 of `key20.aks`: when `verifyProof` accepts and the check `fused.end` at `c` has the
+/-- Level 1 of `key20.aks`: when `runProof` accepts and the check `fused.end` at `c` has the
 fold `F` of level 1 of `layout20 zMax rice`, `foldCheck` of `liftedReduction` of the level runs on
 the path of the code to acceptance with the recorded `(fused.point, witness_evaluation)`. -/
 theorem verifyProof_key20_level1 {zMax rice : ℕ} (pub : Public) (proof : ByteArray)
     {ops : Array Op} (scripted : script pub.layout pub.plan = .ok ops)
     (ends : endsFit ops.zipIdx.toList = true) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
+    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
     (decoded : decode ops proof = .ok (messages, rest)) {c : ℕ} {key : Key} {level : ℕ}
     {F : Fold} (at_ : ops[c]? = some (.check key (.fused level F)))
     (fold : (layout20 zMax rice).folds[1]? = some F) {i a e : ℕ}

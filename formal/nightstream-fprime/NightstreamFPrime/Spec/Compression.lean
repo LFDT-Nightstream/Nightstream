@@ -118,6 +118,7 @@ import NightstreamFPrime.Spec.Compression.Akita.TraceProver
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Plan
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Prefix
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Readback
+import NightstreamFPrime.Spec.Compression.Akita.Replay.Statement
 import NightstreamFPrime.Spec.Compression.Akita.Replay.SamplerSigns
 import NightstreamFPrime.Spec.Compression.Akita.Replay.SamplerStage
 import NightstreamFPrime.Spec.Compression.Akita.Replay.SamplerPool
@@ -141,6 +142,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.ShapeLayout30
 import NightstreamFPrime.Spec.Compression.Akita.Replay.ShapeKey30
 import NightstreamFPrime.Spec.Compression.Akita.Replay.ShapeRange
 import NightstreamFPrime.Spec.Compression.Akita.Replay.ShapeStages
+import NightstreamFPrime.Spec.Compression.Akita.Replay.ShapeAccept
 import NightstreamFPrime.Spec.Compression.Akita.Replay.LinkTrace
 import NightstreamFPrime.Spec.Compression.Akita.Replay.LinkKey20
 import NightstreamFPrime.Spec.Compression.Akita.Replay.LinkPack
@@ -154,11 +156,15 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinAccept
 import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinLevels
 import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinDrawn
 import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinTerminal
+import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinConverse
 import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinCount
 import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinSlots
 import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinRuns
 import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinBlock
 import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinExists
+import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinStage
+import NightstreamFPrime.Spec.Compression.Akita.Replay.Causal
+import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinBound
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Grows
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Schedules
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Stage3

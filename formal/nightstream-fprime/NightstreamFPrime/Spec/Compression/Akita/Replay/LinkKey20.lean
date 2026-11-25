@@ -95,14 +95,14 @@ variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree
 
 /-- Level 1 of `key20.aks` with the tensor reduction of the level 2 on its claim
 (`Tier.tensored (liftFold …) level₁.tail`, the notation `first` of `Key20Opening.lean`): when
-`verifyProof` accepts, `foldCheck` of `liftedReduction` of the level and then `tensorCheck` run on
+`runProof` accepts, `foldCheck` of `liftedReduction` of the level and then `tensorCheck` run on
 the path of the fold on the state before `c` and of the tensor reduction on the state before
 `c'` to `(ρ, θ, ṽ)` of the recorded values on the state before `c'`. -/
 theorem verifyProof_key20_level1_tensored {zMax rice : ℕ}
     (scripted : script pub.layout pub.plan = .ok ops)
     (ends : endsFit ops.zipIdx.toList = true) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
+    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
     (decoded : decode ops proof = .ok (messages, rest)) {c : ℕ} {key : Key} {level : ℕ}
     {F : Fold} (at_ : ops[c]? = some (.check key (.fused level F)))
     (fold : (layout20 zMax rice).folds[1]? = some F) {i a e : ℕ}
@@ -163,7 +163,7 @@ theorem verifyProof_key20_level1_tensored {zMax rice : ℕ}
     decoded tensorAt rounds before after held kept w runs⟩
 
 /-- Level 2 of `key20.aks` with the tensor reduction of the level 3 on its claim
-(`Tier.tensored (committedTrace …) level₂.tail`, the notation `second`): when `verifyProof`
+(`Tier.tensored (committedTrace …) level₂.tail`, the notation `second`): when `runProof`
 accepts, `foldCheck` of `traceReduction` of the level and then `tensorCheck` run to `(ρ, θ, ṽ)` of
 the recorded values on the state before `c'`. The numbers of the layout are theorems
 (`layout20_trace`). -/
@@ -171,7 +171,7 @@ theorem verifyProof_key20_trace_tensored {zMax rice : ℕ}
     (scripted : script pub.layout pub.plan = .ok ops)
     (ends : endsFit ops.zipIdx.toList = true) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
+    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
     (decoded : decode ops proof = .ok (messages, rest)) {c : ℕ} {key : Key} {F : Fold}
     (at_ : ops[c]? = some (.check key (.fused 2 F)))
     (fold : (layout20 zMax rice).folds[2]? = some F) {r a e : ℕ}
@@ -228,7 +228,7 @@ theorem verifyProof_key20_trace_tensored {zMax rice : ℕ}
 
 /-- The levels 3 to 5 of `key20.aks` (the Euclidean route) with the tensor reduction of the next
 level on their claim (`Tier.tensored (committedTraceSq …) L.tail`, the notations `third` to
-`fifth`; the tensor reduction of the level 5 is the one of the terminal): when `verifyProof`
+`fifth`; the tensor reduction of the level 5 is the one of the terminal): when `runProof`
 accepts, `foldCheckSq` of `traceReduction` of the level and then `tensorCheck` run to `(ρ, θ, ṽ)`
 of the recorded values on the state before `c'`. The numbers of the layout are theorems
 (`layout20_trace`). -/
@@ -236,7 +236,7 @@ theorem verifyProof_key20_traceSq_tensored {zMax rice : ℕ}
     (scripted : script pub.layout pub.plan = .ok ops)
     (ends : endsFit ops.zipIdx.toList = true) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
+    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
     (decoded : decode ops proof = .ok (messages, rest)) {level : ℕ} {L : Key20.Level}
     (sender : (level, L) ∈ [(3, Key20.level₃), (4, Key20.level₄), (5, Key20.level₅)])
     {c : ℕ} {key : Key} {F : Fold} (at_ : ops[c]? = some (.check key (.fused level F)))
@@ -298,7 +298,7 @@ theorem verifyProof_key20_traceSq_tensored {zMax rice : ℕ}
       (route.trans (decide_eq_true deep)) compressed arities)
 
 /-- `Tier.TraceLinked` from the level `level` (`L`) to the level `level + 1` (`L'`) of
-`key20.aks` on the replay (Akita Figure 4, steps 0, 3 and 5): when `verifyProof` accepts, the
+`key20.aks` on the replay (Akita Figure 4, steps 0, 3 and 5): when `runProof` accepts, the
 tensor reduction of the level `level + 1` at `t` has the rounds `L.tail`, and the fold of the
 level `level + 1` is the fold of `layout20`, on the state before `c'` the statement
 `traceStatementFor` of the level `level + 1` is the folding statement of `TraceClaim.ofPoint` for
@@ -308,7 +308,7 @@ theorem verifyProof_key20_traceLink {zMax rice : ℕ}
     (scripted : script pub.layout pub.plan = .ok ops)
     (ends : endsFit ops.zipIdx.toList = true) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
+    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
     (decoded : decode ops proof = .ok (messages, rest)) {level t c' : ℕ} {key : Key}
     {L L' : Key20.Level}
     (pair : (level, L, L') ∈ [(1, Key20.level₁, Key20.level₂), (2, Key20.level₂, Key20.level₃),

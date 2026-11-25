@@ -8,7 +8,7 @@ schedule hypothesis, and the `mismatch` stop of the replay of `layout30` (Akita 
 - `verifyProof_key30_root_of`: `verifyProof_key30_root` on the state before the `fused.end` of the
   level 0 of `pub.ops` at `fusedIndex pub.layout 0`, with `fold30 r 0`.
 - `replay_matches30` and `verifyProof_accept_iff30`: with the setup prefix of the terminal, the
-  replay of a script of `layout30` never stops with `mismatch`, so `verifyProof` accepts exactly
+  replay of a script of `layout30` never stops with `mismatch`, so `runProof` accepts exactly
   when the proof decodes with no byte left and the replay has no stop. -/
 
 set_option autoImplicit false
@@ -32,13 +32,13 @@ theorem replay_matches30 {r : Key30.Row} (member : r ∈ Key30.rows) {zMax rice 
   replay_matches pub proof messages ops decoded (script30 member (layout ▸ scripted)).1
     terminalSetup k
 
-/-- With the setup prefix of the terminal, `verifyProof` accepts a proof of `layout30` exactly
+/-- With the setup prefix of the terminal, `runProof` accepts a proof of `layout30` exactly
 when it decodes with no byte left and the replay of `pub.ops` has no stop. -/
 theorem verifyProof_accept_iff30 {r : Key30.Row} (member : r ∈ Key30.rows) {zMax rice : ℕ}
     (pub : Public) (proof : ByteArray) (layout : pub.layout = layout30 r zMax rice)
     (scripted : script pub.layout pub.plan = .ok pub.ops) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full) :
-    verifyProof pub proof = .verdict .accept ↔
+    runProof pub proof = .verdict .accept ↔
       ∃ messages, decode pub.ops proof = .ok (messages, 0) ∧
         (replay pub pub.ops proof messages).1 = none := by
   have ends := (script30 member (layout ▸ scripted)).1
@@ -51,14 +51,14 @@ theorem verifyProof_accept_iff30 {r : Key30.Row} (member : r ∈ Key30.rows) {zM
 
 variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree2 E]
 
-/-- The offloaded root of a row of `key30.aks`: when `verifyProof` accepts a proof of `layout30`,
+/-- The offloaded root of a row of `key30.aks`: when `runProof` accepts a proof of `layout30`,
 Stage 3 gives `some o` and `offloadCheck` of `Batch.liftedReduction` of the root over the setup
 prefix `flat`, with the split `Batch.codeScan` of the claims, runs on the path of the code on the
 state before the `fused.end` of the level 0 to acceptance with the recorded
 `(fused.point, witness_evaluation)` and `o`. -/
 theorem verifyProof_key30_root_of (r : Key30.Row) (member : r ∈ Key30.rows) {zMax rice : ℕ}
     (pub : Public) (proof : ByteArray) (layout : pub.layout = layout30 r zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
     {messages : Array Message} {rest : ℕ} (decoded : decode pub.ops proof = .ok (messages, rest))
     {s : Replayer} (state : stateBefore pub proof messages pub.ops (fusedIndex pub.layout 0) = s)

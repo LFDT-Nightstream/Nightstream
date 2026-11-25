@@ -2,6 +2,7 @@ import tests.AxiomAudit
 import NightstreamFPrime.Spec.Compression.Akita.Replay.ShapeKey20
 import NightstreamFPrime.Spec.Compression.Akita.Replay.ShapeKey30
 import NightstreamFPrime.Spec.Compression.Akita.Replay.ShapeStages
+import NightstreamFPrime.Spec.Compression.Akita.Replay.ShapeAccept
 
 /-! Axiom audits for the schedule facts of the scripts as theorems: the skeleton of a layout
 (`Replay/ShapeScript.lean`), the shapes on the erased operations (`Replay/ShapeErase.lean`), the
@@ -9,7 +10,8 @@ kernel computations and the facts of each script of `layout20` (`Replay/ShapeLay
 the games of the levels of `key20.aks` with the layout as the only schedule hypothesis
 (`Replay/ShapeKey20.lean`), the same for the two rows of `key30.aks` (`Replay/ShapeLayout30.lean`,
 `Replay/ShapeKey30.lean`), finding 16 for `range.k.end` (`Replay/ShapeRange.lean`,
-`Replay/ShapeStages.lean`), with the guard that the bundles `FusedAt`, `RangeAt`, `TensorAt` and
+`Replay/ShapeStages.lean`), the converse of `verifyProof_accept` from the level functions
+(`Replay/ShapeAccept.lean`), with the guard that the bundles `FusedAt`, `RangeAt`, `TensorAt` and
 `OffloadAt` hold on the skeletons of `layout20` and `layout30` as operations. -/
 
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Op.erase
@@ -250,6 +252,27 @@ the games of the levels of `key20.aks` with the layout as the only schedule hypo
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.script20_stages
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.script30_stages
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.verifyProof_reject_stage20
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Replayer.tensorRunIn
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Replayer.holds_run
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Replayer.check_keeps
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Replayer.stateBefore_stopped
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Replayer.holds_of_stopped
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Replayer.holds_of_later
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.levelStart
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.inLevel
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.stageIndices
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.isTensorOf
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.isTensorOf_sound
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.coveredAt
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.erased_stage_reject
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.erased_checks
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.runProof_accept_of_levels
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.skeleton20_covered
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.levelStart20
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.fold20_of
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.verifyProof_accept_of_levels
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.verifyProof_levels_of_accept
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.verifyProof_accept_iff_levels
 
 namespace AkitaShapeGuards
 

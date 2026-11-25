@@ -37,6 +37,9 @@ open AkitaVectors
       discard <| gate3Negative "key30-opening-26-28-negative.json" ops v.proof
     let layout ← layoutOf v
     let pub ← publicOf v o layout
+    shapedGate v pub
+    if name == "key20-opening.json" then
+      statementNegative "key20-statement-negative.json" pub v.proof
     digests v
     planGate v layout
     let some (messages, _) := (decode ops v.proof).toOption | fail s!"{name}: decode"

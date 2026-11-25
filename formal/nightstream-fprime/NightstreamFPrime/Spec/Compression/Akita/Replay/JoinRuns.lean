@@ -36,7 +36,7 @@ variable {pub : Public} {proof : ByteArray} {messages : Array Message}
 /-- On the Euclidean route the energy `E_resp` of an accepted proof of `layout20` is at most the
 cap `S_max` of the level. -/
 theorem energy20 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full) {rest : ℕ}
     (decoded : decode pub.ops proof = .ok (messages, rest)) (ℓ : Fin 6)
     (euclidean : (fold20 ℓ).euclidean = true) :
@@ -71,7 +71,7 @@ variable {E : Type} [Field E] [Fintype E] [Algebra Zq E] [Degree2 E]
 /-- The path of the code of each level of an accepted proof of `layout20` fits the cells of
 `Key20.Wire` from the message 0. -/
 theorem fits_path20 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full) {rest : ℕ}
     (decoded : decode pub.ops proof = .ok (messages, rest)) (ℓ : Fin 6) :
     Fits E 8 3029804899 4 (path20 pub proof messages E ℓ) 0 2 := by
@@ -299,7 +299,7 @@ omit [Fintype Coord] [DecidableEq Coord] in
 /-- The checks of the root fold of `tower20` from each wire message with the data `note20` run on
 the path of the code (the game of `verifyProof_key20_root_of`). -/
 theorem runs20_zeroth {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full) {rest : ℕ}
     (decoded : decode pub.ops proof = .ok (messages, rest))
     (points : ∀ g : Fin 3, ((pub.groups[g.val]?.map (·.point)).getD #[]).size = ![20, 16, 16] g)
@@ -344,7 +344,7 @@ omit [Fintype Coord] [DecidableEq Coord] in
 /-- The checks of the level 1 of `tower20` with the tensor reduction of the level 2, from each
 wire message with the data `note20`, run on the path of the code. -/
 theorem runs20_first {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full) {rest : ℕ}
     (decoded : decode pub.ops proof = .ok (messages, rest))
     (expanded : (pub.setupFor (fold20 1).setupCount).isSome)
@@ -390,7 +390,7 @@ omit [Fintype Coord] [DecidableEq Coord] in
 /-- The checks of the level 2 of `tower20` with the tensor reduction of the level 3, from each
 wire message with the data `note20`, run on the path of the code. -/
 theorem runs20_second {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full) {rest : ℕ}
     (decoded : decode pub.ops proof = .ok (messages, rest))
     (expanded : (pub.setupFor (fold20 2).setupCount).isSome)
@@ -433,7 +433,7 @@ omit [Fintype Coord] [DecidableEq Coord] in
 /-- The checks of the level 3 of `tower20` with the tensor reduction of the level 4, from each
 wire message with the data `note20`, run on the path of the code. -/
 theorem runs20_third {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full) {rest : ℕ}
     (decoded : decode pub.ops proof = .ok (messages, rest))
     (expanded : (pub.setupFor (fold20 3).setupCount).isSome)
@@ -481,7 +481,7 @@ omit [Fintype Coord] [DecidableEq Coord] in
 /-- The checks of the level 4 of `tower20` with the tensor reduction of the level 5, from each
 wire message with the data `note20`, run on the path of the code. -/
 theorem runs20_fourth {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full) {rest : ℕ}
     (decoded : decode pub.ops proof = .ok (messages, rest))
     (expanded : (pub.setupFor (fold20 4).setupCount).isSome)
@@ -529,7 +529,7 @@ omit [Fintype Coord] [DecidableEq Coord] in
 /-- The checks of the level 5 of `tower20` with the tensor reduction of the terminal, from each
 wire message with the data `note20`, run on the path of the code. -/
 theorem runs20_fifth {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full) {rest : ℕ}
     (decoded : decode pub.ops proof = .ok (messages, rest))
     (expanded : (pub.setupFor (fold20 5).setupCount).isSome)

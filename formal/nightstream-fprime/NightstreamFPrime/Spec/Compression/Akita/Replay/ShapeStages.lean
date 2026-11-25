@@ -11,7 +11,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.ShapeLayout30
   the layout has its check `range.k.end` before the last check of the range proof; the check holds
   on the state before it when the stage function of the last check accepts, and when it does not
   hold, the level function is `none` on the state before it.
-- `verifyProof_reject_stage20`: a reject of `verifyProof` at the check `range.k.end` of a level of
+- `verifyProof_reject_stage20`: a reject of `runProof` at the check `range.k.end` of a level of
   `layout20` gives the level function `none` on the state before the stop. -/
 
 set_option autoImplicit false
@@ -176,7 +176,7 @@ theorem script30_stages {r : Key30.Row} (member : r ∈ Key30.rows) {zMax rice :
   exact erased_stages pub proof messages erased (decode_aligned decoded)
     (skeleton30_stages member ℓ)
 
-/-- A reject of `verifyProof` at the check `range.k.end` of the level `ℓ` of `layout20`: the level
+/-- A reject of `runProof` at the check `range.k.end` of the level `ℓ` of `layout20`: the level
 function is `none` on the state before the stop. -/
 theorem verifyProof_reject_stage20 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
     {ops : Array Op} (scripted : script pub.layout pub.plan = .ok ops) {rest : ℕ}
@@ -184,7 +184,7 @@ theorem verifyProof_reject_stage20 {zMax rice : ℕ} (layout : pub.layout = layo
     (below : k < (productStages (fold20 ℓ).logBasis).length) :
     ∃ c nodes arity weights, (∃ key, ops[c]? = some (.check key (.stage nodes arity weights
         ⟨ℓ, s!"range.{k}.output", none⟩ ⟨ℓ, s!"range.{k}.children", none⟩))) ∧
-      ∀ site, verifyProof pub proof = .verdict (.reject c site) →
+      ∀ site, runProof pub proof = .verdict (.reject c site) →
         foldRunIn pub (stateBefore pub proof messages ops c) ℓ (fold20 ℓ) = none := by
   obtain ⟨R, -, stages⟩ := script20_stages pub proof messages (layout ▸ scripted) decoded ℓ
   obtain ⟨c, nodes, arity, weights, -, ⟨key, atC⟩, -, stop⟩ := stages k below

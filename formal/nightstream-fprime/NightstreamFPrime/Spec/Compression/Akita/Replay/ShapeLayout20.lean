@@ -83,7 +83,7 @@ theorem script20 {zMax rice : ℕ} {plan : Array Run} {ops : Array Op}
 /-- The schedule facts of an accepted proof of `layout20` on `pub.ops`. -/
 theorem verifyProof_script20 {zMax rice : ℕ} {pub : Public} {proof : ByteArray}
     (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) :
+    (accepted : runProof pub proof = .verdict .accept) :
     script pub.layout pub.plan = .ok pub.ops ∧ endsFit pub.ops.zipIdx.toList = true ∧
       ∀ ℓ : Fin 6, FusedAt pub.ops ℓ (fold20 ℓ) (fusedIndex pub.layout ℓ) := by
   have scripted := verifyProof_scripted accepted

@@ -8,7 +8,7 @@ The code absorbs the point `point.0` and the values `openings` of the packing le
 the recorded `fused.point` and `witness_evaluation` of the level `ℓ` (`Build.prefix_` without
 Stage 3 at the level `ℓ`).
 
-- `verifyProof_recorded`: when `verifyProof` accepts, a key with one writer has on a later state
+- `verifyProof_recorded`: when `runProof` accepts, a key with one writer has on a later state
   the values that its writer appends; `verifyProof_absorbed` is it for the absorb of one recorded
   key.
 - `verifyProof_fusedPoint`: the recorded `fused.point` of a fold of the shape `gameShape` has
@@ -62,12 +62,12 @@ section Proof
 variable (pub : Public) (proof : ByteArray) {ops : Array Op}
 
 /-- An operation `op` at `a` that appends `values s` to the recorded values of `key`, with no
-other writer of `key` before `c'`: when `verifyProof` accepts, `key` has on the state before `c'`
+other writer of `key` before `c'`: when `runProof` accepts, `key` has on the state before `c'`
 the values `values` of the state before `a`. -/
 theorem verifyProof_recorded (scripted : script pub.layout pub.plan = .ok ops)
     (ends : endsFit ops.zipIdx.toList = true) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
+    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
     (decoded : decode ops proof = .ok (messages, rest)) {a c' : ℕ} {key : Key} {op : Op}
     (at_ : ops[a]? = some op) (values : Replayer → Array Ext)
     (records : ∀ s, recordedIn (((step pub proof messages a op).run).run s).2 key =
@@ -91,12 +91,12 @@ theorem verifyProof_recorded (scripted : script pub.layout pub.plan = .ok ops)
   rw [(frames key List.mem_cons_self).1, next, records, empty, Array.empty_append]
 
 /-- An absorb of one recorded key `k` into `key` at `a`, with no other writer of `key` before
-`c'`: when `verifyProof` accepts, `key` has on the state before `c'` the recorded values of `k`
+`c'`: when `runProof` accepts, `key` has on the state before `c'` the recorded values of `k`
 on the state before `a`. -/
 theorem verifyProof_absorbed (scripted : script pub.layout pub.plan = .ok ops)
     (ends : endsFit ops.zipIdx.toList = true) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
+    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
     (decoded : decode ops proof = .ok (messages, rest)) {a c' : ℕ} {key k : Key}
     (at_ : ops[a]? = some (.absorb key (.recorded [k])))
     (fresh : frees (ops.zipIdx.toList.take a) [key] [] = true) (after : a + 1 ≤ c')
@@ -109,11 +109,11 @@ theorem verifyProof_absorbed (scripted : script pub.layout pub.plan = .ok ops)
   simp
 
 /-- The recorded `fused.point` of a fold of the shape `gameShape` at its `fused.end` has `F.vars`
-coordinates, when `verifyProof` accepts. -/
+coordinates, when `runProof` accepts. -/
 theorem verifyProof_fusedPoint (scripted : script pub.layout pub.plan = .ok ops)
     (ends : endsFit ops.zipIdx.toList = true) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
+    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
     (decoded : decode ops proof = .ok (messages, rest)) {c : ℕ} {key : Key} {level : ℕ}
     {F : Fold} (at_ : ops[c]? = some (.check key (.fused level F)))
     (game : gameShape (ops.zipIdx.toList.take c) level F = true) :
@@ -135,7 +135,7 @@ theorem verifyProof_fusedPoint (scripted : script pub.layout pub.plan = .ok ops)
 variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree2 E]
 
 omit [Fintype E] [DecidableEq E] in
-/-- The link `Tier.Linked` on the replay (Akita Figure 4, steps 3 and 5): when `verifyProof`
+/-- The link `Tier.Linked` on the replay (Akita Figure 4, steps 3 and 5): when `runProof`
 accepts, the fold `G` of the level `level` ends at `c`, and the packing level `level + 1` with one
 group absorbs `point.0` at `p` and `openings` at `o` from its `fused.point` and
 `witness_evaluation`, on the state before `c'` the statement `packStatementFor` of the level
@@ -147,7 +147,7 @@ level `level`. The segments have the lengths of `Tier.Linked` (`stride`, `degree
 theorem verifyProof_packLink (scripted : script pub.layout pub.plan = .ok ops)
     (ends : endsFit ops.zipIdx.toList = true) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
+    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
     (decoded : decode ops proof = .ok (messages, rest)) {level c p o c' : ℕ} {key : Key}
     {G : Fold} (at_ : ops[c]? = some (.check key (.fused level G)))
     (game : gameShape (ops.zipIdx.toList.take c) level G = true)
@@ -240,7 +240,7 @@ theorem verifyProof_key20_packLink {zMax rice : ℕ}
     (scripted : script pub.layout pub.plan = .ok ops)
     (ends : endsFit ops.zipIdx.toList = true) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
+    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
     (decoded : decode ops proof = .ok (messages, rest)) {c p o c' : ℕ} {key : Key}
     {G : Fold} (at_ : ops[c]? = some (.check key (.fused 0 G)))
     (root : (layout20 zMax rice).folds[0]? = some G)

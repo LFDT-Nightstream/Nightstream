@@ -13,7 +13,7 @@ hypothesis (Akita revision `d50f700`; `Replay/ShapeLayout20.lean`, `Replay/Final
   levels (`shaped`, `rows`, `based`, `low`, `quarter`, `two`, `fits`, `rowsFit`, the route,
   `compressed`, `arities`, `leaf`, `positive`, `small`, `digits`) are proved for `fold20 ℓ`.
 - `replay_matches20` and `verifyProof_accept_iff20`: with the setup prefix of the terminal, the
-  replay of a script of `layout20` never stops with `mismatch`, so `verifyProof` accepts exactly
+  replay of a script of `layout20` never stops with `mismatch`, so `runProof` accepts exactly
   when the proof decodes with no byte left and the replay has no stop. -/
 
 set_option autoImplicit false
@@ -35,12 +35,12 @@ theorem replay_matches20 {zMax rice : ℕ} {pub : Public} {proof : ByteArray} {o
     (k : ℕ) : (replay pub ops proof messages).1 ≠ some (.mismatch k) :=
   replay_matches pub proof messages ops decoded (script20 (layout ▸ scripted)).1 terminalSetup k
 
-/-- With the setup prefix of the terminal, `verifyProof` accepts a proof of `layout20` exactly
+/-- With the setup prefix of the terminal, `runProof` accepts a proof of `layout20` exactly
 when it decodes with no byte left and the replay of `pub.ops` has no stop. -/
 theorem verifyProof_accept_iff20 {zMax rice : ℕ} (pub : Public) (proof : ByteArray)
     (layout : pub.layout = layout20 zMax rice) (scripted : script pub.layout pub.plan = .ok pub.ops)
     {full : Array Fq} (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full) :
-    verifyProof pub proof = .verdict .accept ↔
+    runProof pub proof = .verdict .accept ↔
       ∃ messages, decode pub.ops proof = .ok (messages, 0) ∧
         (replay pub pub.ops proof messages).1 = none := by
   have ends := (script20 (layout ▸ scripted)).1
@@ -53,12 +53,12 @@ theorem verifyProof_accept_iff20 {zMax rice : ℕ} (pub : Public) (proof : ByteA
 
 variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree2 E]
 
-/-- The root of `key20.aks`: when `verifyProof` accepts a proof of `layout20`, `foldCheck` of
+/-- The root of `key20.aks`: when `runProof` accepts a proof of `layout20`, `foldCheck` of
 `Batch.liftedReduction` of the root runs on the path of the code on the state before the
 `fused.end` of the level 0 to acceptance with the recorded `(fused.point, witness_evaluation)`. -/
 theorem verifyProof_key20_root_of {zMax rice : ℕ} (pub : Public) (proof : ByteArray)
     (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
     {messages : Array Message} {rest : ℕ} (decoded : decode pub.ops proof = .ok (messages, rest))
     {s : Replayer} (state : stateBefore pub proof messages pub.ops (fusedIndex pub.layout 0) = s)
@@ -85,12 +85,12 @@ theorem verifyProof_key20_root_of {zMax rice : ℕ} (pub : Public) (proof : Byte
   exact verifyProof_key20_root pub proof scripted ends terminalSetup accepted decoded at_
     (layout20_fold zMax rice 0) shape game drawn state expanded β basis challenge challenged w
 
-/-- Level 1 of `key20.aks`: when `verifyProof` accepts a proof of `layout20`, `foldCheck` of
+/-- Level 1 of `key20.aks`: when `runProof` accepts a proof of `layout20`, `foldCheck` of
 `liftedReduction` of the level runs on the path of the code on the state before the `fused.end` of
 the level 1 to acceptance with the recorded `(fused.point, witness_evaluation)`. -/
 theorem verifyProof_key20_level1_of {zMax rice : ℕ} (pub : Public) (proof : ByteArray)
     (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
     {messages : Array Message} {rest : ℕ} (decoded : decode pub.ops proof = .ok (messages, rest))
     {s : Replayer} (state : stateBefore pub proof messages pub.ops (fusedIndex pub.layout 1) = s)
@@ -128,13 +128,13 @@ theorem shape20_cast_ne_zero {n : ℕ} (positive : 0 < n) (small : n < fieldModu
   fun zero => absurd (Nat.le_of_dvd positive ((ZMod.natCast_eq_zero_iff _ _).mp zero))
     (not_le.mpr small)
 
-/-- Level 2 of `key20.aks`, a trace level on the coefficient route: when `verifyProof` accepts a
+/-- Level 2 of `key20.aks`, a trace level on the coefficient route: when `runProof` accepts a
 proof of `layout20`, `foldCheck` of `traceReduction` runs on the path of the code on the state
 before the `fused.end` of the level 2 to acceptance with the recorded
 `(fused.point, witness_evaluation)`. -/
 theorem verifyProof_key20_trace_of {zMax rice : ℕ} (pub : Public) (proof : ByteArray)
     (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
     {messages : Array Message} {rest : ℕ} (decoded : decode pub.ops proof = .ok (messages, rest))
     {s : Replayer} (state : stateBefore pub proof messages pub.ops (fusedIndex pub.layout 2) = s)
@@ -163,14 +163,14 @@ theorem verifyProof_key20_trace_of {zMax rice : ℕ} (pub : Public) (proof : Byt
     state (T := ⟨Key20.level₂.shape, Key20.level₂.opening, Key20.level₂.fold⟩) rfl expanded rfl (by decide) rfl (by decide) (shape20_cast_ne_zero (by decide) (by decide))
     challenge challenged _ _ w rfl (by decide) (by decide) (by decide)
 
-/-- The levels 3 to 5 of `key20.aks`, trace levels on the Euclidean route: when `verifyProof`
+/-- The levels 3 to 5 of `key20.aks`, trace levels on the Euclidean route: when `runProof`
 accepts a proof of `layout20`, `foldCheckSq` of `traceReduction` with the norm stage runs on the
 path of the code on the state before the `fused.end` of the level to acceptance with the recorded
 `(fused.point, witness_evaluation)`. -/
 theorem verifyProof_key20_traceSq_of {zMax rice : ℕ} (ℓ : Fin 6) (L : Key20.Level)
     (listed : (ℓ, L) ∈ [(3, Key20.level₃), (4, Key20.level₄), (5, Key20.level₅)])
     (pub : Public) (proof : ByteArray) (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
     {messages : Array Message} {rest : ℕ} (decoded : decode pub.ops proof = .ok (messages, rest))
     {s : Replayer} (state : stateBefore pub proof messages pub.ops (fusedIndex pub.layout ℓ) = s)

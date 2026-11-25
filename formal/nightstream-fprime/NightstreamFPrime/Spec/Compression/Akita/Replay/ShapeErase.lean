@@ -421,7 +421,7 @@ def Public.ops (pub : Public) : Array Op :=
 /-- An accepted proof has a public input whose layout takes its plan, with the operations
 `pub.ops`. -/
 theorem verifyProof_scripted {pub : Public} {proof : ByteArray}
-    (accepted : verifyProof pub proof = .verdict .accept) : script pub.layout pub.plan = .ok pub.ops := by
+    (accepted : runProof pub proof = .verdict .accept) : script pub.layout pub.plan = .ok pub.ops := by
   unfold Public.ops
   cases found : script pub.layout pub.plan with
   | error reason =>

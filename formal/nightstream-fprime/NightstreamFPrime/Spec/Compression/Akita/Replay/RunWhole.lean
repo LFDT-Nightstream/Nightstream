@@ -32,7 +32,7 @@ namespace Replayer
 
 /-- The state at the start of `replay`: the sponge of the channel and nothing recorded. -/
 def channelStart (pub : Public) : Replayer :=
-  ⟨channel pub.session pub.descriptor, 0, {}, {}, {}, {}⟩
+  ⟨channel pub.session pub.descriptor pub.sponge, 0, {}, {}, {}, {}⟩
 
 theorem channelStart_fresh (pub : Public) (k : Key) : recordedIn (channelStart pub) k = #[] := by
   simp [recordedIn, channelStart]
@@ -63,12 +63,13 @@ theorem replay_none_iff :
   rcases (runFrom pub proof messages ops.zipIdx.toList (channelStart pub)).1 with _ | ⟨⟩ <;> simp
 
 /-- With no checks after the replay, `verifyBytes` accepts exactly when the proof decodes with no
-byte left and the replay stops neither with `noWork` nor with `reject`. -/
+byte left and the replay stops neither with `noWork`, nor with `reject`, nor with `mismatch`. -/
 theorem verifyBytes_accept :
     verifyBytes (verdict pub ops proof fun _ => .accept) ops proof = .verdict .accept ↔
       ∃ messages rest, decode ops proof = .ok (messages, rest) ∧ rest = 0 ∧
         ∀ op site, (replay pub ops proof messages).1 ≠ some (.noWork op site) ∧
-          (replay pub ops proof messages).1 ≠ some (.reject op site) := by
+          (replay pub ops proof messages).1 ≠ some (.reject op site) ∧
+          (replay pub ops proof messages).1 ≠ some (.mismatch op) := by
   unfold verifyBytes
   rcases decode ops proof with failure | ⟨messages, rest⟩
   · simp

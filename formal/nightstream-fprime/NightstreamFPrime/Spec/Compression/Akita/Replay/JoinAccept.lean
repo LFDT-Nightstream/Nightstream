@@ -27,7 +27,7 @@ open Replayer
 theorem stepOk_of_accept {pub : Public} {proof : ByteArray}
     (scripted : script pub.layout pub.plan = .ok pub.ops) (ends : endsFit pub.ops.zipIdx.toList = true)
     {full : Array Fq} (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
+    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
     (decoded : decode pub.ops proof = .ok (messages, rest)) (c : ℕ) :
     StepOk pub proof messages c := fun _ at_ =>
   (replay_step_ok pub proof messages
@@ -89,7 +89,7 @@ holds (Akita Section 5.4, (72) with `φ = 1`): the payloads, the weights `ϑ` of
 `Σ_g ϑ_g·v_g`, the segments of the point of each group and the zero work bits of the stage 0.
 `points` and `values`: the shape of the public statement. -/
 theorem presents20_root {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full) {rest : ℕ}
     (decoded : decode pub.ops proof = .ok (messages, rest))
     (points : ∀ g : Fin 3, ((pub.groups[g.val]?.map (·.point)).getD #[]).size = ![20, 16, 16] g)
@@ -109,27 +109,28 @@ theorem presents20_root {zMax rice : ℕ} (layout : pub.layout = layout20 zMax r
     decoded at_ (layout20_fold zMax rice 0) frame.weights (fun g => 3 + g.val) frame.pointAt
     frame.pointFresh frame.pointAfter frame.pointKept frame.openingsAt frame.openingsFresh
     frame.openingsAfter frame.openingsKept points values (setup20 pub 0)
-  have data := presents.data
   have weighed := presents.weights
   refine ⟨by have := presents.long; omega, ?_, ?_, ?_, fun g => ?_, ?_⟩
   · show ((point.wire 1).data.claim).payload = (point.wire 0).data.commit
-    rw [data, data]
+    rw [presents.reads.claim, presents.reads.commit]
     rfl
   · rw [weighed]
     show ((point.wire 1).data.claim).weight = _
-    rw [data]
+    rw [presents.reads.claim]
     rfl
   · rw [weighed]
     show ((point.wire 1).data.claim).value = ∑ g, _ * (point.wire 0).data.value g
-    rw [data, data]
+    rw [presents.reads.claim, presents.reads.value]
     rfl
   · obtain ⟨blocks, length, stride, degree, segments⟩ := linked.1 g
     refine ⟨_, _, _, _, blocks, length, stride, degree, ?_, ?_⟩
     · show ((point.wire 1).data.claim).point g = _
-      rw [data]
+      rw [presents.reads.claim]
       rfl
-    · show Key20.Note.place (point.wire 0).data g = _
-      rw [data, segments]
+    · show List.ofFn ((point.wire 0).data.point g) = _
+      rw [presents.reads.place]
+      show Key20.Note.place (note20 pub proof messages tLast eLast) g = _
+      rw [segments]
       exact ofFn_getD_map (by rw [Array.length_toList]; exact points g)
   · obtain ⟨⟨reply, moved⟩, found⟩ : ∃ entry, point.rest[0]? = some entry :=
       Option.isSome_iff_exists.mp (by
@@ -147,7 +148,7 @@ from the root fold to the level 1 holds: the stages, the fold challenges and the
 game of the checks on the path of the code to the recorded `(fused.point, witness_evaluation)`,
 and the claim of the level 1 from it. `expanded`: the setup prefix of the root fold exists. -/
 theorem presents20_level0 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full) {rest : ℕ}
     (decoded : decode pub.ops proof = .ok (messages, rest))
     (points : ∀ g : Fin 3, ((pub.groups[g.val]?.map (·.point)).getD #[]).size = ![20, 16, 16] g)
@@ -160,7 +161,6 @@ theorem presents20_level0 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax
   obtain ⟨started, length, finished, foldBits, bits⟩ := zeroth_numbers o
   obtain ⟨⟨reply, answered, decodedAt⟩, presented⟩ := presents.level₀
   have challenged := Extract.challengeAt_of_reply _ _ _ answered decodedAt
-  have data := presents.data
   subst tower
   obtain ⟨scripted, ends, levels⟩ := verifyProof_script20 layout accepted
   obtain ⟨rootFrame, frame, -⟩ := verifyProof_frames20 layout accepted
@@ -216,7 +216,7 @@ theorem presents20_level0 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax
           (fun g => Key.ofSetup (flatOf (setup20 pub 0)) (Key20.root.shape g))
           ⟨Setup.shared (flatOf (setup20 pub 0)) Key20.root.openDegree Key20.root.openRank _
             Key20.root.openSetupCode, PathKey.ofSetup (flatOf (setup20 pub 0)) Key20.root.chain⟩ := by
-      rw [data]
+      rw [presents.reads.claim]
       exact rooted
     rw [rooted'] at runs
     rw [path20_zero] at presented
@@ -228,13 +228,22 @@ theorem presents20_level0 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax
       exact runs
     · rw [← List.map_append, ← List.map_append, ← List.map_append, point_segments]
   · show ((point.wire _).data.claim₁).payload = (point.wire _).data.commit₁
-    rw [data, data]
-    rfl
+    rw [show ∀ k, k = 51 → (point.wire k).data.claim₁ = (note20 (E := E) pub proof messages tLast eLast).claim₁ from
+      fun k at_ => by subst at_; exact presents.reads.claim₁]
+    · rw [show ∀ k, k = 2 → (point.wire k).data.commit₁ = (note20 (E := E) pub proof messages tLast eLast).commit₁ from
+        fun k at_ => by subst at_; exact presents.reads.commit₁]
+      · rfl
+      · exact congrArg (· + 1) started
+    · exact finished
   · show ((point.wire _).data.claim₁).point = _
-    rw [data]
-    rfl
+    rw [show ∀ k, k = 51 → (point.wire k).data.claim₁ = (note20 (E := E) pub proof messages tLast eLast).claim₁ from
+      fun k at_ => by subst at_; exact presents.reads.claim₁]
+    · rfl
+    · exact finished
   · show ((point.wire _).data.claim₁).value = _
-    rw [data]
-    rfl
+    rw [show ∀ k, k = 51 → (point.wire k).data.claim₁ = (note20 (E := E) pub proof messages tLast eLast).claim₁ from
+      fun k at_ => by subst at_; exact presents.reads.claim₁]
+    · rfl
+    · exact finished
 
 end NightstreamFPrime.Spec.Compression.Akita.Replay

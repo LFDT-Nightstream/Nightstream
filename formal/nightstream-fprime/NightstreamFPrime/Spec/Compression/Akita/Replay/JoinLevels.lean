@@ -169,7 +169,7 @@ presents the bytes of an accepted proof of `layout20`, the link `Tier.TraceLinke
 1 with the tensor reduction of its claim to the level 2 holds. `expanded`: the setup prefix of the
 level 1 exists. -/
 theorem presents20_level1 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full) {rest : ℕ}
     (decoded : decode pub.ops proof = .ok (messages, rest))
     (expanded : (pub.setupFor (fold20 1).setupCount).isSome)
@@ -180,7 +180,6 @@ theorem presents20_level1 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax
   obtain ⟨started, length, finished, foldBits, bits⟩ := first20_numbers o
   obtain ⟨⟨reply, answered, decodedAt⟩, presented⟩ := presents.level₁
   have challenged := Extract.challengeAt_of_reply _ _ _ answered decodedAt
-  have data := presents.data
   subst tower
   obtain ⟨scripted, ends, levels⟩ := verifyProof_script20 layout accepted
   obtain ⟨-, pack, tensor, -⟩ := verifyProof_frames20 layout accepted
@@ -214,7 +213,7 @@ theorem presents20_level1 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax
       (claimsIn (fused20 pub proof messages 1) 1 (fold20 1)) =
       ((point.wire 51).data.claim₁).statement (Key.ofSetup (flatOf (setup20 pub 1)) Key20.level₁.shape)
         (OpeningKey.ofSetup (flatOf (setup20 pub 1)) Key20.level₁.opening) := by
-    rw [data]
+    rw [presents.reads.claim₁]
     exact packed
   rw [packed'] at runs'
   rw [path20_trace pub proof messages 1 (by decide), receiver20_lt pub (by decide)] at presented
@@ -255,14 +254,19 @@ theorem presents20_level1 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax
       exact runs'
     · rw [segments]
   · show ((point.wire _).data.claim₂) = Extract.TraceClaim.ofPoint _ ((point.wire _).data.commit₂) _ _ _ _ _ _
-    rw [data, data]
-    rfl
+    rw [show ∀ k, k = 120 → (point.wire k).data.claim₂ = (note20 (E := E) pub proof messages tLast eLast).claim₂ from
+      fun k at_ => by subst at_; exact presents.reads.claim₂]
+    · rw [show ∀ k, k = 52 → (point.wire k).data.commit₂ = (note20 (E := E) pub proof messages tLast eLast).commit₂ from
+        fun k at_ => by subst at_; exact presents.reads.commit₂]
+      · rfl
+      · exact congrArg (· + 1) started
+    · exact finished
 
 /-- Theorem B "→" at the level 2: on a transcript that presents the bytes of an accepted proof of
 `layout20`, the link `Tier.TraceLinked` from the level 2 with the tensor reduction of its claim to
 the level 3 holds. `expanded`: the setup prefix of the level 2 exists. -/
 theorem presents20_level2 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full) {rest : ℕ}
     (decoded : decode pub.ops proof = .ok (messages, rest))
     (expanded : (pub.setupFor (fold20 2).setupCount).isSome)
@@ -273,7 +277,6 @@ theorem presents20_level2 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax
   obtain ⟨started, length, finished, foldBits, bits⟩ := second20_numbers o
   obtain ⟨⟨reply, answered, decodedAt⟩, presented⟩ := presents.level₂
   have challenged := Extract.challengeAt_of_reply _ _ _ answered decodedAt
-  have data := presents.data
   subst tower
   obtain ⟨scripted, ends, -⟩ := verifyProof_script20 layout accepted
   obtain ⟨-, -, frames⟩ := verifyProof_frames20 layout accepted
@@ -302,7 +305,7 @@ theorem presents20_level2 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax
       (rowsIn (stateBefore pub proof messages pub.ops (fusedIndex pub.layout 2)) 2 (fold20 2)) (claimsIn (stateBefore pub proof messages pub.ops (fusedIndex pub.layout 2)) 2 (fold20 2)) =
       ((point.wire 120).data.claim₂).statement (Key.ofSetup (flatOf (setup20 pub 2)) Key20.level₂.shape)
         (OpeningKey.ofSetup (flatOf (setup20 pub 2)) Key20.level₂.opening) := by
-    rw [data]
+    rw [presents.reads.claim₂]
     exact before
   rw [before'] at runs'
   rw [path20_trace pub proof messages 2 (by decide), receiver20_lt pub (by decide)] at presented
@@ -344,14 +347,19 @@ theorem presents20_level2 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax
     · rw [segments]
   · show ((point.wire _).data.claim₃) =
       Extract.TraceClaim.ofPoint _ ((point.wire _).data.commit₃) _ _ _ _ _ _
-    rw [data, data]
-    rfl
+    rw [show ∀ k, k = 203 → (point.wire k).data.claim₃ = (note20 (E := E) pub proof messages tLast eLast).claim₃ from
+      fun k at_ => by subst at_; exact presents.reads.claim₃]
+    · rw [show ∀ k, k = 121 → (point.wire k).data.commit₃ = (note20 (E := E) pub proof messages tLast eLast).commit₃ from
+        fun k at_ => by subst at_; exact presents.reads.commit₃]
+      · rfl
+      · exact congrArg (· + 1) started
+    · exact finished
 
 /-- Theorem B "→" at the level 3: on a transcript that presents the bytes of an accepted proof of
 `layout20`, the link `Tier.TraceLinked` from the level 3 with the tensor reduction of its claim to
 the level 4 holds. `expanded`: the setup prefix of the level 3 exists. -/
 theorem presents20_level3 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full) {rest : ℕ}
     (decoded : decode pub.ops proof = .ok (messages, rest))
     (expanded : (pub.setupFor (fold20 3).setupCount).isSome)
@@ -362,7 +370,6 @@ theorem presents20_level3 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax
   obtain ⟨started, length, finished, foldBits, bits⟩ := third20_numbers o
   obtain ⟨⟨reply, answered, decodedAt⟩, presented⟩ := presents.level₃
   have challenged := Extract.challengeAt_of_reply _ _ _ answered decodedAt
-  have data := presents.data
   subst tower
   obtain ⟨scripted, ends, -⟩ := verifyProof_script20 layout accepted
   obtain ⟨-, -, frames⟩ := verifyProof_frames20 layout accepted
@@ -391,7 +398,7 @@ theorem presents20_level3 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax
       (rowsIn (stateBefore pub proof messages pub.ops (fusedIndex pub.layout ((3 : Fin 6) : ℕ))) ((3 : Fin 6) : ℕ) (fold20 3)) (claimsIn (stateBefore pub proof messages pub.ops (fusedIndex pub.layout ((3 : Fin 6) : ℕ))) ((3 : Fin 6) : ℕ) (fold20 3)) =
       ((point.wire 203).data.claim₃).statement (Key.ofSetup (flatOf (setup20 pub 3)) Key20.level₃.shape)
         (OpeningKey.ofSetup (flatOf (setup20 pub 3)) Key20.level₃.opening) := by
-    rw [data]
+    rw [presents.reads.claim₃]
     exact before
   rw [before'] at runs'
   rw [path20_trace pub proof messages 3 (by decide), receiver20_lt pub (by decide)] at presented
@@ -433,14 +440,19 @@ theorem presents20_level3 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax
     · rw [segments]
   · show ((point.wire _).data.claim₄) =
       Extract.TraceClaim.ofPoint _ ((point.wire _).data.commit₄) _ _ _ _ _ _
-    rw [data, data]
-    rfl
+    rw [show ∀ k, k = 284 → (point.wire k).data.claim₄ = (note20 (E := E) pub proof messages tLast eLast).claim₄ from
+      fun k at_ => by subst at_; exact presents.reads.claim₄]
+    · rw [show ∀ k, k = 204 → (point.wire k).data.commit₄ = (note20 (E := E) pub proof messages tLast eLast).commit₄ from
+        fun k at_ => by subst at_; exact presents.reads.commit₄]
+      · rfl
+      · exact congrArg (· + 1) started
+    · exact finished
 
 /-- Theorem B "→" at the level 4: on a transcript that presents the bytes of an accepted proof of
 `layout20`, the link `Tier.TraceLinked` from the level 4 with the tensor reduction of its claim to
 the level 5 holds. `expanded`: the setup prefix of the level 4 exists. -/
 theorem presents20_level4 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full) {rest : ℕ}
     (decoded : decode pub.ops proof = .ok (messages, rest))
     (expanded : (pub.setupFor (fold20 4).setupCount).isSome)
@@ -451,7 +463,6 @@ theorem presents20_level4 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax
   obtain ⟨started, length, finished, foldBits, bits⟩ := fourth20_numbers o
   obtain ⟨⟨reply, answered, decodedAt⟩, presented⟩ := presents.level₄
   have challenged := Extract.challengeAt_of_reply _ _ _ answered decodedAt
-  have data := presents.data
   subst tower
   obtain ⟨scripted, ends, -⟩ := verifyProof_script20 layout accepted
   obtain ⟨-, -, frames⟩ := verifyProof_frames20 layout accepted
@@ -480,7 +491,7 @@ theorem presents20_level4 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax
       (rowsIn (stateBefore pub proof messages pub.ops (fusedIndex pub.layout ((4 : Fin 6) : ℕ))) ((4 : Fin 6) : ℕ) (fold20 4)) (claimsIn (stateBefore pub proof messages pub.ops (fusedIndex pub.layout ((4 : Fin 6) : ℕ))) ((4 : Fin 6) : ℕ) (fold20 4)) =
       ((point.wire 284).data.claim₄).statement (Key.ofSetup (flatOf (setup20 pub 4)) Key20.level₄.shape)
         (OpeningKey.ofSetup (flatOf (setup20 pub 4)) Key20.level₄.opening) := by
-    rw [data]
+    rw [presents.reads.claim₄]
     exact before
   rw [before'] at runs'
   rw [path20_trace pub proof messages 4 (by decide), receiver20_lt pub (by decide)] at presented
@@ -524,7 +535,12 @@ theorem presents20_level4 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax
     · rw [segments]
   · show ((point.wire _).data.claim₅) =
       Extract.TraceClaim.ofPoint _ ((point.wire _).data.commit₅) _ _ _ _ _ _
-    rw [data, data]
-    rfl
+    rw [show ∀ k, k = 378 → (point.wire k).data.claim₅ = (note20 (E := E) pub proof messages tLast eLast).claim₅ from
+      fun k at_ => by subst at_; exact presents.reads.claim₅]
+    · rw [show ∀ k, k = 285 → (point.wire k).data.commit₅ = (note20 (E := E) pub proof messages tLast eLast).commit₅ from
+        fun k at_ => by subst at_; exact presents.reads.commit₅]
+      · rfl
+      · exact congrArg (· + 1) started
+    · exact finished
 
 end NightstreamFPrime.Spec.Compression.Akita.Replay

@@ -50,7 +50,7 @@ def Last20 (pub : Public) (proof : ByteArray) (messages : Array Message)
 /-- The payload of `z` of an accepted proof of `layout20` decodes to `response20`. -/
 theorem payload20_of_accept {pub : Public} {proof : ByteArray} {zMax rice : ℕ}
     (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
     {messages : Array Message} {rest : ℕ} (decoded : decode pub.ops proof = .ok (messages, rest)) :
     Golomb.decode (layout20 zMax rice).terminal.params
@@ -66,13 +66,13 @@ theorem payload20_of_accept {pub : Public} {proof : ByteArray} {zMax rice : ℕ}
       (terminalMessagesIn (terminalState20 pub proof messages) 6).payload with _ | z
   · rw [terminalRun_decode _ _ found] at stepped
     cases stepped
-  · simp [response20, found]
+  · simp [response20, responseIn, found]
 
 /-- The last blocks of the terminal of an accepted proof of `layout20` (`verifyProof_key20_terminal`
 with `verifyProof_drawn20` and `payload20_of_accept`): last blocks with `Last20` exist. -/
 theorem last20_of_accept {pub : Public} {proof : ByteArray} {zMax rice : ℕ}
     (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
     {messages : Array Message} {rest : ℕ} (decoded : decode pub.ops proof = .ok (messages, rest)) :
     ∃ tLast eLast, Last20 (E := E) pub proof messages tLast eLast := by
@@ -87,7 +87,7 @@ theorem last20_of_accept {pub : Public} {proof : ByteArray} {zMax rice : ℕ}
       tensor.at_ tensor.rounds tensor.after tensor.kept terminalAt drawnAt
       (payload20_of_accept layout accepted terminalSetup decoded) (by decide) 0
   refine ⟨tLast, eLast, eDigest, tDigest, short, ?_⟩
-  unfold terminalStatement20
+  unfold terminalStatement20 terminalStatementIn
   rw [fullEq]
   exact accepts
 
@@ -169,7 +169,7 @@ an accepted proof of `layout20`, the link `Terminal.Linked` from the level 5 wit
 reduction of its claim to the terminal holds. `expanded`: the setup prefix of the level 5
 exists. -/
 theorem presents20_level5 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full) {rest : ℕ}
     (decoded : decode pub.ops proof = .ok (messages, rest))
     (expanded : (pub.setupFor (fold20 5).setupCount).isSome)
@@ -181,7 +181,6 @@ theorem presents20_level5 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax
   obtain ⟨started, length, finished, foldBits, bits⟩ := fifth20_numbers o
   obtain ⟨⟨reply, answered, decodedAt⟩, presented⟩ := presents.level₅
   have challenged := Extract.challengeAt_of_reply _ _ _ answered decodedAt
-  have data := presents.data
   subst tower
   obtain ⟨scripted, ends, -⟩ := verifyProof_script20 layout accepted
   obtain ⟨-, -, frames⟩ := verifyProof_frames20 layout accepted
@@ -221,7 +220,7 @@ theorem presents20_level5 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax
         ((5 : Fin 6) : ℕ) (fold20 5)) =
       ((point.wire 378).data.claim₅).statement (Key.ofSetup (flatOf (setup20 pub 5)) Key20.level₅.shape)
         (OpeningKey.ofSetup (flatOf (setup20 pub 5)) Key20.level₅.opening) := by
-    rw [data]
+    rw [presents.reads.claim₅]
     exact before
   rw [before'] at runs'
   rw [path20_trace pub proof messages 5 (by decide)] at presented
@@ -264,17 +263,19 @@ theorem presents20_level5 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax
     · rw [segments]
   · show { ((point.take 472).wire 472).data.statement with
         matrix := matrixOf Key20.terminal (full20 pub) } = _
-    rw [Prefix.wire_take le_rfl, data]
+    rw [Prefix.wire_take le_rfl, presents.reads.statement]
     show _ = Extract.TerminalStatement.ofPoint _ _ ((point.wire _).data.state) _ _ _ _ _
-    rw [data]
-    rfl
+    rw [show ∀ k, k = 379 → (point.wire k).data.state = (note20 (E := E) pub proof messages tLast eLast).state from
+      fun k at_ => by subst at_; exact presents.reads.state]
+    · rfl
+    · exact congrArg (· + 1) started
 
 /-- Theorem B "→" at the terminal (Akita Section 8.2, (128) to (131)): on a transcript that
 presents the bytes of an accepted proof of `layout20` with the last blocks `Last20` of the code,
 the checks `Terminal.Passed` of the terminal hold: the work bits and the fold challenges of its
 fold stage, the checks (128) to (130), the bound of the response, and the response nonce. -/
 theorem presents20_passed {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full) {rest : ℕ}
     (decoded : decode pub.ops proof = .ok (messages, rest))
     (last : Last20 (E := E) pub proof messages tLast eLast)
@@ -282,7 +283,6 @@ theorem presents20_passed {zMax rice : ℕ} (layout : pub.layout = layout20 zMax
     {point : Prefix (Key20.Wire E) (Option Coord → CodeSlot E) total}
     (presents : PresentsAt20 o pub proof messages tLast eLast point) : o.terminal.Passed point := by
   obtain ⟨reply, answered, decodedAt⟩ := presents.terminal
-  have data := presents.data
   subst tower
   obtain ⟨scripted, ends, -⟩ := verifyProof_script20 layout accepted
   have ok := stepOk_of_accept scripted ends terminalSetup accepted decoded
@@ -302,11 +302,16 @@ theorem presents20_passed {zMax rice : ℕ} (layout : pub.layout = layout20 zMax
     show ({ ((point.take 472).wire 472).data.statement with
         matrix := matrixOf Key20.terminal (full20 pub) }).Accepts
       ((point.take 472).wire 472).data.partials _ ((point.wire (472 + 1)).data.response)
-    rw [Prefix.wire_take le_rfl, data, data]
-    exact accepts
+    rw [Prefix.wire_take le_rfl, presents.reads.statement, presents.reads.partials,
+      show ∀ k, k = 473 → (point.wire k).data.response = (note20 (E := E) pub proof messages tLast eLast).response from
+        fun k at_ => by subst at_; exact presents.reads.response]
+    · exact accepts
+    · rfl
   · show Extract.Route.Short _ _ ((point.wire (472 + 1)).data.response)
-    rw [data]
-    exact short
+    rw [show ∀ k, k = 473 → (point.wire k).data.response = (note20 (E := E) pub proof messages tLast eLast).response from
+      fun k at_ => by subst at_; exact presents.reads.response]
+    · exact short
+    · rfl
   · exact (presents.nonce 6 (by decide)).mpr (ok _)
 
 /-- Theorem B of the join, direction "→", for `key20.aks` (`docs/akita-work/w16/design.md`
@@ -315,7 +320,7 @@ section 2): on each transcript of `tower20` that presents the bytes of an accept
 `Key20.Tower.accepts` of the claims accepts. `terminalSetup` and `expanded`: the setup prefixes of
 the terminal and of the folds exist. `points` and `values`: the shape of the public statement. -/
 theorem presents20_accepts {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
     (expanded : ∀ ℓ : Fin 6, (pub.setupFor (fold20 ℓ).setupCount).isSome) {rest : ℕ}
     (decoded : decode pub.ops proof = .ok (messages, rest))
@@ -351,7 +356,7 @@ of `tower20` accepts each transcript that presents the bytes (`Presents20`). The
 the layout, the setup prefixes (facts of the seed), the decoded messages and the shape of the
 public statement (`points`, `values`). -/
 theorem verifyProof_presents20 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
     (expanded : ∀ ℓ : Fin 6, (pub.setupFor (fold20 ℓ).setupCount).isSome) {rest : ℕ}
     (decoded : decode pub.ops proof = .ok (messages, rest))

@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.FinalDrawn
 import NightstreamFPrime.Spec.Compression.Akita.Replay.WeightPackingJoin
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Stage3Match
 
-/-! The games of the packing levels of the specification when `verifyProof` accepts, with the
+/-! The games of the packing levels of the specification when `runProof` accepts, with the
 weights of the end check of `fused.end` and of Stage 3 as theorems (Akita revision `d50f700`;
 `docs/akita-work/match-design.md` section 5.1; the weight theorems of `Replay/WeightPackingJoin.lean`
 and `Replay/Stage3Match.lean`).
@@ -11,13 +11,13 @@ and `Replay/Stage3Match.lean`).
 - `packGroupsIn_one`: the group of `packGroupsIn` at a packing level with one group, with the
   claim coefficient 1. `packGroup_fits`: the numbers `PackGroup.Fits` do not depend on the fold
   challenges, the point and the claim coefficient.
-- `verifyProof_drawnIn`: when `verifyProof` accepts, the drawn challenges of a group on the state
+- `verifyProof_drawnIn`: when `runProof` accepts, the drawn challenges of a group on the state
   before an operation are the challenges of the sampler moved by `ambient` of the family of its
   first squeeze (`drawnIn_before`). `verifyProof_setupFor`: the setup prefix of each `fused.end`
   exists (`fused_accepts`).
 - `verifyProof_pack_game` (a packing level with one group), `verifyProof_batch_game` (a fold with
   opening groups) and `verifyProof_offload_game` (the offloaded root of `key30.aks`, with
-  `Batch.codeScan` over the setup prefix `flat`): when `verifyProof` accepts, the game of the
+  `Batch.codeScan` over the setup prefix `flat`): when `runProof` accepts, the game of the
   specification level runs on the path of the recorded values to acceptance with the recorded
   `(fused.point, witness_evaluation)` (and the result of Stage 3). The hypotheses are facts of
   the layout, the shapes of the script, `endsFit` and the setup prefix of the terminal. -/
@@ -57,13 +57,13 @@ section Games
 
 variable (pub : Public) (proof : ByteArray) {ops : Array Op}
 
-/-- When `verifyProof` accepts, the drawn challenges of the group `g` of `level` on the state before
+/-- When `runProof` accepts, the drawn challenges of the group `g` of `level` on the state before
 the operation `c` are the challenges of the sampler moved by `ambient G`, for the family `G` of the
 first squeeze of the group before `c`. -/
 theorem verifyProof_drawnIn (scripted : script pub.layout pub.plan = .ok ops)
     (ends : endsFit ops.zipIdx.toList = true) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
+    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
     (decoded : decode ops proof = .ok (messages, rest)) {c : ℕ} {op : Op}
     (at_ : ops[c]? = some op) {level g : ℕ} {G : FoldGroup}
     (first : squeezeOf level g (ops.zipIdx.toList.take c) = some G) :
@@ -72,12 +72,12 @@ theorem verifyProof_drawnIn (scripted : script pub.layout pub.plan = .ok ops)
   drawnIn_before pub proof messages ops (replay_step_ok pub proof messages
     (replay_of_decoded pub proof scripted ends terminalSetup accepted decoded).2 at_).1 first
 
-/-- When `verifyProof` accepts, the setup prefix of each `fused.end` exists (the hypothesis
+/-- When `runProof` accepts, the setup prefix of each `fused.end` exists (the hypothesis
 `expanded` of the games). -/
 theorem verifyProof_setupFor (scripted : script pub.layout pub.plan = .ok ops)
     (ends : endsFit ops.zipIdx.toList = true) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
+    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
     (decoded : decode ops proof = .ok (messages, rest)) {c : ℕ} {key : Key} {level : ℕ}
     {F : Fold} (at_ : ops[c]? = some (.check key (.fused level F))) :
     ∃ setup, pub.setupFor F.setupCount = some setup :=
@@ -88,14 +88,14 @@ theorem verifyProof_setupFor (scripted : script pub.layout pub.plan = .ok ops)
 
 variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree2 E]
 
-/-- A packing level with one group without Stage 3: when `verifyProof` accepts, `foldCheck` of
+/-- A packing level with one group without Stage 3: when `runProof` accepts, `foldCheck` of
 `liftedReduction` runs on the path of the code to acceptance with the recorded
 `(fused.point, witness_evaluation)` on the state before its `fused.end`. The weights of the end
 check are theorems (`packWeight_one`, `packSupport_one`, `packAmbiented`). -/
 theorem verifyProof_pack_game (scripted : script pub.layout pub.plan = .ok ops)
     (ends : endsFit ops.zipIdx.toList = true) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
+    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
     (decoded : decode ops proof = .ok (messages, rest)) {c : ℕ} {key : Key} {level : ℕ}
     {F : Fold} (at_ : ops[c]? = some (.check key (.fused level F))) {r a e : ℕ}
     (shape : foldShape (ops.zipIdx.toList.take c) level F r a e = true)
@@ -162,14 +162,14 @@ theorem verifyProof_pack_game (scripted : script pub.layout pub.plan = .ok ops)
     fits room rowsFit w plain compressed arities leaf (by rw [one]; exact weighs)
     (by rw [one]; exact supported)
 
-/-- A fold with opening groups without Stage 3: when `verifyProof` accepts, `foldCheck` of
+/-- A fold with opening groups without Stage 3: when `runProof` accepts, `foldCheck` of
 `Batch.liftedReduction` runs on the path of the code to acceptance with the recorded
 `(fused.point, witness_evaluation)` on the state before its `fused.end`. The weights of the end
 check are theorems (`batchWeight_groups`, `batchSupport_in`, `batchAmbiented`). -/
 theorem verifyProof_batch_game (scripted : script pub.layout pub.plan = .ok ops)
     (ends : endsFit ops.zipIdx.toList = true) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
+    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
     (decoded : decode ops proof = .ok (messages, rest)) {c : ℕ} {key : Key} {level : ℕ}
     {F : Fold} (at_ : ops[c]? = some (.check key (.fused level F))) {r a e : ℕ}
     (shape : foldShape (ops.zipIdx.toList.take c) level F r a e = true)
@@ -233,7 +233,7 @@ theorem verifyProof_batch_game (scripted : script pub.layout pub.plan = .ok ops)
     (batchSupport_in s level F slots opening digited room
       (by rw [← Array.length_toList, virtual, List.length_map, count]))
 
-/-- The offloaded root of `key30.aks`: when `verifyProof` accepts, Stage 3 gives `some o` and
+/-- The offloaded root of `key30.aks`: when `runProof` accepts, Stage 3 gives `some o` and
 `offloadCheck` of `Batch.liftedReduction` over the setup prefix `flat`, with the split
 `Batch.codeScan` of the claims (`Key30.Tower.scan`), runs on the path of the code to acceptance
 with the recorded `(fused.point, witness_evaluation)` and `o`. The weights of the end check and of
@@ -242,7 +242,7 @@ Stage 3 are theorems (`batchOffload_groups`, `batchSupport_in`, `batchAmbiented`
 theorem verifyProof_offload_game (scripted : script pub.layout pub.plan = .ok ops)
     (ends : endsFit ops.zipIdx.toList = true) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
+    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
     (decoded : decode ops proof = .ok (messages, rest)) {c : ℕ} {key : Key} {level : ℕ}
     {F : Fold} (at_ : ops[c]? = some (.check key (.fused level F))) (plan : SetupPlan)
     {r a e b t : ℕ} (shape : offloadShape (ops.zipIdx.toList.take c) level F plan r a e b t = true)

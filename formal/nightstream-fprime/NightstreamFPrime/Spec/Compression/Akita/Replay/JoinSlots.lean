@@ -147,7 +147,7 @@ end Challenges
 
 variable {pub : Public} {proof : ByteArray} {messages : Array Message} {E : Type} [Nonempty E]
   {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
-  (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+  (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
   (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full) {rest : ℕ}
   (decoded : decode pub.ops proof = .ok (messages, rest))
 include layout accepted terminalSetup decoded

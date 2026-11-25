@@ -17,7 +17,7 @@ level `ℓ + 1` (`Build.prefix_`), so its keys `tensor.*` have the level `ℓ + 
 - `traceStatementFor_one`: the statement of a trace level with one claim is the folding statement
   of `TraceClaim.ofPoint` for the segments of the tensor point, the factor `θ = A_η(ρ)` and the
   final claim (`tensorFactor_into`).
-- `verifyProof_tensorLink`: when `verifyProof` accepts, the tensor reduction of the level `ℓ + 1`
+- `verifyProof_tensorLink`: when `runProof` accepts, the tensor reduction of the level `ℓ + 1`
   on the claim of the level `ℓ` runs to `(ρ, θ, ṽ)` of the recorded values on a later state.
 - `verifyProof_tensored`: the game of a level `ℓ` and then this tensor reduction (`Tier.tensored`)
   runs on the path of the fold and of the tensor reduction to `(ρ, θ, ṽ)`.
@@ -187,7 +187,7 @@ variable (pub : Public) (proof : ByteArray) {ops : Array Op}
 variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree2 E]
 
 /-- The tensor reduction of the level `level + 1` at `tensor.end` (operation `t`) on the claim
-`(fused.point, witness_evaluation)` of the level `level`: when `verifyProof` accepts and no
+`(fused.point, witness_evaluation)` of the level `level`: when `runProof` accepts and no
 operation from `t` to `c'` writes `tensorKeys level` or ends `tensor.sumcheck`, on the state
 before `c'` the tensor point `ρ` and the tail of `r_2` have `ν` coordinates, and `tensorCheck`
 runs on the path of the recorded values to `(ρ, θ, ṽ)` with `θ = mle ρ (tensorWeight r_2.tail η)`
@@ -195,7 +195,7 @@ and the final claim `ṽ`. -/
 theorem verifyProof_tensorLink (scripted : script pub.layout pub.plan = .ok ops)
     (ends : endsFit ops.zipIdx.toList = true) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
+    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
     (decoded : decode ops proof = .ok (messages, rest)) {level t c' ν : ℕ} {key : Key}
     (at_ : ops[t]? = some (.check key (.tensor (level + 1) ν ⟨level, "fused.point", none⟩
       ⟨level, "witness_evaluation", none⟩)))
@@ -249,14 +249,14 @@ theorem verifyProof_tensorLink (scripted : script pub.layout pub.plan = .ok ops)
     exact game
 
 /-- `Tier.tensored` of a level `level` on the replay: when its game `g` runs on `path` to the
-recorded `(fused.point, witness_evaluation)` on the state before `c` and `verifyProof` accepts,
+recorded `(fused.point, witness_evaluation)` on the state before `c` and `runProof` accepts,
 `g` with the tensor reduction of the level `level + 1` at `t` (the keys `tensor.*` of the level of
 the receiver) runs on `path` and the path of the tensor reduction to `(ρ, θ, ṽ)` of the recorded
 values on the state before `c'`. -/
 theorem verifyProof_tensored (scripted : script pub.layout pub.plan = .ok ops)
     (ends : endsFit ops.zipIdx.toList = true) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
+    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
     (decoded : decode ops proof = .ok (messages, rest)) {level c t c' ν : ℕ} {key : Key}
     (at_ : ops[t]? = some (.check key (.tensor (level + 1) ν ⟨level, "fused.point", none⟩
       ⟨level, "witness_evaluation", none⟩)))
@@ -312,7 +312,7 @@ theorem dataIn_runs (s : Replayer) (level : ℕ) (S : Shape) (O : OpeningShape S
     dataIn_payload pub s (level + 1) (pathRun_source _ _ _ _ _ _)⟩
 
 /-- The link `Tier.TraceLinked` on the replay (Akita Figure 4, steps 0, 3 and 5, (65), (95) to
-(101)): when `verifyProof` accepts, on the state before `c'` the statement `traceStatementFor` of
+(101)): when `runProof` accepts, on the state before `c'` the statement `traceStatementFor` of
 the receiver `F` at the level `level + 1` (a fold with one group and evaluation trace) is the
 folding statement of `TraceClaim.ofPoint` for the segments `ρ_pack`, `ρ_pos`, `ρ_blk` of the
 tensor point `ρ` of `verifyProof_tensored`, its factor `θ` and its final claim `ṽ`, with the
@@ -322,7 +322,7 @@ segments have the lengths of `Tier.TraceLinked`: `2·m = 2^|ρ_pack|`, `M = 2^|�
 theorem verifyProof_traceLink (scripted : script pub.layout pub.plan = .ok ops)
     (ends : endsFit ops.zipIdx.toList = true) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
+    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
     (decoded : decode ops proof = .ok (messages, rest)) {level t c' ν : ℕ} {key : Key}
     (at_ : ops[t]? = some (.check key (.tensor (level + 1) ν ⟨level, "fused.point", none⟩
       ⟨level, "witness_evaluation", none⟩)))

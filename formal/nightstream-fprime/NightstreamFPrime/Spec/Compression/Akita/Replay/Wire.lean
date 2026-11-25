@@ -108,11 +108,14 @@ def decode (ops : Array Op) (proof : ByteArray) : Except Malformed (Array Messag
   return (messages, proof.size - cursor)
 
 /-- The verdict on decoded messages; `noWork` names the operation of the script and the site of
-the work that fails, and `reject` the operation and the name of the equation that fails. -/
+the work that fails, `reject` the operation and the name of the equation that fails, and
+`mismatch` the operation whose values the replay cannot read. Each verdict other than `accept`
+rejects. -/
 inductive Verdict
   | accept
   | noWork (op : ℕ) (site : String)
   | reject (op : ℕ) (check : String)
+  | mismatch (op : ℕ)
 deriving DecidableEq, Repr
 
 inductive Outcome

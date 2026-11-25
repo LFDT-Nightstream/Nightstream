@@ -8,7 +8,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.RunProof
   for the state hypotheses of its game: the challenges of `τ_0` and the sum-checks of the product
   stages and of the leaf (or norm) stage. `RangeState` is these hypotheses on a state;
   `range_state`: a run of aligned operations of this shape without a stop gives them.
-- `verifyProof_range_game` and `verifyProof_norm_game`: when `verifyProof` accepts, `rangeCheck`
+- `verifyProof_range_game` and `verifyProof_norm_game`: when `runProof` accepts, `rangeCheck`
   (coefficient route) and `rangeTree` with `normLeafStage` (Euclidean route) run on the path of
   the recorded values of the state before the last check of the range proof to acceptance.
   `verifyProof_reject_range_game` and `verifyProof_reject_norm_game`: at a reject of that check
@@ -144,12 +144,12 @@ theorem range_game_at {messages : Array Message} {rest : ℕ}
   dsimp only at runs
   exact runs
 
-/-- The range proof of a fold on the coefficient route: when `verifyProof` accepts, `rangeCheck`
+/-- The range proof of a fold on the coefficient route: when `runProof` accepts, `rangeCheck`
 runs on the path of the recorded values of the state before `range.leaf.end` to acceptance. -/
 theorem verifyProof_range_game (scripted : script pub.layout pub.plan = .ok ops)
     (ends : endsFit ops.zipIdx.toList = true) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
+    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
     (decoded : decode ops proof = .ok (messages, rest)) {c : ℕ} {key : Key} {level : ℕ}
     {F : Fold} (at_ : ops[c]? = some (.check key (rangeCheckOf level F)))
     (shape : rangeShape (ops.zipIdx.toList.take c) level F = true) {s : Replayer}
@@ -185,7 +185,7 @@ theorem verifyProof_range_game (scripted : script pub.layout pub.plan = .ok ops)
 /-- A reject at `range.leaf.end` on the coefficient route: `rangeRun` is `none` on the state before
 it and `rangeCheck` runs on the path of the recorded values to `none`. -/
 theorem verifyProof_reject_range_game (scripted : script pub.layout pub.plan = .ok ops) {i : ℕ}
-    {site : String} (rejected : verifyProof pub proof = .verdict (.reject i site))
+    {site : String} (rejected : runProof pub proof = .verdict (.reject i site))
     {messages : Array Message} {rest : ℕ} (decoded : decode ops proof = .ok (messages, rest))
     {key : Key} {level : ℕ} {F : Fold} (at_ : ops[i]? = some (.check key (rangeCheckOf level F)))
     (shape : rangeShape (ops.zipIdx.toList.take i) level F = true) {s : Replayer}
@@ -282,14 +282,14 @@ theorem norm_game_at (nat : ∀ n : ℕ, φ (Ext.ofBase (Fq.ofNat n)) = (n : K))
   dsimp only at runs
   exact runs
 
-/-- The norm stage of a fold on the Euclidean route: when `verifyProof` accepts, `rangeTree` with
+/-- The norm stage of a fold on the Euclidean route: when `runProof` accepts, `rangeTree` with
 `normLeafStage` runs on the path of the recorded values of the state before `norm.end` to
 acceptance. -/
 theorem verifyProof_norm_game (nat : ∀ n : ℕ, φ (Ext.ofBase (Fq.ofNat n)) = (n : K))
     (scripted : script pub.layout pub.plan = .ok ops)
     (ends : endsFit ops.zipIdx.toList = true) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
+    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
     (decoded : decode ops proof = .ok (messages, rest)) {c : ℕ} {key : Key} {level : ℕ}
     {F : Fold} (at_ : ops[c]? = some (.check key (rangeCheckOf level F)))
     (shape : rangeShape (ops.zipIdx.toList.take c) level F = true) {s : Replayer}
@@ -316,7 +316,7 @@ theorem verifyProof_norm_game (nat : ∀ n : ℕ, φ (Ext.ofBase (Fq.ofNat n)) =
 and `rangeTree` with `normLeafStage` runs on the path of the recorded values to `none`. -/
 theorem verifyProof_reject_norm_game (nat : ∀ n : ℕ, φ (Ext.ofBase (Fq.ofNat n)) = (n : K))
     (scripted : script pub.layout pub.plan = .ok ops) {i : ℕ}
-    {site : String} (rejected : verifyProof pub proof = .verdict (.reject i site))
+    {site : String} (rejected : runProof pub proof = .verdict (.reject i site))
     {messages : Array Message} {rest : ℕ} (decoded : decode ops proof = .ok (messages, rest))
     {key : Key} {level : ℕ} {F : Fold} (at_ : ops[i]? = some (.check key (rangeCheckOf level F)))
     (shape : rangeShape (ops.zipIdx.toList.take i) level F = true) {s : Replayer}

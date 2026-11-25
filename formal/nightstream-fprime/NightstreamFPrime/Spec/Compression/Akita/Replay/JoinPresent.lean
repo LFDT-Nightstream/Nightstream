@@ -14,10 +14,12 @@ section 2).
   the path of the code of the level `ℓ` (`foldPathIn`, with the tensor reduction of the next level).
 - `Tier.Shows T c path source point`: the answer of the fold stage decodes at each coordinate to
   `c`, and the checks of `T` present `path` on the stages of `T`.
+- `Reads20 … note`: the readings of the `Note` of the wire messages by `Key20.Tower.accepts`, for
+  the notes `note k`, are those of `note20`.
 - `PresentsAt20 o …` and `Presents20` (for `tower20`): each reading of the model on the transcript
-  is the value of the replay: the 473 stages; the `Note` of each wire message is `note20`; the
-  nonce before each fold stage is below `responseTries` exactly when the code accepts the response
-  nonce of that fold; the work slot of each stage has the work bits of the model exactly when the
+  is the value of the replay: the 473 stages; the readings of the `Note` of the wire messages by
+  `Key20.Tower.accepts` are those of `note20`; the nonce before each fold stage is below
+  `responseTries` exactly when the code accepts the response nonce of that fold; the work slot of each stage has the work bits of the model exactly when the
   code accepts its work; the weights of the batching root are `row_coefficients`; each level shows
   the challenges and the path of the code; the fold answer of the terminal decodes to the challenges
   of the code. -/
@@ -212,18 +214,61 @@ local notation "fifth" =>
 variable (pub : Public) (proof : ByteArray) (messages : Array Message)
   (tLast : ℕ → Rq Key20.terminal.innerDegree) (eLast : Rq Key20.terminal.innerDegree)
 
+/-- The readings of the `Note` of the wire messages by `Key20.Tower.accepts` (`towerLinks`:
+`RootLinked`, `Tier.Linked`, `Tier.TraceLinked`, `Terminal.Linked`, `Terminal.Passed`,
+`Tier.game`), for the notes `note k` of the wire messages `k`, are the readings of `note20` of the
+replay: the commitments, values and points at the wire message 0, the claim of each level at its
+fold stage (1, 51, 120, 203, 284, 378), the commitment of the next level in the message after it
+(2, 52, 121, 204, 285), the state of the terminal at 379, its statement and partials at its fold
+stage 472 and its response at 473. -/
+structure Reads20 (note : ℕ → Key20.Note E) : Prop where
+  commit : (note 0).commit = (note20 (E := E) pub proof messages tLast eLast).commit
+  value : (note 0).value = (note20 (E := E) pub proof messages tLast eLast).value
+  place : (note 0).point = (note20 (E := E) pub proof messages tLast eLast).point
+  claim : (note 1).claim = (note20 (E := E) pub proof messages tLast eLast).claim
+  commit₁ : (note 2).commit₁ = (note20 (E := E) pub proof messages tLast eLast).commit₁
+  claim₁ : (note 51).claim₁ = (note20 (E := E) pub proof messages tLast eLast).claim₁
+  commit₂ : (note 52).commit₂ = (note20 (E := E) pub proof messages tLast eLast).commit₂
+  claim₂ : (note 120).claim₂ = (note20 (E := E) pub proof messages tLast eLast).claim₂
+  commit₃ : (note 121).commit₃ = (note20 (E := E) pub proof messages tLast eLast).commit₃
+  claim₃ : (note 203).claim₃ = (note20 (E := E) pub proof messages tLast eLast).claim₃
+  commit₄ : (note 204).commit₄ = (note20 (E := E) pub proof messages tLast eLast).commit₄
+  claim₄ : (note 284).claim₄ = (note20 (E := E) pub proof messages tLast eLast).claim₄
+  commit₅ : (note 285).commit₅ = (note20 (E := E) pub proof messages tLast eLast).commit₅
+  claim₅ : (note 378).claim₅ = (note20 (E := E) pub proof messages tLast eLast).claim₅
+  state : (note 379).state = (note20 (E := E) pub proof messages tLast eLast).state
+  statement : (note 472).statement = (note20 (E := E) pub proof messages tLast eLast).statement
+  partials : (note 472).partials = (note20 (E := E) pub proof messages tLast eLast).partials
+  response : (note 473).response = (note20 (E := E) pub proof messages tLast eLast).response
+
+omit [Fintype E] [DecidableEq E] in
+/-- Notes that are `note20` at each wire message have the readings of `note20`. -/
+theorem Reads20.of_all {note : ℕ → Key20.Note E}
+    (all : ∀ k, note k = note20 pub proof messages tLast eLast) :
+    Reads20 pub proof messages tLast eLast note :=
+  ⟨congrArg Key20.Note.commit (all 0), congrArg Key20.Note.value (all 0),
+    congrArg Key20.Note.point (all 0), congrArg Key20.Note.claim (all 1),
+    congrArg Key20.Note.commit₁ (all 2), congrArg Key20.Note.claim₁ (all 51),
+    congrArg Key20.Note.commit₂ (all 52), congrArg Key20.Note.claim₂ (all 120),
+    congrArg Key20.Note.commit₃ (all 121), congrArg Key20.Note.claim₃ (all 203),
+    congrArg Key20.Note.commit₄ (all 204), congrArg Key20.Note.claim₄ (all 284),
+    congrArg Key20.Note.commit₅ (all 285), congrArg Key20.Note.claim₅ (all 378),
+    congrArg Key20.Note.state (all 379), congrArg Key20.Note.statement (all 472),
+    congrArg Key20.Note.partials (all 472), congrArg Key20.Note.response (all 473)⟩
+
 /-- The transcript `point` of the tower data `o` presents the replay of a proof of `key20.aks`
-(design section 2, items 1 to 4). `long`: it has the 473 stages. `data`: each wire message has the
-`Note` `note20` of the replay. `nonce`: the nonce of the message before the fold stage `j` is below
-`responseTries` exactly when the code accepts the response nonce of the fold `j`. `work`: the work
-slot of the stage `k` has the work bits `bits20` of the model exactly when the code accepts the
-work `k`. `weights`: the weights of the batching root are `row_coefficients`. `level₀` to
+(design section 2, items 1 to 4). `long`: it has the 473 stages. `reads`: each reading of the
+`Note` of a wire message by `Key20.Tower.accepts` is the reading of `note20` of the replay
+(`Reads20`). `nonce`: the nonce of the message before the fold stage `j` is
+below `responseTries` exactly when the code accepts the response nonce of the fold `j`. `work`:
+the work slot of the stage `k` has the work bits `bits20` of the model exactly when the code
+accepts the work `k`. `weights`: the weights of the batching root are `row_coefficients`. `level₀` to
 `level₅`: each level shows the fold challenges and the path of the code, for the source 0.
 `terminal`: the fold answer of the terminal decodes to the fold challenges of the code. -/
 structure PresentsAt20 (point : Prefix (Key20.Wire E) (Option Coord → CodeSlot E) total) :
     Prop where
   long : 473 ≤ point.rest.length
-  data : ∀ k, (point.wire k).data = note20 pub proof messages tLast eLast
+  reads : Reads20 pub proof messages tLast eLast fun k => (point.wire k).data
   nonce : ∀ j < 7, ((point.wire (starts20.getD j 0)).nonce : ℕ) < Extract.responseTries ↔
     StepOk pub proof messages (nonceIndices20.getD j 0)
   work : ∀ k < 473, ∀ reply, point.reply k = some reply →

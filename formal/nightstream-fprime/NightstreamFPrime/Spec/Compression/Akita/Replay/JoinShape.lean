@@ -322,7 +322,7 @@ theorem script20_frames {zMax rice : ℕ} {plan : Array Run}
 /-- The frames of the links of an accepted proof of `layout20` on `pub.ops`. -/
 theorem verifyProof_frames20 {zMax rice : ℕ} {pub : Public} {proof : ByteArray}
     (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) :
+    (accepted : runProof pub proof = .verdict .accept) :
     RootFrame pub.ops (fusedIndex pub.layout 0) ∧
       PackFrame pub.ops (fusedIndex pub.layout 0) (fusedIndex pub.layout 1) ∧
       TensorFrame pub.ops 1 Key20.level₁.tail (fusedIndex pub.layout 1) 385

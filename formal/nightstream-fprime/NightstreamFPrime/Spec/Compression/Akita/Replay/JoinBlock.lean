@@ -89,7 +89,7 @@ variable (pub : Public) (proof : ByteArray) (messages : Array Message)
 /-- The block of the stages of the root fold of `tower20` for an accepted proof of `layout20`:
 50 stages from the stage 1. -/
 theorem block20_zeroth {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full) {rest : ℕ}
     (decoded : decode pub.ops proof = .ok (messages, rest))
     (points : ∀ g : Fin 3, ((pub.groups[g.val]?.map (·.point)).getD #[]).size = ![20, 16, 16] g)
@@ -123,7 +123,7 @@ theorem block20_zeroth {zMax rice : ℕ} (layout : pub.layout = layout20 zMax ri
 /-- The block of the stages of the level 1 of `tower20` for an accepted proof of `layout20`:
 69 stages from the stage 51. -/
 theorem block20_first {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full) {rest : ℕ}
     (decoded : decode pub.ops proof = .ok (messages, rest))
     (expanded : (pub.setupFor (fold20 1).setupCount).isSome)
@@ -155,7 +155,7 @@ theorem block20_first {zMax rice : ℕ} (layout : pub.layout = layout20 zMax ric
 /-- The block of the stages of the level 2 of `tower20` for an accepted proof of `layout20`:
 83 stages from the stage 120. -/
 theorem block20_second {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full) {rest : ℕ}
     (decoded : decode pub.ops proof = .ok (messages, rest))
     (expanded : (pub.setupFor (fold20 2).setupCount).isSome)
@@ -187,7 +187,7 @@ theorem block20_second {zMax rice : ℕ} (layout : pub.layout = layout20 zMax ri
 /-- The block of the stages of the level 3 of `tower20` for an accepted proof of `layout20`:
 81 stages from the stage 203. -/
 theorem block20_third {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full) {rest : ℕ}
     (decoded : decode pub.ops proof = .ok (messages, rest))
     (expanded : (pub.setupFor (fold20 3).setupCount).isSome)
@@ -219,7 +219,7 @@ theorem block20_third {zMax rice : ℕ} (layout : pub.layout = layout20 zMax ric
 /-- The block of the stages of the level 4 of `tower20` for an accepted proof of `layout20`:
 94 stages from the stage 284. -/
 theorem block20_fourth {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full) {rest : ℕ}
     (decoded : decode pub.ops proof = .ok (messages, rest))
     (expanded : (pub.setupFor (fold20 4).setupCount).isSome)
@@ -251,7 +251,7 @@ theorem block20_fourth {zMax rice : ℕ} (layout : pub.layout = layout20 zMax ri
 /-- The block of the stages of the level 5 of `tower20` for an accepted proof of `layout20`:
 94 stages from the stage 378. -/
 theorem block20_fifth {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full) {rest : ℕ}
     (decoded : decode pub.ops proof = .ok (messages, rest))
     (expanded : (pub.setupFor (fold20 5).setupCount).isSome)

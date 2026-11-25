@@ -5,6 +5,8 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.Transcript
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Plan
 import NightstreamFPrime.Spec.Compression.Akita.Replay.TerminalSetup
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Grows
+import NightstreamFPrime.Spec.Compression.Akita.Replay.RunProof
+import NightstreamFPrime.Spec.Compression.Akita.Replay.Statement
 
 /-! The Lean replay of the vectors of real Akita openings in `tests/vectors/akita/`
 (`crates/ns-compress/tests/unit/akita_vectors.rs`, Akita revision `d50f700`;
@@ -45,6 +47,11 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.Grows
   (`validate_stage2_replay` and `verify_setup_sumcheck` in `verify_fold`), and the Rust test of the
   vectors cannot evaluate them, so the field `failed` of these changes is the next failure of its
   replay. The test lists each change whose Lean site differs from `failed` (`moved`).
+- The statement. `publicOf` takes the shape of the statement from `root20` or `root30` of
+  `Replay/Statement.lean`, and `Public.shaped` holds on each positive file (`shapedGate`): the
+  profile headers of the Lean shapes are the headers of the commitments of the files. For each
+  change of `key20-statement-negative.json`, `verifyProof` accepts exactly when the Rust verifier
+  accepts (`statementNegative`).
 - `Replayed` is a positive file with the one replay of its proof; `tests/AkitaAllVectors.lean`
   runs the replays and the gates of this file and of the five other vector tests on them. -/
 
@@ -188,6 +195,14 @@ def rootShapes (v : Vector) : Except String (List Shape) :=
       pure ((List.finRange 3).map (Key30.root Key30.w27).shape)
   | "crates/ns-compress/artifacts/key30.aks", (_, 26, _) =>
       pure ((List.finRange 3).map (Key30.root Key30.w26).shape)
+  | schedule, _ => throw s!"no Lean row for {schedule}"
+
+/-- The shape of the statement of the schedule row of a vector. -/
+def rootOf (v : Vector) : Except String (Array RootGroup) :=
+  match v.schedule, v.shape with
+  | "crates/ns-compress/artifacts/key20.aks", _ => pure root20
+  | "crates/ns-compress/artifacts/key30.aks", (_, 27, _) => pure (root30 Key30.w27)
+  | "crates/ns-compress/artifacts/key30.aks", (_, 26, _) => pure (root30 Key30.w26)
   | schedule, _ => throw s!"no Lean row for {schedule}"
 
 def fail (message : String) : IO Unit := throw <| IO.userError message
@@ -767,7 +782,68 @@ def publicOf (v : Vector) (o : Oracles) (layout : Layout) : IO Public := do
     | none => pure #[]
   return { layout, plan := v.plan, session := v.session, descriptor := v.descriptor
            groups := v.groups.map fun g => ⟨g.commitment, g.point, g.value⟩
-           slot := ← IO.ofExcept (hex (slot.getD "")), setupRows, seed := Setup.sampleSeed }
+           slot := ← IO.ofExcept (hex (slot.getD "")), setupRows, seed := Setup.sampleSeed
+           root := ← IO.ofExcept (rootOf v) }
+
+/-- The statement of a positive file has the shape of its schedule row. -/
+def shapedGate (v : Vector) (pub : Public) : IO Unit := do
+  unless pub.shaped do fail s!"{v.name}: the statement does not have the shape of its row"
+  IO.println s!"statement {v.name}: Public.shaped holds; {pub.root.size} commitments with the \
+    profile headers of the Lean shapes, points of {pub.root.toList.map (·.vars)} coordinates"
+
+/-- The statement of a change of a statement negative file: the group of the change with its
+commitment, its point or its value. -/
+def changedStatement (pub : Public) (c : Json) : Except String Public := do
+  let group ← nat c ["group"]
+  let some g := pub.groups[group]? | throw s!"no group {group}"
+  let commitment ← match c.getObjVal? "commitment" with
+    | .ok bytes => hex (← bytes.getStr?)
+    | .error _ => pure g.commitment
+  let point ← match c.getObjVal? "point" with
+    | .ok words => exts words
+    | .error _ => pure g.point
+  let value ← match c.getObjVal? "value" with
+    | .ok words => exts words
+    | .error _ => pure g.value
+  return { pub with groups := pub.groups.set! group ⟨commitment, point, value⟩ }
+
+/-- The changes of the statement of a negative file with the proof of the positive file:
+`verifyProof` accepts exactly when the Rust verifier accepts. The only change that the Rust
+verifier accepts is no change, and the replay of the positive file gives its result (`gate4`).
+`verifyProof` rejects each other change: the statement at `Public.shaped`, and a statement with
+the shape of the row in the replay. -/
+def statementNegative (name : String) (pub : Public) (proof : ByteArray) : IO Unit := do
+  let start ← IO.monoMsNow
+  let json ← IO.ofExcept (Json.parse (← IO.FS.readFile (directory / name)))
+  unless (str json ["format"]).toOption == some "nightstream-akita-statement-negative-v1" do
+    fail s!"{name}: format"
+  let changes ← IO.ofExcept (array json ["changes"])
+  let mut accepted := 0
+  let mut classes : List (String × ℕ) := []
+  for (c, index) in changes.toList.zipIdx do
+    let kind ← IO.ofExcept (str c ["change"])
+    let result ← IO.ofExcept (str c ["result"])
+    let changed ← IO.ofExcept (changedStatement pub c)
+    if result == "accept" then
+      unless kind == "none" && changed.shaped do
+        fail s!"{name}: change {index} {kind}: the file has accept"
+      accepted := accepted + 1
+    else
+      let outcome := verifyProof changed proof
+      if outcome == .verdict .accept then
+        fail s!"{name}: change {index} {kind}: the file has {result}, verifyProof accepts"
+      unless changed.shaped || outcome == .verdict (.reject 0 "statement") do
+        fail s!"{name}: change {index} {kind}: {repr outcome} for a statement without the shape"
+      let key := (if changed.shaped then "the replay: " else "Public.shaped: ") ++
+        (if kind.startsWith "header." then "header" else kind)
+      classes := match classes.find? (·.1 == key) with
+        | some _ => classes.map fun (k, n) => if k == key then (k, n + 1) else (k, n)
+        | none => classes ++ [(key, 1)]
+  unless accepted = 1 do fail s!"{name}: {accepted} changes with accept"
+  IO.println s!"statement {name}: {changes.size} statements, each with the result of the Rust \
+    verifier; 1 accept (no change); verifyProof rejects at (place: change, count), \
+    {(← IO.monoMsNow) - start} ms:"
+  for (k, n) in classes do IO.println s!"  {k}: {n}"
 
 /-- T3 for the root: the SHA3-256 digest of the canonical bytes of each root commitment is the
 digest of the file. -/
@@ -887,6 +963,7 @@ def outcomeOf (ops : Array Op) (pub : Public) (resume : Resume) (changed : ByteA
   | .verdict (.noWork i _) => ("noWork", some (failureOf ops i))
   | .verdict (.reject i site) => ("reject", (checkLevel ops i).map (·, site))
   | .verdict .accept => ("accept", none)
+  | .verdict (.mismatch _) => ("mismatch", none)
 
 /-- The class of the Rust verifier at the failed site of the file for the stage of a change: the
 decoder of `z` is the check `terminal.z.decode` of the replay; the file names its stage `decode`

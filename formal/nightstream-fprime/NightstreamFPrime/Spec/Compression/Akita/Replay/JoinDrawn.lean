@@ -116,7 +116,7 @@ before the terminal are the challenges of the sampler of the code on a message (
 `drawn` of `verifyProof_key20_terminal`). -/
 theorem verifyProof_drawn20 {pub : Public} {proof : ByteArray} {zMax rice : ℕ}
     (layout : pub.layout = layout20 zMax rice)
-    (accepted : verifyProof pub proof = .verdict .accept) {full : Array Fq}
+    (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
     {messages : Array Message} {rest : ℕ} (decoded : decode pub.ops proof = .ok (messages, rest)) :
     ∃ bytes, foldChallenges (layout20 zMax rice).terminal.group bytes =

@@ -51,6 +51,11 @@ replay. -/
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Duplex.squeeze
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Keccak.shake128
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Keccak.sha3_256
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Duplex.absorb_events
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Duplex.absorb_ideal
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Duplex.squeeze_events
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Duplex.squeeze_ideal
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Duplex.squeeze_of_ideal
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.poolBytes
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.decodePool
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.replay

@@ -1,4 +1,5 @@
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Field
+import NightstreamFPrime.Spec.Compression.Akita.Replay.Keccak
 import NightstreamFPrime.Spec.Compression.Akita.Opening
 
 /-! The public input of the replay of an Akita opening proof of the pinned code (Akita
@@ -270,6 +271,15 @@ structure Statement where
   point : Array Ext
   value : Array Ext
 
+/-- The shape of one group of the public statement of a schedule row: the variables of its
+polynomial (the length of its point), the profile header of its commitment
+(`akita-types/src/proof/commitment.rs`, `write_group`) and the count of the coefficients of its
+commitment rows after the header. -/
+structure RootGroup where
+  vars : ℕ
+  header : ByteArray
+  rows : ℕ
+
 structure Public where
   layout : Layout
   plan : Array Run
@@ -280,7 +290,33 @@ structure Public where
   setupRows : Array Fq
   seed : ByteArray
   /-- The prefix of the flat setup vector of `seed` (`Setup.expand`), when it is computed before
-  the replay; the replay expands a longer prefix from `seed` when it needs one. -/
+  the replay; the replay expands a longer prefix from `seed` when it needs one. `verifyProof`
+  does not read it (`Public.sealed`). -/
   setup : Array Fq := #[]
+  /-- The shape of each group of the statement of the schedule row. -/
+  root : Array RootGroup := #[]
+  /-- The sponge before the channel absorbs the session: `Duplex.empty` in the code. -/
+  sponge : Duplex := Duplex.empty
+
+/-- The public input without the setup prefix that a caller computed. -/
+def Public.sealed (pub : Public) : Public := { pub with setup := #[] }
+
+/-- The checks of the statement of the code before the first message of the proof
+(`ns-compress` `akita/verifier.rs`, `Verifier::verify`; `PolynomialGroupClaims::new`;
+`PreparedSubringCoefficientPackingPoint::new`; `fold/root.rs`, `verify_root`): the count of the
+groups is that of the schedule row, each group has one value, a point of the length of its
+variables, and a commitment that is the profile header of the row and then the canonical
+coefficients of its rows. -/
+def Public.shaped (pub : Public) : Bool :=
+  pub.groups.size = pub.root.size &&
+    (pub.groups.zip pub.root).all fun (g, r) =>
+      g.value.size = 1 && g.point.size = r.vars &&
+        g.commitment.size = r.header.size + 8 * r.rows &&
+        (g.commitment.extract 0 r.header.size).data = r.header.data &&
+        (List.range r.rows).all fun j =>
+          (Fq.ofWord? (word g.commitment (r.header.size + 8 * j))).isSome
+where
+  word (bytes : ByteArray) (at_ : ℕ) : UInt64 :=
+    (List.range 8).foldr (fun i acc => (acc <<< 8) ||| (bytes.get! (at_ + i)).toUInt64) 0
 
 end NightstreamFPrime.Spec.Compression.Akita.Replay

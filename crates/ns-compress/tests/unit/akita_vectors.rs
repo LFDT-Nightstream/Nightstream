@@ -30,7 +30,7 @@ use crate::support::{instances, key as prover_key, layout as layout_of, statemen
 use crate::transcript::{absorb_bytes, absorb_extension, challenges as draw, session};
 use crate::{
     absorb_statements, challenges, claimed_sum, commit, inverse_point, lookup_challenges, sumcheck, verify, weights,
-    SESSION,
+    Error, SESSION,
 };
 
 /// The checks of `akita-verifier` that need its private code. The replay does not evaluate them.
@@ -60,12 +60,23 @@ struct Case {
 
 impl Case {
     fn accepts(&self, proof: &[u8]) -> bool {
+        self.verdict(&self.commitments, &self.points, &self.values, proof)
+            .is_ok()
+    }
+
+    fn verdict(
+        &self,
+        commitments: &[Vec<u8>; 3],
+        points: &[Vec<K>; 3],
+        values: &[K; 3],
+        proof: &[u8],
+    ) -> Result<(), Error> {
         let openings = [0, 1, 2].map(|group| Opening {
-            commitment: &self.commitments[group],
-            point: &self.points[group],
-            value: self.values[group],
+            commitment: &commitments[group],
+            point: &points[group],
+            value: values[group],
         });
-        self.verifier.verify(openings, proof, &self.session).is_ok()
+        self.verifier.verify(openings, proof, &self.session)
     }
 
     fn groups(&self) -> Vec<CommittedGroup<Base>> {
@@ -352,6 +363,121 @@ fn negative(case: &Case, vector: &Value, kind: impl Fn(&str) -> bool) -> Value {
     })
 }
 
+/// Changes of the statement with the proof of `case`. `Verifier::verify` takes three openings
+/// with one value each, so a statement has no other count of groups or of values.
+fn statement_negative(case: &Case) -> Value {
+    let mut changes = Vec::new();
+    let mut record =
+        |kind: &str, group: usize, commitment: Option<Vec<u8>>, point: Option<Vec<K>>, value: Option<K>| {
+            let mut change = json!({"change": kind, "group": group});
+            let (mut commitments, mut points, mut values) =
+                (case.commitments.clone(), case.points.clone(), case.values);
+            if let Some(commitment) = commitment {
+                change["commitment"] = json!(hex(&commitment));
+                commitments[group] = commitment;
+            }
+            if let Some(point) = point {
+                let words: Vec<_> = point.iter().copied().map(extension).collect();
+                change["point"] = extension_words(&words);
+                points[group] = point;
+            }
+            if let Some(value) = value {
+                change["value"] = extension_words(&[extension(value)]);
+                values[group] = value;
+            }
+            match case.verdict(&commitments, &points, &values, &case.proof) {
+                Ok(()) => change["result"] = json!("accept"),
+                Err(error) => {
+                    change["result"] = json!("reject");
+                    change["error"] = json!(error.to_string());
+                }
+            }
+            assert_eq!(
+                change["result"] == "accept",
+                kind == "none",
+                "the result of the statement change {kind} of group {group}"
+            );
+            changes.push(change);
+        };
+    record("none", 0, None, None, None);
+    for (group, committed) in case.groups().iter().enumerate() {
+        let commitment = &case.commitments[group];
+        let point = &case.points[group];
+        let header = commitment.len() - 8 * committed.rows().coeffs().len();
+        let with = |at: usize, bytes: &[u8]| {
+            let mut changed = commitment.clone();
+            changed[at..at + bytes.len()].copy_from_slice(bytes);
+            Some(changed)
+        };
+        let flipped = |at: usize| with(at, &[commitment[at] ^ 1]);
+        record(
+            "point.shorter",
+            group,
+            None,
+            Some(point[..point.len() - 1].to_vec()),
+            None,
+        );
+        record(
+            "point.longer",
+            group,
+            None,
+            Some([&point[..], &[K::ZERO]].concat()),
+            None,
+        );
+        record(
+            "point.coordinate",
+            group,
+            None,
+            Some([&[point[0] + K::ONE], &point[1..]].concat()),
+            None,
+        );
+        record("value", group, None, None, Some(case.values[group] + K::ONE));
+        record(
+            "commitment.shorter",
+            group,
+            Some(commitment[..commitment.len() - 1].to_vec()),
+            None,
+            None,
+        );
+        record(
+            "commitment.longer",
+            group,
+            Some([&commitment[..], &[0]].concat()),
+            None,
+            None,
+        );
+        for at in [
+            0,
+            1,
+            9,
+            17,
+            41,
+            49,
+            61,
+            63,
+            64,
+            95,
+            96,
+            100,
+            116,
+            132,
+            144,
+            211,
+            header - 1,
+        ] {
+            record(&format!("header.{at}"), group, flipped(at), None, None);
+        }
+        for at in [header, commitment.len() - 8] {
+            record("row.modulus", group, with(at, &MODULUS.to_le_bytes()), None, None);
+            record("row.maximum", group, with(at, &u64::MAX.to_le_bytes()), None, None);
+            let changed = u64::from_le_bytes(commitment[at..at + 8].try_into().expect("8 bytes")) ^ 1;
+            assert!(changed < MODULUS, "the changed coefficient is canonical");
+            record("row.coefficient", group, with(at, &changed.to_le_bytes()), None, None);
+        }
+    }
+    json!({"format": "nightstream-akita-statement-negative-v1", "of": case.file, "changes": changes})
+}
+
 fn folder() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../formal/nightstream-fprime/tests/vectors/akita")
 }
@@ -375,6 +501,7 @@ fn files() -> Vec<(&'static str, String)> {
             "key20-opening-negative.json",
             text(&negative(&case, &positive, |_| true)),
         ),
+        ("key20-statement-negative.json", text(&statement_negative(&case))),
         (case.file, text(&positive)),
     ];
 

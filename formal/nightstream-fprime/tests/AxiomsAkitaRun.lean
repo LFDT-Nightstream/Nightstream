@@ -251,6 +251,8 @@ against its game (`Replay/RunRange.lean`). -/
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.endsFit
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.verifyProof
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.verifyProof_plan
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.verifyProof_accept_iff
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.verifyProof_unshaped
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.verifyProof_script
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.verifyProof_malformed
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.verdict_accept_iff

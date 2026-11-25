@@ -14,7 +14,7 @@ level `ℓ + 1`, with the keys `tensor.*` of the level `ℓ + 1`.
   `θ = A_η(ρ)` and the final claim `ṽ`, with `A_term = matrixOf` of the setup and the state of the
   messages with the last block `tLast`.
 - `layout20_terminal`: the terminal of `layout20`.
-- `verifyProof_key20_terminal`: the terminal of `key20.aks` when `verifyProof` accepts: the bound
+- `verifyProof_key20_terminal`: the terminal of `key20.aks` when `runProof` accepts: the bound
   `Route.Short` of the Euclidean route for `zSource z`, the fold challenges, and the checks (128)
   to (130) for `TerminalStatement.ofPoint` of the result of the level 5 with its tensor
   reduction. -/
@@ -34,7 +34,7 @@ section Proof
 variable (pub : Public) (proof : ByteArray) {ops : Array Op}
 variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree2 E]
 
-/-- The link `Terminal.Linked` on the replay (Akita Section 8.2): when `verifyProof` accepts, on
+/-- The link `Terminal.Linked` on the replay (Akita Section 8.2): when `runProof` accepts, on
 the state before `c'` the statement `statementOf` of the terminal at the level `level + 1` is
 `TerminalStatement.ofPoint` for `A_term = matrixOf` of the setup, the state of the messages with
 the last block `tLast`, the segments `ρ_pack`, `ρ_pos`, `ρ_blk` of the tensor point `ρ`, the factor
@@ -43,7 +43,7 @@ the last block `tLast`, the segments `ρ_pack`, `ρ_pos`, `ρ_blk` of the tensor
 theorem verifyProof_terminalLink (scripted : script pub.layout pub.plan = .ok ops)
     (ends : endsFit ops.zipIdx.toList = true) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
+    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
     (decoded : decode ops proof = .ok (messages, rest)) {level t c' ν : ℕ} {key : Key}
     (at_ : ops[t]? = some (.check key (.tensor (level + 1) ν ⟨level, "fused.point", none⟩
       ⟨level, "witness_evaluation", none⟩)))
@@ -114,7 +114,7 @@ variable (pub : Public) (proof : ByteArray) {ops : Array Op}
 variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree2 E]
 
 /-- The terminal of `key20.aks` on the replay (Akita Section 8.2, (127) to (131);
-`Terminal.Linked` and `Terminal.Passed`): when `verifyProof` accepts with the layout `layout20`,
+`Terminal.Linked` and `Terminal.Passed`): when `runProof` accepts with the layout `layout20`,
 the tensor reduction of the level 6 on the claim of the level 5 at `t` and the terminal at `c'`,
 for fold challenges that the sampler drew for the terminal group and a payload of `z` that
 decodes: `z` has the bound `Route.Short` of the Euclidean route of the terminal
@@ -126,7 +126,7 @@ theorem verifyProof_key20_terminal {zMax rice : ℕ}
     (scripted : script pub.layout pub.plan = .ok ops)
     (ends : endsFit ops.zipIdx.toList = true) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : verifyProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
+    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
     (decoded : decode ops proof = .ok (messages, rest))
     (layout : pub.layout = layout20 zMax rice) {t c' : ℕ} {key : Key}
     (tensorAt : ops[t]? = some (.check key (.tensor 6 Key20.level₅.tail ⟨5, "fused.point", none⟩

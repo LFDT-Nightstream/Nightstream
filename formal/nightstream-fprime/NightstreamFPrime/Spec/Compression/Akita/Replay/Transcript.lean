@@ -83,9 +83,8 @@ def protocolTag : ByteArray := tag "akita-pcs/transcript/v8/sha3" 32
 def commitmentDigest (commitment : ByteArray) : ByteArray :=
   Keccak.sha3_256 (tag "akita-pcs/commitment-digest/v8" 32 ++ commitment)
 
-def channel (session descriptor : ByteArray) : Duplex :=
-  ((Duplex.empty.absorb sessionId).absorb (bytesMsg session)).absorb
-    (protocolTag ++ bytesMsg descriptor)
+def channel (session descriptor : ByteArray) (start : Duplex := Duplex.empty) : Duplex :=
+  ((start.absorb sessionId).absorb (bytesMsg session)).absorb (protocolTag ++ bytesMsg descriptor)
 
 /-- `pool_bytes(len)` for `q = 2^64 − 59`: `R = 64 − ⌈log_2 59⌉ = 58`, the least `k` with
 `(k + 1)·(R − ⌈log_2 (len + k)⌉) ≥ 161`, and 8 bytes for each of the `len + k` candidates. -/
@@ -591,7 +590,7 @@ and what it derives. -/
 def replay (pub : Public) (ops : Array Op) (proof : ByteArray) (messages : Array Message) :
     Option Stop × Derived :=
   let run : ReplayM Unit := ops.zipIdx.forM fun (op, i) => Replayer.step pub proof messages i op
-  let (result, s) := (run.run).run ⟨channel pub.session pub.descriptor, 0, {}, {}, {}, {}⟩
+  let (result, s) := (run.run).run ⟨channel pub.session pub.descriptor pub.sponge, 0, {}, {}, {}, {}⟩
   (match result with | .ok () => none | .error stop => some stop,
     { s.derived with recorded := s.env, integers := s.integers, fields := s.fields })
 
@@ -602,14 +601,15 @@ def works (pub : Public) (ops : Array Op) (proof : ByteArray) (messages : Array 
   | some (.noWork _ _) => false
   | _ => true
 
-/-- The verdict of a stop of the replay: `noWork` or `reject` at the stop, and otherwise the
-verdict `checks` of the equations that the replay does not have yet. -/
+/-- The verdict of a stop of the replay: `noWork`, `reject` or `mismatch` at the stop, and with no
+stop the verdict `checks` of the equations that the replay does not have yet. -/
 def verdictOf (stop : Option Stop) (checks : Array Message → Verdict) (messages : Array Message) :
     Verdict :=
   match stop with
   | some (.noWork op site) => .noWork op site
   | some (.reject op site) => .reject op site
-  | _ => checks messages
+  | some (.mismatch op) => .mismatch op
+  | none => checks messages
 
 /-- The verdict on the decoded messages: `noWork` at the first work of the replay that fails,
 `reject` at the first equation of the replay that fails before each failed work, and otherwise
@@ -641,6 +641,7 @@ theorem verifyBytes_noWork (pub : Public) (ops : Array Op) (proof : ByteArray)
     split at stopped
     · rename_i found
       rw [found]
+    · cases stopped
     · cases stopped
     · exact absurd stopped (equations messages op site)
 

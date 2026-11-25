@@ -358,7 +358,7 @@ recorded values, field messages and integers are those of `runOps` on the indexe
 theorem replay_runOps (pub : Public) (ops : Array Op) (proof : ByteArray)
     (messages : Array Message) :
     let s := runOps pub proof messages ops.zipIdx.toList
-      ⟨channel pub.session pub.descriptor, 0, {}, {}, {}, {}⟩
+      ⟨channel pub.session pub.descriptor pub.sponge, 0, {}, {}, {}, {}⟩
     (replay pub ops proof messages).2.recorded = s.env ∧
       (replay pub ops proof messages).2.fields = s.fields ∧
       (replay pub ops proof messages).2.integers = s.integers := by

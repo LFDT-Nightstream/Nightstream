@@ -12,21 +12,20 @@ it (Akita revision `d50f700`; `Replay/Keccak.lean`, `Replay/Transcript.lean`).
   events of the first sponge are a suffix of those of the second (`step_suffix`,
   `runFrom_suffix`). With `R = Eq`: the step of a check and of the terminal keeps the sponge
   (`step_fixed`), and it keeps the core (`step_inert`).
-- `Op.input proof m` are the bytes that the step of a reading operation absorbs for the message
-  `m`, `Op.tail` the squeeze after it, and `store` the change of the core. `step_read`: a step
-  without a stop of a reading operation absorbs `Op.input` and changes the core by `store`.
+- `Op.input proof m` (`Replay/StageTrace.lean`) are the bytes that the step of a reading operation
+  absorbs for the message `m`, `Op.tail` the squeeze after it, and `store` the change of the core.
+  `step_read`: a step without a stop of a reading operation absorbs `Op.input` and changes the
+  core by `store`.
 - `Faithful … l n`: for each operation of `l` that stores a message, two messages at its index
   with the same absorbed bytes have the same data.
 - `run_alike`: two runs without a stop of the same operations from alike states, with faithful
-  messages and the same events at the end, end in alike states (`state_causal`, `core_faithful`,
-  `noteAt20_faithful`).
+  messages and the same events at the end, end in alike states (`state_causal`, `core_faithful`).
 - `ReadsFrom`, `decode_from`: the messages of `decode` are those of `Wire.read`. `Op.Parses`: the
   data that `Wire.read` gives is a function of the absorbed bytes (`parses_fields`, `parses_exts`,
   `parses_integer`, `parses_digest`, `parses_bounded`). `decode_faithful`: the decoded messages of
   two proofs are faithful.
 - `core_causal`: the core before the operation `c` is a function of the events of the sponge
-  before `c`. `noteAt20_causal`: the `Note` of the wire message `k` is a function of the events
-  before the work of the stage `k`. -/
+  before `c`. `Replay/CausalTrace.lean` has `noteAt20_causal`. -/
 
 set_option autoImplicit false
 
@@ -474,16 +473,6 @@ def Op.stores : Op → Bool
   | .fields .. | .exts .. | .integer .. | .digest .. | .bounded .. => true
   | _ => false
 
-/-- The bytes that the step of a reading operation absorbs for the message `m`: the nonce as one
-word, the length and the bytes of the payload of `z`, and otherwise the bytes of the message. -/
-def Op.input (proof : ByteArray) (m : Message) : Op → ByteArray
-  | .bounded _ _ =>
-      le64 (m.size - 4) ++ wordPadded (proof.extract (m.offset + 4) (m.offset + m.size))
-  | .work _ _ _ | .foldNonce _ _ => match m.data with
-      | .nonce nonce _ => le64 nonce
-      | _ => .empty
-  | _ => proof.extract m.offset (m.offset + m.size)
-
 /-- The sponge after the squeeze that follows the absorb of a reading operation: the 8 bytes of
 a work, and no squeeze otherwise. -/
 def Op.tail : Op → Duplex → Duplex
@@ -856,25 +845,6 @@ theorem noteOf_core {s s' : Replayer} (same : core s = core s')
     fun k => congrFun (congrArg Core.bytes same) k
   simp only [noteOf, rootClaimIn, claimIn₁, traceClaimIn, terminalStatementIn, responseIn,
     terminalMessagesIn, bytesIn, firstIn, recorded, fields, bytes]
-
-/-- The `Note` of the wire message `k` of the model is a function of the public input, the events
-of the sponge before the work of the stage `k` and the last blocks: two proofs whose runs have no
-stop before this work, with faithful messages and the same events before it, have the same
-`noteAt20 … k`. -/
-theorem noteAt20_faithful (proof proof' : ByteArray) (messages messages' : Array Message)
-    (tLast : ℕ → Rq Key20.terminal.innerDegree) (eLast : Rq Key20.terminal.innerDegree) (k : ℕ)
-    (ran : (runFrom pub proof messages (pub.ops.zipIdx.toList.take (stageIndex20 pub k))
-      (channelStart pub)).1 = .ok ())
-    (ran' : (runFrom pub proof' messages' (pub.ops.zipIdx.toList.take (stageIndex20 pub k))
-      (channelStart pub)).1 = .ok ())
-    (faithful : Faithful proof proof' messages messages'
-      (pub.ops.zipIdx.toList.take (stageIndex20 pub k)) 0)
-    (events : (stateBefore pub proof messages pub.ops (stageIndex20 pub k)).sponge.events =
-      (stateBefore pub proof' messages' pub.ops (stageIndex20 pub k)).sponge.events) :
-    noteAt20 (E := E) pub proof messages tLast eLast k =
-      noteAt20 pub proof' messages' tLast eLast k :=
-  noteOf_core pub (core_faithful pub proof proof' messages messages' _ ran ran' faithful events)
-    tLast eLast
 
 end Note
 
@@ -1251,27 +1221,6 @@ theorem core_causal (c : ℕ) {rest rest' : ℕ}
       core (stateBefore pub proof' messages' pub.ops c) :=
   core_faithful pub proof proof' messages messages' c ran ran'
     (Faithful.take _ 0 c (decode_faithful decoded decoded')) events
-
-variable {E : Type} [Field E] [Algebra Zq E] [Degree2 E]
-
-/-- The `Note` of the wire message `k` of the model is a function of the public input, the events
-of the sponge before the work of the stage `k` and the last blocks: two proofs with their decoded
-messages, whose runs have no stop before this work and have the same events before it, have the
-same `noteAt20 … k`. -/
-theorem noteAt20_causal (tLast : ℕ → Rq Key20.terminal.innerDegree)
-    (eLast : Rq Key20.terminal.innerDegree) (k : ℕ) {rest rest' : ℕ}
-    (decoded : decode pub.ops proof = .ok (messages, rest))
-    (decoded' : decode pub.ops proof' = .ok (messages', rest'))
-    (ran : (runFrom pub proof messages (pub.ops.zipIdx.toList.take (stageIndex20 pub k))
-      (channelStart pub)).1 = .ok ())
-    (ran' : (runFrom pub proof' messages' (pub.ops.zipIdx.toList.take (stageIndex20 pub k))
-      (channelStart pub)).1 = .ok ())
-    (events : (stateBefore pub proof messages pub.ops (stageIndex20 pub k)).sponge.events =
-      (stateBefore pub proof' messages' pub.ops (stageIndex20 pub k)).sponge.events) :
-    noteAt20 (E := E) pub proof messages tLast eLast k =
-      noteAt20 pub proof' messages' tLast eLast k :=
-  noteOf_core pub (core_causal pub proof proof' messages messages' _ decoded decoded' ran ran'
-    events) tLast eLast
 
 end Decoded
 

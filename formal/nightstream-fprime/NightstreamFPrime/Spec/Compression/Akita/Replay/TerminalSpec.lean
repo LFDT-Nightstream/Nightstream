@@ -9,7 +9,8 @@ the theorems that relate the two (Akita Section 8.2, (128) to (131); Lemma 10.47
   code, with the last blocks of `t` and `e` as arguments. `statementOf` is the statement
   `TerminalStatement.ofPoint` of `Extract/TraceLink.lean` for the split point of the terminal.
 - `ringDigest` and `rowsDigestOf` are the field digests of the canonical coefficients of a ring
-  element and of the rows of the last block of `t`; `terminalDigest` is `H_dig` of Akita (213).
+  element and of the rows of the last block of `t`, with the hash `digest` (`Public.digest`,
+  SHA3-256 in the code); `terminalDigest` is `H_dig` of Akita (213).
 - `toRq_folded`, `toRq_reduced`, `toRq_aRow`, `toRq_tPartial` and `into_opening` give the values
   of the code in the specification. `terminalChecks_ok_iff` is the statement for acceptance and
   rejection. -/
@@ -131,8 +132,9 @@ theorem mapM_some {α β : Type} (f : α → Option β) (g : α → β) :
         mapM_some f g l fun b member => each b (List.mem_cons_of_mem _ member)]
       rfl
 
-theorem rowsDigest_map (x : ℕ → Array Fq) :
-    rowsDigest S ((List.range S.innerRank).map x) = fieldDigest ((List.range S.innerRank).foldl
+theorem rowsDigest_map (digest : ByteArray → ByteArray) (x : ℕ → Array Fq) :
+    rowsDigest S digest ((List.range S.innerRank).map x) =
+      fieldDigest digest ((List.range S.innerRank).foldl
       (fun out r => out ++ Poly.ofFn S.innerDegree fun k =>
         Fq.ofNat (coeff (Poly.toRq S.innerDegree (x r)) k).val) #[]) := by
   rw [rowsDigest, List.foldl_map]
@@ -187,22 +189,26 @@ noncomputable def statementOf (quarter : 4 * (S.innerDegree / 4) = S.innerDegree
     ch.target.into⟩
 
 /-- The field digest of the canonical coefficients of a ring element. -/
-noncomputable def ringDigest {d : ℕ} [NeZero d] (y : Rq d) : ByteArray :=
-  fieldDigest (Poly.ofFn d fun k => Fq.ofNat (coeff y k).val)
+noncomputable def ringDigest (digest : ByteArray → ByteArray) {d : ℕ} [NeZero d] (y : Rq d) :
+    ByteArray :=
+  fieldDigest digest (Poly.ofFn d fun k => Fq.ofNat (coeff y k).val)
 
 /-- The field digest of the rows `0, …, n_A − 1` of the last block of `t`. -/
-noncomputable def rowsDigestOf (rows : ℕ → Rq S.innerDegree) : ByteArray :=
-  fieldDigest ((List.range S.innerRank).foldl (fun out r => out ++ Poly.ofFn S.innerDegree
+noncomputable def rowsDigestOf (digest : ByteArray → ByteArray)
+    (rows : ℕ → Rq S.innerDegree) : ByteArray :=
+  fieldDigest digest ((List.range S.innerRank).foldl (fun out r => out ++ Poly.ofFn S.innerDegree
     fun k => Fq.ofNat (coeff (rows r) k).val) #[])
 
 /-- `H_dig` of Akita Lemma 10.47 (213) for the concrete instance, a DEFINITION: the field digest
-(SHA3-256 with the tag `akita-pcs/field-digest/v8`) of the last block of `e` (`Sum.inl`) and of
-the rows of the last block of `t` (`Sum.inr`). `Digest.terminal_le` bounds the bad events of a
-uniform digest table `hash`; with `hash := terminalDigest S` its premise is that this hash is such
-a table, independent of `H_FS` (record (b), part of `[KECCAK]`). -/
-noncomputable def terminalDigest : Rq S.innerDegree ⊕ (ℕ → Rq S.innerDegree) → ByteArray
-  | .inl e => ringDigest e
-  | .inr t => rowsDigestOf S t
+(the hash `digest`, SHA3-256 in the code, with the tag `akita-pcs/field-digest/v8`) of the last
+block of `e` (`Sum.inl`) and of the rows of the last block of `t` (`Sum.inr`).
+`Digest.terminal_le` bounds the bad events of a uniform digest table `hash`; with
+`hash := terminalDigest S Keccak.sha3_256` its premise is that this hash is such a table,
+independent of `H_FS` (record (b), part of `[KECCAK]`). -/
+noncomputable def terminalDigest (digest : ByteArray → ByteArray) :
+    Rq S.innerDegree ⊕ (ℕ → Rq S.innerDegree) → ByteArray
+  | .inl e => ringDigest digest e
+  | .inr t => rowsDigestOf S digest t
 
 theorem toRq_folded (msgs : TerminalMessages) (ch : TerminalChallenges) :
     Poly.toRq S.innerDegree (folded S msgs ch) = ∑ i ∈ Finset.range (S.blocks - 1),
@@ -407,24 +413,24 @@ blocks `eLast` and `tLast` with the digests of the proof and the checks (128), (
 exist exactly when the blocks of (131) have these digests and pass (130). -/
 theorem lastBlocks_iff (quarter : 4 * (S.innerDegree / 4) = S.innerDegree)
     (two : ((2 * (S.innerDegree / 4) : ℕ) : Zq) ≠ 0) (blocks : 1 ≤ S.blocks)
-    {setup : Array Fq} {msgs : TerminalMessages} {ch : TerminalChallenges} {z : Array ℤ}
-    {inv : Array Fq} (inverse : Poly.toRq S.innerDegree inv *
+    {digest : ByteArray → ByteArray} {setup : Array Fq} {msgs : TerminalMessages}
+    {ch : TerminalChallenges} {z : Array ℤ} {inv : Array Fq} (inverse : Poly.toRq S.innerDegree inv *
       Poly.toRq S.innerDegree (challenge S ch (S.blocks - 1)) = 1) :
     (∃ (eLast : Rq S.innerDegree) (tLast : ℕ → Rq S.innerDegree),
-        ringDigest eLast = msgs.eDigest ∧ rowsDigestOf S tLast = msgs.tDigest ∧
+        ringDigest digest eLast = msgs.eDigest ∧ rowsDigestOf S digest tLast = msgs.tDigest ∧
         (statementOf (E := E) S quarter setup msgs ch tLast).Accepts (partialsOf S msgs eLast)
           (challengesOf S ch) (zSource S z)) ↔
-      fieldDigest (Poly.canon S.innerDegree (Poly.mul S.innerDegree inv
+      fieldDigest digest (Poly.canon S.innerDegree (Poly.mul S.innerDegree inv
           (Poly.sub S.innerDegree (reduced S ch z) (folded S msgs ch)))) = msgs.eDigest ∧
-      rowsDigest S ((List.range S.innerRank).map fun r => Poly.mul S.innerDegree inv
+      rowsDigest S digest ((List.range S.innerRank).map fun r => Poly.mul S.innerDegree inv
           (Poly.sub S.innerDegree (aRow S setup z r) (tPartial S msgs ch r))) = msgs.tDigest ∧
       (ch.scale * opening S ch msgs (Poly.mul S.innerDegree inv
           (Poly.sub S.innerDegree (reduced S ch z) (folded S msgs ch)))).equals ch.target = true := by
   let xe := Poly.mul S.innerDegree inv (Poly.sub S.innerDegree (reduced S ch z) (folded S msgs ch))
   let xr : ℕ → Array Fq := fun r =>
     Poly.mul S.innerDegree inv (Poly.sub S.innerDegree (aRow S setup z r) (tPartial S msgs ch r))
-  have rows : rowsDigest S ((List.range S.innerRank).map xr) =
-      rowsDigestOf S fun r => Poly.toRq S.innerDegree (xr r) := rowsDigest_map S xr
+  have rows : rowsDigest S digest ((List.range S.innerRank).map xr) =
+      rowsDigestOf S digest fun r => Poly.toRq S.innerDegree (xr r) := rowsDigest_map S digest xr
   have value : ∀ eLast, eLast = Poly.toRq S.innerDegree xe →
       ((statementOf (E := E) S quarter setup msgs ch (fun r => 0)).scale *
         ∑ i, (statementOf (E := E) S quarter setup msgs ch (fun r => 0)).block i *
@@ -474,14 +480,15 @@ of the proof make the statement of the terminal accept the full partials, the ch
 (Akita Section 8.2, (128) to (131)). -/
 theorem terminalChecks_ok_iff (power : 2 ^ Nat.log 2 S.innerDegree = S.innerDegree)
     (quarter : 4 * (S.innerDegree / 4) = S.innerDegree)
-    (two : ((2 * (S.innerDegree / 4) : ℕ) : Zq) ≠ 0) (blocks : 1 ≤ S.blocks) (cap : ℕ)
+    (two : ((2 * (S.innerDegree / 4) : ℕ) : Zq) ≠ 0) (blocks : 1 ≤ S.blocks)
+    {digest : ByteArray → ByteArray} (cap : ℕ)
     (setup : Array Fq) (msgs : TerminalMessages) (ch : TerminalChallenges) (z : Array ℤ) :
-    (∃ out, terminalChecks S cap setup msgs ch z = .ok out) ↔
+    (∃ out, terminalChecks S digest cap setup msgs ch z = .ok out) ↔
       centeredNormSq z ≤ cap ∧
       (ch.fold.length = S.blocks ∧ ch.fold.all (sparseValid S.innerDegree) = true) ∧
       IsUnit (Poly.toRq S.innerDegree (challenge S ch (S.blocks - 1))) ∧
       ∃ (eLast : Rq S.innerDegree) (tLast : ℕ → Rq S.innerDegree),
-        ringDigest eLast = msgs.eDigest ∧ rowsDigestOf S tLast = msgs.tDigest ∧
+        ringDigest digest eLast = msgs.eDigest ∧ rowsDigestOf S digest tLast = msgs.tDigest ∧
         (statementOf (E := E) S quarter setup msgs ch tLast).Accepts (partialsOf S msgs eLast)
           (challengesOf S ch) (zSource S z) := by
   unfold terminalChecks
@@ -516,9 +523,9 @@ theorem terminalChecks_ok_iff (power : 2 ^ Nat.log 2 S.innerDegree = S.innerDegr
   simp only [recover_some S inverse, rowsSome]
   rw [lastBlocks_iff quarter two blocks inverse]
   simp only [norm, valid, unit, true_and]
-  by_cases eDigest : fieldDigest (Poly.canon S.innerDegree (Poly.mul S.innerDegree inv
+  by_cases eDigest : fieldDigest digest (Poly.canon S.innerDegree (Poly.mul S.innerDegree inv
       (Poly.sub S.innerDegree (reduced S ch z) (folded S msgs ch)))) = msgs.eDigest
-  · by_cases tDigest : rowsDigest S ((List.range S.innerRank).map fun r =>
+  · by_cases tDigest : rowsDigest S digest ((List.range S.innerRank).map fun r =>
         Poly.mul S.innerDegree inv (Poly.sub S.innerDegree (aRow S setup z r)
           (tPartial S msgs ch r))) = msgs.tDigest
     · by_cases trace : (ch.scale * opening S ch msgs (Poly.mul S.innerDegree inv
@@ -532,15 +539,16 @@ theorem terminalChecks_ok_iff (power : 2 ^ Nat.log 2 S.innerDegree = S.innerDegr
 decoded `z`. -/
 theorem terminalRun_ok_iff (power : 2 ^ Nat.log 2 S.innerDegree = S.innerDegree)
     (quarter : 4 * (S.innerDegree / 4) = S.innerDegree)
-    (two : ((2 * (S.innerDegree / 4) : ℕ) : Zq) ≠ 0) (blocks : 1 ≤ S.blocks) (cap : ℕ)
+    (two : ((2 * (S.innerDegree / 4) : ℕ) : Zq) ≠ 0) (blocks : 1 ≤ S.blocks)
+    {digest : ByteArray → ByteArray} (cap : ℕ)
     (P : Golomb.Params) (setup : Array Fq) (msgs : TerminalMessages) (ch : TerminalChallenges)
     {z : Array ℤ} (decoded : Golomb.decode P msgs.payload = some z) :
-    (∃ out, terminalRun S cap P setup msgs ch = .ok out) ↔
+    (∃ out, terminalRun S digest cap P setup msgs ch = .ok out) ↔
       centeredNormSq z ≤ cap ∧
       (ch.fold.length = S.blocks ∧ ch.fold.all (sparseValid S.innerDegree) = true) ∧
       IsUnit (Poly.toRq S.innerDegree (challenge S ch (S.blocks - 1))) ∧
       ∃ (eLast : Rq S.innerDegree) (tLast : ℕ → Rq S.innerDegree),
-        ringDigest eLast = msgs.eDigest ∧ rowsDigestOf S tLast = msgs.tDigest ∧
+        ringDigest digest eLast = msgs.eDigest ∧ rowsDigestOf S digest tLast = msgs.tDigest ∧
         (statementOf (E := E) S quarter setup msgs ch tLast).Accepts (partialsOf S msgs eLast)
           (challengesOf S ch) (zSource S z) := by
   rw [terminalRun, decoded]

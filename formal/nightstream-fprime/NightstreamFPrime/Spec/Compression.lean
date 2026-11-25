@@ -114,6 +114,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.PresentDecode
 import NightstreamFPrime.Spec.Compression.Akita.Extract.PresentChecks
 import NightstreamFPrime.Spec.Compression.Akita.Extract.PresentPage
 import NightstreamFPrime.Spec.Compression.Akita.Extract.PresentGiven
+import NightstreamFPrime.Spec.Compression.Akita.Extract.StagedDraws
 import NightstreamFPrime.Spec.Compression.Akita.FitChance
 import NightstreamFPrime.Spec.Compression.Akita.TraceProver
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Plan
@@ -153,6 +154,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.LinkRoot
 import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinNote
 import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinBits
 import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinShape
+import NightstreamFPrime.Spec.Compression.Akita.Replay.DigestFree
 import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinPresent
 import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinAccept
 import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinLevels
@@ -161,6 +163,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinTerminal
 import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinConverseTerminal
 import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinConverseRuns
 import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinConverseLevels
+import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinConverseRange
 import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinConverse
 import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinCount
 import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinSlots
@@ -169,13 +172,20 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinBlock
 import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinExists
 import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinStage
 import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinGiven
+import NightstreamFPrime.Spec.Compression.Akita.Replay.CausalSegments
+import NightstreamFPrime.Spec.Compression.Akita.Replay.CausalCells
+import NightstreamFPrime.Spec.Compression.Akita.Replay.PageAt
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Causal
+import NightstreamFPrime.Spec.Compression.Akita.Replay.StageTrace
+import NightstreamFPrime.Spec.Compression.Akita.Replay.CausalTrace
 import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinBound
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Coupling
+import NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate
 import NightstreamFPrime.Spec.Compression.Akita.Replay.SamplerFair
 import NightstreamFPrime.Spec.Compression.Akita.Replay.SamplerFairField
 import NightstreamFPrime.Spec.Compression.Akita.Replay.SamplerFairFold
 import NightstreamFPrime.Spec.Compression.Akita.Replay.StageCoupling
+import NightstreamFPrime.Spec.Compression.Akita.Replay.StageReadings
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Grows
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Schedules
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Stage3

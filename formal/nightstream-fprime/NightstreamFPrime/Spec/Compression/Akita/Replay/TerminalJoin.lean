@@ -106,7 +106,7 @@ theorem step_terminal_run (pub : Public) (proof : ByteArray) (messages : Array M
     (i level : ℕ) (s : Replayer) {setup : Array Fq}
     (expanded : pub.setupFor pub.layout.terminal.setupCount = some setup) :
     ((step pub proof messages i (.terminal level)).run).run s =
-      match terminalRun pub.layout.terminal.shape pub.layout.terminal.limit
+      match terminalRun pub.layout.terminal.shape pub.digest pub.layout.terminal.limit
           pub.layout.terminal.params setup (terminalMessagesIn s level)
           (terminalChallengesIn s level) with
       | .ok out => (.ok (), finished s level out)
@@ -115,8 +115,8 @@ theorem step_terminal_run (pub : Public) (proof : ByteArray) (messages : Array M
   unfold terminalValue
   dsimp only
   rw [expanded, Option.map_some]
-  cases terminalRun pub.layout.terminal.shape pub.layout.terminal.limit pub.layout.terminal.params
-    setup (terminalMessagesIn s level) (terminalChallengesIn s level) <;> rfl
+  cases terminalRun pub.layout.terminal.shape pub.digest pub.layout.terminal.limit
+    pub.layout.terminal.params setup (terminalMessagesIn s level) (terminalChallengesIn s level) <;> rfl
 
 /-- The step of the terminal accepts exactly when the terminal of the specification accepts:
 for a payload that decodes and fold challenges that the sampler drew for the terminal group
@@ -148,8 +148,9 @@ theorem step_terminal_accepts (pub : Public) (proof : ByteArray) (messages : Arr
           (sparseValid pub.layout.terminal.shape.innerDegree) = true) ∧
       ∃ (eLast : Rq pub.layout.terminal.shape.innerDegree)
         (tLast : ℕ → Rq pub.layout.terminal.shape.innerDegree),
-        ringDigest eLast = (terminalMessagesIn s level).eDigest ∧
-        rowsDigestOf pub.layout.terminal.shape tLast = (terminalMessagesIn s level).tDigest ∧
+        ringDigest pub.digest eLast = (terminalMessagesIn s level).eDigest ∧
+        rowsDigestOf pub.layout.terminal.shape pub.digest tLast =
+          (terminalMessagesIn s level).tDigest ∧
         (statementOf (E := E) pub.layout.terminal.shape quarter setup (terminalMessagesIn s level)
           (terminalChallengesIn s level) tLast).Accepts
           (partialsOf pub.layout.terminal.shape (terminalMessagesIn s level) eLast)
@@ -157,7 +158,7 @@ theorem step_terminal_accepts (pub : Public) (proof : ByteArray) (messages : Arr
           (zSource pub.layout.terminal.shape z) := by
   set T := pub.layout.terminal
   have accepts : (∃ s', ((step pub proof messages i (.terminal level)).run).run s = (.ok (), s')) ↔
-      ∃ out, terminalRun T.shape T.limit T.params setup (terminalMessagesIn s level)
+      ∃ out, terminalRun T.shape pub.digest T.limit T.params setup (terminalMessagesIn s level)
         (terminalChallengesIn s level) = .ok out := by
     rw [step_terminal_run pub proof messages i level s expanded]
     constructor

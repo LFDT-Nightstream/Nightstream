@@ -203,8 +203,8 @@ theorem verifyProof_key20_terminal {zMax rice : ℕ}
       Key20.terminal.blockLength = 2 ^ position.length ∧
       2 * (Key20.terminal.innerDegree / 4) = 2 ^ pack.length ∧
       ∃ (eLast : Rq Key20.terminal.innerDegree) (tLast : ℕ → Rq Key20.terminal.innerDegree),
-        ringDigest eLast = (terminalMessagesIn s 6).eDigest ∧
-        rowsDigestOf Key20.terminal tLast = (terminalMessagesIn s 6).tDigest ∧
+        ringDigest pub.digest eLast = (terminalMessagesIn s 6).eDigest ∧
+        rowsDigestOf Key20.terminal pub.digest tLast = (terminalMessagesIn s 6).tDigest ∧
         (Extract.TerminalStatement.ofPoint quarter (matrixOf Key20.terminal full)
           (stateOf Key20.terminal (terminalMessagesIn s 6) tLast) block position pack
           (mle (ρ.map Ext.into) (tensorWeight (r2.tail.map Ext.into) η.into))

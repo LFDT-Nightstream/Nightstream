@@ -29,7 +29,7 @@ def failWith {α : Type} (message : String) : IO α := throw <| IO.userError mes
 def tDigestOf (S : Shape) (msgs : TerminalMessages) (ch : TerminalChallenges)
     (rows : List (Array Fq)) : Option ByteArray := do
   let inv ← Poly.inverse (Nat.log 2 S.innerDegree) (challenge S ch (S.blocks - 1))
-  return rowsDigest S (← tLastOf S msgs ch inv rows)
+  return rowsDigest S Keccak.sha3_256 (← tLastOf S msgs ch inv rows)
 
 /-- The gate on the replay of one positive file. -/
 def gate (r : Replayed) : IO Unit := do

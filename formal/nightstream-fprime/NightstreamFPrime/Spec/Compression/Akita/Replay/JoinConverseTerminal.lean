@@ -105,8 +105,9 @@ theorem payload20_guard {pub : Public} {proof : ByteArray} {zMax rice : ℕ}
 (difference (b): the proof has only the digests of these blocks). -/
 def Digests20 (pub : Public) (proof : ByteArray) (messages : Array Message)
     (tLast : ℕ → Rq Key20.terminal.innerDegree) (eLast : Rq Key20.terminal.innerDegree) : Prop :=
-  ringDigest eLast = (terminalMessagesIn (terminalState20 pub proof messages) 6).eDigest ∧
-    rowsDigestOf Key20.terminal tLast =
+  ringDigest pub.digest eLast =
+      (terminalMessagesIn (terminalState20 pub proof messages) 6).eDigest ∧
+    rowsDigestOf Key20.terminal pub.digest tLast =
       (terminalMessagesIn (terminalState20 pub proof messages) 6).tDigest
 
 variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree2 E]
@@ -186,7 +187,7 @@ theorem terminal20_of_last {zMax rice : ℕ} (layout : pub.layout = layout20 zMa
     (last : Last20 (E := E) pub proof messages tLast eLast)
     (before : (runFrom pub proof messages (pub.ops.zipIdx.toList.take (pub.ops.size - 1))
       (channelStart pub)).1 = .ok ()) :
-    ∃ out, terminalRun pub.layout.terminal.shape pub.layout.terminal.limit
+    ∃ out, terminalRun pub.layout.terminal.shape pub.digest pub.layout.terminal.limit
       pub.layout.terminal.params full
       (terminalMessagesIn (terminalState20 pub proof messages) 6)
       (terminalChallengesIn (terminalState20 pub proof messages) 6) = .ok out := by

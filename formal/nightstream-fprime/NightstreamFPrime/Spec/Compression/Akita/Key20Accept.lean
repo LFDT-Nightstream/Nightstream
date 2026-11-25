@@ -55,7 +55,8 @@ attribute [local instance low] Classical.propDecidable
 
 /-- The data of a wire message of the opening other than the messages of the checks (Akita
 Figure 4: the messages of the prover). The points of the three claims are vectors of 20, 16 and
-16 coordinates. -/
+16 coordinates. `trace` has the byte strings that the prover sends for the stage of the wire
+message: at most 5 strings of at most 16384 bytes for `key20.aks`. -/
 structure Note (E : Type) [CommRing E] [Algebra Zq E] where
   commit : (g : Fin 3) → (root.shape g).Payload
   value : Fin 3 → E
@@ -75,6 +76,7 @@ structure Note (E : Type) [CommRing E] [Algebra Zq E] where
   statement : TerminalStatement terminal E
   partials : Fin terminal.blocks → Rq terminal.innerDegree
   response : terminal.Source
+  trace : Trace 5 16384
 
 /-- The points of the three claims of a note as lists. -/
 def Note.place {E : Type} [CommRing E] [Algebra Zq E] (note : Note E) (g : Fin 3) : List E :=
@@ -84,7 +86,7 @@ instance Note.finite {E : Type} [CommRing E] [Algebra Zq E] [Finite E] : Finite 
   Finite.of_injective (fun note : Note E => (note.commit, note.value, note.point, note.claim,
     note.commit₁, note.claim₁, note.commit₂, note.claim₂, note.commit₃, note.claim₃,
     note.commit₄, note.claim₄, note.commit₅, note.claim₅, note.state, note.statement,
-    note.partials, note.response)) fun left right same => by
+    note.partials, note.response, note.trace)) fun left right same => by
       cases left
       cases right
       simp_all
@@ -335,7 +337,8 @@ theorem accepts {total : ℕ} (inside : Tier.finish fifth < total)
       state := 0
       statement := TerminalStatement.ofPoint quarters.2.2.2.2 matrix 0 [] [] [] 0 0
       partials := 0
-      response := 0 } := ⟨_, rfl⟩
+      response := 0
+      trace := Trace.empty 5 16384 } := ⟨_, rfl⟩
   have placed : base.place = places := funext fun g => by
     rw [based]
     exact ofFn_getD (lengths g) 0

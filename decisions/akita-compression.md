@@ -1213,12 +1213,12 @@ decision.
   With the key20 layout and root, successful setup expansion and decoding, and the model's block, slot and stage
   hypotheses, `Replay.verifyProof_accepts20` gives an accepted opening transcript with the stage note in the data field
   of each wire message through stage 473. For fixed public input and last blocks, runs that reach the stage with the
-  same sponge events have the same note (`Replay.noteAt20_causal`). The corresponding property for cells remains open.
+  same sponge events have the same note (`Replay.noteAt20_causal`), and the same cells (`Replay.cellsAt20_causal`). The wire message has the byte strings that the prover sends for its stage (`Key20.Note.trace`), so the pages `0 … k` give the sponge events before the work `k` (`Replay.pageAt20_events`).
   `Replay.verifyProof_bound20` bounds the probability that the byte verifier accepts and the extractor returns no output.
   It assumes that one prover with a query bound presents the accepted bytes for every oracle table and its specified sponge.
-  The construction from an adversary against the code remains open, including the cells, pool words, check-stage reader,
-  encoding of absorbed bytes and last blocks. `Replay.verifyProof_accept_iff_levels` characterizes acceptance of the inner
-  key20 replay by its level checks. The converse from acceptance by the opening verifier and the key30 join remain open.
+  The construction from an adversary against the code remains open: the sponge of a table for each stage, and the last blocks, which need the recording prover of Akita Lemma 10.47 (its simulation law is `Replay.Simulate.simulate_law`; the digest term (213) is in no bound). The replay takes the grinding plan as an input and does not compare its work bits with those of the model (`Replay.Bits20`); the Rust verifier computes the plan.
+  `Replay.verifyProof_accept_iff_levels` characterizes acceptance of the inner
+  key20 replay by its level checks. `Replay.verifyProof_iff_tower20` is the converse for a transcript that presents the bytes, with conjuncts on the script, the pools and the payload. The key30 join remains open.
 
 ### The results for `key30.aks`
 

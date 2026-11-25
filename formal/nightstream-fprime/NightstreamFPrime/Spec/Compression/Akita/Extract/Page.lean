@@ -38,6 +38,19 @@ def Cell.Sendable (M : Type) (message : M) : Prop :=
   ∀ inhabited : Nonempty M, ∃ cell : Cell E width cap,
     @Cell.message E width cap M inhabited cell = message
 
+/-- The byte strings that a prover sends for one stage, in their order: at most `count` strings
+of at most `bytes` bytes. -/
+abbrev Trace (count bytes : ℕ) : Type :=
+  {strings : List {string : List (Fin 256) // string.length ≤ bytes} // strings.length ≤ count}
+
+instance Trace.finite (count bytes : ℕ) : Finite (Trace count bytes) :=
+  have : Finite {string : List (Fin 256) // string.length ≤ bytes} :=
+    (List.finite_length_le (Fin 256) bytes).to_subtype
+  (List.finite_length_le {string : List (Fin 256) // string.length ≤ bytes} count).to_subtype
+
+/-- The trace with no string. -/
+def Trace.empty (count bytes : ℕ) : Trace count bytes := ⟨[], Nat.zero_le count⟩
+
 /-- A wire message: a value of the other data of the proof, one cell for each of `slots`
 messages of the checks after one draw, and the nonce of the response search of a fold as a
 number of 32 bits (`FoldResponse` of the Akita code). -/

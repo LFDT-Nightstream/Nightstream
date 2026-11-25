@@ -297,9 +297,16 @@ structure Public where
   root : Array RootGroup := #[]
   /-- The sponge before the channel absorbs the session: `Duplex.empty` in the code. -/
   sponge : Duplex := Duplex.empty
+  /-- The hash of the two last-block digests of the terminal: SHA3-256 in the code
+  (`field_digest`). -/
+  digest : ByteArray → ByteArray := Keccak.sha3_256
 
 /-- The public input without the setup prefix that a caller computed. -/
 def Public.sealed (pub : Public) : Public := { pub with setup := #[] }
+
+/-- The public input with the hash `digest` of the two last-block digests of the terminal. -/
+def Public.withDigest (pub : Public) (digest : ByteArray → ByteArray) : Public :=
+  { pub with digest }
 
 /-- The checks of the statement of the code before the first message of the proof
 (`ns-compress` `akita/verifier.rs`, `Verifier::verify`; `PolynomialGroupClaims::new`;

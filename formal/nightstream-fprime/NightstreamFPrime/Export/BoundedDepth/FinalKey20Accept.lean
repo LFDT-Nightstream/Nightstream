@@ -277,7 +277,8 @@ theorem accepts (use : Use setup shape) (wide : 8 ≤ width) (capped : 302980489
     state := 0
     statement := TerminalStatement.ofPoint quarters.2.2.2.2 matrix 0 [] [] [] 0 0
     partials := 0
-    response := 0 }
+    response := 0
+    trace := Extract.Trace.empty 5 16384 }
   have stage : (Compose.front C).finish =
       (Compression.Fresh.costs CompressionFresh.oneShape 8).length + 1 := by
     show 0 + (_ ++ [_]).length = _

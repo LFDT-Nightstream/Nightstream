@@ -406,7 +406,7 @@ theorem runProof_accept_of_levels (scripted : script pub.layout pub.plan = .ok o
         true)
     (terminal : ∀ c level, ops[c]? = some (.terminal level) →
       (runFrom pub proof messages (ops.zipIdx.toList.take c) (channelStart pub)).1 = .ok () →
-      ∃ out, terminalRun pub.layout.terminal.shape pub.layout.terminal.limit
+      ∃ out, terminalRun pub.layout.terminal.shape pub.digest pub.layout.terminal.limit
         pub.layout.terminal.params full
         (terminalMessagesIn (stateBefore pub proof messages ops c) level)
         (terminalChallengesIn (stateBefore pub proof messages ops c) level) = .ok out) :
@@ -462,7 +462,7 @@ theorem verifyProof_accept_of_levels {zMax rice : ℕ} (layout : pub.layout = la
         true)
     (terminal : ∀ c level, pub.ops[c]? = some (.terminal level) →
       (runFrom pub proof messages (pub.ops.zipIdx.toList.take c) (channelStart pub)).1 = .ok () →
-      ∃ out, terminalRun pub.layout.terminal.shape pub.layout.terminal.limit
+      ∃ out, terminalRun pub.layout.terminal.shape pub.digest pub.layout.terminal.limit
         pub.layout.terminal.params full
         (terminalMessagesIn (stateBefore pub proof messages pub.ops c) level)
         (terminalChallengesIn (stateBefore pub proof messages pub.ops c) level) = .ok out) :
@@ -498,7 +498,7 @@ theorem verifyProof_levels_of_accept {zMax rice : ℕ} (layout : pub.layout = la
           (tensorRunIn (stateBefore pub proof messages pub.ops c) level count point
             opening).isSome = true) ∧
         ∀ c level, pub.ops[c]? = some (.terminal level) →
-          ∃ out, terminalRun pub.layout.terminal.shape pub.layout.terminal.limit
+          ∃ out, terminalRun pub.layout.terminal.shape pub.digest pub.layout.terminal.limit
             pub.layout.terminal.params full
             (terminalMessagesIn (stateBefore pub proof messages pub.ops c) level)
             (terminalChallengesIn (stateBefore pub proof messages pub.ops c) level) = .ok out := by
@@ -528,7 +528,7 @@ theorem verifyProof_accept_iff_levels {zMax rice : ℕ} (layout : pub.layout = l
             (tensorRunIn (stateBefore pub proof messages pub.ops c) level count point
               opening).isSome = true) ∧
           ∀ c level, pub.ops[c]? = some (.terminal level) →
-            ∃ out, terminalRun pub.layout.terminal.shape pub.layout.terminal.limit
+            ∃ out, terminalRun pub.layout.terminal.shape pub.digest pub.layout.terminal.limit
               pub.layout.terminal.params full
               (terminalMessagesIn (stateBefore pub proof messages pub.ops c) level)
               (terminalChallengesIn (stateBefore pub proof messages pub.ops c) level) =

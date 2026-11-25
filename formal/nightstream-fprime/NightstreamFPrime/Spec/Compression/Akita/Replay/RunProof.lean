@@ -238,7 +238,7 @@ theorem verifyProof_accept (scripted : script pub.layout pub.plan = .ok ops)
           (firstIn s ⟨level, "tensor.eta", none⟩) (roundsIn s ⟨level, "tensor.sumcheck", none⟩)
           (firstIn s ⟨level, "tensor.final_claims", none⟩)).isSome = true) ∧
       ∀ c level, ops[c]? = some (.terminal level) →
-        ∃ out, terminalRun pub.layout.terminal.shape pub.layout.terminal.limit
+        ∃ out, terminalRun pub.layout.terminal.shape pub.digest pub.layout.terminal.limit
           pub.layout.terminal.params full
           (terminalMessagesIn (stateBefore pub proof messages ops c) level)
           (terminalChallengesIn (stateBefore pub proof messages ops c) level) = .ok out := by
@@ -314,7 +314,7 @@ theorem verifyProof_accept_of (scripted : script pub.layout pub.plan = .ok ops)
       (((holds pub check).run).run (stateBefore pub proof messages ops c)).1 = .ok true)
     (terminal : ∀ c level, ops[c]? = some (.terminal level) →
       (runFrom pub proof messages (ops.zipIdx.toList.take c) (channelStart pub)).1 = .ok () →
-      ∃ out, terminalRun pub.layout.terminal.shape pub.layout.terminal.limit
+      ∃ out, terminalRun pub.layout.terminal.shape pub.digest pub.layout.terminal.limit
         pub.layout.terminal.params full
         (terminalMessagesIn (stateBefore pub proof messages ops c) level)
         (terminalChallengesIn (stateBefore pub proof messages ops c) level) = .ok out) :
@@ -660,8 +660,9 @@ theorem verifyProof_terminal_accepts (scripted : script pub.layout pub.plan = .o
           (sparseValid pub.layout.terminal.shape.innerDegree) = true) ∧
       ∃ (eLast : Rq pub.layout.terminal.shape.innerDegree)
         (tLast : ℕ → Rq pub.layout.terminal.shape.innerDegree),
-        ringDigest eLast = (terminalMessagesIn s level).eDigest ∧
-        rowsDigestOf pub.layout.terminal.shape tLast = (terminalMessagesIn s level).tDigest ∧
+        ringDigest pub.digest eLast = (terminalMessagesIn s level).eDigest ∧
+        rowsDigestOf pub.layout.terminal.shape pub.digest tLast =
+          (terminalMessagesIn s level).tDigest ∧
         (statementOf (E := E) pub.layout.terminal.shape quarter full (terminalMessagesIn s level)
           (terminalChallengesIn s level) tLast).Accepts
           (partialsOf pub.layout.terminal.shape (terminalMessagesIn s level) eLast)

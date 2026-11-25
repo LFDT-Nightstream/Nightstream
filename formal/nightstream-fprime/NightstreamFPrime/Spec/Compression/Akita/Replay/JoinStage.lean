@@ -1,11 +1,11 @@
-import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinExists
+import NightstreamFPrime.Spec.Compression.Akita.Replay.StageTrace
 
 /-! The `Note` of each wire message of the model from the state of the replay before the work of
 its stage, for `key20.aks` (Akita revision `d50f700`; ePrint 2026/1983, revision of 2026-11-23,
 Figure 4).
 
-- `stageIndex20 pub k` is the index of the work of the stage `k` (`workIndices20`), and the index
-  of the terminal for `k ≥ 473`. `noteAt20 … k` is `noteOf` on the state before it.
+- `noteAt20 … k` is `noteOf` on the state before the operation `stageIndex20 pub k`
+  (`Replay/StageTrace.lean`), with the trace `traceAt20 … k` of the stage for `k < 473`.
 - `held20 c c' K`: no operation of the skeleton of `layout20` from `c` to `c'` writes a key of `K`
   (a Bool, closed computations of the kernel: `held20_claim` to `held20_partials`), and
   `works20` gives the indices of the works of the stages that `Key20.Tower.accepts` reads.
@@ -240,18 +240,11 @@ variable {E : Type} [Field E] [Algebra Zq E] [Degree2 E]
   (pub : Public) (proof : ByteArray) (messages : Array Message)
   (tLast : ℕ → Rq Key20.terminal.innerDegree) (eLast : Rq Key20.terminal.innerDegree)
 
-/-- The index of the operation before which the code has the wire message `k` of the model: the
-work of the stage `k`, and the terminal for `k ≥ 473`. -/
-def stageIndex20 (k : ℕ) : ℕ := if k < 473 then workIndices20.getD k 0 else pub.ops.size - 1
-
-theorem stageIndex20_lt {k : ℕ} (inside : k < 473) :
-    stageIndex20 pub k = workIndices20.getD k 0 := by
-  simp only [stageIndex20, inside, ite_true]
-
 /-- The `Note` of the wire message `k` of the model: `noteOf` on the state of the replay before
-the work of the stage `k`. -/
+the work of the stage `k`, with the trace `traceAt20 … k` of the stage for `k < 473`. -/
 noncomputable def noteAt20 (k : ℕ) : Key20.Note E :=
-  noteOf pub (stateBefore pub proof messages pub.ops (stageIndex20 pub k)) tLast eLast
+  { noteOf pub (stateBefore pub proof messages pub.ops (stageIndex20 pub k)) tLast eLast with
+    trace := if k < 473 then traceAt20 pub proof messages k else Extract.Trace.empty 5 16384 }
 
 /-- The readings of `Key20.Tower.accepts` on the notes `noteAt20` of an accepted proof of
 `layout20` are those of `note20`: each value that the model reads in the wire message `k` is

@@ -1,0 +1,55 @@
+import tests.AxiomAudit
+import NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate
+
+/-! Axiom audits for the recording prover of Akita Lemma 10.47 on an algorithm with two oracles
+and its law (`Replay/Simulate.lean`), with the guard `simulate_law_guard`. -/
+
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.eval
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.eval_challenge
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.eval_eq_toComp
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.map
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.eval_map
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.Bound.map
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.answered
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.map_answered
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.logged
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.logged_challenge
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.logged_digest
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.eval_logged
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.Bound.logged
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.eval_congr
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.trace_congr
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.upTo_congr
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.collided_congr
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.guessed_congr
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.Cache
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.answer
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.reads
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulate
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulate_challenge
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulate_digest
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.reads_update
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulate_cache
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulate_eval
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulate_map
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulate_logged
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.oracle
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulate_oracle
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulate_logged_oracle
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulate_invariant
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulate_resolved
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulate_record
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulate_record_oracle
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulate_law
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulate_law_hash
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulate_logged_law
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.oracle_law
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.card_snd_fibre
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulate_law_guard
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.ask
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.ask_run
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.ask_bound
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.comp
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.comp_challenge
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.comp_run
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.comp_bound

@@ -353,7 +353,7 @@ def terminalValue (pub : Public) (s : Replayer) (level : ℕ) :
     Option (Except String TerminalValues) :=
   let T := pub.layout.terminal
   (pub.setupFor T.setupCount).map fun setup =>
-    terminalRun T.shape T.limit T.params setup (terminalMessagesIn s level)
+    terminalRun T.shape pub.digest T.limit T.params setup (terminalMessagesIn s level)
       (terminalChallengesIn s level)
 
 /-- The checks of the terminal of the code that the vectors name: the norm, the digest of the

@@ -1,3 +1,4 @@
+import NightstreamFPrime.Spec.Compression.Akita.Extract.StagedDraws
 import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinConverseRuns
 
 /-! Theorem B of the join, direction "←", at the levels 0 to 5 of `key20.aks` (Akita revision
@@ -11,6 +12,9 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinConverseRuns
   `some` on the path of the fold and the path of the tensor reduction of the code. The statement
   of the game is the statement of the code by the links `key20_rootLink_before`,
   `key20_packLink_before` and `key20_traceLink_before`.
+- `model20_draws5`: on such a transcript, when the link of the level 5 holds, the path of the
+  code of the level 5 has the `foldDrawsSq` draws of its game or more. It has no hypothesis on
+  the run of the replay.
 - `level_ok_of_model`: from such runs, the steps of `fused.end`, `tensor.opening` and
   `tensor.end` of a level have no stop when the run before them has none.
 - `level20_ok₀` to `level20_ok₅`: these steps for the levels of `key20.aks`, as `StepOk`. -/
@@ -498,6 +502,37 @@ theorem model20_level5 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax ri
   unfold Tier.challenge at ran
   rw [challenged, started] at ran
   exact ⟨_, _, runs, by rw [tensoredPathIn_eq]; exact ran⟩
+
+/-- The draws of the path of the code of the level 5: on a transcript that presents the bytes of a
+proof, when the link `Terminal.Linked` of the level 5 holds, the path of its fold and of the
+tensor reduction of its claim has the `foldDrawsSq` draws of `foldCheckSq` or more, because the
+game of the level runs on it to `some`. -/
+theorem model20_draws5
+    (tower : o = tower20 pub block block₁ block₂ block₃ block₄ block₅ blockL total 472)
+    {point : Prefix (Key20.Wire E) (Option Coord → CodeSlot E) total}
+    (presents : PresentsAt20 o pub proof messages tLast eLast point)
+    (linked : Extract.Terminal.Linked (fifth) o.terminal
+      (And.right (And.right (And.right (And.right Key20.quarters)))) o.stateOf point) :
+    Extract.foldDrawsSq (fold20 5).vars Key20.level₅.shape.certifiedBase
+        (Key20.level₅.opening.compressed Key20.level₅.fold) ≤
+      Extract.countDraws (foldPathIn E pub (fused20 pub proof messages 5) 5 (fold20 5)
+          (setup20 pub 5) (fold20 5).vars (fold20 5).batch ++
+        tensoredPathIn E Key20.level₅.tail 5
+          (stateBefore pub proof messages pub.ops (pub.ops.size - 1))) := by
+  obtain ⟨started, -⟩ := fifth20_numbers o
+  obtain ⟨⟨reply, answered, decodedAt⟩, presented⟩ := presents.level₅
+  have challenged := Extract.challengeAt_of_reply _ _ _ answered decodedAt
+  subst tower
+  obtain ⟨-, -, _, _, _, _, _, gameEq, -⟩ := linked
+  rw [path20_trace pub proof messages 5 (by decide)] at presented
+  have receiver : receiver20 pub ((5 : Fin 6) : ℕ) = pub.ops.size - 1 := rfl
+  rw [receiver] at presented
+  have ran := (Extract.Tier.game_eq_pure_iff _ 0 point presented _).mp gameEq
+  unfold Tier.challenge at ran
+  rw [challenged, started] at ran
+  rw [tensoredPathIn_eq]
+  have drawn := Extract.foldCheckSq_drawn ran rfl
+  exact drawn
 
 /-- Theorem B "←" at the root fold: on a transcript that presents the bytes of a proof, when the
 link `Tier.Linked` of the root fold holds and the run before its `fused.end` has no stop, the

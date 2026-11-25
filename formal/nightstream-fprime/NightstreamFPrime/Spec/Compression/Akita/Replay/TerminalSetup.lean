@@ -16,8 +16,8 @@ terminal of each vector, which reads `A` (`tests/AkitaTerminalVectors.lean`).
   and a word `q` or more is rejected. `page` takes the first `count` kept words of the first
   `count + 64` words; it is `none` when more than 64 of them are rejected (the code reads on).
 - `expandTasks` is `expand` with the pages in parallel tasks (`expandTasks_eq`).
-- `fieldDigest` is SHA3-256 of the 32-byte tag `akita-pcs/field-digest/v8` and each value as 8
-  bytes little endian. -/
+- `fieldDigest digest` is the hash `digest` (SHA3-256 in the code, `Public.digest`) of the 32-byte
+  tag `akita-pcs/field-digest/v8` and each value as 8 bytes little endian. -/
 
 set_option autoImplicit false
 
@@ -85,9 +85,9 @@ def sampleSeed : ByteArray := littleEndian 8 0xDEADBEEFCAFEBABE ++ littleEndian 
 
 end Setup
 
-/-- `field_digest`. -/
-def fieldDigest (values : Array Fq) : ByteArray :=
-  Keccak.sha3_256 (values.foldl (fun out a => out ++ Setup.littleEndian 8 a.word.toNat)
+/-- `field_digest` with the hash `digest`; the code has SHA3-256. -/
+def fieldDigest (digest : ByteArray → ByteArray) (values : Array Fq) : ByteArray :=
+  digest (values.foldl (fun out a => out ++ Setup.littleEndian 8 a.word.toNat)
     ("akita-pcs/field-digest/v8".toUTF8 ++ ByteArray.mk (Array.replicate 7 0)))
 
 end NightstreamFPrime.Spec.Compression.Akita.Replay

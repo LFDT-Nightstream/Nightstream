@@ -38,8 +38,9 @@ terminal has `‖z‖_2² ≤ S_max,term`, and the checks (128) to (130) of `ter
 the clear partials with `eLast`, the fold challenges of the code and the response. -/
 def Last20 (pub : Public) (proof : ByteArray) (messages : Array Message)
     (tLast : ℕ → Rq Key20.terminal.innerDegree) (eLast : Rq Key20.terminal.innerDegree) : Prop :=
-  ringDigest eLast = (terminalMessagesIn (terminalState20 pub proof messages) 6).eDigest ∧
-    rowsDigestOf Key20.terminal tLast =
+  ringDigest pub.digest eLast =
+      (terminalMessagesIn (terminalState20 pub proof messages) 6).eDigest ∧
+    rowsDigestOf Key20.terminal pub.digest tLast =
       (terminalMessagesIn (terminalState20 pub proof messages) 6).tDigest ∧
     (Extract.Route.euclidean Key20.normTerminal.operator Key20.normTerminal.limit).Short 0
       (zSource Key20.terminal (response20 pub proof messages)) ∧

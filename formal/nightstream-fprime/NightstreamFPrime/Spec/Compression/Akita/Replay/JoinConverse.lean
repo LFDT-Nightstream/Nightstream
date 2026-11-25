@@ -1,5 +1,6 @@
 import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinConverseTerminal
 import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinConverseLevels
+import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinConverseRange
 
 /-! Theorem B of the join, direction "←", for `key20.aks`: the works (Akita revision `d50f700`,
 `VerifierTranscript::check_grind`, `read_fold_response`, `VerifierFoldDraw`; ePrint 2026/1983,
@@ -17,17 +18,17 @@ revision of 2026-11-23, (146) and Figure 4, step 2).
 - `verifyProof_accept_of_presents20`: `verifyProof_accept_of_levels` with these works.
 - `mem20_of`, `checks20_lists`: the indices of the `fused.end`, `tensor.opening`, `tensor.end` and
   `stage3.end` checks and of the terminal in the skeleton of `layout20`.
-- `isRangeKind`, `Ranges20`: the step of each check of the range proof of a level (`range.k.end`,
-  `range.leaf.end` or `norm.end`, `norm.integer`) has no stop. `ranges20_of_accept`: an accepted
-  proof has `Ranges20`.
+- `isRangeOp`, `ranges20_list`: the indices of the 15 checks of the range proofs of the levels
+  (`range.k.end`, `range.leaf.end` or `norm.end`, `norm.integer`) in the skeleton of `layout20`.
 - `checks20_of_accepts`: on a transcript that presents the bytes and that `Key20.Tower.accepts`
-  accepts, with `Ranges20`, the step of each check of the script has no stop when the run before
-  it has none.
+  accepts, the step of each check of the script has no stop when the run before it has none. A
+  stop at a check of a range proof leaves a path of the level 5 with too few draws for its game
+  (`range20_ok`, `model20_draws5`).
 - `verifyProof_accept_of_tower20`: theorem B "←" for `key20.aks`, with the conjuncts `Pools20`,
-  `Ranges20`, `Payload20` and `Digests20`.
+  `Payload20` and `Digests20`.
 - `verifyProof_iff_tower20`: for last blocks `Last20`, `runProof` accepts exactly when the layout
-  takes the plan, `Pools20`, `Ranges20` and `Payload20` hold and `Key20.Tower.accepts` accepts a
-  transcript that presents the bytes. -/
+  takes the plan, `Pools20` and `Payload20` hold and `Key20.Tower.accepts` accepts a transcript
+  that presents the bytes. -/
 
 set_option autoImplicit false
 
@@ -163,28 +164,17 @@ theorem checks20_lists :
       (sk20.filter fun x => isTerminalOp x.1).map (·.2) = [1521] := by
   decide +kernel
 
-/-- The check is a check of the range proof of a level: `range.k.end`, the last check
+/-- The operation is a check of the range proof of a level: `range.k.end`, the last check
 `range.leaf.end` or `norm.end`, or `norm.integer`. -/
-def isRangeKind : Check → Bool
-  | .range .. | .rangeNorm .. | .stage .. | .energy .. => true
+def isRangeOp : Op → Bool
+  | .check _ (.range ..) | .check _ (.rangeNorm ..) | .check _ (.stage ..)
+  | .check _ (.energy ..) => true
   | _ => false
 
-/-- The checks of the range proof of each level of the code hold: the step of the replay at each
-check `range.k.end`, `range.leaf.end` or `norm.end`, and `norm.integer` has no stop. The games of
-the levels of the model have these checks; `verifyProof_accept_of_tower20` takes them as a
-hypothesis. -/
-def Ranges20 (pub : Public) (proof : ByteArray) (messages : Array Message) : Prop :=
-  ∀ c key check, pub.ops[c]? = some (.check key check) → isRangeKind check = true →
-    StepOk pub proof messages c
-
-/-- An accepted proof has `Ranges20`. -/
-theorem ranges20_of_accept {pub : Public} {proof : ByteArray}
-    (scripted : script pub.layout pub.plan = .ok pub.ops)
-    (ends : endsFit pub.ops.zipIdx.toList = true) {full : Array Fq}
-    (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
-    (accepted : runProof pub proof = .verdict .accept) {messages : Array Message} {rest : ℕ}
-    (decoded : decode pub.ops proof = .ok (messages, rest)) : Ranges20 pub proof messages :=
-  fun c _ _ _ _ => stepOk_of_accept scripted ends terminalSetup accepted decoded c
+/-- The indices of the checks of the range proofs of the levels in the skeleton of `layout20`. -/
+theorem ranges20_list : (sk20.filter fun x => isRangeOp x.1).map (·.2) =
+    [91, 245, 458, 521, 719, 783, 784, 975, 1032, 1093, 1094, 1278, 1335, 1396, 1397] := by
+  decide +kernel
 
 /-- The works of the replay of a script of `layout20` hold when the step of each work, of each
 response nonce and of each pool has no stop. -/
@@ -365,7 +355,7 @@ theorem verifyProof_accept_of_presents20 {zMax rice : ℕ} (layout : pub.layout 
         true)
     (terminal : ∀ c level, pub.ops[c]? = some (.terminal level) →
       (runFrom pub proof messages (pub.ops.zipIdx.toList.take c) (channelStart pub)).1 = .ok () →
-      ∃ out, terminalRun pub.layout.terminal.shape pub.layout.terminal.limit
+      ∃ out, terminalRun pub.layout.terminal.shape pub.digest pub.layout.terminal.limit
         pub.layout.terminal.params full
         (terminalMessagesIn (stateBefore pub proof messages pub.ops c) level)
         (terminalChallengesIn (stateBefore pub proof messages pub.ops c) level) = .ok out) :
@@ -375,17 +365,17 @@ theorem verifyProof_accept_of_presents20 {zMax rice : ℕ} (layout : pub.layout 
     levels tensors terminal
 
 /-- Theorem B "←" for the checks of the script: on a transcript that presents the bytes of a
-proof of `layout20` and that `Key20.Tower.accepts` accepts, with `Ranges20`, the step of each
-check has no stop when the run before it has none. The steps of `fused.end`, `tensor.opening`
-and `tensor.end` are from the links of the levels of the model (`level20_ok₀` to
-`level20_ok₅`); there is no `stage3.end`. -/
+proof of `layout20` and that `Key20.Tower.accepts` accepts, the step of each check has no stop
+when the run before it has none. The steps of `fused.end`, `tensor.opening` and `tensor.end` are
+from the links of the levels of the model (`level20_ok₀` to `level20_ok₅`); there is no
+`stage3.end`. The steps of the checks of the range proofs are from the draws of the game of the
+level 5 (`range20_ok`). -/
 theorem checks20_of_accepts {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
     (scripted : script pub.layout pub.plan = .ok pub.ops)
     (aligned : ReadsAligned messages pub.ops.zipIdx.toList 0)
     (expanded : ∀ ℓ : Fin 6, (pub.setupFor (fold20 ℓ).setupCount).isSome)
     (points : ∀ g : Fin 3, ((pub.groups[g.val]?.map (·.point)).getD #[]).size = ![20, 16, 16] g)
     (values : (pub.groups.flatMap (·.value)).size = 3)
-    (ranges : Ranges20 pub proof messages)
     {point : Prefix (Key20.Wire E) (Option Coord → CodeSlot E) total}
     (presents : Presents20 pub proof messages tLast eLast block block₁ block₂ block₃ block₄ block₅
       blockL point)
@@ -420,6 +410,10 @@ theorem checks20_of_accepts {zMax rice : ℕ} (layout : pub.layout = layout20 zM
   rw [f3] at ok₃
   rw [f4] at ok₄
   rw [f5] at ok₅
+  have need := model20_draws5 _ pub proof messages tLast eLast rfl presents l5
+  have early : ∀ i ∈ (sk20.filter fun x => isRangeOp x.1).map (·.2), i ≤ 1397 := by
+    rw [ranges20_list]
+    decide
   cases check with
   | fused level F =>
       have member := mem20_of erased (p := isFusedOp) at_ rfl
@@ -456,18 +450,26 @@ theorem checks20_of_accepts {zMax rice : ℕ} (layout : pub.layout = layout20 zM
       have member := mem20_of erased (p := isStage3Op) at_ rfl
       rw [stage3List] at member
       exact absurd member List.not_mem_nil
-  | range lv base arities point => exact ranges c key _ at_ rfl _ at_
-  | rangeNorm lv leaf limit arities point => exact ranges c key _ at_ rfl _ at_
-  | stage nodes arity weights output children => exact ranges c key _ at_ rfl _ at_
-  | energy energy limit => exact ranges c key _ at_ rfl _ at_
+  | range lv base arities point =>
+      exact range20_ok pub proof messages layout scripted at_
+        (early c (mem20_of erased (p := isRangeOp) at_ rfl)) before need
+  | rangeNorm lv leaf limit arities point =>
+      exact range20_ok pub proof messages layout scripted at_
+        (early c (mem20_of erased (p := isRangeOp) at_ rfl)) before need
+  | stage nodes arity weights output children =>
+      exact range20_ok pub proof messages layout scripted at_
+        (early c (mem20_of erased (p := isRangeOp) at_ rfl)) before need
+  | energy energy limit =>
+      exact range20_ok pub proof messages layout scripted at_
+        (early c (mem20_of erased (p := isRangeOp) at_ rfl)) before need
 
 /-- Theorem B of the join, direction "←", for `key20.aks`: a proof of `layout20` that decodes
 with no byte left is accepted by `runProof` when `Key20.Tower.accepts` accepts a transcript that
 presents its bytes (`Presents20`) and the conjuncts that the model does not have hold. `pools`:
-the squeezes of field challenges and the draws of fold challenges give challenges. `ranges`: the
-checks of the range proof of each level hold. `payload`: the payload of `z` decodes. `digests`:
-the digests of the proof are those of the last blocks of the transcript. `terminalSetup` and
-`expanded`: the setup prefixes exist. `points` and `values`: the shape of the public statement. -/
+the squeezes of field challenges and the draws of fold challenges give challenges. `payload`: the
+payload of `z` decodes. `digests`: the digests of the proof are those of the last blocks of the
+transcript. `terminalSetup` and `expanded`: the setup prefixes exist. `points` and `values`: the
+shape of the public statement. -/
 theorem verifyProof_accept_of_tower20 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
     (scripted : script pub.layout pub.plan = .ok pub.ops) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
@@ -475,8 +477,7 @@ theorem verifyProof_accept_of_tower20 {zMax rice : ℕ} (layout : pub.layout = l
     (decoded : decode pub.ops proof = .ok (messages, 0))
     (points : ∀ g : Fin 3, ((pub.groups[g.val]?.map (·.point)).getD #[]).size = ![20, 16, 16] g)
     (values : (pub.groups.flatMap (·.value)).size = 3)
-    (pools : Pools20 pub proof messages) (ranges : Ranges20 pub proof messages)
-    (payload : Payload20 pub proof messages)
+    (pools : Pools20 pub proof messages) (payload : Payload20 pub proof messages)
     (digests : Digests20 pub proof messages tLast eLast)
     {point : Prefix (Key20.Wire E) (Option Coord → CodeSlot E) total}
     (presents : Presents20 pub proof messages tLast eLast block block₁ block₂ block₃ block₄ block₅
@@ -503,7 +504,7 @@ theorem verifyProof_accept_of_tower20 {zMax rice : ℕ} (layout : pub.layout = l
       rcases step_reject pub proof messages i op _ stepped with ⟨key, check, rfl, -⟩ |
         ⟨level, rfl, found⟩
       · have ok := checks20_of_accepts pub proof messages tLast eLast layout scripted aligned
-          expanded points values ranges presents accepts at_ before
+          expanded points values presents accepts at_ before
         rw [stepped] at ok
         cases ok
       · have member := mem20_of erased (p := isTerminalOp) at_ rfl
@@ -527,8 +528,7 @@ theorem verifyProof_accept_of_tower20 {zMax rice : ℕ} (layout : pub.layout = l
 /-- Theorem B of the join for `key20.aks` as an equivalence: for a proof of `layout20` that
 decodes with no byte left, last blocks `Last20` of the terminal of the code and a transcript that
 presents the bytes with them, `runProof` accepts exactly when the layout takes the plan, the
-conjuncts `Pools20`, `Ranges20` and `Payload20` hold and `Key20.Tower.accepts` accepts the
-transcript. -/
+conjuncts `Pools20` and `Payload20` hold and `Key20.Tower.accepts` accepts the transcript. -/
 theorem verifyProof_iff_tower20 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
     {full : Array Fq} (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)
     (expanded : ∀ ℓ : Fin 6, (pub.setupFor (fold20 ℓ).setupCount).isSome)
@@ -541,19 +541,18 @@ theorem verifyProof_iff_tower20 {zMax rice : ℕ} (layout : pub.layout = layout2
       blockL point) :
     runProof pub proof = .verdict .accept ↔
       script pub.layout pub.plan = .ok pub.ops ∧ Pools20 pub proof messages ∧
-        Ranges20 pub proof messages ∧ Payload20 pub proof messages ∧
+        Payload20 pub proof messages ∧
         (tower20 pub block block₁ block₂ block₃ block₄ block₅ blockL total 472).accepts point := by
   constructor
   · intro accepted
     obtain ⟨scripted, ends, -⟩ := verifyProof_script20 layout accepted
     exact ⟨scripted, pools20_of_accept scripted ends terminalSetup accepted decoded,
-      ranges20_of_accept scripted ends terminalSetup accepted decoded,
       payload20_guard layout accepted terminalSetup decoded,
       presents20_accepts pub proof messages tLast eLast layout accepted terminalSetup expanded
         decoded points values last presents⟩
-  · rintro ⟨scripted, pools, ranges, payload, accepts⟩
+  · rintro ⟨scripted, pools, payload, accepts⟩
     exact verifyProof_accept_of_tower20 pub proof messages tLast eLast layout scripted
-      terminalSetup expanded decoded points values pools ranges payload last.digests presents
+      terminalSetup expanded decoded points values pools payload last.digests presents
       accepts
 
 end NightstreamFPrime.Spec.Compression.Akita.Replay

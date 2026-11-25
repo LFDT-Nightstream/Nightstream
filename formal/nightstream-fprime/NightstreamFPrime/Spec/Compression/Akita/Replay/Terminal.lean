@@ -171,8 +171,8 @@ def opening (ch : TerminalChallenges) (msgs : TerminalMessages) (eLast : Array F
     functional (S.innerDegree / 4) (packPoint S ch.point) (eFull S msgs eLast i)) S.blocks
 
 /-- The field digest of the recovered rows of `t`, in the order of the rows. -/
-def rowsDigest (rows : List (Array Fq)) : ByteArray :=
-  fieldDigest (rows.foldl (fun out x => out ++ Poly.canon S.innerDegree x) #[])
+def rowsDigest (digest : ByteArray → ByteArray) (rows : List (Array Fq)) : ByteArray :=
+  fieldDigest digest (rows.foldl (fun out x => out ++ Poly.canon S.innerDegree x) #[])
 
 /-- The last block of `t`: one recovered ring element for each row of `A`. -/
 def tLastOf (msgs : TerminalMessages) (ch : TerminalChallenges) (inv : Array Fq)
@@ -180,8 +180,9 @@ def tLastOf (msgs : TerminalMessages) (ch : TerminalChallenges) (inv : Array Fq)
   (List.range S.innerRank).mapM fun r =>
     recover S (challenge S ch (S.blocks - 1)) inv (tPartial S msgs ch r) (rows.getD r #[])
 
-/-- The checks of the terminal on a decoded `z`, in the order of the code. -/
-def terminalChecks (cap : ℕ) (setup : Array Fq) (msgs : TerminalMessages)
+/-- The checks of the terminal on a decoded `z`, in the order of the code, with the hash `digest`
+of the two last-block digests. -/
+def terminalChecks (digest : ByteArray → ByteArray) (cap : ℕ) (setup : Array Fq) (msgs : TerminalMessages)
     (ch : TerminalChallenges) (z : Array ℤ) : Except String TerminalValues :=
   if centeredNormSq z ≤ cap then
     if ch.fold.length = S.blocks ∧ ch.fold.all (sparseValid S.innerDegree) = true then
@@ -196,8 +197,8 @@ def terminalChecks (cap : ℕ) (setup : Array Fq) (msgs : TerminalMessages)
               match tLastOf S msgs ch inv rows with
               | none => .error "terminal.a_rows"
               | some tLast =>
-                  if fieldDigest (Poly.canon S.innerDegree eLast) = msgs.eDigest then
-                    if rowsDigest S tLast = msgs.tDigest then
+                  if fieldDigest digest (Poly.canon S.innerDegree eLast) = msgs.eDigest then
+                    if rowsDigest S digest tLast = msgs.tDigest then
                       if (ch.scale * opening S ch msgs eLast).equals ch.target = true then
                         .ok ⟨z, centeredNormSq z, eLast, tLast, rows, opening S ch msgs eLast⟩
                       else .error "terminal.trace"
@@ -207,15 +208,15 @@ def terminalChecks (cap : ℕ) (setup : Array Fq) (msgs : TerminalMessages)
   else .error "terminal.z.norm"
 
 /-- The terminal checks of `verify_terminal_ring_relations` and `verify_terminal_trace`. -/
-def terminalRun (cap : ℕ) (P : Golomb.Params) (setup : Array Fq) (msgs : TerminalMessages)
-    (ch : TerminalChallenges) : Except String TerminalValues :=
+def terminalRun (digest : ByteArray → ByteArray) (cap : ℕ) (P : Golomb.Params) (setup : Array Fq)
+    (msgs : TerminalMessages) (ch : TerminalChallenges) : Except String TerminalValues :=
   match Golomb.decode P msgs.payload with
   | none => .error "terminal.z.decode"
-  | some z => terminalChecks S cap setup msgs ch z
+  | some z => terminalChecks S digest cap setup msgs ch z
 
-theorem terminalRun_decode {cap : ℕ} {P : Golomb.Params} {setup : Array Fq}
+theorem terminalRun_decode {digest : ByteArray → ByteArray} {cap : ℕ} {P : Golomb.Params} {setup : Array Fq}
     {msgs : TerminalMessages} (ch : TerminalChallenges) (fails : Golomb.decode P msgs.payload = none) :
-    terminalRun S cap P setup msgs ch = .error "terminal.z.decode" := by
+    terminalRun S digest cap P setup msgs ch = .error "terminal.z.decode" := by
   rw [terminalRun, fails]
 
 end Checks

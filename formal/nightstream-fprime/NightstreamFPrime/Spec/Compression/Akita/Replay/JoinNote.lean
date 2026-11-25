@@ -190,6 +190,7 @@ noncomputable def noteOf (s : Replayer) (tLast : ℕ → Rq Key20.terminal.inner
   statement := terminalStatementIn pub s tLast
   partials := partialsOf Key20.terminal (terminalMessagesIn s 6) eLast
   response := zSource Key20.terminal (responseIn pub s)
+  trace := Extract.Trace.empty 5 16384
 
 /-- The data of a wire message of the model for the replay of a proof of `key20.aks`: the
 commitments, values and points of the public statement, the claims of the levels 0 to 5 with
@@ -219,6 +220,7 @@ noncomputable def note20 (tLast : ℕ → Rq Key20.terminal.innerDegree)
   partials :=
     partialsOf Key20.terminal (terminalMessagesIn (terminalState20 pub proof messages) 6) eLast
   response := zSource Key20.terminal (response20 pub proof messages)
+  trace := Extract.Trace.empty 5 16384
 
 end Note
 

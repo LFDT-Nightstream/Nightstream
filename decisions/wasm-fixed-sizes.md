@@ -44,11 +44,11 @@ to 3 and 5 on 2026-11-16 (`wasm-light-compression.md`).
    bits 17 through 24 the type flag or memory-write input index. The payload
    holds a 32-bit constant, byte offset, or type flag. A 64-bit literal
    uses two slots in low-word-first order.
-3. **Steps and segments.** Micro proves 800 rows in each step, Small 512,
+3. **Steps and segments.** Micro proves 800 rows in each step, Small 256,
    and Medium and Large 664. A segment of Micro and of Small has 1 step, of
-   Medium 2 and of Large 4. Micro has at most 30 segments, Small 19, Medium
+   Medium 2 and of Large 4. Micro has at most 30 segments, Small 23, Medium
    12 and Large 6 (item 5), so Micro holds runs of up to 24,000 trace rows
-   and Small holds 9,728. Medium and Large each hold 15,936. The fixed cost of a step
+   and Small holds 5,888. Medium and Large each hold 15,936. The fixed cost of a step
    changes little with its rows, so fewer and larger steps cost less for
    each row. The rows of each size are a selected count, and the light
    relation of each size fits the Akita key of `2^19` blocks
@@ -66,11 +66,11 @@ to 3 and 5 on 2026-11-16 (`wasm-light-compression.md`).
    and the runtime gate charges each one (`SPEC.md` section 7.1). Each size
    has the most segments for which `S_max · 2·m_mem/q²` is at most `2^−109`,
    so a caller asks for at most 109 bits of security. With 8 memory slots
-   in each row, `m_mem` is 8,704, 13,312, 20,864 and 41,728, so the counts
-   are 30, 19, 12 and 6 (`Spec.Nebula.WasmSize.shape`,
+   in each row, `m_mem` is 8,704, 11,264, 20,864 and 41,728, so the counts
+   are 30, 23, 12 and 6 (`Spec.Nebula.WasmSize.shape`,
    `Spec.Nebula.WasmSize.segmentBits_eq`,
    `Spec.Nebula.WasmSize.segmentBits_succ_lt`).
 6. **No refresh fold.** A proof of a size has at most `N · S_max` steps,
-   which is 30, 19, 24 and 24. Each is at most `cap + 1 = 65`, so no proof
+   which is 30, 23, 24 and 24. Each is at most `cap + 1 = 65`, so no proof
    reaches the refresh fold of step 66, and the final proof has two claims
    (`Spec.Nebula.WasmSize.steps_le_light`, `wasm-light-compression.md`).

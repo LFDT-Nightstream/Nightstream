@@ -549,8 +549,8 @@ pub enum WasmSize {
     /// runs of up to 24,000 rows.
     Micro,
     /// ROM of `2^13` cells and RAM of `2^10`: 256 instructions, 64 function
-    /// references, steps of 512 rows, and at most 19 segments of 1 step:
-    /// runs of up to 9,728 rows.
+    /// references, steps of 256 rows, and at most 23 segments of 1 step:
+    /// runs of up to 5,888 rows.
     Small,
     /// ROM of `2^13` cells and RAM of `2^11`: 512 instructions, 64 function
     /// references, steps of 664 rows, and at most 12 segments of 2 steps:
@@ -569,7 +569,7 @@ impl WasmSize {
     fn shape(self) -> (usize, usize, usize, usize, usize) {
         match self {
             Self::Micro => (11, 8, 800, 1, 30),
-            Self::Small => (13, 10, 512, 1, 19),
+            Self::Small => (13, 10, 256, 1, 23),
             Self::Medium => (13, 11, 664, 2, 12),
             Self::Large => (14, 12, 664, 4, 6),
         }

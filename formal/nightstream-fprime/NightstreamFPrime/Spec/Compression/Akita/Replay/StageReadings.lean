@@ -1,5 +1,6 @@
 import NightstreamFPrime.Spec.Compression.Akita.Replay.CausalTrace
 import NightstreamFPrime.Spec.Compression.Akita.Replay.StageCoupling
+import NightstreamFPrime.Spec.Compression.Akita.Replay.PlanBits
 
 /-! The readings of the pinned Akita code at each stage of the opening of `key20.aks` as functions
 of the answers of an ideal sponge (Akita revision `d50f700`; ePrint 2026/1983, revision of
@@ -9,8 +10,10 @@ of the answers of an ideal sponge (Akita revision `d50f700`; ePrint 2026/1983, r
 - `Bits20 pub`: the work of each stage `k < 473` of the script of `pub` has the work bits
   `bits20` of the model. The code computes the plan from the schedule
   (`akita-config`, `derive_transcript_grinding_plan`; `akita-verifier/src/fold/verify.rs`), and
-  `Public.plan` is an input of the replay, so `Bits20` is a hypothesis on the public input.
-  `bitsOk20` is its check on a script, and `bits20_of_check` its soundness.
+  `script` takes only a plan with the bits of this rule (`Replay/PlanBits.lean`), so
+  `bits20_of_scripted` gives `Bits20` for each script of `layout20`: `planBits20` states that
+  the rule gives `bits20`. `bitsOk20` is the check of `Bits20` on a script, and
+  `bits20_of_check` its soundness.
 - `work20_answer`: the answer for `eventsAt20 … k` has the work of the stage `k`.
 - `fieldDraw20 k` is the key and the count of the field draw directly after the work of the stage
   `k`, and `foldDraw20 k g` the level and the family of the group `g` of the fold draw.
@@ -71,6 +74,43 @@ theorem bits20_ne_zero {k : ℕ} (inside : k < 473) : bits20.flatten.getD k 0 �
     rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem below]
     exact List.getElem_mem below
   exact Nat.ne_of_gt (bits20_pos _ member)
+
+theorem planBits20_closed : planBits (layout20 0 0) = bits20.flatten := by decide +kernel
+
+/-- The rule of the planner of the code gives the work bits `bits20` of the model for
+`layout20`. -/
+theorem planBits20 (zMax rice : ℕ) : planBits (layout20 zMax rice) = bits20.flatten :=
+  (rfl : planBits (layout20 zMax rice) = planBits (layout20 0 0)).trans planBits20_closed
+
+/-- Each script of `layout20` has the work bits of the model: `script` takes only a plan with
+the bits of the rule of the planner. -/
+theorem bits20_of_scripted {pub : Public} {zMax rice : ℕ}
+    (layout : pub.layout = layout20 zMax rice)
+    (scripted : script pub.layout pub.plan = .ok pub.ops) : Bits20 pub := by
+  intro k inside
+  have erased : pub.ops.toList.map Op.erase = skeleton (layout20 0 0) := by
+    rw [script_erase scripted, layout, skeleton20]
+  have bits : pub.ops.toList.flatMap Op.bits = bits20.flatten := by
+    rw [script_bits scripted, layout, planBits20]
+  have same : (fun x : Op × ℕ => isWork x.1) = fun x => isWorkOp x.1 := by
+    funext x
+    cases x.1 <;> rfl
+  have indices : ((pub.ops.toList.zipIdx 0).filter fun x => isWorkOp x.1).map (·.2) =
+      workIndices20 := by
+    rw [← workIndices_erase, erased]
+    unfold workIndices20
+    rw [same]
+  have below : k < workIndices20.length := by
+    rw [workIndices20_length]
+    exact inside
+  have found : workIndices20[k]? = some (workIndices20.getD k 0) := by
+    rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem below, Option.getD_some]
+  obtain ⟨-, site, level, bits', at_, entry⟩ :=
+    work_bits_at pub.ops.toList 0 k _ (indices ▸ found)
+  rw [bits] at entry
+  rw [Nat.sub_zero, Array.getElem?_toList, indices] at at_
+  refine ⟨site, level, ?_⟩
+  rw [stageIndex20_lt pub inside, at_, List.getD_eq_getElem?_getD, entry, Option.getD_some]
 
 variable {pub : Public} {proof : ByteArray} {messages : Array Message}
 

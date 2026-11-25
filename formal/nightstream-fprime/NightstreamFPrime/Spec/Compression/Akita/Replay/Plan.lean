@@ -1,5 +1,4 @@
-import NightstreamFPrime.Spec.Compression.Akita.Replay.Layout
-import NightstreamFPrime.Spec.Compression.Akita.Extract.Work
+import NightstreamFPrime.Spec.Compression.Akita.Replay.Script
 
 /-! The work bits of a grinding plan against the rule of the Lean model
 (`Extract/Work.lean`): each run of a field-challenge site has `Extract.workBits loss` bits, the
@@ -13,9 +12,6 @@ set_option autoImplicit false
 namespace NightstreamFPrime.Spec.Compression.Akita.Replay
 
 open NightstreamFPrime.Spec.Compression.Akita
-
-def leastSetBits (groups : List FoldGroup) : ℕ :=
-  (groups.map fun G => Extract.setBits G.filtered G.degree).foldl min 1024
 
 /-- The runs of the plan whose bits differ from the rule of the model, with the bits of the
 rule. -/

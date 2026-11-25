@@ -1,4 +1,5 @@
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Layout
+import NightstreamFPrime.Spec.Compression.Akita.Extract.Work
 
 /-! The transcript of the pinned Akita verifier as a list of operations, from the layout of a
 schedule row and its grinding plan (Akita revision `d50f700`: `fold/root.rs`, `fold/suffix.rs`,
@@ -21,11 +22,26 @@ schedule row and its grinding plan (Akita revision `d50f700`: `fold/root.rs`, `f
 - `script` follows the layout and takes the bits of each site from the next run of the plan. It
   fails when a run has another site or another loss than the layout gives, when a run of the fold
   challenges does not have the count of the layout, or when runs are left (`next_entry`, `record_fold_challenges`, `finish` of
-  `transcript_grinding/replay.rs`). -/
+  `transcript_grinding/replay.rs`). It also fails when a work does not have the bits of the rule
+  of the planner of the code (`akita-params`, `GrindingRun::proof_of_work`,
+  `GrindingRun::fold_challenge_work`, `fold_challenge_runs`: `Extract.workBits` of the loss, and
+  `Extract.foldWorkBits` of the fold coordinates and `leastSetBits` of the groups), or when a
+  response nonce does not have `responseNonceBits` bits (`FOLD_RESPONSE_NONCE_BITS`): the code
+  computes the plan (`akita-config`, `derive_transcript_grinding_plan`), so each other plan is
+  not a plan of the code. -/
 
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Spec.Compression.Akita.Replay
+
+open NightstreamFPrime.Spec.Compression.Akita
+
+/-- The least `Extract.setBits` of the families of the groups of a fold (`fold_challenge_runs`). -/
+def leastSetBits (groups : List FoldGroup) : ℕ :=
+  (groups.map fun G => Extract.setBits G.filtered G.degree).foldl min 1024
+
+/-- The bits of the response nonce of a fold (`FOLD_RESPONSE_NONCE_BITS`). -/
+def responseNonceBits : ℕ := 12
 
 /-- The sum-check protocols of the code (`SumcheckProtocol`). -/
 inductive Protocol
@@ -190,9 +206,12 @@ def take (plan : Array Run) (site : Site) (loss : ℕ) : Build Run := do
   set (next + 1, ops)
   return run
 
-/-- The proof of work of a site: a nonce of `bits + 7` bits when `bits > 0` (`pow_bits`). -/
-def work (plan : Array Run) (level : ℕ) (site : Site) (loss : ℕ) : Build Unit := do
+/-- The proof of work of a site with the bits `bits` of the rule of the planner: a nonce of
+`bits + 7` bits when `bits > 0` (`pow_bits`). -/
+def work (plan : Array Run) (level : ℕ) (site : Site) (loss bits : ℕ) : Build Unit := do
   let run ← take plan site loss
+  unless run.bits = bits do
+    throw s!"{site.text} has {run.bits} bits, the rule of the planner {bits}"
   unless run.nonceBits = (if run.bits = 0 then 0 else run.bits + 7) do
     throw s!"{site.text} has {run.bits} bits and a nonce of {run.nonceBits} bits"
   emit (.work site level run.bits)
@@ -201,7 +220,7 @@ def work (plan : Array Run) (level : ℕ) (site : Site) (loss : ℕ) : Build Uni
 is `loss`. -/
 def challenges (plan : Array Run) (level : ℕ) (site : Site) (site' : String) (count loss : ℕ) :
     Build Unit := do
-  work plan level site loss
+  work plan level site loss (Extract.workBits loss)
   emit (.challenge ⟨level, site', none⟩ count)
 
 /-- One sum-check (`akita-sumcheck/src/proof_stream.rs`): the input claim is absorbed, and each
@@ -222,8 +241,11 @@ def sumcheck (plan : Array Run) (level : ℕ) (name : String) (protocol : Protoc
 groups (`read_fold_response`, `VerifierFoldDraw`, `record_fold_challenges`). -/
 def foldChallenges (plan : Array Run) (level : ℕ) (groups : List FoldGroup) : Build Unit := do
   let run ← take plan (.foldResponse level) 0
+  unless run.nonceBits = responseNonceBits do
+    throw s!"the response nonce of level {level} has {run.nonceBits} bits"
   emit (.foldNonce level run.nonceBits)
   work plan level (.foldChallengeWork level) (groups.map (·.coordinates)).sum
+    (Extract.foldWorkBits (groups.map (·.coordinates)).sum (leastSetBits groups))
   for (G, g) in groups.zipIdx do
     emit (.squeeze level g G)
     let run ← take plan (.foldChallengeGroup level g) 0

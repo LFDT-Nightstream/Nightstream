@@ -1,0 +1,69 @@
+import tests.AxiomAudit
+import NightstreamFPrime.Spec.Compression.Akita.Replay.StageDrawsGuard
+
+/-! Axiom audits for the draws of the path of each level of the opening of `key20.aks` as readings
+of the code on the answers of an ideal sponge (`Replay/StageDraws.lean`), for `Agrees20` from the
+readings of each stage (`Replay/StageDrawsAgrees.lean`), and for the converse and the transcript
+with `Readings20` (`Replay/StageDrawsGuard.lean`). -/
+
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.draws
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.draws_nil
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.draws_draw
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.draws_recv
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.draws_append
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.samples_of_draws
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Draw
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Draw.key
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Draw.count
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Draw.index
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Draw.Space
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Draw.read
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Draw.value
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Draw.move
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Draw.move_first
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Draw.value_eq_read
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.roundDraws
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.tensorDraws
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.closingDraws
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.lastDraws
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.stageDraws
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.pathDraws
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.draws20
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.draws_plainPath
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.draws_eqCodePath
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.roundsFrom_moves
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.draws_tensorAt
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.draws_closingAt
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.draws_lastAt
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.draws_treeFull
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.draws_pathAt
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.draws_pathAt20
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Draw.check
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.drawsChecked20
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.draws20_checked₀
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.draws20_checked₁
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.draws20_checked₂
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.draws20_checked₃
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.draws20_checked₄
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.draws20_checked₅
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.draws20_checked
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.draw20_value
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.ran_of_accept
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.path20_draws
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.path20_draw
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.foldDraws20
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.first20_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Root.weights_of_reply
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.FieldReads20
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.FoldReads20
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.FoldReads20.decoded
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Readings20
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Tier.agrees_of_reads
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.agreesAt20_of_reads
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.agrees20_of_reads
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.draws_of_samples
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Tier.Agrees.field
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.foldReads20_of_decoded
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.readingsAt20_of_agrees
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.readings20_of_agrees
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.exists_readings20

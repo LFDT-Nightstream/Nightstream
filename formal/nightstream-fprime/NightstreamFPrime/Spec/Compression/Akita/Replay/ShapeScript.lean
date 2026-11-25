@@ -314,19 +314,20 @@ theorem emits_forIn_range (n : ℕ) (f : ℕ → Unit → Build (ForInStep Unit)
   rw [size, List.range_eq_range']
   exact emits_forIn _ f g each
 
-theorem emits_work (plan : Array Run) (level : ℕ) (site : Site) (loss : ℕ) :
-    Emits (work plan level site loss) [.work site level 0] := by
+theorem emits_work (plan : Array Run) (level : ℕ) (site : Site) (loss bits : ℕ) :
+    Emits (work plan level site loss bits) [.work site level 0] := by
   unfold work
   dsimp only
   exact (Emits.bind (emits_take plan site loss) fun run =>
-    emits_ite _ (emits_emit_work _ _ _) (emits_throw_bind _ _ _)).of_eq rfl
+    emits_ite _ (emits_ite _ (emits_emit_work _ _ _) (emits_throw_bind _ _ _))
+      (emits_throw_bind _ _ _)).of_eq rfl
 
 theorem emits_challenges (plan : Array Run) (level : ℕ) (site : Site) (site' : String)
     (count loss : ℕ) :
     Emits (challenges plan level site site' count loss)
       (Skeleton.challenges level site site' count) := by
   unfold challenges
-  exact (Emits.bind (emits_work plan level site loss) fun _ => emits_emit _).of_eq rfl
+  exact (Emits.bind (emits_work plan level site loss _) fun _ => emits_emit _).of_eq rfl
 
 theorem emits_sumcheck (plan : Array Run) (level : ℕ) (name : String) (protocol : Protocol)
     (stage : ℕ) (claim : Value) (rounds degree : ℕ) (before : Before) :
@@ -341,10 +342,10 @@ theorem emits_sumcheck (plan : Array Run) (level : ℕ) (name : String) (protoco
 theorem emits_foldChallenges (plan : Array Run) (level : ℕ) (groups : List FoldGroup) :
     Emits (foldChallenges plan level groups) (Skeleton.foldChallenges level groups) := by
   unfold foldChallenges
-  refine (Emits.bind (emits_take plan _ 0) fun run => Emits.bind (emits_emit_nonce _ _) fun _ =>
-    Emits.bind (emits_work plan _ _ _) fun _ => Emits.bind (emits_forIn groups.zipIdx _
-      (fun x => [.squeeze level x.2 x.1]) fun x => ?_) fun _ => emits_pure ()).of_eq
-        (by simp [Skeleton.foldChallenges])
+  refine (Emits.bind (emits_take plan _ 0) fun run => emits_ite _ (Emits.bind (emits_emit_nonce _ _)
+    fun _ => Emits.bind (emits_work plan _ _ _ _) fun _ => Emits.bind (emits_forIn groups.zipIdx _
+      (fun x => [.squeeze level x.2 x.1]) fun x => ?_) fun _ => emits_pure ())
+        (emits_throw_bind _ _ _)).of_eq (by simp [Skeleton.foldChallenges])
   obtain ⟨G, g⟩ := x
   dsimp only
   exact (Steps.bind (emits_emit _) fun _ => Steps.bind (emits_take plan _ 0) fun run =>
@@ -384,7 +385,7 @@ macro "emits_chain" : tactic => `(tactic| repeat' (first
   | with_reducible exact emits_emit_bounded _ _
   | with_reducible exact emits_emit _
   | with_reducible exact emits_take _ _ _
-  | with_reducible exact emits_work _ _ _ _
+  | with_reducible exact emits_work _ _ _ _ _
   | with_reducible exact emits_challenges _ _ _ _ _ _
   | with_reducible exact emits_sumcheck _ _ _ _ _ _ _ _ _
   | with_reducible exact emits_foldChallenges _ _ _

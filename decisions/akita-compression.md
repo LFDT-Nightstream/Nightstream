@@ -577,8 +577,8 @@ decision.
   credit on the fold term (`FoldChallengeWork`), the paper refuses it (Akita
   page 71), and the claims do not use it. The Lean verifier keeps the work
   check of the fold.
-  The grinding plan of the two files is not stored in the code, so the
-  comparison of the Lean bits with the plan is open. The budget condition S3,
+  The script of the replay fails for a plan with other work bits than this
+  rule (`Replay.script_bits`; `Replay.planBits20` for `key20.aks`). The budget condition S3,
   Akita (195), has no value to check (Akita Corollary 10.48:
   `Spec.Compression.Akita.budget_iff`,
   `Spec.Compression.Akita.effectiveStrength_le`), and the budget does not use
@@ -1216,7 +1216,7 @@ decision.
   same sponge events have the same note (`Replay.noteAt20_causal`), and the same cells (`Replay.cellsAt20_causal`). The wire message has the byte strings that the prover sends for its stage (`Key20.Note.trace`), so the pages `0 … k` give the sponge events before the work `k` (`Replay.pageAt20_events`).
   `Replay.verifyProof_bound20` bounds the probability that the byte verifier accepts and the extractor returns no output.
   It assumes that one prover with a query bound presents the accepted bytes for every oracle table and its specified sponge.
-  The construction from an adversary against the code remains open: the sponge of a table for each stage, and the last blocks, which need the recording prover of Akita Lemma 10.47 (its simulation law is `Replay.Simulate.simulate_law`; the digest term (213) is in no bound). The replay takes the grinding plan as an input and does not compare its work bits with those of the model (`Replay.Bits20`); the Rust verifier computes the plan.
+  The construction from an adversary against the code remains open: the sponge of a table for each stage, and the last blocks, which need the recording prover of Akita Lemma 10.47 (its simulation law is `Replay.Simulate.simulate_law`; the digest term (213) is in no bound). The script of the replay takes only a plan with the work bits of the rule of the planner (`Replay.script_bits`, `Replay.bits20_of_scripted`), as the Rust verifier computes the plan; the descriptor bytes stay an input. Parts of the construction that are theorems: the finite sponge (`Replay.Sponge.answerOf`), the address of a stage key (`Replay.resolveWith20_eq`), the stage maps (`Replay.phi20`, `Replay.readings20_of_coupled`), the bound for wire messages with the last blocks from their stage on (`Replay.verifyProof_bound20_of_staged`), the verifier as an algorithm with the two oracles (`Replay.verifierRun_eval`), the recording prover whose addresses read earlier answers (`Replay.Simulate.simulateDeps_law`). Open: the hypothesis `reads` of `verifyProof_bound20_of_staged` for this prover, and its query count, which is larger than `Q` because a page has values that read challenges that the code does not absorb.
   `Replay.verifyProof_accept_iff_levels` characterizes acceptance of the inner
   key20 replay by its level checks. `Replay.verifyProof_iff_tower20` is the converse for a transcript that presents the bytes, with conjuncts on the script, the pools and the payload. The key30 join remains open.
 
@@ -1493,6 +1493,6 @@ trust item 7, gives the facts).
   decoders of the code on the slots `Spec.Compression.Akita.Replay.CodeSlot K`
   have `p` at most `2^−128` (with `Kept`), and the claims state the larger
   `1/q²` (difference (q)). The Akita code has a target of 128 bits for each query,
-  and the Lean model has its proof of work (difference (d)). One point stays
-  open: the comparison of the work bits of Lean with the grinding plan of the
-  code, which the code does not store for the two files.
+  and the Lean model has its proof of work (difference (d)). The work bits of
+  the rule of the planner are those of the model for `key20.aks`
+  (`Replay.planBits20`); `key30.aks` has no such theorem.

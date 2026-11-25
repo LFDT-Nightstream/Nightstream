@@ -1,0 +1,66 @@
+import tests.AxiomAudit
+import NightstreamFPrime.Spec.Compression.Akita.Replay.SimulateDeps
+
+/-! Axiom audits for the recording prover of Akita Lemma 10.47 with addresses that read earlier
+answers of `H_FS`, its law and its query count (`Replay/SimulateDeps.lean`), with the guards
+`simulateDeps_law_guard` and `simulateDeps_law_guard_reads`. -/
+
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.DepsLocal
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.DepsClosed
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.reads_of_eq
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.settle
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.settleAll
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.settleAll_cons
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.settle_cached
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.settle_fresh
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.settle_of_ne
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.settle_self
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.settle_keeps
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.settle_isSome
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.settleAll_keeps
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.settleAll_mem
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulateDeps
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulateDeps_challenge
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulateDeps_digest
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulateDeps_cache
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulateDeps_eval
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulateDeps_map
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulateDeps_logged
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.oracleDeps
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulateDeps_oracle
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulateDeps_logged_oracle
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulateDeps_invariant
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulateDeps_record
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulateDeps_record_oracle
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.Ready
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.ready_chain
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.ready_head
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.ready_tail
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.Resolved
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.resolved_empty
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.settle_resolved
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.settleAll_resolved
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulateDeps_resolved
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulateDeps_resolved_oracle
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulateDeps_law
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulateDeps_law_hash
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulateDeps_logged_law
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.oracleDeps_law
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulateDeps_law_guard
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.simulateDeps_law_guard_reads
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.settleWith
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.settleComp
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.settleAllComp
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.settleComp_run
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.settleAllComp_run
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.settleComp_bound
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.settleAllComp_bound
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.compDeps
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.compDeps_challenge
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.compDeps_run
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.compDeps_bound
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.ask_queries
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.settleComp_cached
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.settleComp_queries
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.settleAllComp_fixed
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.compDeps_fixed

@@ -7,6 +7,41 @@ functions of the answers of an ideal sponge (`Replay/StageReadings.lean`), and t
 `Bits20` on the plans of the two positive vectors of `key20.aks`. The run check is a test and
 not a theorem: Lean reads the plan of a vector from its file. -/
 
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Op.bits
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.isWorkOp
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Rule
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Rule.bits
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.PlanBits.challenges
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.PlanBits.sumcheck
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.PlanBits.foldChallenges
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.PlanBits.tensor
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.PlanBits.range
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.PlanBits.fold
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.PlanBits.prefix_
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.PlanBits.terminal
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.PlanBits.level
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.planRules
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.planBits
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Build.Works
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Build.Turns
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Build.works_work
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Build.works_challenges
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Build.works_sumcheck
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Build.works_foldChallenges
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Build.works_tensor
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Build.works_range
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Build.works_fold
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Build.works_prefix
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Build.works_terminal
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.script_bits
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.isWorkOp_erase
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.workIndices_erase
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.work_bits_at
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.planBits20_closed
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.planBits20
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.bits20_of_scripted
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.leastSetBits
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.responseNonceBits
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Bits20
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.bitsOk20
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.bits20_of_check

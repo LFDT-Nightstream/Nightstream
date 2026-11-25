@@ -24,9 +24,9 @@ the segment counts of item 5 on 2026-11-14, and the four sizes of items 1
 to 3 and 5 on 2026-11-16 (`wasm-light-compression.md`).
 
 1. **Four sizes.** `neo_wasm::nebula::WasmSize` has Micro, Small, Medium
-   and Large, with ROMs of `2^11`, `2^12`, `2^13` and `2^14` cells. The RAM
-   of Micro has an eighth of the cells of its ROM, and the RAM of each other
-   size a quarter. A segment scans each cell of both memories, and the
+   and Large, with ROMs of `2^11`, `2^13`, `2^13` and `2^14` cells. Micro and
+   Small have one RAM cell per eight ROM cells. Medium and Large have one
+   per four. A segment scans each cell of both memories, and the
    program tables in the ROM need far more cells than a run's stack and
    linear memory: the test transactions of Starstream `159bedc` use at most
    106 RAM cells. A size is a set of limits, a geometry, and the rows of one
@@ -44,31 +44,33 @@ to 3 and 5 on 2026-11-16 (`wasm-light-compression.md`).
    bits 17 through 24 the type flag or memory-write input index. The payload
    holds a 32-bit constant, byte offset, or type flag. A 64-bit literal
    uses two slots in low-word-first order.
-3. **Steps and segments.** Micro proves 800 rows in each step, Small 672,
+3. **Steps and segments.** Micro proves 800 rows in each step, Small 256,
    and Medium and Large 664. A segment of Micro and of Small has 1 step, of
-   Medium 2 and of Large 4. Micro has at most 30 segments, Small 24, Medium
+   Medium 2 and of Large 4. Micro has at most 30 segments, Small 23, Medium
    12 and Large 6 (item 5), so Micro holds runs of up to 24,000 trace rows
-   and each other size of up to about 16,000. The fixed cost of a step
+   and Small holds 5,888. Medium and Large each hold 15,936. The fixed cost of a step
    changes little with its rows, so fewer and larger steps cost less for
    each row. The rows of each size are a selected count, and the light
    relation of each size fits the Akita key of `2^19` blocks
-   (`akita-compression.md`). Small fills the key most closely. The four
+   (`akita-compression.md`). The four
    short test transactions of Starstream `159bedc` fit Micro, and `score`
    and `distinct_utxo_types` fit Small.
 4. **The prover selects, the verifier takes.** The prover takes the
    smallest size that holds the program and its run. The size is part of the
    statement, and the verifier compiles the circuit of that size. It never
-   takes a region or a geometry from the run.
+   takes a region or a geometry from the run. The Small size tag identifies the
+   circuit for the protocol revision in use. Verifying an older Small proof
+   requires the verifier and circuit parameters for that revision.
 5. **Security.** Each size keeps rule 6, so the memory fingerprint error of
    one segment is at most `2^−109.91`. A proof has up to `S_max` segments,
    and the runtime gate charges each one (`SPEC.md` section 7.1). Each size
    has the most segments for which `S_max · 2·m_mem/q²` is at most `2^−109`,
    so a caller asks for at most 109 bits of security. With 8 memory slots
-   in each row, `m_mem` is 8,704, 10,496, 20,864 and 41,728, so the counts
-   are 30, 24, 12 and 6 (`Spec.Nebula.WasmSize.shape`,
+   in each row, `m_mem` is 8,704, 11,264, 20,864 and 41,728, so the counts
+   are 30, 23, 12 and 6 (`Spec.Nebula.WasmSize.shape`,
    `Spec.Nebula.WasmSize.segmentBits_eq`,
    `Spec.Nebula.WasmSize.segmentBits_succ_lt`).
 6. **No refresh fold.** A proof of a size has at most `N · S_max` steps,
-   which is 30, 24, 24 and 24. Each is at most `cap + 1 = 65`, so no proof
+   which is 30, 23, 24 and 24. Each is at most `cap + 1 = 65`, so no proof
    reaches the refresh fold of step 66, and the final proof has two claims
    (`Spec.Nebula.WasmSize.steps_le_light`, `wasm-light-compression.md`).

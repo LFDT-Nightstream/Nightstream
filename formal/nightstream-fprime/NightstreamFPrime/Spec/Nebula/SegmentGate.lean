@@ -95,10 +95,9 @@ def gateBits : Nat := 109
 /-- The slots of one trace row. -/
 def rowSlots : ℕ := 8
 
-/-- The counts of each size. Micro has a RAM of an eighth of the ROM, and the others a quarter. -/
 def shape : WasmSize → WasmShape
   | micro => ⟨11, 8, 800, 1, 30⟩
-  | small => ⟨12, 10, 672, 1, 24⟩
+  | small => ⟨13, 10, 256, 1, 23⟩
   | medium => ⟨13, 11, 664, 2, 12⟩
   | large => ⟨14, 12, 664, 4, 6⟩
 

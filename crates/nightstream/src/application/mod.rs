@@ -23,6 +23,10 @@ use p3_field::PrimeCharacteristicRing;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Variable(pub(super) usize);
 
+pub(crate) fn private_variables(count: usize) -> Vec<Variable> {
+    (4..4 + count).map(Variable).collect()
+}
+
 impl Variable {
     pub fn index(self) -> usize {
         self.0

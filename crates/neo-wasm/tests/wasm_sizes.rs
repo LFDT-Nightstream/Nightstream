@@ -85,7 +85,7 @@ fn each_size_is_a_secure_geometry_whose_regions_fit_its_spaces() {
         assert_eq!(size.application().unwrap().port_count(), geometry.b_ops);
         let rows = match size {
             WasmSize::Micro => 24_000,
-            WasmSize::Small => 5_888,
+            WasmSize::Small => 9_728,
             WasmSize::Medium | WasmSize::Large => 15_936,
         };
         assert_eq!(size.max_rows(), rows, "{size:?}");
@@ -144,8 +144,8 @@ fn the_starstream_test_transactions_fit_micro_or_small() {
         ("storage_counter", need(7, 5, 3, 4, 0), 387, WasmSize::Micro),
         ("multi_utxo", need(8, 5, 3, 4, 0), 482, WasmSize::Micro),
         ("effect_reentry", need(5, 4, 2, 0, 0), 328, WasmSize::Micro),
-        ("full Small", need(8, 6, 7, 4, 0), 5_888, WasmSize::Small),
-        ("one row past Small", need(8, 6, 7, 4, 0), 5_889, WasmSize::Medium),
+        ("full Small", need(8, 6, 7, 4, 0), 9_728, WasmSize::Small),
+        ("one row past Small", need(8, 6, 7, 4, 0), 9_729, WasmSize::Medium),
         ("score", need(8, 6, 3, 4, 0), 903, WasmSize::Small),
         ("distinct_utxo_types", need(8, 6, 3, 5, 4), 646, WasmSize::Small),
     ] {

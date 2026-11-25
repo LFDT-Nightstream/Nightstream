@@ -97,7 +97,7 @@ def rowSlots : ℕ := 8
 
 def shape : WasmSize → WasmShape
   | micro => ⟨11, 8, 800, 1, 30⟩
-  | small => ⟨13, 10, 256, 1, 23⟩
+  | small => ⟨13, 10, 512, 1, 19⟩
   | medium => ⟨13, 11, 664, 2, 12⟩
   | large => ⟨14, 12, 664, 4, 6⟩
 

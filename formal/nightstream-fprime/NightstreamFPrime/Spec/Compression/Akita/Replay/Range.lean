@@ -3,8 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.NormCheck
 
 /-! The range proof of one fold of the pinned Akita verifier on words (Akita revision `d50f700`,
 `akita-verifier/src/stages/stage1.rs`, `akita-params/src/layout/digit_range.rs`), and its relation
-to the range tree of the specification (`RangeTree.lean`; `docs/akita-work/match-design.md`
-section 7, item 7).
+to the range tree of the specification (`RangeTree.lean`).
 
 - `Ext.same a b` is the test `a = b` in `E`. The words of `a` and `b` need not be below `q`.
 - `stageEnd` is the end claim of a product stage, `Σ_m weight_m·Π_t child_{m·a+t}`

@@ -1,6 +1,6 @@
 import tests.AkitaVectors
 
-/-! The gate of the sum-checks of the replay (`docs/akita-work/match-design.md` section 7, item 5):
+/-! The gate of the sum-checks of the replay:
 the replay of `Replay/Transcript.lean` runs `sumcheckRun` after the rounds of each sum-check, on
 the claim that it absorbs, the round messages that `decode` reads from the proof and the
 challenges that it derives from the bytes. Each `<name>.point`, `<name>.output`,

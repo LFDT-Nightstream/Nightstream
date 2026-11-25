@@ -122,13 +122,13 @@ theorem rademacher_tail {ι : Type} [Fintype ι] [DecidableEq ι] (w : ι → �
     Real.exp (t / V * ∑ j, if ε j then -w j else w j) * Real.exp (-(t / V * t)) +
       Real.exp (-(t / V) * ∑ j, if ε j then -w j else w j) * Real.exp (-(t / V * t)))
     (fun ε => by positivity) fun ε large => ?_).trans ?_
-  · rcases lt_abs.mp (show t < |_| from large) with above | below
+  · rcases lt_abs.mp (show t < |∑ j, if ε j then -w j else w j| from large) with above | below
     · refine le_add_of_le_of_nonneg ?_ (by positivity)
       rw [← Real.exp_add]
-      exact Real.one_le_exp (by nlinarith)
+      exact Real.one_le_exp (by linarith [mul_le_mul_of_nonneg_left above.le scale])
     · refine le_add_of_nonneg_of_le (by positivity) ?_
       rw [← Real.exp_add]
-      exact Real.one_le_exp (by nlinarith)
+      exact Real.one_le_exp (by linarith [mul_le_mul_of_nonneg_left below.le scale])
   · rw [Finset.expect_add_distrib, ← Finset.expect_mul, ← Finset.expect_mul]
     have weight := (Real.exp_pos (-(t / V * t))).le
     calc _ ≤ Real.exp ((t / V) ^ 2 * V / 2) * Real.exp (-(t / V * t)) +

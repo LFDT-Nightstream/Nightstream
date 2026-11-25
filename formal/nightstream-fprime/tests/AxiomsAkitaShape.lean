@@ -9,7 +9,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.ShapeAccept
 kernel computations and the facts of each script of `layout20` (`Replay/ShapeLayout20.lean`), and
 the games of the levels of `key20.aks` with the layout as the only schedule hypothesis
 (`Replay/ShapeKey20.lean`), the same for the two rows of `key30.aks` (`Replay/ShapeLayout30.lean`,
-`Replay/ShapeKey30.lean`), finding 16 for `range.k.end` (`Replay/ShapeRange.lean`,
+`Replay/ShapeKey30.lean`), the shape of `range.k.end` (`Replay/ShapeRange.lean`,
 `Replay/ShapeStages.lean`), the converse of `verifyProof_accept` from the level functions
 (`Replay/ShapeAccept.lean`), with the guard that the bundles `FusedAt`, `RangeAt`, `TensorAt` and
 `OffloadAt` hold on the skeletons of `layout20` and `layout30` as operations. -/
@@ -306,25 +306,25 @@ example : FusedAt (skeleton (layout20 0 0)).toArray 0 (fold20 0) (fusedIndex (la
     (erased_level skeleton20_fixed (layout20_fold 0 0 0) (skeleton20_shaped 0)).2.1,
     erased_tensor skeleton20_fixed skeleton20_tensor⟩
 
-theorem skeleton30_erased : (skeleton (layout30 Key30.w27 0 0)).all erased = true := by
-  decide +kernel
+theorem skeleton30_erased {r : Key30.Row} (member : r ∈ Key30.rows) :
+    (skeleton (layout30 r 0 0)).all erased = true := by
+  simp only [Key30.rows, List.mem_cons, List.mem_nil_iff, or_false] at member
+  rcases member with rfl | rfl <;> decide +kernel
 
-theorem skeleton30_fixed :
-    (skeleton (layout30 Key30.w27 0 0)).toArray.toList.map Op.erase =
-      skeleton (layout30 Key30.w27 0 0) := by
+theorem skeleton30_fixed {r : Key30.Row} (member : r ∈ Key30.rows) :
+    (skeleton (layout30 r 0 0)).toArray.toList.map Op.erase = skeleton (layout30 r 0 0) := by
   rw [List.toList_toArray]
-  conv_rhs => rw [← List.map_id (skeleton (layout30 Key30.w27 0 0))]
-  exact List.map_congr_left fun op member =>
-    erase_of_erased (List.all_eq_true.mp skeleton30_erased op member)
+  conv_rhs => rw [← List.map_id (skeleton (layout30 r 0 0))]
+  exact List.map_congr_left fun op h =>
+    erase_of_erased (List.all_eq_true.mp (skeleton30_erased member) op h)
 
-/-- The skeleton of the row `w27` of `layout30` as operations has the bundle of the offloaded
-root. -/
-example : OffloadAt (skeleton (layout30 Key30.w27 0 0)).toArray 0 (fold30 Key30.w27 0)
-    (SetupPlan.ofBatch (Key30.root Key30.w27) (groupOrder 3) (fold30 Key30.w27 0).low 3)
-    Key30.setupVars (fusedIndex (layout30 Key30.w27 0 0) 0) :=
-  (erased_level skeleton30_fixed (layout30_fold Key30.w27 0 0 0)
-    (skeleton30_shaped (by simp [Key30.rows]) 0).1).2.2.2 _ _
-    (fold30_root (by simp [Key30.rows])).1 (fold30_root (by simp [Key30.rows])).2
+/-- The skeleton of each row of `layout30` has the bundle of the offloaded root. -/
+example {r : Key30.Row} (member : r ∈ Key30.rows) :
+    OffloadAt (skeleton (layout30 r 0 0)).toArray 0 (fold30 r 0)
+      (SetupPlan.ofBatch (Key30.root r) (groupOrder 3) (fold30 r 0).low 3)
+      Key30.setupVars (fusedIndex (layout30 r 0 0) 0) :=
+  (erased_level (skeleton30_fixed member) (layout30_fold r 0 0 0)
+    (skeleton30_shaped member 0).1).2.2.2 _ _ (fold30_root member).1 (fold30_root member).2
 
 example : Build.Emits (pure () : Build Unit) [] := Build.emits_pure ()
 

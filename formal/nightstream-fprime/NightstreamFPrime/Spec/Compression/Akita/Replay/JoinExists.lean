@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinBlock
 
 /-! Theorem A of the join for `key20.aks` (Akita revision `d50f700`; ePrint 2026/1983, revision of
-2026-11-23, Section 10.3; `docs/akita-work/w16/design.md` section 2): each accepted proof has a
+2026-11-23, Section 10.3): each accepted proof has a
 transcript of `tower20` that presents its bytes, and `Key20.Tower.accepts` accepts it.
 
 - `Prefix.wire_all`, `lastWire_all`, `ofBlocks_at`, `Chained`, `Chained.getElem`: the wire messages
@@ -110,7 +110,7 @@ variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree
   {block₄ : Fin Key20.level₄.shape.blocks → Coord} {block₅ : Fin Key20.level₅.shape.blocks → Coord}
   {blockL : Fin Key20.terminal.blocks → Coord}
 
-/-- Theorem A of the join for `key20.aks` (`docs/akita-work/w16/design.md` section 2): for an
+/-- Theorem A of the join for `key20.aks`: for an
 accepted proof of `layout20` and each last blocks `tLast`, `eLast` of the terminal, a transcript
 of `tower20` with `total ≥ 473` stages presents the bytes (`Presents20`). The hypotheses are
 those of `presents20_accepts` without `Last20`, injective coordinates of the fold challenges, and
@@ -316,8 +316,7 @@ theorem exists_presents20 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax
 
 /-- Theorem A with theorem B "→" for `key20.aks`: an accepted proof of `layout20` has last blocks
 `tLast`, `eLast` of the terminal with `Last20` and a transcript of `tower20` that presents its
-bytes with them, and `Key20.Tower.accepts` of `tower20` accepts this transcript. So the claims of
-`Key20.Tower.accepts` are claims about the proofs that the verifier on bytes accepts. -/
+bytes with them, and `Key20.Tower.accepts` of `tower20` accepts this transcript. -/
 theorem verifyProof_exists_accepts20 {zMax rice : ℕ} (layout : pub.layout = layout20 zMax rice)
     (accepted : runProof pub proof = .verdict .accept) {full : Array Fq}
     (terminalSetup : pub.setupFor pub.layout.terminal.setupCount = some full)

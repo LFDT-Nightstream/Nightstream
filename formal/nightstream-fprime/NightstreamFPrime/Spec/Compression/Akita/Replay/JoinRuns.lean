@@ -3,8 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.PresentChecks
 
 /-! The runs of the checks of the levels of `key20.aks` on the paths of the code from each wire
 message with the data `note20`, for theorem A of the join (Akita revision `d50f700`; ePrint
-2026/1983, revision of 2026-11-23, Figure 4, Figure 6 and Section 8.2;
-`docs/akita-work/w16/design.md` section 2).
+2026/1983, revision of 2026-11-23, Figure 4, Figure 6 and Section 8.2).
 
 - `energy20`: on the Euclidean route the energy of an accepted proof is at most `S_max` of the
   level (`foldRunIn_of_run`, `treeRun_normRun_none`).

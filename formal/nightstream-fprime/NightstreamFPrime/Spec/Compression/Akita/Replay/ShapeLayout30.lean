@@ -101,15 +101,6 @@ theorem skeleton30_shaped {r : Key30.Row} (member : r ∈ Key30.rows) (ℓ : Fin
       tensorShapeAt (skeleton (layout30 r 0 0)).zipIdx 7 (layout30 r 0 0).terminal.rounds = true := by
   simp only [Key30.rows, List.mem_cons, List.mem_nil_iff, or_false] at member
   rcases member with rfl | rfl
-  · refine ⟨?_, skeleton30_w27_ends, skeleton30_w27_tensor⟩
-    match ℓ with
-    | 0 => exact skeleton30_w27_level0
-    | 1 => exact skeleton30_w27_level1
-    | 2 => exact skeleton30_w27_level2
-    | 3 => exact skeleton30_w27_level3
-    | 4 => exact skeleton30_w27_level4
-    | 5 => exact skeleton30_w27_level5
-    | 6 => exact skeleton30_w27_level6
   · refine ⟨?_, skeleton30_w26_ends, skeleton30_w26_tensor⟩
     match ℓ with
     | 0 => exact skeleton30_w26_level0
@@ -119,6 +110,15 @@ theorem skeleton30_shaped {r : Key30.Row} (member : r ∈ Key30.rows) (ℓ : Fin
     | 4 => exact skeleton30_w26_level4
     | 5 => exact skeleton30_w26_level5
     | 6 => exact skeleton30_w26_level6
+  · refine ⟨?_, skeleton30_w27_ends, skeleton30_w27_tensor⟩
+    match ℓ with
+    | 0 => exact skeleton30_w27_level0
+    | 1 => exact skeleton30_w27_level1
+    | 2 => exact skeleton30_w27_level2
+    | 3 => exact skeleton30_w27_level3
+    | 4 => exact skeleton30_w27_level4
+    | 5 => exact skeleton30_w27_level5
+    | 6 => exact skeleton30_w27_level6
 
 /-- The root of each row has Stage 3 with `2^23` cells and the plan of the weight of the code. -/
 theorem fold30_root {r : Key30.Row} (member : r ∈ Key30.rows) :

@@ -411,6 +411,6 @@ theorem towerError_le {p : ℝ} (chance : ∀ g, slotChance (decode g) ≤ p)
     field_simp
     ring
   rw [split]
-  nlinarith [sum₀, sum₁, sum₂, sum₃, sum₄, sum₅, last]
+  linarith only [sum₀, sum₁, sum₂, sum₃, sum₄, sum₅, last]
 
 end NightstreamFPrime.Spec.Compression.Akita.Key20

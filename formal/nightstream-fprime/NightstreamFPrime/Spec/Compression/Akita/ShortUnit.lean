@@ -30,9 +30,9 @@ theorem X_pow_two_pow_sub_C_irreducible {K : Type u} [Field K] (n : ℕ) {a : K}
   induction n generalizing K a with
   | zero => simpa using irreducible_X_sub_C a
   | succ n hypothesis =>
-    have quadratic := X_pow_sub_C_irreducible_of_prime Nat.prime_two notSquare
+    have quadratic := irreducible_X_pow_sub_C_of_prime Nat.prime_two notSquare
     rw [pow_succ]
-    apply X_pow_mul_sub_C_irreducible quadratic
+    apply irreducible_X_pow_mul_sub_C quadratic
     have := Fact.mk quadratic
     obtain ⟨i, square⟩ := negOneSquare
     apply hypothesis

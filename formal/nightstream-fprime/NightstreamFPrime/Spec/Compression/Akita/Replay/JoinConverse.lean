@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.ShapeAccept
 
 /-! Theorem B of the join, direction "←", for `key20.aks`: the works (Akita revision `d50f700`,
 `VerifierTranscript::check_grind`, `read_fold_response`, `VerifierFoldDraw`; ePrint 2026/1983,
-revision of 2026-11-23, (146) and Figure 4, step 2; `docs/akita-work/w17/brief-c.md`).
+revision of 2026-11-23, (146) and Figure 4, step 2).
 
 - `Tier.works_of_decodes`, `Tier.tried_of_decodes`: the check `Tier.Decodes` of a level gives
   the work bits of each of its stages and the bound of the nonce of its response search.

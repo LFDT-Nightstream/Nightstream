@@ -41,7 +41,9 @@ use super::trace::{
     base_words, bytes_of, extension_words, failure, hex, parse, sparse, work, Step, Trace, OBSERVED, RECONSTRUCTED,
     STATEMENT,
 };
-use crate::akita::{row, Base, Config, Extension, Schedules, Shape};
+use crate::akita::verifier::schedule::{catalog, row};
+use crate::akita::verifier::Config;
+use crate::akita::{Base, Extension, Schedules, Shape};
 
 type Grinding<'a, 'proof> = VerifierGrinding<'proof, 'a>;
 type Point = OpeningFamily<PreparedOpeningPoint<Base, Extension>, PreparedSubringCoefficientPackingPoint<Extension>>;
@@ -1006,7 +1008,7 @@ pub(super) fn replay(statement: &Statement<'_>, proof: &[u8]) -> Step<Value> {
         registry,
         session,
     } = statement;
-    let catalog = schedules.catalog().expect("catalog");
+    let catalog = catalog(schedules).expect("catalog");
     let resolved = row(&catalog, shape).expect("row");
     let schedule: &FoldSchedule = resolved.schedule();
     let groups: Vec<_> = points

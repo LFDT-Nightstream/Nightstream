@@ -211,10 +211,6 @@ parts of the verifier game (`BackComplete`) and the two checkpoints of the argum
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.noteTower_accepts
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.noteTower_zero
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.noteTower_played
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Cell.entry
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Cell.values
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.ne_values
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.values_ne_nat
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Cell.sendable_values
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.settle_of_settled
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.ends_settle
@@ -239,7 +235,6 @@ parts of the verifier game (`BackComplete`) and the two checkpoints of the argum
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.back_ends
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.honestInverses_zero
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.led_wins
-#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.shortValues
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.back_wins
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Compose.keyBase_zero
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Compose.back_lengths

@@ -1,8 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinBits
 
 /-! The schedule facts of the links of `key20.aks` as theorems for each script of `layout20`
-(Akita revision `d50f700`; `Replay/ShapeErase.lean`, `Replay/ShapeLayout20.lean`;
-`docs/akita-work/w16/design.md` section 4, track A, item 2).
+(Akita revision `d50f700`; `Replay/ShapeErase.lean`, `Replay/ShapeLayout20.lean`).
 
 - `isAbsorbPoint`, `isAbsorbValues`, `isAbsorbRecorded`: Bools for the absorbs of the links.
 - `RootFrame`, `PackFrame`, `TensorFrame`: the indices and the frames of the absorbs of the root

@@ -9,8 +9,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinNote
   stages of its checks (with the tensor reduction of the next level), then the fold stage of the
   terminal. `stages20` is its count: 473 stages.
 - `tower_bits20`: for each tower data `o`, the work bits of the model are `bits20`. The plan of
-  the code has one run with the bits of each such stage, in the same order; a run check compares
-  them (`docs/akita-work/w16/a-new/checks/WorkBits.lean`). -/
+  the code has one run with the bits of each such stage, in the same order. -/
 
 set_option autoImplicit false
 

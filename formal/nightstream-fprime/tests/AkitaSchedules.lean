@@ -201,9 +201,9 @@ def segmentsAligned : Bool :=
         gapsAligned ((Key30.level₁ r).gaps Key30.quotientDigits) (groupsBlock (Key30.level₁ r))
           64 32 &&
         gapsAligned ((Key30.level₂ r).opening.gaps (Key30.level₂ r).fold Key30.quotientDigits)
-          (block (Key30.level₂ r).opening) 64 32) &&
-    gapsAligned (Key30.level₃.opening.gaps Key30.level₃.fold Key30.quotientDigits)
-      (block Key30.level₃.opening) 64 32 &&
+          (block (Key30.level₂ r).opening) 64 32 &&
+        gapsAligned ((Key30.level₃ r).opening.gaps (Key30.level₃ r).fold Key30.quotientDigits)
+          (block (Key30.level₃ r).opening) 64 32) &&
     gapsAligned (Key30.level₄.opening.gaps Key30.level₄.fold 0) (block Key30.level₄.opening) 64 32
 
 /-- The numbers of the levels of `Key20.lean`: for each level the numbers of its groups, the
@@ -245,7 +245,7 @@ def tower30 (r : Key30.Row) : List (List (List ℕ) × List ℕ) :=
         L.batch])
   [groups 0 (root r) quotientDigits₀ rootVars rootBatch,
     groups 1 (level₁ r) quotientDigits vars₁ batch₁,
-    packing 2 (level₂ r), packing 3 level₃, trace 4 level₄ none, trace 5 level₅ norm₅,
+    packing 2 (level₂ r), packing 3 (level₃ r), trace 4 level₄ none, trace 5 level₅ (norm₅ r),
     trace 6 level₆ norm₆]
 
 /-- The numbers of a terminal in the fields of `fileTerminal`. -/
@@ -391,7 +391,7 @@ def instancesHold (path : System.FilePath) (listed : List (ℕ × ℕ × ℕ × 
       Lean has {listed}"
 
 #eval holds "../../crates/ns-compress/artifacts/key20.aks" [key20] Shape.key20 Descriptor.key20
-#eval holds "../../crates/ns-compress/artifacts/key30.aks" [key30W27, key30W26] Shape.key30
+#eval holds "../../crates/ns-compress/artifacts/key30.aks" [key30W26, key30W27] Shape.key30
   Descriptor.key30
 #eval towerHolds "../../crates/ns-compress/artifacts/key20.aks"
   [(tower, terminalNumbers (Key20.family 6 0) Key20.terminal Key20.normTerminal)]

@@ -21,9 +21,8 @@ the emitter writes for the reference application, and the keys of a package iden
 namespace NightstreamFPrime.Claims.Shipped
 
 open Spec Lifecycle Lifecycle.BoundedDepth Export.BoundedDepth
-open scoped Spec.Compression.Production Spec.FieldExtensionRing
+open scoped Spec.Compression.Production Spec.FieldExtensionRing FinalKey20Algebra
 attribute [local instance low] Classical.propDecidable
-attribute [local instance] NightstreamFPrime.Export.BoundedDepth.FinalKey20.instAlgebraZqK
 
 /-- `Verifier::verify` (SPEC.md Algorithm 6) at the shipped packages of the reference
 application: the probability that the verifier accepts a statement that no valid run of the
@@ -96,7 +95,6 @@ theorem verify_final_sound
     (setupRows : ℕ → Compression.Verifier.Factored F)
     (zeros : ℕ)
     (minimum : ℕ)
-    (cap : ℕ)
     (control : AppState → AppWitness → Fin 2)
     {Wire : Type}
     {Coord : Type}
@@ -143,7 +141,7 @@ theorem verify_final_sound
     (drawn : ∀ (index : ι),
       FinalKey30.Opening.Drawn (Shipped.setup mode ajtai identity relations setupRows zeros minimum)
         (Shipped.complete facts identity relations lightKey refreshKey).packageWidth
-        Shipped.program.step cap control read head (family index) (shared index))
+        Shipped.program.step control read head (family index) (shared index))
     {queries : ℕ}
     (bounded : prover.QueryBound queries)
     (positive : 0 < budget)
@@ -153,44 +151,44 @@ theorem verify_final_sound
             (FinalKey30.adversary
               (Shipped.setup mode ajtai identity relations setupRows zeros minimum)
               (Shipped.complete facts identity relations lightKey refreshKey).packageWidth
-              Shipped.program.step cap control read head kind family shared prover budget))))
+              Shipped.program.step control read head kind family shared prover budget))))
     (depth : ℕ)
     (depthBound : ∀ (table : Compression.Akita.Extract.Address Wire total → Option Coord → Compression.Akita.Replay.CodeSlot K),
         FinalKey30.finalAccepts
             (Shipped.setup mode ajtai identity relations setupRows zeros minimum)
             (Shipped.complete facts identity relations lightKey refreshKey).packageWidth
-            Shipped.program.step cap control read head kind family shared
+            Shipped.program.step control read head kind family shared
             (FinalKey20.played prover table) →
           (head (FinalKey20.played prover table).first).statement.iteration ≤ depth) :
     ENNReal.toReal
         (((FinalKey30.adversary
               (Shipped.setup mode ajtai identity relations setupRows zeros minimum)
               (Shipped.complete facts identity relations lightKey refreshKey).packageWidth
-              Shipped.program.step cap control read head kind family shared prover
+              Shipped.program.step control read head kind family shared prover
               budget).tape.toOuterMeasure :
             Set (FinalKey30.adversary
               (Shipped.setup mode ajtai identity relations setupRows zeros minimum)
               (Shipped.complete facts identity relations lightKey refreshKey).packageWidth
-              Shipped.program.step cap control read head kind family shared prover budget).Tape →
+              Shipped.program.step control read head kind family shared prover budget).Tape →
               ENNReal)
           {sample |
             FinalKey30.FalseHistory
               (Shipped.setup mode ajtai identity relations setupRows zeros minimum)
               (Shipped.complete facts identity relations lightKey refreshKey).packageWidth
-              Shipped.program.step cap control read head kind family shared prover Shipped.program
+              Shipped.program.step control read head kind family shared prover Shipped.program
               sample.1}) ≤
       FinalKey30.shapesBound (Shipped.setup mode ajtai identity relations setupRows zeros minimum)
           (Shipped.complete facts identity relations lightKey refreshKey).packageWidth
-          Shipped.program.step cap control read head family shared prover queries budget +
+          Shipped.program.step control read head family shared prover queries budget +
         IvcSecurity.walkBound ajtai (Shipped.keys identity relations)
           (Shipped.exports facts identity relations lightKey refreshKey) assumption closed
           (FinalKey30.adversary
             (Shipped.setup mode ajtai identity relations setupRows zeros minimum)
             (Shipped.complete facts identity relations lightKey refreshKey).packageWidth
-            Shipped.program.step cap control read head kind family shared prover budget)
+            Shipped.program.step control read head kind family shared prover budget)
           admitted depth :=
   @Export.BoundedDepth.Shipped.verify_final_sound ajtai mode facts identity relations lightKey
-    refreshKey setupRows zeros minimum cap control Wire Coord total read head fintypeCoord
+    refreshKey setupRows zeros minimum control Wire Coord total read head fintypeCoord
     decidableEqCoord nonemptyCoord ι fintypeι kind family shared prover finiteWire budget Admitted
     StageAdmitted Efficient error assumption closed rows coords drawn queries bounded positive
     admitted depth depthBound

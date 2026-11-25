@@ -66,7 +66,7 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
     RingCarrierLayout.carrierWidth logicalWidth}
   {mode : Mode} (setup : FinalVerifier.Setup mode logicalWidth publicFits)
-  (packageWidths : Fin 2 → ℕ) (step : AppState → AppWitness → AppState) (cap : ℕ)
+  (packageWidths : Fin 2 → ℕ) (step : AppState → AppWitness → AppState)
   (control : AppState → AppWitness → Fin 2) (shape : Claims logicalWidth publicFits)
   {Coord : Type} [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] {total slots width limit : ℕ}
 
@@ -136,7 +136,7 @@ local notation "Content" =>
 local notation "placeOf" => (Prod.snd ∘ Prod.fst ∘ Page.data : Leaf → Fin 3 → List K)
 
 local notation "C" =>
-  compose setup packageWidths step cap control shape (Page.read : Reader Leaf)
+  compose setup packageWidths step control shape (Page.read : Reader Leaf)
     (Prod.fst ∘ Prod.fst ∘ Page.data : Leaf → _) (sheetBound (Coord := Coord) (total := total))
 
 local notation "vf" => FinalVerifier.Setup.verifier setup shape
@@ -283,7 +283,7 @@ theorem accepts (use : Use setup shape) (wide : 8 ≤ width) (capped : 302980489
     show 0 + (_ ++ [_]).length = _
     rw [List.length_append, List.length_singleton, Nat.zero_add]
     rfl
-  obtain ⟨proof, zero, holds⟩ := complete setup packageWidths step cap control shape
+  obtain ⟨proof, zero, holds⟩ := complete setup packageWidths step control shape
     (Page.read : Reader Leaf) (Prod.fst ∘ Prod.fst ∘ Page.data : Leaf → _)
     (sheetBound (Coord := Coord) (total := total)) (β := β) (key := key) (openKey := openKey)
     (claim := (Key20.Note.claim ∘ noteOf)) (block := block) (decode := decode)
@@ -310,7 +310,7 @@ theorem accepts (use : Use setup shape) (wide : 8 ≤ width) (capped : 302980489
     (statementOf := (Key20.Note.statement ∘ noteOf))
     (partialsOf := (Key20.Note.partials ∘ noteOf)) (accept := accept) use
     (Page.sends (by omega)) wide capped room
-    (fun values zero => Cell.sendable_values (by omega) fun index large => zero index (by omega))
+    (Cell.sendable_values (by omega))
     (Page.carries (fun data : Content => data.2.commit)
       fun target => ⟨((given, fun _ => []), { base with commit := target }), rfl⟩)
     (Page.carries (fun data : Content => (data.2.commit, data.2.value, data.1.2))

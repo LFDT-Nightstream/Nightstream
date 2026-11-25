@@ -56,24 +56,42 @@ theorem binCredit_eq (bin : Bool) :
       if bin then ((1 : ℕ) : ℝ) / Fintype.card E / 2 ^ workBits 1 else 0 := by
   cases bin <;> simp [binCosts, binLosses, credit]
 
-theorem foldCredit_eq (bad alpha vars batch base : ℕ) (bin : Bool) :
+private theorem foldCredit_sum (bits : ℕ → ℕ) (bad alpha vars batch base : ℕ) (bin : Bool)
+    (tree : (credit (treeCosts E vars (rangeArities base) 1)
+      ((treeLosses vars (rangeArities base) 1).map bits)).sum = treeCredit E vars (rangeArities base) 1)
+    (binary : (credit (binCosts E bin) ((binLosses bin).map bits)).sum =
+      if bin then ((1 : ℕ) : ℝ) / Fintype.card E / 2 ^ bits 1 else 0) :
     (credit (foldCosts E bad vars batch base bin)
-      ((foldLosses alpha vars batch base bin).map workBits)).sum =
-        foldCredit E bad alpha vars batch base bin := by
-  have range : (credit (rangeCosts E vars base) ((rangeLosses vars base).map workBits)).sum =
+      ((foldLosses alpha vars batch base bin).map bits)).sum =
+  (bad : ℝ) / Fintype.card E / 2 ^ bits alpha +
+    ((vars : ℝ) / Fintype.card E / 2 ^ bits vars +
+      ((batch : ℝ) / Fintype.card E / 2 ^ bits batch +
+        (treeCredit E vars (rangeArities base) 1 +
+          vars * (((rangeLeaf base + 1 + 1 : ℕ) : ℝ) / Fintype.card E /
+            2 ^ bits (leafDegree base + 1)) +
+          ((if bin then ((1 : ℕ) : ℝ) / Fintype.card E / 2 ^ bits 1 else 0) +
+            (((1 : ℕ) : ℝ) / Fintype.card E / 2 ^ bits 1 +
+              vars * (((3 : ℕ) : ℝ) / Fintype.card E / 2 ^ bits 3)))))) := by
+  have range : (credit (rangeCosts E vars base) ((rangeLosses vars base).map bits)).sum =
       treeCredit E vars (rangeArities base) 1 +
         vars * (((rangeLeaf base + 1 + 1 : ℕ) : ℝ) / Fintype.card E /
-          2 ^ workBits (leafDegree base + 1)) := by
+          2 ^ bits (leafDegree base + 1)) := by
     simp only [rangeCosts, rangeLosses, List.map_append, List.map_replicate]
     rw [credit_append (by rw [List.length_map]; exact treeLosses_length (E := E) _ _ _),
-      credit_replicate, List.sum_append, treeCredit_eq, List.sum_replicate, nsmul_eq_mul]
-  simp only [foldCosts, foldLosses, foldCredit, List.map_cons, List.map_append, List.map_replicate]
+      credit_replicate, List.sum_append, tree, List.sum_replicate, nsmul_eq_mul]
+  simp only [foldCosts, foldLosses, List.map_cons, List.map_append, List.map_replicate]
   rw [credit_cons, credit_cons, credit_cons,
     credit_append (by rw [List.length_map]; exact rangeLosses_length (E := E) _ _),
     credit_append (by rw [List.length_map, binLosses_length, binCosts_length]), credit_cons,
     credit_replicate]
   simp only [List.sum_cons, List.sum_append, List.sum_replicate, nsmul_eq_mul, range,
-    binCredit_eq]
+    binary]
+
+theorem foldCredit_eq (bad alpha vars batch base : ℕ) (bin : Bool) :
+    (credit (foldCosts E bad vars batch base bin)
+      ((foldLosses alpha vars batch base bin).map workBits)).sum =
+        foldCredit E bad alpha vars batch base bin :=
+  foldCredit_sum E workBits bad alpha vars batch base bin (treeCredit_eq ..) (binCredit_eq ..)
 
 /-- The stage errors of the draws of `foldCheckSq` (`foldCostsSq` with `foldLossesSq`). -/
 noncomputable def foldCreditSq (bad alpha vars batch base : ℕ) (bin : Bool) : ℝ :=
@@ -89,11 +107,25 @@ noncomputable def foldCreditSq (bad alpha vars batch base : ℕ) (bin : Bool) : 
               (((1 : ℕ) : ℝ) / Fintype.card E / 2 ^ workBits 1 +
                 vars * (((3 : ℕ) : ℝ) / Fintype.card E / 2 ^ workBits 3)))))))
 
-theorem foldCreditSq_eq (bad alpha vars batch base : ℕ) (bin : Bool) :
+private theorem foldCreditSq_sum (bits : ℕ → ℕ) (bad alpha vars batch base : ℕ) (bin : Bool)
+    (tree : (credit (treeCosts E vars (rangeArities base) 1)
+      ((treeLosses vars (rangeArities base) 1).map bits)).sum = treeCredit E vars (rangeArities base) 1)
+    (binary : (credit (binCosts E bin) ((binLosses bin).map bits)).sum =
+      if bin then ((1 : ℕ) : ℝ) / Fintype.card E / 2 ^ bits 1 else 0) :
     (credit (foldCostsSq E bad vars batch base bin)
-      ((foldLossesSq alpha vars batch base bin).map workBits)).sum =
-        foldCreditSq E bad alpha vars batch base bin := by
-  simp only [foldCostsSq, foldLossesSq, foldCreditSq, rangeCostsSq, List.map_cons,
+      ((foldLossesSq alpha vars batch base bin).map bits)).sum =
+  (bad : ℝ) / Fintype.card E / 2 ^ bits alpha +
+    ((vars : ℝ) / Fintype.card E / 2 ^ bits vars +
+      ((batch : ℝ) / Fintype.card E / 2 ^ bits batch +
+        (treeCredit E vars (rangeArities base) 1 +
+          (((1 : ℕ) : ℝ) / Fintype.card E / 2 ^ bits 1 +
+            vars * (((max (rangeLeaf base + 1) 2 + 1 : ℕ) : ℝ) / Fintype.card E /
+              2 ^ bits (leafDegree base + 1))) +
+          (((1 : ℕ) : ℝ) / Fintype.card E / 2 ^ bits 1 +
+            ((if bin then ((1 : ℕ) : ℝ) / Fintype.card E / 2 ^ bits 1 else 0) +
+              (((1 : ℕ) : ℝ) / Fintype.card E / 2 ^ bits 1 +
+                vars * (((3 : ℕ) : ℝ) / Fintype.card E / 2 ^ bits 3))))))) := by
+  simp only [foldCostsSq, foldLossesSq, rangeCostsSq, List.map_cons,
     List.map_append, List.map_replicate]
   rw [credit_cons, credit_cons, credit_cons,
     credit_append (by
@@ -103,8 +135,14 @@ theorem foldCreditSq_eq (bad alpha vars batch base : ℕ) (bin : Bool) :
     credit_replicate, credit_cons,
     credit_append (by rw [List.length_map, binLosses_length, binCosts_length]), credit_cons,
     credit_replicate]
-  simp only [List.sum_cons, List.sum_append, List.sum_replicate, nsmul_eq_mul, treeCredit_eq,
-    binCredit_eq]
+  simp only [List.sum_cons, List.sum_append, List.sum_replicate, nsmul_eq_mul, tree,
+    binary]
+
+theorem foldCreditSq_eq (bad alpha vars batch base : ℕ) (bin : Bool) :
+    (credit (foldCostsSq E bad vars batch base bin)
+      ((foldLossesSq alpha vars batch base bin).map workBits)).sum =
+        foldCreditSq E bad alpha vars batch base bin :=
+  foldCreditSq_sum E workBits bad alpha vars batch base bin (treeCredit_eq ..) (binCredit_eq ..)
 
 /-- The stage errors of the draws of `tensorCheck` (`tensorCosts` with `tensorLosses`). -/
 noncomputable def tensorCredit (ν : ℕ) : ℝ :=

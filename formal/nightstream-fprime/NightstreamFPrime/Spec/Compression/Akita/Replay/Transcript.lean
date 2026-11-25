@@ -618,7 +618,7 @@ def verdict (pub : Public) (ops : Array Op) (proof : ByteArray) (checks : Array 
     (messages : Array Message) : Verdict :=
   verdictOf (replay pub ops proof messages).1 checks messages
 
-/-- `verifyBytes_noWork` of `docs/akita-work/match-design.md` section 5.1 for this layer: when the
+/-- `verifyBytes_noWork`: when the
 equations never give `noWork`, a `noWork` outcome comes from a proof that decodes and whose
 messages do not have their work. Bytes after the last message do not change it: the code checks
 the end of the proof after its last check. -/

@@ -58,7 +58,7 @@ variable {logicalWidth : Nat}
   {mode : Mode}
 
 variable (setup : FinalVerifier.Setup mode logicalWidth publicFits) (packageWidths : Fin 2 → ℕ)
-  (step : AppState → AppWitness → AppState) (cap : ℕ) (control : AppState → AppWitness → Fin 2)
+  (step : AppState → AppWitness → AppState) (control : AppState → AppWitness → Fin 2)
   {Wire Coord : Type} {total : ℕ} (read : Reader Wire)
   (head : Wire → First logicalWidth publicFits)
   [Fintype Coord] [DecidableEq Coord] [Nonempty Coord]
@@ -69,7 +69,7 @@ variable (o : Opening logicalWidth publicFits Wire Coord total)
 
 local notation "S₀" => laidSetup setup o.shape
 
-local notation "C" => compose S₀ packageWidths step cap control o.shape read head o.bound
+local notation "C" => compose S₀ packageWidths step control o.shape read head o.bound
 
 local notation "vf" => FinalVerifier.Setup.verifier S₀ o.shape
 
@@ -158,7 +158,7 @@ omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] in
 the levels 1 to 5 and of the terminal, so the conditions `decodes` of the verifier hold for each
 table of the oracle on keys. -/
 theorem Opening.Drawn.decodes
-    (drawn : o.Drawn setup packageWidths step cap control read head) (slot : CodeSlot K) :
+    (drawn : o.Drawn setup packageWidths step control read head) (slot : CodeSlot K) :
     (∀ g, (o.decode g slot).isSome) ∧ (o.decode₁ slot).isSome ∧ (o.decode₂ slot).isSome ∧
       (o.decode₃ slot).isSome ∧ (o.decode₄ slot).isSome ∧ (o.decode₅ slot).isSome ∧
       (Terminal.decode o.terminal slot).isSome := by
@@ -177,8 +177,8 @@ and `c_max` (`Key20.sparse_of_mem`), the slot probability of each decoder of the
 `Replay.slotChance_kept128_field`), and the filter of the code gives the operator bound
 (`TrigTable.filtered_code`). -/
 theorem Opening.Drawn.sized
-    (drawn : o.Drawn setup packageWidths step cap control read head) :
-    o.Sized setup packageWidths step cap control read head (1 / (fieldModulus : ℝ) ^ 2) where
+    (drawn : o.Drawn setup packageWidths step control read head) :
+    o.Sized setup packageWidths step control read head (1 / (fieldModulus : ℝ) ^ 2) where
   laid := drawn.laid
   early := drawn.early
   injective := drawn.injective
@@ -300,18 +300,18 @@ theorem verifier_sound_drawn
     (complete : StepExtend.Complete exports)
     (rows : ∀ circuit : Fin 2, (setup.rows circuit).matrices =
       (FinalRows.packageRows exports complete circuit).matrices)
-    (blocks : setup.keyBlocks = 512) (coords : 28 ≤ Fintype.card Coord)
-    (drawn : ∀ index, (family index).Drawn setup complete.packageWidth step cap control read head)
+    (blocks : setup.keyBlocks = 512) (coords : 30 ≤ Fintype.card Coord)
+    (drawn : ∀ index, (family index).Drawn setup complete.packageWidth step control read head)
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
     𝔼 table,
-        (if finalAccepts setup complete.packageWidth step cap control read head kind family
+        (if finalAccepts setup complete.packageWidth step control read head kind family
               (played prover table) ∧
-            ¬ ∃ proof, Verifies setup.ajtai setup.circuitKeys step complete.packageWidth cap
+            ¬ ∃ proof, Verifies setup.ajtai setup.circuitKeys step complete.packageWidth
               control (head (played prover table).first).statement proof
           then (1 : ℝ) else 0) ≤
-      shapesBound setup complete.packageWidth step cap control read head family prover
+      shapesBound setup complete.packageWidth step control read head family prover
         (1 / (fieldModulus : ℝ) ^ 2) queries budget :=
-  verifier_sound setup step cap control read head kind family prover exports complete rows blocks
+  verifier_sound setup step control read head kind family prover exports complete rows blocks
     coords (fun index => (drawn index).sized) bounded positive
 
 variable (budget : ℕ) {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
@@ -333,7 +333,7 @@ variable (budget : ℕ) {relation : ProductionKey.LogicalRelation logicalWidth p
   (complete : StepExtend.Complete exports)
 
 local notation "ivc" =>
-  adversary setup complete.packageWidth step cap control read head kind family prover budget
+  adversary setup complete.packageWidth step control read head kind family prover budget
 
 /-- The final verifier with Akita openings against a false history, for openings whose decoders
 are the decoders of the code of the sparse challenge families: `history_sound` with `p = 1/q²`. For
@@ -345,22 +345,22 @@ theorem history_sound_drawn
     (rows : ∀ circuit : Fin 2, (setup.rows circuit).matrices =
       (FinalRows.packageRows exports complete circuit).matrices)
     (keysShaped : ∀ key, (setup.circuitKeys key).digest.length = 4)
-    (blocks : setup.keyBlocks = 512) (coords : 28 ≤ Fintype.card Coord)
-    (drawn : ∀ index, (family index).Drawn setup complete.packageWidth step cap control read head)
+    (blocks : setup.keyBlocks = 512) (coords : 30 ≤ Fintype.card Coord)
+    (drawn : ∀ index, (family index).Drawn setup complete.packageWidth step control read head)
     {queries : ℕ} (bounded : prover.QueryBound queries) (positive : 0 < budget)
     (admitted : StageAdmitted
       (HyperNova.ReverseStages.Stage.start (IvcSecurity.walkAdversary ivc))) (depth : ℕ)
     (depthBound : ∀ table,
-      finalAccepts setup complete.packageWidth step cap control read head kind family
+      finalAccepts setup complete.packageWidth step control read head kind family
         (played prover table) → (head (played prover table).first).statement.iteration ≤ depth) :
     ((ivc).tape.toOuterMeasure {sample |
-        FalseHistory setup complete.packageWidth step cap control read head kind family prover
+        FalseHistory setup complete.packageWidth step control read head kind family prover
           exports.program sample.1}).toReal ≤
-      shapesBound setup complete.packageWidth step cap control read head family prover
+      shapesBound setup complete.packageWidth step control read head family prover
           (1 / (fieldModulus : ℝ) ^ 2) queries budget +
         IvcSecurity.walkBound setup.ajtai setup.circuitKeys exports assumption closed ivc admitted
           depth :=
-  history_sound setup step cap control read head kind family prover budget exports assumption
+  history_sound setup step control read head kind family prover budget exports assumption
     closed complete rows keysShaped blocks coords (fun index => (drawn index).sized) bounded
     positive admitted depth depthBound
 
@@ -372,23 +372,23 @@ theorem history_knowledge_drawn
     (rows : ∀ circuit : Fin 2, (setup.rows circuit).matrices =
       (FinalRows.packageRows exports complete circuit).matrices)
     (keysShaped : ∀ key, (setup.circuitKeys key).digest.length = 4)
-    (blocks : setup.keyBlocks = 512) (coords : 28 ≤ Fintype.card Coord)
-    (drawn : ∀ index, (family index).Drawn setup complete.packageWidth step cap control read head)
+    (blocks : setup.keyBlocks = 512) (coords : 30 ≤ Fintype.card Coord)
+    (drawn : ∀ index, (family index).Drawn setup complete.packageWidth step control read head)
     {queries : ℕ} (bounded : prover.QueryBound queries) (positive : 0 < budget)
     (admitted : StageAdmitted
       (HyperNova.ReverseStages.Stage.start (IvcSecurity.walkAdversary ivc))) (depth : ℕ)
     (depthBound : ∀ table,
-      finalAccepts setup complete.packageWidth step cap control read head kind family
+      finalAccepts setup complete.packageWidth step control read head kind family
         (played prover table) → (head (played prover table).first).statement.iteration ≤ depth) :
     ((HyperNova.ReverseStages.reverseStages assumption closed (IvcSecurity.walkAdversary ivc)
           admitted depth).1.tape.toOuterMeasure {tape |
-        AdviceFailure setup step cap control read head kind family prover budget exports
+        AdviceFailure setup step control read head kind family prover budget exports
           assumption closed complete admitted depth tape}).toReal ≤
-      shapesBound setup complete.packageWidth step cap control read head family prover
+      shapesBound setup complete.packageWidth step control read head family prover
           (1 / (fieldModulus : ℝ) ^ 2) queries budget +
         IvcSecurity.walkBound setup.ajtai setup.circuitKeys exports assumption closed ivc admitted
           depth :=
-  history_knowledge setup step cap control read head kind family prover budget exports assumption
+  history_knowledge setup step control read head kind family prover budget exports assumption
     closed complete rows keysShaped blocks coords (fun index => (drawn index).sized) bounded
     positive admitted depth depthBound
 
@@ -397,10 +397,10 @@ variable {p : Nebula.Plan} (app : Nebula.PortApp p.toGeometry)
     PMF (Lifecycle.Nebula.EndToEnd.MemoryStatement app.width))
 
 local notation "verifiers" => fun index =>
-  Opening.accepts setup complete.packageWidth step cap control read head (family index)
+  Opening.accepts setup complete.packageWidth step control read head (family index)
 
 local notation "extracted" => fun index =>
-  Opening.proof setup complete.packageWidth step cap control read head (family index) prover
+  Opening.proof setup complete.packageWidth step control read head (family index) prover
 
 local notation "memory" =>
   FinalMemory.adversary head kind verifiers extracted prover budget app claim
@@ -422,8 +422,8 @@ theorem memory_sound_drawn
     (rows : ∀ circuit : Fin 2, (setup.rows circuit).matrices =
       (FinalRows.packageRows exports complete circuit).matrices)
     (keysShaped : ∀ key, (setup.circuitKeys key).digest.length = 4)
-    (blocks : setup.keyBlocks = 512) (coords : 28 ≤ Fintype.card Coord)
-    (drawn : ∀ index, (family index).Drawn setup complete.packageWidth step cap control read head)
+    (blocks : setup.keyBlocks = 512) (coords : 30 ≤ Fintype.card Coord)
+    (drawn : ∀ index, (family index).Drawn setup complete.packageWidth step control read head)
     {queries : ℕ} (bounded : prover.QueryBound queries) (positive : 0 < budget)
     (admitted : StageAdmitted
       (HyperNova.ReverseStages.Stage.start (IvcSecurity.walkAdversary memory)))
@@ -439,7 +439,7 @@ theorem memory_sound_drawn
             assumption closed claim admitted (p.sMax * p.n) tape).1.1
           (FinalMemory.sampleOf setup step head kind verifiers extracted prover budget app exports
             assumption closed claim admitted (p.sMax * p.n) tape)}).toReal ≤
-      shapesBound setup complete.packageWidth step cap control read head family prover
+      shapesBound setup complete.packageWidth step control read head family prover
           (1 / (fieldModulus : ℝ) ^ 2) queries budget +
         (IvcSecurity.walkBound setup.ajtai setup.circuitKeys exports assumption closed memory
             admitted (p.sMax * p.n) +
@@ -450,10 +450,10 @@ theorem memory_sound_drawn
             {sample | (NebulaSecurity.experiment app setup.ajtai setup.circuitKeys
               exports).ChainCollision app sample}).toReal +
           memoryError (claimedAt admitted)) :=
-  FinalMemory.memory_sound setup step cap control head kind _ _ prover budget app exports
+  FinalMemory.memory_sound setup step control head kind _ _ prover budget app exports
     assumption closed claim admitted complete
     (fun index =>
-      (family index).knowledge setup complete.packageWidth step cap control read head prover
+      (family index).knowledge setup complete.packageWidth step control read head prover
         (FinalRows.premises_of_rows setup exports complete rows) blocks coords
         (drawn index).sized bounded positive)
     valid keysShaped programEq round

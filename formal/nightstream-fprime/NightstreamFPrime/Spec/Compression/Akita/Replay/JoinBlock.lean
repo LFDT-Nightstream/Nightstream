@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinSlots
 
 /-! The block of the stages of each level of `tower20` for an accepted proof of `key20.aks`, for
 theorem A of the join (Akita revision `d50f700`; ePrint 2026/1983, revision of 2026-11-23,
-Section 10.3; `docs/akita-work/w16/design.md` section 2).
+Section 10.3).
 
 - `block20_zeroth` .. `block20_fifth`: for each work slot function `work` and each wire message
   `wire₀` with the data `note20`, a block of the stages of the level exists (50, 69, 83, 81, 94

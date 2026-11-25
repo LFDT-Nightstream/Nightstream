@@ -1,8 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinPresent
 
 /-! Theorem B of the join, direction "→", for `key20.aks` (Akita revision `d50f700`; ePrint
-2026/1983, revision of 2026-11-23, Figure 4, Section 5.4 and Section 8.2;
-`docs/akita-work/w16/design.md` section 2): on a transcript that presents the bytes of an accepted
+2026/1983, revision of 2026-11-23, Figure 4, Section 5.4 and Section 8.2): on a transcript that presents the bytes of an accepted
 proof, the verifier `Key20.Tower.accepts` of the tower data `tower20` accepts, one conjunct of
 `towerLinks` at a time.
 

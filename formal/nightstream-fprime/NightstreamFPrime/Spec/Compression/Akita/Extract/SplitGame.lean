@@ -27,11 +27,10 @@ variable {F K : Type} [Field F] [Fintype F] [DecidableEq F] [Field K] [Fintype K
   [Algebra F K] {P : Params F K} (vf : VerifierData P)
 
 /-- The bounds of the draws of `back` in their order: the challenges, the rounds of the first
-sum-check, the column point and the rounds of the key sum-check. -/
-noncomputable def backCosts : List ℝ :=
-  challengeError P :: (List.replicate P.witnessVars (((3 : ℕ) : ℝ) / Fintype.card K) ++
-    ((vf.columnVars : ℝ) / Fintype.card K ::
-      List.replicate (P.laneVars + P.keyBlockVars) (((2 : ℕ) : ℝ) / Fintype.card K)))
+sum-check and the rounds of the key sum-check. -/
+noncomputable def backCosts (_vf : VerifierData P) : List ℝ :=
+  challengeError P :: (List.replicate P.witnessVars (((P.lookups + 2 : ℕ) : ℝ) / Fintype.card K) ++
+    List.replicate (P.laneVars + P.keyBlockVars) (((2 : ℕ) : ℝ) / Fintype.card K))
 
 omit [Field F] [DecidableEq F] [Field K] [DecidableEq K] [Algebra F K] in
 /-- The bounds of the draws of `front` and `back` add to the bound of one run of `game`. -/
@@ -44,7 +43,7 @@ omit [Field F] [Fintype F] [DecidableEq F] [DecidableEq K] [Algebra F K] in
 theorem backCosts_nonnegative : ∀ cost ∈ backCosts vf, 0 ≤ cost := by
   intro cost member
   simp only [backCosts, List.mem_cons, List.mem_append, List.mem_replicate] at member
-  rcases member with rfl | ⟨_, rfl⟩ | rfl | ⟨_, rfl⟩
+  rcases member with rfl | ⟨_, rfl⟩ | ⟨_, rfl⟩
   · exact challengeError_nonneg
   all_goals positivity
 
@@ -57,26 +56,23 @@ theorem front_staged (fair : ∃ decode : Reply → Fin P.lookups → F, Fair de
   stagedTo_draw fair (density_tauBad_le P W) fun _ => trivial
 
 omit [Fintype F] [DecidableEq F] in
-/-- Each draw of `back` has its bound of `backCosts`. `challenges`, `scalar` and `column`: an
-answer of the oracle gives uniform challenges, a uniform element of `K` and a uniform column
-point. -/
+/-- Each draw of `back` has its bound of `backCosts`. The oracle supplies uniform challenges and a uniform element of `K`. -/
 theorem back_staged (challenges : ∃ decode : Reply → Challenges P, Fair decode)
     (scalar : ∃ decode : Reply → K, Fair decode)
-    (column : ∃ decode : Reply → Fin vf.columnVars → K, Fair decode) (wf : WellFormed P)
+    (wf : WellFormed P)
     (st : Statement P) (W V : ℕ → F) (τ : Fin P.lookups → F) :
     Staged Reply (back vf st W V τ) (backCosts vf) := by
   refine stagedTo_draw challenges (density_challengeBad_le st W V τ wf) fun ch => ?_
-  have main_truth := combRound_truth P.witnessVars 3 (mainTables P st W V τ ch) mainComb
-    mainComb_degree
-  refine (stagedTo_bind _ _ _ _).mpr (sumcheck_staged scalar 3 P.witnessVars _ main_truth.degree
+  have main_truth := combRound_truth P.witnessVars (P.lookups + 2) (mainTables P st W V τ ch) (mainComb P τ ch)
+    (mainComb_degree P τ ch)
+  refine (stagedTo_bind _ _ _ _).mpr (sumcheck_staged scalar (P.lookups + 2) P.witnessVars _ main_truth.degree
     _ _ (fun _ => trivial) ?_ P.witnessVars [] _ (by simp))
   rintro ⟨ρ, value⟩ vals
-  refine stagedTo_draw column (density_columnBad_le _ _ _) fun col => ?_
   have key_truth := combRound_truth (P.laneVars + P.keyBlockVars) 2 (keyTables ch ρ) productComb
     productComb_degree
   have rounds := sumcheck_staged (Reply := Reply) scalar 2 (P.laneVars + P.keyBlockVars) _
     key_truth.degree [] (fun result rest =>
-      StagedTo Reply (backKey vf st τ ch ρ value vals col result) rest fun _ _ => True)
+      StagedTo Reply (backKey vf st τ ch ρ value vals result) rest fun _ _ => True)
     (fun _ => trivial) (fun final _ => trivial) (P.laneVars + P.keyBlockVars) [] vals.2.2
     (by simp)
   rw [List.append_nil] at rounds
@@ -90,10 +86,10 @@ omit [Fintype F] [DecidableEq F] in
 /-- The verifier of `back` is the same for each pair of tables. -/
 theorem back_bare (st : Statement P) (W V W' V' : ℕ → F) (τ : Fin P.lookups → F) :
     bare (back vf st W V τ) = bare (back vf st W' V' τ) := by
-  refine bare_draw_congr fun ch => bare_bind_congr (sumcheck_bare 3 _ _ _ _ _) fun first => ?_
+  refine bare_draw_congr fun ch => bare_bind_congr (sumcheck_bare (P.lookups + 2) _ _ _ _ _) fun first => ?_
   rcases first with _ | ⟨ρ, value⟩
   · rfl
-  · exact bare_recv_congr fun vals => bare_draw_congr fun col => rfl
+  · exact rfl
 
 /-- A game `lead` and then, when it ends in a value, the draw of the lookup challenges. -/
 noncomputable def led {Lead : Type} (P : Params F K) (lead : Game (Option Lead)) (W : ℕ → F) :

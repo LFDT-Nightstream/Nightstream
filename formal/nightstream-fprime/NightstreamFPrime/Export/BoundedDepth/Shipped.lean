@@ -162,7 +162,7 @@ with at most `queries` queries to the oracle, the probability of a false history
 theorem verify_final_sound {mode : Mode} (facts : Facts program ajtai) (identity : List F)
     (relations : Fin 2 → Relation) (lightKey : relations 0 = lightRelation facts)
     (refreshKey : relations 1 = refreshRelation facts)
-    (setupRows : ℕ → Compression.Verifier.Factored F) (zeros minimum cap : ℕ)
+    (setupRows : ℕ → Compression.Verifier.Factored F) (zeros minimum : ℕ)
     (control : AppState → AppWitness → Fin 2)
     {Wire Coord : Type} {total : ℕ} (read : Compression.Akita.Extract.Reader Wire)
     (head : Wire → FinalAkita.First StepRelation.keyWidth StepRelation.keyPublicFits)
@@ -192,32 +192,32 @@ theorem verify_final_sound {mode : Mode} (facts : Facts program ajtai) (identity
     (coords : 40 ≤ Fintype.card Coord)
     (drawn : ∀ index, (family index).Drawn
       (setup mode ajtai identity relations setupRows zeros minimum)
-      (complete facts identity relations lightKey refreshKey).packageWidth program.step cap control
+      (complete facts identity relations lightKey refreshKey).packageWidth program.step control
       read head (shared index))
     {queries : ℕ} (bounded : prover.QueryBound queries) (positive : 0 < budget)
     (admitted : StageAdmitted (Stage.start (walkAdversary (FinalKey30.adversary
       (setup mode ajtai identity relations setupRows zeros minimum)
-      (complete facts identity relations lightKey refreshKey).packageWidth program.step cap control
+      (complete facts identity relations lightKey refreshKey).packageWidth program.step control
       read head kind family shared prover budget))))
     (depth : ℕ)
     (depthBound : ∀ table, FinalKey30.finalAccepts
         (setup mode ajtai identity relations setupRows zeros minimum)
-        (complete facts identity relations lightKey refreshKey).packageWidth program.step cap
+        (complete facts identity relations lightKey refreshKey).packageWidth program.step
         control read head kind family shared (FinalKey20.played prover table) →
       (head (FinalKey20.played prover table).first).statement.iteration ≤ depth) :
     ((FinalKey30.adversary (setup mode ajtai identity relations setupRows zeros minimum)
-        (complete facts identity relations lightKey refreshKey).packageWidth program.step cap
+        (complete facts identity relations lightKey refreshKey).packageWidth program.step
         control read head kind family shared prover budget).tape.toOuterMeasure {sample |
           FinalKey30.FalseHistory (setup mode ajtai identity relations setupRows zeros minimum)
-            (complete facts identity relations lightKey refreshKey).packageWidth program.step cap
+            (complete facts identity relations lightKey refreshKey).packageWidth program.step
             control read head kind family shared prover program sample.1}).toReal ≤
       FinalKey30.shapesBound (setup mode ajtai identity relations setupRows zeros minimum)
-          (complete facts identity relations lightKey refreshKey).packageWidth program.step cap
+          (complete facts identity relations lightKey refreshKey).packageWidth program.step
           control read head family shared prover queries budget +
         walkBound ajtai (keys identity relations)
           (exports facts identity relations lightKey refreshKey) assumption closed
           (FinalKey30.adversary (setup mode ajtai identity relations setupRows zeros minimum)
-            (complete facts identity relations lightKey refreshKey).packageWidth program.step cap
+            (complete facts identity relations lightKey refreshKey).packageWidth program.step
             control read head kind family shared prover budget)
           admitted depth :=
   FinalKey30.history_sound_drawn (setup := setup mode ajtai identity relations setupRows zeros

@@ -1544,12 +1544,17 @@ dependencies = [
 name = "ns-compress"
 version = "0.1.0"
 dependencies = [
+ "akita-algebra 0.1.0 (git+https://github.com/LayerZero-Labs/akita.git?rev=d50f700fb1a292395a717cef0e6f437c7ce2cdb1)",
+ "akita-challenges 0.1.0 (git+https://github.com/LayerZero-Labs/akita.git?rev=d50f700fb1a292395a717cef0e6f437c7ce2cdb1)",
  "akita-config 0.1.0 (git+https://github.com/nicarq/akita.git?rev=5a2a2db2c554cdd4dde7dd2f303cb304ce5460be)",
  "akita-config 0.1.0 (git+https://github.com/LayerZero-Labs/akita.git?rev=d50f700fb1a292395a717cef0e6f437c7ce2cdb1)",
+ "akita-error 0.1.0 (git+https://github.com/LayerZero-Labs/akita.git?rev=d50f700fb1a292395a717cef0e6f437c7ce2cdb1)",
  "akita-params 0.1.0 (git+https://github.com/nicarq/akita.git?rev=5a2a2db2c554cdd4dde7dd2f303cb304ce5460be)",
  "akita-params 0.1.0 (git+https://github.com/LayerZero-Labs/akita.git?rev=d50f700fb1a292395a717cef0e6f437c7ce2cdb1)",
  "akita-pcs",
  "akita-serialization 0.1.0 (git+https://github.com/LayerZero-Labs/akita.git?rev=d50f700fb1a292395a717cef0e6f437c7ce2cdb1)",
+ "akita-sumcheck 0.1.0 (git+https://github.com/LayerZero-Labs/akita.git?rev=d50f700fb1a292395a717cef0e6f437c7ce2cdb1)",
+ "akita-transcript 0.1.0 (git+https://github.com/LayerZero-Labs/akita.git?rev=d50f700fb1a292395a717cef0e6f437c7ce2cdb1)",
  "akita-types 0.1.0 (git+https://github.com/nicarq/akita.git?rev=5a2a2db2c554cdd4dde7dd2f303cb304ce5460be)",
  "akita-types 0.1.0 (git+https://github.com/LayerZero-Labs/akita.git?rev=d50f700fb1a292395a717cef0e6f437c7ce2cdb1)",
  "akita-verifier 0.1.0 (git+https://github.com/LayerZero-Labs/akita.git?rev=d50f700fb1a292395a717cef0e6f437c7ce2cdb1)",

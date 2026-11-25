@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.Replay.ShapeErase
 
 /-! The checks `range.k.end` of the product stages of the range proof against the stage function
-of the last check of the range proof (finding 16; Akita revision `d50f700`, `stages/stage1.rs`;
+of the last check of the range proof (Akita revision `d50f700`, `stages/stage1.rs`;
 `Build.range` of `Replay/Script.lean`, `treeRun` of `Replay/Range.lean`).
 
 - `treeInputs` are the inputs of the product stage `k` of `treeRun` after the stages before it,

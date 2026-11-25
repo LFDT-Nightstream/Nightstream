@@ -49,7 +49,7 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
     RingCarrierLayout.carrierWidth logicalWidth}
   {mode : Mode} (setup : FinalVerifier.Setup mode logicalWidth publicFits)
-  (packageWidths : Fin 2 → ℕ) (step : AppState → AppWitness → AppState) (cap : ℕ)
+  (packageWidths : Fin 2 → ℕ) (step : AppState → AppWitness → AppState)
   (control : AppState → AppWitness → Fin 2) {Wire Coord : Type} {total : ℕ}
   (head : Wire → First logicalWidth publicFits)
   [Fintype Coord] [DecidableEq Coord] {ι : Type} [Fintype ι]
@@ -96,12 +96,12 @@ theorem knowledge_all {bounds : ι → ℝ}
     (each : ∀ index,
       𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget total,
         (if accepts index (played prover table) ∧
-            ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths cap control
+            ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths control
               (head (played prover table).first).statement (proofs index budget table tape)
           then (1 : ℝ) else 0) ≤ bounds index) :
     𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget total,
         (if finalAccepts head kind accepts (played prover table) ∧
-            ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths cap control
+            ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths control
               (head (played prover table).first).statement
               (finalProof head kind proofs prover budget table tape)
           then (1 : ℝ) else 0) ≤
@@ -119,7 +119,7 @@ theorem knowledge_all {bounds : ι → ℝ}
     · refine absurd ?_ refuted
       unfold finalProof
       rw [ite_eq_left bottom]
-      exact FinalVerifier.verifies_of_bottom setup step cap control bottom
+      exact FinalVerifier.verifies_of_bottom setup step control bottom
     · rcases accepted with zero | ⟨index, named, accepted⟩
       · exact absurd zero bottom
       · have same : finalProof head kind proofs prover budget table tape =
@@ -130,7 +130,7 @@ theorem knowledge_all {bounds : ι → ℝ}
         refine le_trans (le_of_eq (ite_eq_left (show _ ∧ _ from ⟨accepted, refuted⟩)).symm)
           (Finset.single_le_sum (f := fun index =>
             if accepts index (played prover table) ∧
-                ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths cap control
+                ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths control
                   (head (played prover table).first).statement (proofs index budget table tape)
               then (1 : ℝ) else 0)
             (fun _ _ => by split_ifs <;> norm_num) (Finset.mem_univ index))
@@ -144,12 +144,12 @@ theorem sound_all {bounds : ι → ℝ}
     (each : ∀ index,
       𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget total,
         (if accepts index (played prover table) ∧
-            ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths cap control
+            ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths control
               (head (played prover table).first).statement (proofs index budget table tape)
           then (1 : ℝ) else 0) ≤ bounds index) :
     𝔼 table,
         (if finalAccepts head kind accepts (played prover table) ∧
-            ¬ ∃ proof, Verifies setup.ajtai setup.circuitKeys step packageWidths cap control
+            ¬ ∃ proof, Verifies setup.ajtai setup.circuitKeys step packageWidths control
               (head (played prover table).first).statement proof
           then (1 : ℝ) else 0) ≤
       ∑ index, bounds index := by
@@ -157,7 +157,7 @@ theorem sound_all {bounds : ι → ℝ}
       𝔼 _tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget total, value :=
     (Finset.expect_const Finset.univ_nonempty value).symm
   refine le_trans (Finset.expect_le_expect fun table _ => ?_)
-    (knowledge_all setup packageWidths step cap control head kind accepts proofs prover budget
+    (knowledge_all setup packageWidths step control head kind accepts proofs prover budget
       each)
   refine (flat _).le.trans (Finset.expect_le_expect fun tape _ => ?_)
   split_ifs with lost found
@@ -193,14 +193,14 @@ def FalseHistory (program : Stage1.Application.Program)
 def Rejected (sample : (Address Wire total → Option Coord → CodeSlot K) ×
     Tape (Address Wire total) (Option Coord) (CodeSlot K) budget total) : Prop :=
   finalAccepts head kind accepts (played prover sample.1) ∧
-    ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths cap control
+    ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths control
       (head (played prover sample.1).first).statement
       (finalProof head kind proofs prover budget sample.1 sample.2)
 
 local notation "ivc" => adversary head kind accepts proofs prover budget
 
 local notation "rejects" =>
-  Rejected setup packageWidths step cap control head kind accepts proofs prover budget
+  Rejected setup packageWidths step control head kind accepts proofs prover budget
 
 /-- The probability of `Rejected` under the law of the tape of `adversary` is at most the sum of
 the bounds of the shapes (`knowledge_all` under the uniform law). -/
@@ -208,13 +208,13 @@ theorem rejected_le {bounds : ι → ℝ}
     (each : ∀ index,
       𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget total,
         (if accepts index (played prover table) ∧
-            ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths cap control
+            ¬ Verifies setup.ajtai setup.circuitKeys step packageWidths control
               (head (played prover table).first).statement (proofs index budget table tape)
           then (1 : ℝ) else 0) ≤ bounds index) :
     ((ivc).tape.toOuterMeasure {sample | rejects sample}).toReal ≤ ∑ index, bounds index := by
   refine (uniform_event (Sample := (Address Wire total → Option Coord → CodeSlot K) ×
     Tape (Address Wire total) (Option Coord) (CodeSlot K) budget total) _).trans_le
-    (le_trans (le_of_eq ?_) (knowledge_all setup packageWidths step cap control head kind accepts
+    (le_trans (le_of_eq ?_) (knowledge_all setup packageWidths step control head kind accepts
       proofs prover budget each))
   rw [← Finset.univ_product_univ, Finset.expect_product]
   exact Finset.expect_congr rfl fun table _ => Finset.expect_congr rfl fun tape _ =>
@@ -254,7 +254,7 @@ variable {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
   (complete : StepExtend.Complete exports)
 
 local notation "rejects" =>
-  Rejected setup complete.packageWidth step cap control head kind accepts proofs prover budget
+  Rejected setup complete.packageWidth step control head kind accepts proofs prover budget
 
 /-- The final verifier against a false history, in the form of `Claims.Final.history_sound`. The
 probability of a false history is at most the sum of the bounds of the shapes plus
@@ -268,7 +268,7 @@ theorem history_sound {bounds : ι → ℝ}
     (each : ∀ index,
       𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget total,
         (if accepts index (played prover table) ∧
-            ¬ Verifies setup.ajtai setup.circuitKeys step complete.packageWidth cap control
+            ¬ Verifies setup.ajtai setup.circuitKeys step complete.packageWidth control
               (head (played prover table).first).statement (proofs index budget table tape)
           then (1 : ℝ) else 0) ≤ bounds index)
     (keysShaped : ∀ key, (setup.circuitKeys key).digest.length = 4)
@@ -281,22 +281,22 @@ theorem history_sound {bounds : ι → ℝ}
       ∑ index, bounds index +
         IvcSecurity.walkBound setup.ajtai setup.circuitKeys exports assumption closed ivc admitted
           depth := by
-  have rejected := rejected_le setup complete.packageWidth step cap control head kind accepts
+  have rejected := rejected_le setup complete.packageWidth step control head kind accepts
     proofs prover budget each
   have accepted := IvcSecurity.probability_bound setup.ajtai setup.circuitKeys exports assumption
-    closed ivc admitted keysShaped control cap depth fun sample _ =>
+    closed ivc admitted keysShaped control depth fun sample _ =>
       adversary_depth head kind accepts proofs prover budget depth depthBound sample
   have cover : {sample : (ivc).Tape |
       FalseHistory head kind accepts prover exports.program sample.1} ⊆
       {sample | rejects sample} ∪
-        {sample | IvcSecurity.FalseAcceptance setup.ajtai setup.circuitKeys exports control cap
+        {sample | IvcSecurity.FalseAcceptance setup.ajtai setup.circuitKeys exports control
           ((ivc).output sample)} := by
     rintro sample ⟨accepted, unreached⟩
-    by_cases verifies : Verifies setup.ajtai setup.circuitKeys step complete.packageWidth cap
+    by_cases verifies : Verifies setup.ajtai setup.circuitKeys step complete.packageWidth
       control (head (played prover sample.1).first).statement
       (finalProof head kind proofs prover budget sample.1 sample.2)
     · refine Or.inr ?_
-      show IvcSecurity.FalseAcceptance _ _ _ _ _ ((ivc).output sample)
+      show IvcSecurity.FalseAcceptance _ _ _ _ ((ivc).output sample)
       rw [show (ivc).output sample = _ from ite_eq_left accepted]
       exact ⟨holds_of_verifies verifies, unreached⟩
     · exact Or.inl ⟨accepted, verifies⟩
@@ -341,7 +341,7 @@ theorem history_knowledge {bounds : ι → ℝ}
     (each : ∀ index,
       𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget total,
         (if accepts index (played prover table) ∧
-            ¬ Verifies setup.ajtai setup.circuitKeys step complete.packageWidth cap control
+            ¬ Verifies setup.ajtai setup.circuitKeys step complete.packageWidth control
               (head (played prover table).first).statement (proofs index budget table tape)
           then (1 : ℝ) else 0) ≤ bounds index)
     (keysShaped : ∀ key, (setup.circuitKeys key).digest.length = 4)
@@ -355,19 +355,19 @@ theorem history_knowledge {bounds : ι → ℝ}
       ∑ index, bounds index +
         IvcSecurity.walkBound setup.ajtai setup.circuitKeys exports assumption closed ivc admitted
           depth := by
-  have rejected := rejected_le setup complete.packageWidth step cap control head kind accepts
+  have rejected := rejected_le setup complete.packageWidth step control head kind accepts
     proofs prover budget each
   have failed := IvcSecurity.extraction_bound setup.ajtai setup.circuitKeys exports assumption
-    closed ivc admitted keysShaped control cap depth fun sample _ =>
+    closed ivc admitted keysShaped control depth fun sample _ =>
       adversary_depth head kind accepts proofs prover budget depth depthBound sample
   have cover : {tape | AdviceFailure setup step head kind accepts proofs prover budget
         exports assumption closed admitted depth tape} ⊆
       start admitted depth ⁻¹' {sample : (ivc).Tape | rejects sample} ∪
-        {tape | IvcSecurity.ExtractionFailure setup.ajtai setup.circuitKeys exports control cap
+        {tape | IvcSecurity.ExtractionFailure setup.ajtai setup.circuitKeys exports control
           ((finalStages admitted depth).1.input tape)
           ((finalStages admitted depth).1.results tape)} := by
     rintro tape ⟨accepted, unreached⟩
-    by_cases verifies : Verifies setup.ajtai setup.circuitKeys step complete.packageWidth cap
+    by_cases verifies : Verifies setup.ajtai setup.circuitKeys step complete.packageWidth
       control
       (head (played prover ((start admitted depth tape : (ivc).Tape).1)).first).statement
       (finalProof head kind proofs prover budget (start admitted depth tape : (ivc).Tape).1

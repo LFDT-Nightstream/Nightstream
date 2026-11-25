@@ -58,7 +58,7 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
     RingCarrierLayout.carrierWidth logicalWidth}
   {mode : Mode} (setup : FinalVerifier.Setup mode logicalWidth publicFits)
-  (packageWidths : Fin 2 → ℕ) (step : AppState → AppWitness → AppState) (cap : ℕ)
+  (packageWidths : Fin 2 → ℕ) (step : AppState → AppWitness → AppState)
   (control : AppState → AppWitness → Fin 2) (shape : Claims logicalWidth publicFits)
   {Wire Coord : Type} {total : ℕ} (read : Reader Wire)
   (head : Wire → First logicalWidth publicFits)
@@ -92,7 +92,7 @@ variable {logicalWidth : Nat}
   {stateOf : Wire → Fin Key20.terminal.blocks → Fin Key20.terminal.innerRank →
     Rq Key20.terminal.innerDegree}
 
-local notation "C" => compose setup packageWidths step cap control shape read head bound
+local notation "C" => compose setup packageWidths step control shape read head bound
 
 local notation "vf" => FinalVerifier.Setup.verifier setup shape
 
@@ -156,13 +156,13 @@ local notation "opening" =>
 local notation "whole" => Compose.chain C vf accepts opening key openKey mass Sum.inl
 
 /-- The zeros of the opening point of `V` for the layout of the claims: `inverse_vars −
-table_witness_vars − LOOKUP_VARS` (Rust `inverse_point`, `crates/ns-compress/src/lib.rs`), from
+table_witness_vars` (Rust `inverse_point`, `crates/ns-compress/src/lib.rs`), from
 the Lean model `Compression.Rust.layoutNew` of Rust `Layout::new`. No Lean result compares this
 number with the Rust code. -/
 def laidZeros (setup : FinalVerifier.Setup mode logicalWidth publicFits)
     (shape : Claims logicalWidth publicFits) : ℕ :=
   match setup.placed shape with
-  | .ok l => l.inverseVars - l.spanVars - Compression.Rust.lookupVars
+  | .ok l => l.inverseVars - l.spanVars
   | .error _ => 0
 
 /-- The use of the final verifier with the key of `key20.aks`. `laid`: the claims pass the layout
@@ -178,18 +178,18 @@ structure Use (setup : FinalVerifier.Setup mode logicalWidth publicFits)
 (Rust `Layout::new` with `akita::SCHEDULES`, and SPEC.md Algorithm 10, the Akita claims). For a
 setup with `Use`, the point `(kp, rowPoint)` of the key polynomial has `6 + 9 + 5 = 20`
 coordinates, the point `ρ` of `W` has 16 coordinates, and the point of `V` has
-`spanVars + 2 + zeros = 16` coordinates. These are the sizes `2^20`, `2^16` and `2^16` of the
-tables of the groups of `Key20.root`. The span has at most 14 variables. -/
+`spanVars + zeros = 16` coordinates. These are the sizes `2^20`, `2^16` and `2^16` of the
+tables of the groups of `Key20.root`. The span has at most 16 variables. -/
 theorem key20_points (use : Use setup shape) :
     (setup.params shape).laneVars + (setup.params shape).keyBlockVars +
         (setup.params shape).rowVars = 20 ∧
       (setup.params shape).witnessVars = 16 ∧
-      (setup.params shape).spanVars + (setup.verifier shape).columnVars +
+      (setup.params shape).spanVars +
         (setup.verifier shape).zeros = 16 ∧
-      (setup.params shape).spanVars ≤ 14 := by
+      (setup.params shape).spanVars ≤ 16 := by
   obtain ⟨⟨l, ok⟩, -⟩ := use.laid
   have same : setup.layout shape = l.production := by simp only [FinalVerifier.Setup.layout, ok]
-  have zeros : setup.zeros = l.inverseVars - l.spanVars - Compression.Rust.lookupVars := by
+  have zeros : setup.zeros = l.inverseVars - l.spanVars := by
     rw [use.zeros]
     simp only [laidZeros, ok]
   unfold FinalVerifier.Setup.placed at ok
@@ -201,14 +201,14 @@ theorem key20_points (use : Use setup shape) :
   obtain rfl := rows row inRow
   simp only [Compression.Rust.rowFits, Bool.and_eq_true, decide_eq_true_eq] at fits
   obtain ⟨span, known⟩ : ∃ span, span = (setup.layout shape).spanVars := ⟨_, rfl⟩
-  have small : span + 2 ≤ 16 := by
+  have small : span ≤ 16 := by
     rw [known, same]
     exact fits.2
-  have padded : setup.zeros = 16 - span - 2 := by
+  have padded : setup.zeros = 16 - span := by
     rw [zeros, known, same]
     rfl
   show 6 + (setup.layout shape).keyBlockVars + 5 = 20 ∧ (setup.layout shape).witnessVars = 16 ∧
-    (setup.layout shape).spanVars + 2 + setup.zeros = 16 ∧ (setup.layout shape).spanVars ≤ 14
+    (setup.layout shape).spanVars + setup.zeros = 16 ∧ (setup.layout shape).spanVars ≤ 16
   rw [← known, padded, same]
   show 6 + (schedule.keyVars - 6 - 5) + 5 = 20 ∧ (16 : ℕ) = 16 ∧ _
   rw [keyVars]
@@ -241,13 +241,13 @@ retry loops: 2 for the compression argument and 142 for the opening. `breakChanc
 probability that the extractor returns a solution of Module-SIS for the key commitment, for a
 matrix of a group, of a level, or for `A_term`. `use`: the conditions `Use` of the key of
 `key20.aks`, with which the points of the three opening claims have 20, 16 and 16 coordinates
-(`Use.points`). `coords`: an answer of the oracle has 28 slots, which is a slot for each
+(`Use.points`). `coords`: an answer of the oracle has 30 slots, which is a slot for each
 coordinate of `α`, for each lookup challenge, for each challenge after `V` and for each fold
 challenge of a level. `premises`, `early`, `registered` and `covers` are the hypotheses of
 `FinalAkita.mixed_sound` on the final verifier. The other hypotheses are those of
 `Key20.tower_suffix` and `Key20.towerError_le`. -/
 theorem sound [Finite Wire] {peak : Fin 3 → ℕ} (premises : Premises setup packageWidths)
-    (use : Use setup shape) (coords : 28 ≤ Fintype.card Coord)
+    (use : Use setup shape) (coords : 30 ≤ Fintype.card Coord)
     (early : ∀ anchor g, g ≠ 2 → bound anchor g = bound (anchor.take 0) g)
     (injective : Function.Injective block)
     (units : ∀ g, UnitDifferences {challenge | ∃ slot, decode g slot = some challenge})
@@ -297,18 +297,18 @@ theorem sound [Finite Wire] {peak : Fin 3 → ℕ} (premises : Premises setup pa
     𝔼 table, 𝔼 _tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget
           (Structure.protocol whole).stages,
         (if accepts ((Structure.protocol whole).final prover table) ∧
-            ¬ Proved setup packageWidths step cap control head
+            ¬ Proved setup packageWidths step control head
               (((Structure.protocol whole).input prover table 0).wire 0) then (1 : ℝ) else 0) ≤
       (queries + 1) * (setup.runCost shape + (317479 / (1024 * Fintype.card K) + 135 * p)) +
         (queries + 1) * (144 : ℕ) / budget +
-        breakChance setup packageWidths step cap control shape read head bound accepts opening
+        breakChance setup packageWidths step control shape read head bound accepts opening
           key openKey mass Sum.inl prover honest innerBound budget := by
   obtain ⟨-, -, -, span⟩ := key20_points setup shape use
   have laid := use.laid
-  have slots : 22 ≤ Fintype.card Coord := (by decide : 22 ≤ 28).trans coords
+  have slots : 22 ≤ Fintype.card Coord := (by decide : 22 ≤ 30).trans coords
   have lookupsFit : (setup.params shape).lookups ≤ Fintype.card Coord :=
-    (by decide : 4 ≤ 28).trans coords
-  have cube : CompressionFresh.oneShape.cubeVariables ≤ Fintype.card Coord := coords
+    (by decide : 4 ≤ 30).trans coords
+  have cube : CompressionFresh.oneShape.cubeVariables ≤ Fintype.card Coord := (by decide : 28 ≤ 30).trans coords
   have challengesFit : 4 + ((setup.params shape).lookups + ((setup.params shape).claims +
       (setup.params shape).claims + (setup.params shape).spanVars)) ≤ Fintype.card Coord := by
     have claims : (setup.params shape).claims ≤ 3 := Nat.succ_le_succ mode.slots_le
@@ -326,7 +326,7 @@ theorem sound [Finite Wire] {peak : Fin 3 → ℕ} (premises : Premises setup pa
     (block₄ := block₄) (weight₄ := weight₄) (key₅ := key₅) (openKey₅ := openKey₅)
     (claim₅ := claim₅) (block₅ := block₅) (weight₅ := weight₅) (read := Compose.read C)
     (start := Compose.root C vf) chance chance₁ chance₂ chance₃ chance₄ chance₅ chanceL
-  refine (mixed_sound setup packageWidths step cap control shape read head bound premises laid
+  refine (mixed_sound setup packageWidths step control shape read head bound premises laid
     lookupsFit challengesFit cube early injective units sparse root_sized.2.2.1
     root_sized.2.2.2.1 root_sized.2.2.2.2 ((by decide : rootVars ≤ 22).trans slots)
     ((by decide : rootBatch ≤ 22).trans slots) ((by decide : 3 ≤ 22).trans slots)
@@ -371,7 +371,7 @@ and `Relation` for `W`. No Lean result gives `leads`.
 values and to challenges after `V` whose `ω` has a row point: the two failures of Algorithm 9,
 Rejects. `decodes` to `decodesL`: the slots of an answer decode to fold challenges.
 
-`sends`, `wide`, `capped`, `room`, `short` and `carriesM` to `carriesL`: a wire message can have
+`sends`, `wide`, `capped`, `room`, `sendValues` and `carriesM` to `carriesL`: a wire message can have
 the data of the prover. `bound₀`, `bound₁`, `bound₂`: the commitments that a stage input fixes
 are the commitments of the key polynomial and of `W`, and the commitment of `V` in the message
 after the lookup challenges. `next`, `inside`, `reads`, `clears`: the stage of the terminal and
@@ -384,8 +384,7 @@ theorem complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
     {partialsOf : Wire → Fin Key20.terminal.blocks → Rq Key20.terminal.innerDegree}
     (use : Use setup shape) (sends : Sends sendable K width cap) (wide : 8 ≤ width)
     (capped : 3029804899 ≤ cap) (room : 3 < slots)
-    (short : ∀ values : Compression.Verifier.Values K, (∀ k, 4 ≤ k → values.2.1 k = 0) →
-      sendable (Compression.Verifier.Values K) values)
+    (sendValues : ∀ v : Compression.Verifier.Values K, sendable (Compression.Verifier.Values K) v)
     (carriesM : Carries sendable slots read commit)
     (carriesC : Carries sendable slots read fun wire => (commit wire, value wire, place wire))
     (carriesR : Carries sendable slots read claim)
@@ -477,7 +476,7 @@ theorem complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
     fun input => decodesL input.address
   replace worked : ∀ input, table input none ∈ workZeros (CodeSlot K) 57 := fun input => worked input.address
   clear_value table
-  obtain ⟨wf, -, matrix, columns, rows, key_fits⟩ := FinalVerifier.laid_facts setup use.laid
+  obtain ⟨wf, -, matrix, rows, key_fits⟩ := FinalVerifier.laid_facts setup use.laid
   obtain ⟨keyLength, wLength, vLength, -⟩ := key20_points setup shape use
   have fits : Compose.root C vf ≤ total := by
     have ends₀ := Tier.finish_eq zeroth
@@ -499,9 +498,9 @@ theorem complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
     unfold FinalVerifier.Setup.lead
     exact ite_eq_left ⟨checks, gate⟩
   obtain ⟨proof, zero, ran, linked⟩ := Compose.accepts (commit := commit) (value := value)
-    (place := place) (accept := accept) wf matrix columns rows key_fits
-    (fun _ W other => FinalVerifier.lead_bare setup _ _ W other) fits sends (by omega) (by omega)
-    (fun values zero => short values zero) carriesM carriesC table
+    (place := place) (accept := accept) wf matrix rows key_fits
+    (fun _ W other => FinalVerifier.lead_bare setup _ _ W other) fits sends (by change 4 + 3 ≤ width; omega) (by omega)
+    sendValues carriesM carriesC table
     (fun input T _ _ => Compression.Verifier.rejects_sample (calm input) (regular input) T)
     (onPath_nil accept table given) rfl W counts
     (params_tablesDistinct _ _ _ _ fun _ => checks.2.2.2.1 _)
@@ -523,9 +522,8 @@ theorem complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
           fin_cases g
           · exact Compose.keyBase_zero rows (by rw [keyLength]; exact large)
           · exact tail cell large
-          · have small : (setup.params shape).spanVars + (setup.verifier shape).columnVars ≤
-                16 := by omega
-            exact Compression.Verifier.honestInverses_zero W τ columns
+          · have small : (setup.params shape).spanVars ≤ 16 := by omega
+            exact Compression.Verifier.honestInverses_zero W τ wf
               ((Nat.pow_le_pow_right (by decide) small).trans large))
         committed
         (fun g => by
@@ -535,5 +533,7 @@ theorem complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
           · exact lengths.2.2.trans vLength)
         valued (fit τ apart))
   exact ⟨proof, zero, ran, linked⟩
+
+scoped[FinalKey20Algebra] attribute [instance] instAlgebraZqK
 
 end NightstreamFPrime.Export.BoundedDepth.FinalKey20

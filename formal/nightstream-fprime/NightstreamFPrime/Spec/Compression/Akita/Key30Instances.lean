@@ -56,9 +56,9 @@ def views (r : Row) : List Instance :=
         ((level₁ r).openInstances ++
           (levelViews (level₂ r) false
               (2 * (2 * 51) * (level₂ r).fold.sourceBound (level₂ r).shape) ++
-            (levelViews level₃ false (2 * (2 * 51) * level₃.fold.sourceBound level₃.shape) ++
+            (levelViews (level₃ r) false (2 * (2 * 51) * (level₃ r).fold.sourceBound (level₃ r).shape) ++
               (levelViews level₄ false (2 * (2 * 31) * level₄.fold.sourceBound level₄.shape) ++
-                (levelViews level₅ true (64 * norm₅.operator ^ 2 * norm₅.limit) ++
+                (levelViews level₅ true (64 * (norm₅ r).operator ^ 2 * (norm₅ r).limit) ++
                   (levelViews level₆ true (64 * norm₆.operator ^ 2 * norm₆.limit) ++
                     [terminal.innerInstance true
                       (64 * normTerminal.operator ^ 2 * normTerminal.limit)]))))))))
@@ -80,7 +80,7 @@ def instances : List Instance :=
     (level₂ w27).shape.outerInstance,
     ((root w27).shape 1).outerInstance,
     level₄.shape.innerInstance false (level₄.fold.innerBound level₄.shape),
-    level₃.shape.innerInstance false (level₃.fold.innerBound level₃.shape),
+    (level₃ w27).shape.innerInstance false ((level₃ w27).fold.innerBound (level₃ w27).shape),
     (level₂ w27).shape.innerInstance false ((level₂ w27).fold.innerBound (level₂ w27).shape),
     shapeS.outerInstance,
     (root w27).openInstance,
@@ -106,11 +106,11 @@ theorem instances_exact :
       instances.map Instance.key =
         [(32, 1, 128, false, 1), (64, 1, 1024, false, 1), (64, 2, 77, false, 63),
           (64, 3, 616, false, 63), (64, 8, 256, true, 2 ^ 46), (64, 8, 512, true, 2 ^ 45),
-          (128, 1, 416, false, 31), (128, 1, 4224, false, 15), (128, 1, 11264, false, 7),
+          (128, 1, 416, false, 31), (128, 1, 4128, false, 15), (128, 1, 11264, false, 7),
           (128, 4, 512, false, 126852), (128, 5, 512, false, 835380),
-          (128, 6, 2048, false, 835380), (256, 1, 8192, false, 15), (256, 1, 28160, false, 7),
+          (128, 6, 2048, false, 835380), (256, 1, 8192, false, 15), (256, 1, 22528, false, 7),
           (512, 2, 1024, false, 8126340), (512, 2, 2048, false, 507780),
-          (512, 3, 5120, false, 2080374660), (2048, 1, 4096, false, 16642998148)] ∧
+          (512, 3, 2560, false, 2080374660), (2048, 1, 4096, false, 16642998148)] ∧
       (∀ r ∈ rows, (views r).length = 54) ∧
       (∀ I ∈ instances, ∃ r ∈ rows, ∃ v ∈ views r, v.Below I ∧ v.cols = I.cols ∧
         cond I.euclidean (I.bound < 2 * v.bound) (v.bound = I.bound)) ∧
@@ -120,7 +120,7 @@ theorem instances_exact :
 variable {r : Row} {key : (g : Fin 3) → Key ((root r).shape g)} {openKey : (root r).OpenKey}
   {key₁ : (g : Fin 2) → Key ((level₁ r).shape g)} {openKey₁ : (level₁ r).OpenKey}
   {key₂ : Key (level₂ r).shape} {openKey₂ : OpeningKey (level₂ r).opening}
-  {key₃ : Key level₃.shape} {openKey₃ : OpeningKey level₃.opening}
+  {key₃ : Key (level₃ r).shape} {openKey₃ : OpeningKey (level₃ r).opening}
   {key₄ : Key level₄.shape} {openKey₄ : OpeningKey level₄.opening}
   {key₅ : Key level₅.shape} {openKey₅ : OpeningKey level₅.opening}
   {key₆ : Key level₆.shape} {openKey₆ : OpeningKey level₆.opening}
@@ -135,8 +135,8 @@ the levels 5 and 6 and the terminal have the norm `‖·‖_2`. -/
 def Reduced (list : List Instance) (key : (g : Fin 3) → Key ((root r).shape g))
     (openKey : (root r).OpenKey) (key₁ : (g : Fin 2) → Key ((level₁ r).shape g))
     (openKey₁ : (level₁ r).OpenKey) (key₂ : Key (level₂ r).shape)
-    (openKey₂ : OpeningKey (level₂ r).opening) (key₃ : Key level₃.shape)
-    (openKey₃ : OpeningKey level₃.opening) (key₄ : Key level₄.shape)
+    (openKey₂ : OpeningKey (level₂ r).opening) (key₃ : Key (level₃ r).shape)
+    (openKey₃ : OpeningKey (level₃ r).opening) (key₄ : Key level₄.shape)
     (openKey₄ : OpeningKey level₄.opening) (key₅ : Key level₅.shape)
     (openKey₅ : OpeningKey level₅.opening) (key₆ : Key level₆.shape)
     (openKey₆ : OpeningKey level₆.opening)
@@ -163,10 +163,10 @@ theorem reduced (member : r ∈ rows) {weight₅ weight₆ weightL boundL : ℕ}
       (level₁ r).LevelBreak key₁ openKey₁
         (fun g => 2 * (2 * mass₁ g) * ((level₁ r).fold g).sourceBound ((level₁ r).shape g)) ⊕
       LevelBreak key₂ openKey₂ (2 * (2 * 51) * (level₂ r).fold.sourceBound (level₂ r).shape) ⊕
-      LevelBreak key₃ openKey₃ (2 * (2 * 51) * level₃.fold.sourceBound level₃.shape) ⊕
+      LevelBreak key₃ openKey₃ (2 * (2 * 51) * (level₃ r).fold.sourceBound (level₃ r).shape) ⊕
       Route.Break key₄ openKey₄ 31 (level₄.fold.sourceBound level₄.shape) .coefficient ⊕
       Route.Break key₅ openKey₅ weight₅ (level₅.fold.sourceBound level₅.shape)
-        (.euclidean norm₅.operator norm₅.limit) ⊕
+        (.euclidean (norm₅ r).operator (norm₅ r).limit) ⊕
       Route.Break key₆ openKey₆ weight₆ (level₆.fold.sourceBound level₆.shape)
         (.euclidean norm₆.operator norm₆.limit) ⊕
       Option ((Route.euclidean normTerminal.operator normTerminal.limit).Kernel matrix weightL
@@ -238,8 +238,8 @@ Each matrix is the view with the degree, the rank and the width of its instance 
 def Shared (S : Fin N → Zq) (key : (g : Fin 3) → Key ((root r).shape g))
     (openKey : (root r).OpenKey) (key₁ : (g : Fin 2) → Key ((level₁ r).shape g))
     (openKey₁ : (level₁ r).OpenKey) (key₂ : Key (level₂ r).shape)
-    (openKey₂ : OpeningKey (level₂ r).opening) (key₃ : Key level₃.shape)
-    (openKey₃ : OpeningKey level₃.opening) (key₄ : Key level₄.shape)
+    (openKey₂ : OpeningKey (level₂ r).opening) (key₃ : Key (level₃ r).shape)
+    (openKey₃ : OpeningKey (level₃ r).opening) (key₄ : Key level₄.shape)
     (openKey₄ : OpeningKey level₄.opening) (key₅ : Key level₅.shape)
     (openKey₅ : OpeningKey level₅.opening) (key₆ : Key level₆.shape)
     (openKey₆ : OpeningKey level₆.opening)
@@ -281,10 +281,10 @@ theorem reduced_shared {weight₅ weight₆ weightL boundL : ℕ} {S : Fin N →
       (level₁ r).LevelBreak key₁ openKey₁
         (fun g => 2 * (2 * mass₁ g) * ((level₁ r).fold g).sourceBound ((level₁ r).shape g)) ⊕
       LevelBreak key₂ openKey₂ (2 * (2 * 51) * (level₂ r).fold.sourceBound (level₂ r).shape) ⊕
-      LevelBreak key₃ openKey₃ (2 * (2 * 51) * level₃.fold.sourceBound level₃.shape) ⊕
+      LevelBreak key₃ openKey₃ (2 * (2 * 51) * (level₃ r).fold.sourceBound (level₃ r).shape) ⊕
       Route.Break key₄ openKey₄ 31 (level₄.fold.sourceBound level₄.shape) .coefficient ⊕
       Route.Break key₅ openKey₅ weight₅ (level₅.fold.sourceBound level₅.shape)
-        (.euclidean norm₅.operator norm₅.limit) ⊕
+        (.euclidean (norm₅ r).operator (norm₅ r).limit) ⊕
       Route.Break key₆ openKey₆ weight₆ (level₆.fold.sourceBound level₆.shape)
         (.euclidean norm₆.operator norm₆.limit) ⊕
       Option ((Route.euclidean normTerminal.operator normTerminal.limit).Kernel matrix weightL

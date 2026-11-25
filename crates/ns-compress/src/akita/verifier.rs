@@ -110,3 +110,7 @@ pub(crate) fn bytes_of(value: &impl AkitaSerialize) -> Result<Vec<u8>, Error> {
     value.serialize_compressed(&mut bytes).map_err(failed)?;
     Ok(bytes)
 }
+
+#[cfg(test)]
+#[path = "../../tests/unit/akita_vectors.rs"]
+mod akita_vectors;

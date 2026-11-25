@@ -5,7 +5,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.ShapeKey20
 
 /-! The wire messages and the tower data of the model for the replay of `key20.aks` (Akita
 revision `d50f700`; ePrint 2026/1983, revision of 2026-11-23, Figure 4 and Section 8.2;
-`Key20.noteTower` of `Key20Accept.lean`, `docs/akita-work/w16/design.md` section 2).
+`Key20.noteTower` of `Key20Accept.lean`).
 
 - `rootClaimIn`, `claimIn₁`, `traceClaimIn`, `terminalStatementIn` and `responseIn` are the claims
   of the levels 0 to 5, the statement and the response of the terminal from the recorded values of

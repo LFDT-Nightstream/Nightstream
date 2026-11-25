@@ -75,9 +75,7 @@ namespace AkitaFinalGuards
 open NightstreamFPrime.Spec.Compression.Akita NightstreamFPrime.Spec.Compression.Akita.Replay
 open NightstreamFPrime.Spec.Compression.Akita.Replay.Replayer
 
-/-- `drawShape`: a script whose first squeeze of the group has the family of the layout (the run
-check `docs/akita-work/w14/z-new/checks/FinalShapes.lean` shows it at the 26 folds of the four
-real scripts). -/
+/-- `drawShape`: a script whose first squeeze of the group has the family of the layout. -/
 example (G : FoldGroup) (i : ℕ) : drawnShape [(.squeeze 0 0 G, i)] 0 [G] = true := by
   simp [drawnShape, squeezeOf, Op.drawsGroup]
 
@@ -119,7 +117,7 @@ example (r : Key30.Row) (zMax rice : ℕ) : ∃ G : FoldGroup,
 
 example (r : Key30.Row) (zMax rice : ℕ) : ∃ G : FoldGroup,
     (layout30 r zMax rice).folds[3]?.map (·.groups) = some [G] ∧
-      G.ring = Key30.level₃.shape.innerDegree ∧ G.degree = Key30.level₃.opening.carrierDegree :=
+      G.ring = (Key30.level₃ r).shape.innerDegree ∧ G.degree = (Key30.level₃ r).opening.carrierDegree :=
   ⟨_, rfl, rfl, rfl⟩
 
 /-- `shaped`, `slots`, `opening` and `digited` of `verifyProof_pack_game` at level 1 of `layout20`
@@ -138,8 +136,8 @@ example (zMax rice : ℕ) : ∀ r ∈ Key30.rows, (layout30 r zMax rice).folds[2
   rcases member with rfl | rfl <;> rfl
 
 example (zMax rice : ℕ) : ∀ r ∈ Key30.rows, (layout30 r zMax rice).folds[3]?.map (·.fused) =
-    some (.packing ⟨[⟨0, Key30.level₃.shape, Key30.level₃.opening, Key30.level₃.fold⟩],
-      ⟨Key30.level₃.opening.openDegree, Key30.level₃.opening.openRank, Key30.level₃.opening.chain⟩,
+    some (.packing ⟨[⟨0, (Key30.level₃ r).shape, (Key30.level₃ r).opening, (Key30.level₃ r).fold⟩],
+      ⟨(Key30.level₃ r).opening.openDegree, (Key30.level₃ r).opening.openRank, (Key30.level₃ r).opening.chain⟩,
       Key30.quotientDigits⟩) := by
   intro r member
   simp only [Key30.rows, List.mem_cons, List.mem_nil_iff, or_false] at member

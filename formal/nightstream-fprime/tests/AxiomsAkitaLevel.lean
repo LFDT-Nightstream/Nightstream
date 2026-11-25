@@ -154,9 +154,9 @@ def levelFits (layout : Layout) (i : ℕ) (L : Key20.Level) (limit : Option ℕ)
   atFold (layout30 r 0 0) 1 (fun F => foldFits F Key30.vars₁ Key30.batch₁ (Key30.level₁ r).low 16
     (Key30.level₁ r).compressed none) &&
   levelFits (layout30 r 0 0) 2 (Key30.level₂ r) none false &&
-  levelFits (layout30 r 0 0) 3 Key30.level₃ none false &&
+  levelFits (layout30 r 0 0) 3 (Key30.level₃ r) none false &&
   levelFits (layout30 r 0 0) 4 Key30.level₄ none true &&
-  levelFits (layout30 r 0 0) 5 Key30.level₅ (some Key30.norm₅.limit) true &&
+  levelFits (layout30 r 0 0) 5 Key30.level₅ (some (Key30.norm₅ r).limit) true &&
   levelFits (layout30 r 0 0) 6 Key30.level₆ (some Key30.norm₆.limit) true
 
 /-- The numbers of a fold against the shapes of its end check (`Fold.fused`), for the hypotheses

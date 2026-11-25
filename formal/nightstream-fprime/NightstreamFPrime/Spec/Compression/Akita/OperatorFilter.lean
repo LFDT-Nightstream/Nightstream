@@ -199,7 +199,7 @@ private noncomputable def lift (x : Rq d) : ℤ[X] :=
 
 private theorem coeff_lift (x : Rq d) (i : ℕ) : (lift x).coeff i = (coeff x i).valMinAbs := by
   rw [lift, Polynomial.finsetSum_coeff]
-  simp only [Polynomial.coeff_monomial, Finset.sum_ite_eq', Finset.mem_range]
+  simp only [Polynomial.coeff_monomial, Finsupp.single_apply, Finset.sum_ite_eq', Finset.mem_range]
   split_ifs with small
   · rfl
   · rw [coeff_eq_zero x (Nat.le_of_not_lt small), ZMod.valMinAbs_zero]

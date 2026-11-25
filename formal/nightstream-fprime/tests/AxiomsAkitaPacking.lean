@@ -345,14 +345,16 @@ example : PackGroup.Fits ⟨(Key30.level₂ Key30.w26).shape, (Key30.level₂ Ke
     by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide,
     by decide, by decide⟩
 
-example : PackGroup.Fits ⟨Key30.level₃.shape, Key30.level₃.opening, Key30.level₃.fold, [], [], [],
-    Ext.one⟩ Key30.level₃.vars :=
-  ⟨⟨6, rfl⟩, ⟨7, rfl⟩, ⟨7, rfl⟩, ⟨7, rfl⟩, ⟨6, rfl⟩, ⟨5, rfl⟩, ⟨6, rfl⟩, ⟨5, rfl⟩, by decide,
+example (r : Key30.Row) (member : r ∈ Key30.rows) : PackGroup.Fits ⟨(Key30.level₃ r).shape, (Key30.level₃ r).opening, (Key30.level₃ r).fold, [], [], [],
+    Ext.one⟩ (Key30.level₃ r).vars := by
+  simp only [Key30.rows, List.mem_cons, List.mem_nil_iff, or_false] at member
+  rcases member with rfl | rfl <;> exact
+    ⟨⟨6, rfl⟩, ⟨7, rfl⟩, ⟨7, rfl⟩, ⟨7, rfl⟩, ⟨6, rfl⟩, ⟨5, rfl⟩, ⟨6, rfl⟩, ⟨5, rfl⟩, by decide,
     by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide,
     by decide, by decide⟩
 
-example : 2 ^ Nat.log 2 Key20.level₁.shape.openingBase = Key20.level₁.shape.certifiedBase ∧
-    2 ^ Nat.log 2 Key30.level₃.shape.openingBase = Key30.level₃.shape.certifiedBase :=
+example (r : Key30.Row) : 2 ^ Nat.log 2 Key20.level₁.shape.openingBase = Key20.level₁.shape.certifiedBase ∧
+    2 ^ Nat.log 2 (Key30.level₃ r).shape.openingBase = (Key30.level₃ r).shape.certifiedBase :=
   ⟨pow_log_top ⟨3, rfl⟩, pow_log_top ⟨4, rfl⟩⟩
 
 example (r : Key30.Row) :

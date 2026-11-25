@@ -88,14 +88,14 @@ def First.claims (first : First logicalWidth publicFits) (shape : Claims logical
   ⟨shape.pc, fun s => (first.slots s, (shape.running s).2), first.commitment⟩
 
 variable (setup : FinalVerifier.Setup mode logicalWidth publicFits) (packageWidths : Fin 2 → ℕ)
-  (step : AppState → AppWitness → AppState) (cap : ℕ) (control : AppState → AppWitness → Fin 2)
+  (step : AppState → AppWitness → AppState) (control : AppState → AppWitness → Fin 2)
   (shape : Claims logicalWidth publicFits) {B : Batch (Fin 3)} {Wire Coord : Type} {total : ℕ}
   (read : Reader Wire) (head : Wire → First logicalWidth publicFits)
   (bound : Prefix Wire (Option Coord → CodeSlot K) total → (g : Fin 3) → (B.shape g).Payload)
 
 /-- The first message has a statement for which a proof with witnesses satisfies `Verifies`. -/
 def Proved (wire : Wire) : Prop :=
-  ∃ proof, Verifies setup.ajtai setup.circuitKeys step packageWidths cap control
+  ∃ proof, Verifies setup.ajtai setup.circuitKeys step packageWidths control
     (head wire).statement proof
 
 /-- The data of the final verifier over an Akita opening of the groups `B`, for the final proofs
@@ -110,7 +110,7 @@ noncomputable def compose :
   leadCosts := Compression.Fresh.costs CompressionFresh.oneShape 8
   lead wire W := setup.lead (head wire).statement ((head wire).claims shape) W
   statement wire probe := setup.claimsOf (head wire).statement ((head wire).claims shape) probe
-  good wire W := Verifies setup.ajtai setup.circuitKeys step packageWidths cap control
+  good wire W := Verifies setup.ajtai setup.circuitKeys step packageWidths control
     (head wire).statement (setup.envelope (head wire).statement ((head wire).claims shape) W)
   bound := bound
 
@@ -119,8 +119,8 @@ variable [Fintype Coord] [DecidableEq Coord] [Nonempty Coord]
 /-- The conditions `Compose.Sized` of the final verifier. `premises`: the premises of
 `FinalVerifier.soundness`. `laid`: the shape passes the layout of step 5. `lookupsFit` and
 `challengesFit`: an answer of the oracle has a slot for each lookup challenge and for each
-challenge after `V` (`exists_fair_field_base`, `exists_fair_field_challenges`). `cube` and `groupsFit`: an
-answer has a slot for each coordinate of `α` and three slots. `early`: the commitments of the key
+challenge after `V` (`exists_fair_field_base`, `exists_fair_field_challenges`). `cube`: an
+answer has a slot for each coordinate of `α`. `early`: the commitments of the key
 polynomial and of `W` are fixed by the first message. `fits`: the stages before the Akita opening
 are stages of the transcript. -/
 theorem compose_sized (premises : Premises setup packageWidths) (laid : setup.Laid shape)
@@ -128,21 +128,18 @@ theorem compose_sized (premises : Premises setup packageWidths) (laid : setup.La
     (challengesFit : 4 + ((setup.params shape).lookups + ((setup.params shape).claims +
       (setup.params shape).claims + (setup.params shape).spanVars)) ≤ Fintype.card Coord)
     (cube : CompressionFresh.oneShape.cubeVariables ≤ Fintype.card Coord)
-    (groupsFit : 3 ≤ Fintype.card Coord)
     (early : ∀ anchor g, g ≠ 2 → bound anchor g = bound (anchor.take 0) g)
-    (fits : (compose setup packageWidths step cap control shape read head bound).root
+    (fits : (compose setup packageWidths step control shape read head bound).root
       (setup.verifier shape) ≤ total) :
-    (compose setup packageWidths step cap control shape read head bound).Sized
+    (compose setup packageWidths step control shape read head bound).Sized
       (setup.verifier shape) := by
-  obtain ⟨wf, counts, matrix, columns, rows, key_fits⟩ := FinalVerifier.laid_facts setup laid
+  obtain ⟨wf, counts, matrix, rows, key_fits⟩ := FinalVerifier.laid_facts setup laid
   exact
-    { wf, counts, matrix, columns, rows, key_fits
+    { wf, counts, matrix, rows, key_fits
       lookups := exists_fair_field_base (E := K) (by simpa using lookupsFit)
       challenges := exists_fair_field_challenges (E := K) _ challengesFit
-      column := (le_of_eq (rfl : (setup.verifier shape).columnVars = 2)).trans
-        ((Nat.le_succ 2).trans groupsFit)
       lead_sound := fun _ _ refuted =>
-        FinalVerifier.lead_sound setup step cap control premises refuted
+        FinalVerifier.lead_sound setup step control premises refuted
       lead_staged := fun _ W =>
         FinalVerifier.lead_staged setup (exists_fair_fields cube) exists_fair_field _ _ W _
       lead_bare := fun _ W other => FinalVerifier.lead_bare setup _ _ W other
@@ -161,7 +158,7 @@ variable {Inner BreakT CandT KeyT : Type} {accept : Prefix Wire (Option Coord �
   (embed : B.LevelBreak key openKey
     (fun g => 2 * (2 * mass g) * (B.fold g).sourceBound (B.shape g)) → BreakT)
 
-local notation "C" => compose setup packageWidths step cap control shape read head bound
+local notation "C" => compose setup packageWidths step control shape read head bound
 
 local notation "vf" => FinalVerifier.Setup.verifier setup shape
 
@@ -218,10 +215,10 @@ theorem final_extract_sound (sized : Compose.Sized C vf)
     (out : Inner ⊕ BreakT)
     (result : Checkpoint.extract whole prover budget table tape = some out) :
     accept ((Structure.protocol whole).final prover table) ∧
-      (Proved setup packageWidths step cap control head
+      (Proved setup packageWidths step control head
           (((Structure.protocol whole).input prover table 0).wire 0) ∨
         Solved body key honest innerBound out) := by
-  obtain ⟨accepted, extracted⟩ := (final_suffix setup packageWidths step cap control shape read
+  obtain ⟨accepted, extracted⟩ := (final_suffix setup packageWidths step control shape read
     head bound embed sized ran embedded later).extract_sound rfl prover budget table tape out
     result
   refine ⟨accepted, ?_⟩
@@ -251,7 +248,7 @@ theorem final_extraction_le (sized : Compose.Sized C vf)
         (if accept ((Structure.protocol whole).final prover table) ∧
           Checkpoint.extract whole prover budget table tape = none then (1 : ℝ) else 0) ≤
       (queries + 1) * (setup.runCost shape + error) + (queries + 1) * (2 + loops : ℕ) / budget :=
-  (final_suffix setup packageWidths step cap control shape read head bound embed sized ran
+  (final_suffix setup packageWidths step control shape read head bound embed sized ran
     embedded later).extraction_le rfl prover bounded positive
 
 /-- The expected number of runs of the prover in the extraction is at most
@@ -267,7 +264,7 @@ theorem final_runs_le (sized : Compose.Sized C vf)
           (Structure.protocol whole).stages,
         (extractRuns whole prover budget table tape : ℝ) ≤
       (4 * tree : ℕ) + (queries + 1) * ((4 * tree : ℕ) - 1) :=
-  (final_suffix setup packageWidths step cap control shape read head bound embed sized ran
+  (final_suffix setup packageWidths step control shape read head bound embed sized ran
     embedded later).runs_le rfl prover bounded budget
 
 variable (accept body key openKey mass) in
@@ -299,19 +296,19 @@ theorem final_sound (sized : Compose.Sized C vf)
     𝔼 table, 𝔼 _tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget
           (Structure.protocol whole).stages,
         (if accept ((Structure.protocol whole).final prover table) ∧
-            ¬ Proved setup packageWidths step cap control head
+            ¬ Proved setup packageWidths step control head
               (((Structure.protocol whole).input prover table 0).wire 0) then (1 : ℝ) else 0) ≤
       (queries + 1) * (setup.runCost shape + error) + (queries + 1) * (2 + loops : ℕ) / budget +
-        breakChance setup packageWidths step cap control shape read head bound accept body key
+        breakChance setup packageWidths step control shape read head bound accept body key
           openKey mass embed prover honest innerBound budget := by
-  have missed := final_extraction_le setup packageWidths step cap control shape read head bound
+  have missed := final_extraction_le setup packageWidths step control shape read head bound
     embed prover sized ran embedded later bounded positive
   refine le_trans ?_ (add_le_add missed le_rfl)
   unfold breakChance
   simp only [← Finset.expect_add_distrib]
   refine Finset.expect_le_expect fun table _ => Finset.expect_le_expect fun tape _ => ?_
   have cases : accept ((Structure.protocol whole).final prover table) ∧
-      ¬ Proved setup packageWidths step cap control head
+      ¬ Proved setup packageWidths step control head
         (((Structure.protocol whole).input prover table 0).wire 0) →
       (accept ((Structure.protocol whole).final prover table) ∧
         Checkpoint.extract whole prover budget table tape = none) ∨
@@ -320,11 +317,11 @@ theorem final_sound (sized : Compose.Sized C vf)
     intro event
     rcases result : Checkpoint.extract whole prover budget table tape with _ | out
     · exact Or.inl ⟨event.1, rfl⟩
-    · exact Or.inr ⟨out, rfl, ((final_extract_sound setup packageWidths step cap control shape
+    · exact Or.inr ⟨out, rfl, ((final_extract_sound setup packageWidths step control shape
         read head bound embed prover sized ran embedded later registered covers budget table tape
         out result).2).resolve_left event.2⟩
   by_cases event : accept ((Structure.protocol whole).final prover table) ∧
-      ¬ Proved setup packageWidths step cap control head
+      ¬ Proved setup packageWidths step control head
         (((Structure.protocol whole).input prover table 0).wire 0)
   · rcases cases event with none | solved
     · rw [ite_eq_left event, ite_eq_left none]
@@ -350,7 +347,7 @@ variable {S' : Compression.Akita.Shape} {O' : OpeningShape S'} {fold' : Descript
   {commit : Wire → (g : Fin 3) → (B.shape g).Payload} {value : Wire → Fin 3 → K}
   {place : Wire → Fin 3 → List K} {next : Wire → S'.Payload} {witnessOf : Wire → Witness O' fold'}
 
-local notation "C" => compose setup packageWidths step cap control shape read head bound
+local notation "C" => compose setup packageWidths step control shape read head bound
 
 local notation "vf" => FinalVerifier.Setup.verifier setup shape
 
@@ -404,17 +401,17 @@ theorem three_sound [Finite Wire] {peak : Fin 3 → ℕ} {peak' : ℕ}
     𝔼 table, 𝔼 _tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget
           (Structure.protocol whole).stages,
         (if accepts ((Structure.protocol whole).final prover table) ∧
-            ¬ Proved setup packageWidths step cap control head
+            ¬ Proved setup packageWidths step control head
               (((Structure.protocol whole).input prover table 0).wire 0) then (1 : ℝ) else 0) ≤
       (queries + 1) * (setup.runCost shape + (1 / Fintype.card K / 2 ^ Root.rootBits 3 +
           (Tier.levelError first + Tier.levelError second))) +
         (queries + 1) * (2 + (1 + (∑ g, Compression.Akita.Shape.blocks (Batch.shape B g) + 1 +
           (Compression.Akita.Shape.blocks S' + 1))) : ℕ) / budget +
-        breakChance setup packageWidths step cap control shape read head bound accepts opening
+        breakChance setup packageWidths step control shape read head bound accepts opening
           key openKey mass Sum.inl prover honest innerBound budget :=
-  final_sound setup packageWidths step cap control shape read head bound Sum.inl prover
-    (compose_sized setup packageWidths step cap control shape read head bound premises laid
-      lookupsFit challengesFit cube groupsFit early
+  final_sound setup packageWidths step control shape read head bound Sum.inl prover
+    (compose_sized setup packageWidths step control shape read head bound premises laid
+      lookupsFit challengesFit cube early
       (by
         have ends := Tier.finish_eq first
         have ends' := Tier.finish_eq second
@@ -471,7 +468,7 @@ variable {S₁ : Compression.Akita.Shape} {O₁ : OpeningShape S₁} {fold₁ : 
   {commit₄ : Wire → S₄.Payload} {commit₅ : Wire → S₅.Payload}
   {stateOf : Wire → Fin S₆.blocks → Fin S₆.innerRank → Rq S₆.innerDegree}
 
-local notation "C" => compose setup packageWidths step cap control shape read head bound
+local notation "C" => compose setup packageWidths step control shape read head bound
 
 local notation "vf" => FinalVerifier.Setup.verifier setup shape
 
@@ -576,8 +573,8 @@ theorem tower_ready (next : Terminal.start L = Tier.finish fifth) :
       Tier.Suffix accepts (Compose.root C vf)
         (OpensAt (Compose.root C vf) commit value place key mass) opening towerError towerLoops
         towerTree := by
-  refine ⟨compose_sized setup packageWidths step cap control shape read head bound premises laid
-    lookupsFit challengesFit cube groupsFit early ?_, ?_⟩
+  refine ⟨compose_sized setup packageWidths step control shape read head bound premises laid
+    lookupsFit challengesFit cube early ?_, ?_⟩
   · have ends₀ := Tier.finish_eq zeroth
     have ends₁ := Tier.finish_eq first
     have ends₂ := Tier.finish_eq second
@@ -601,7 +598,7 @@ theorem tower_ready (next : Terminal.start L = Tier.finish fifth) :
       (fun _ accepted => accepted.2.2.2.2.2.2.2.2.2)
 
 local notation "ready" next:max =>
-  tower_ready setup packageWidths step cap control shape read head bound
+  tower_ready setup packageWidths step control shape read head bound
     (quarter₂ := quarter₂) (quarter₃ := quarter₃) (quarter₄ := quarter₄) (quarter₅ := quarter₅)
     (quarter₆ := quarter₆) (commit₁ := commit₁) (commit₂ := commit₂) (commit₃ := commit₃)
     (commit₄ := commit₄) (commit₅ := commit₅) (stateOf := stateOf) (commit := commit)
@@ -627,10 +624,10 @@ theorem tower_extract_sound (next : Terminal.start L = Tier.finish fifth)
       whole).stages)
     (out : _) (result : Checkpoint.extract whole prover budget table tape = some out) :
     accepts ((Structure.protocol whole).final prover table) ∧
-      (Proved setup packageWidths step cap control head
+      (Proved setup packageWidths step control head
           (((Structure.protocol whole).input prover table 0).wire 0) ∨
         Solved opening key honest innerBound out) :=
-  final_extract_sound setup packageWidths step cap control shape read head bound Sum.inl prover
+  final_extract_sound setup packageWidths step control shape read head bound Sum.inl prover
     (ready next).1 (fun _ accepted => accepted.1) (fun _ found => found) (ready next).2
     registered covers budget table tape out result
 
@@ -649,7 +646,7 @@ theorem tower_extraction_le (next : Terminal.start L = Tier.finish fifth) {queri
           Checkpoint.extract whole prover budget table tape = none then (1 : ℝ) else 0) ≤
       (queries + 1) * (setup.runCost shape + towerError) +
         (queries + 1) * (2 + towerLoops : ℕ) / budget :=
-  final_extraction_le setup packageWidths step cap control shape read head bound Sum.inl prover
+  final_extraction_le setup packageWidths step control shape read head bound Sum.inl prover
     (ready next).1 (fun _ accepted => accepted.1) (fun _ found => found) (ready next).2 bounded
     positive
 
@@ -663,7 +660,7 @@ theorem tower_runs_le (next : Terminal.start L = Tier.finish fifth) {queries : �
           (Structure.protocol whole).stages,
         (extractRuns whole prover budget table tape : ℝ) ≤
       (4 * towerTree : ℕ) + (queries + 1) * ((4 * towerTree : ℕ) - 1) :=
-  final_runs_le setup packageWidths step cap control shape read head bound Sum.inl prover
+  final_runs_le setup packageWidths step control shape read head bound Sum.inl prover
     (ready next).1 (fun _ accepted => accepted.1) (fun _ found => found) (ready next).2 bounded
     budget
 
@@ -684,13 +681,13 @@ theorem tower_sound (next : Terminal.start L = Tier.finish fifth)
     𝔼 table, 𝔼 _tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget
           (Structure.protocol whole).stages,
         (if accepts ((Structure.protocol whole).final prover table) ∧
-            ¬ Proved setup packageWidths step cap control head
+            ¬ Proved setup packageWidths step control head
               (((Structure.protocol whole).input prover table 0).wire 0) then (1 : ℝ) else 0) ≤
       (queries + 1) * (setup.runCost shape + towerError) +
         (queries + 1) * (2 + towerLoops : ℕ) / budget +
-        breakChance setup packageWidths step cap control shape read head bound accepts opening
+        breakChance setup packageWidths step control shape read head bound accepts opening
           key openKey mass Sum.inl prover honest innerBound budget :=
-  final_sound setup packageWidths step cap control shape read head bound Sum.inl prover
+  final_sound setup packageWidths step control shape read head bound Sum.inl prover
     (ready next).1 (fun _ accepted => accepted.1) (fun _ found => found) (ready next).2 registered
     covers bounded positive
 
@@ -740,7 +737,7 @@ variable {S₁ : Compression.Akita.Shape} {O₁ : OpeningShape S₁} {fold₁ : 
   {commit₄ : Wire → S₄.Payload} {commit₅ : Wire → S₅.Payload}
   {stateOf : Wire → Fin S₆.blocks → Fin S₆.innerRank → Rq S₆.innerDegree}
 
-local notation "C" => compose setup packageWidths step cap control shape read head bound
+local notation "C" => compose setup packageWidths step control shape read head bound
 
 local notation "vf" => FinalVerifier.Setup.verifier setup shape
 
@@ -850,8 +847,8 @@ theorem mixed_ready (next : Terminal.start L = Tier.finish fifth) :
       Tier.Suffix accepts (Compose.root C vf)
         (OpensAt (Compose.root C vf) commit value place key mass) opening towerError towerLoops
         towerTree := by
-  refine ⟨compose_sized setup packageWidths step cap control shape read head bound premises laid
-    lookupsFit challengesFit cube groupsFit early ?_, ?_⟩
+  refine ⟨compose_sized setup packageWidths step control shape read head bound premises laid
+    lookupsFit challengesFit cube early ?_, ?_⟩
   · have ends₀ := Tier.finish_eq zeroth
     have ends₁ := Tier.finish_eq first
     have ends₂ := Tier.finish_eq second
@@ -876,7 +873,7 @@ theorem mixed_ready (next : Terminal.start L = Tier.finish fifth) :
       (fun _ accepted => accepted.2.2.2.2.2.2.2.2.2)
 
 local notation "ready" next:max =>
-  mixed_ready setup packageWidths step cap control shape read head bound
+  mixed_ready setup packageWidths step control shape read head bound
     (quarter₂ := quarter₂) (quarter₃ := quarter₃) (quarter₄ := quarter₄) (quarter₅ := quarter₅)
     (quarter₆ := quarter₆) (commit₁ := commit₁) (commit₂ := commit₂) (commit₃ := commit₃)
     (commit₄ := commit₄) (commit₅ := commit₅) (stateOf := stateOf) (commit := commit)
@@ -903,10 +900,10 @@ theorem mixed_extract_sound (next : Terminal.start L = Tier.finish fifth)
       whole).stages)
     (out : _) (result : Checkpoint.extract whole prover budget table tape = some out) :
     accepts ((Structure.protocol whole).final prover table) ∧
-      (Proved setup packageWidths step cap control head
+      (Proved setup packageWidths step control head
           (((Structure.protocol whole).input prover table 0).wire 0) ∨
         Solved opening key honest innerBound out) :=
-  final_extract_sound setup packageWidths step cap control shape read head bound Sum.inl prover
+  final_extract_sound setup packageWidths step control shape read head bound Sum.inl prover
     (ready next).1 (fun _ accepted => accepted.1) (fun _ found => found) (ready next).2
     registered covers budget table tape out result
 
@@ -926,7 +923,7 @@ theorem mixed_extraction_le (next : Terminal.start L = Tier.finish fifth) {queri
           Checkpoint.extract whole prover budget table tape = none then (1 : ℝ) else 0) ≤
       (queries + 1) * (setup.runCost shape + towerError) +
         (queries + 1) * (2 + towerLoops : ℕ) / budget :=
-  final_extraction_le setup packageWidths step cap control shape read head bound Sum.inl prover
+  final_extraction_le setup packageWidths step control shape read head bound Sum.inl prover
     (ready next).1 (fun _ accepted => accepted.1) (fun _ found => found) (ready next).2 bounded
     positive
 
@@ -940,7 +937,7 @@ theorem mixed_runs_le (next : Terminal.start L = Tier.finish fifth) {queries : �
           (Structure.protocol whole).stages,
         (extractRuns whole prover budget table tape : ℝ) ≤
       (4 * towerTree : ℕ) + (queries + 1) * ((4 * towerTree : ℕ) - 1) :=
-  final_runs_le setup packageWidths step cap control shape read head bound Sum.inl prover
+  final_runs_le setup packageWidths step control shape read head bound Sum.inl prover
     (ready next).1 (fun _ accepted => accepted.1) (fun _ found => found) (ready next).2 bounded
     budget
 
@@ -961,13 +958,13 @@ theorem mixed_sound (next : Terminal.start L = Tier.finish fifth)
     𝔼 table, 𝔼 _tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget
           (Structure.protocol whole).stages,
         (if accepts ((Structure.protocol whole).final prover table) ∧
-            ¬ Proved setup packageWidths step cap control head
+            ¬ Proved setup packageWidths step control head
               (((Structure.protocol whole).input prover table 0).wire 0) then (1 : ℝ) else 0) ≤
       (queries + 1) * (setup.runCost shape + towerError) +
         (queries + 1) * (2 + towerLoops : ℕ) / budget +
-        breakChance setup packageWidths step cap control shape read head bound accepts opening
+        breakChance setup packageWidths step control shape read head bound accepts opening
           key openKey mass Sum.inl prover honest innerBound budget :=
-  final_sound setup packageWidths step cap control shape read head bound Sum.inl prover
+  final_sound setup packageWidths step control shape read head bound Sum.inl prover
     (ready next).1 (fun _ accepted => accepted.1) (fun _ found => found) (ready next).2 registered
     covers bounded positive
 

@@ -18,13 +18,11 @@ variable {logicalWidth : ℕ}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
     RingCarrierLayout.carrierWidth logicalWidth}
 
--- SPEC.md Algorithm 10 and SECURITY_MODEL.md, premise `akita.fixedSetup`.
-example (opening : Akita.Use) (prover : Akita.Prover opening.scheme opening.claims)
-    (knowledge : opening.Knowledge prover) :
-    ∃ extractor : Akita.Extractor prover, opening.Efficient prover extractor ∧
-      extractor.chance (extractor.Fails opening.params) ≤
-        opening.schedule.knowledgeError prover (opening.advantage prover) :=
-  knowledge.fixedSetup knowledge.admissible knowledge.admitted knowledge.budget
+-- SPEC.md Algorithm 10, Akita Definition 9.2.
+example (schedule : Akita.Schedule)
+    (row : schedule.row = Akita.key30W27 ∨ schedule.row = Akita.key30W26) :
+    ¬ schedule.Admissible :=
+  schedule.not_admissible_key30 row
 
 -- Akita Section 9.3, C3.
 example (schedule : Akita.Schedule) (admissible : schedule.Admissible) :

@@ -224,12 +224,10 @@ structure Sized : Prop where
   wf : Verifier.WellFormed P
   counts : Verifier.CountsNonzero P
   matrix : Verifier.MatrixSpec vf
-  columns : P.lookups ≤ 2 ^ vf.columnVars
   rows : P.rows ≤ 2 ^ P.rowVars
   key_fits : ∀ c, (P.shape c).witness.vars - P.laneVars ≤ P.keyBlockVars
   lookups : ∃ decode : (Coord → Slot) → Fin P.lookups → Zq, Fair decode
   challenges : ∃ decode : (Coord → Slot) → Verifier.Challenges P, Fair decode
-  column : vf.columnVars ≤ Fintype.card Coord
   lead_sound : ∀ wire W, ¬ C.good wire W → (C.lead wire W).Avoids fun result =>
     ∀ value, result = some value → ¬ Verifier.Relation P (C.statement wire value) W
   lead_staged : ∀ wire W, StagedTo (Coord → Slot) (C.lead wire W)
@@ -270,7 +268,7 @@ theorem back_valid [Nonempty Coord] (sized : C.Sized vf) : (C.back vf).Valid whe
     rcases found : C.ran anchor with _ | ⟨value, τ⟩
     · rintro ⟨claims, ended, -⟩
       cases ended
-    · exact (Verifier.back_avoids vf sized.wf sized.matrix sized.columns sized.rows
+    · exact (Verifier.back_avoids vf sized.wf sized.matrix sized.rows
         sized.key_fits (C.statement (anchor.wire 0) value) (tables 1) (tables 2) τ).mono
         fun _ sound passed => by
           obtain ⟨claims, ended, opened⟩ := passed
@@ -281,7 +279,7 @@ theorem back_valid [Nonempty Coord] (sized : C.Sized vf) : (C.back vf).Valid whe
     rcases C.ran anchor with _ | ⟨value, τ⟩
     · trivial
     · exact Verifier.back_staged vf sized.challenges exists_fair_field
-        (exists_fair_fields sized.column) sized.wf _ _ _ _
+        sized.wf _ _ _ _
   nonnegative := Verifier.backCosts_nonnegative vf
   draws := List.cons_ne_nil _ _
   aligned := List.length_replicate ..

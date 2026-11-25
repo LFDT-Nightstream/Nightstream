@@ -1,8 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.Replay.RunStop
 
 /-! The verifier on the public inputs and the bytes of an Akita opening proof, and its theorems
-against the level games on the path of the code (Akita revision `d50f700`;
-`docs/akita-work/match-design.md` section 5.1).
+against the level games on the path of the code (Akita revision `d50f700`).
 
 - `verifyProof pub proof` is the verifier: `reject 0 "statement"` when the statement does not have
   the shape of the schedule row (`Public.shaped`), and otherwise `runProof` on the public input
@@ -27,7 +26,7 @@ against the level games on the path of the code (Akita revision `d50f700`;
   `verifyProof_reject_opening` and `verifyProof_reject_tensor_game`: at a reject of `fused.end`,
   `range.leaf.end` or `norm.end`, `norm.integer`, `stage3.end`, `tensor.opening` and `tensor.end`,
   the level (or tensor) function is `none`, and its game runs to `none`.
-  `foldRunIn_of_energy_reject` is finding 16 for `norm.integer`: `normRun` checks the same
+  `foldRunIn_of_energy_reject` covers `norm.integer`: `normRun` checks the same
   `E_resp` again. -/
 
 set_option autoImplicit false
@@ -438,7 +437,7 @@ theorem treeRun_normRun_none {leaf limit energy : ℕ} (unfit : energyFits energ
         · exact treeRun_normRun_none unfit merge rounds virtual image rest _ _ _ _
         · rfl
 
-/-- A stop at `norm.integer` on the Euclidean route (finding 16 for the energy): `normRun` checks
+/-- A stop at `norm.integer` on the Euclidean route: `normRun` checks
 the same `E_resp` again, so `foldRunIn` is `none` on the state of the stop. -/
 theorem foldRunIn_of_energy_reject (messages : Array Message) (s : Replayer) (key : Key)
     (i level : ℕ) (F : Fold) (euclidean : F.euclidean = true)

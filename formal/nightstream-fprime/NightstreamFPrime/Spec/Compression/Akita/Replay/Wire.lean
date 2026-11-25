@@ -18,8 +18,7 @@ the prover messages of a script in the bytes of the proof.
 - `verifyBytes` is the outcome of the byte layer: `malformed`, or the verdict of the later stages
   on the messages, and `trailing` when that verdict accepts and bytes remain: the code checks the
   end of the proof after its last check (`batched_verify`, `PendingEof::check_eof`).
-  `verifyBytes_malformed` and `verifyBytes_trailing` are the two statements of
-  `docs/akita-work/match-design.md` section 5.1 for this layer. -/
+  `verifyBytes_malformed` and `verifyBytes_trailing` classify malformed inputs and trailing bytes. -/
 
 set_option autoImplicit false
 

@@ -1,8 +1,7 @@
 import tests.AkitaVectors
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Terminal
 
-/-! The gate of the terminal checks (`docs/akita-work/match-design.md` section 7, item 10;
-`Replay/Terminal.lean`). For each positive vector the replay of `Replay/Transcript.lean` (the one
+/-! The gate of the terminal checks (`Replay/Terminal.lean`). For each positive vector the replay of `Replay/Transcript.lean` (the one
 replay of `tests/AkitaAllVectors.lean`) runs from the public inputs and the proof bytes, and its
 terminal operation runs `terminalRun` on the recorded messages and values (`terminalMessagesIn`,
 `terminalChallengesIn`: the fold challenges of the terminal group are the drawn challenges of the

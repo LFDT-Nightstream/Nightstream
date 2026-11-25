@@ -38,9 +38,8 @@ trust item 7). The results of Akita that hold for each schedule are in `Claims.A
 namespace NightstreamFPrime.Claims.AkitaKey20
 
 open Spec Spec.Compression Lifecycle Lifecycle.BoundedDepth Export.BoundedDepth
-open scoped BigOperators Spec.FieldExtensionRing Spec.Compression.Production
+open scoped BigOperators Spec.FieldExtensionRing Spec.Compression.Production FinalKey20Algebra
 attribute [local instance low] Classical.propDecidable
-attribute [local instance] NightstreamFPrime.Export.BoundedDepth.FinalKey20.instAlgebraZqK
 
 
 /-- The output of the extractor for the opening of `crates/ns-compress/artifacts/key20.aks`, the
@@ -597,7 +596,6 @@ theorem key20_verifier_sound
     {mode : FinalVerifier.Mode}
     (setup : FinalVerifier.Setup mode logicalWidth publicFits)
     (step : AppState → AppWitness → AppState)
-    (cap : ℕ)
     (control : AppState → AppWitness → Fin 2)
     {Wire : Type}
     {Coord : Type}
@@ -620,26 +618,26 @@ theorem key20_verifier_sound
     (rows : ∀ (circuit : Fin 2),
           (setup.rows (↑circuit : ℕ)).matrices = (FinalRows.packageRows exports complete circuit).matrices)
     (blocks : setup.keyBlocks = 512)
-    (coords : 28 ≤ Fintype.card Coord)
+    (coords : 30 ≤ Fintype.card Coord)
     (drawn : ∀ (index : ι),
-          FinalKey20.Opening.Drawn setup complete.packageWidth step cap control read head (family index))
+          FinalKey20.Opening.Drawn setup complete.packageWidth step control read head (family index))
     {queries : ℕ}
     (bounded : prover.QueryBound queries)
     {budget : ℕ}
     (positive : 0 < budget) :
     (𝔼 table,
         if
-            FinalKey20.finalAccepts setup complete.packageWidth step cap control read head kind family
+            FinalKey20.finalAccepts setup complete.packageWidth step control read head kind family
                 (FinalKey20.played prover table) ∧
               ¬∃ proof,
-                  RunCompleteness.Verifies setup.ajtai setup.circuitKeys step complete.packageWidth cap
+                  RunCompleteness.Verifies setup.ajtai setup.circuitKeys step complete.packageWidth
                     control (head (FinalKey20.played prover table).first).statement proof then
           1
         else 0) ≤
-      FinalKey20.shapesBound setup complete.packageWidth step cap control read head family prover
+      FinalKey20.shapesBound setup complete.packageWidth step control read head family prover
         (1 / (↑fieldModulus : ℝ) ^ 2) queries budget :=
   @NightstreamFPrime.Export.BoundedDepth.FinalKey20.verifier_sound_drawn logicalWidth publicFits mode setup
-    step cap control Wire Coord total read head fintypeCoord decidableEqCoord nonemptyCoord ι fintypeι kind
+    step control Wire Coord total read head fintypeCoord decidableEqCoord nonemptyCoord ι fintypeι kind
     family prover finiteWire relation cubeFits exports complete rows blocks coords
     drawn queries bounded budget positive
 
@@ -660,7 +658,6 @@ theorem key20_history_sound
     {mode : FinalVerifier.Mode}
     (setup : FinalVerifier.Setup mode logicalWidth publicFits)
     (step : AppState → AppWitness → AppState)
-    (cap : ℕ)
     (control : AppState → AppWitness → Fin 2)
     {Wire : Type}
     {Coord : Type}
@@ -697,39 +694,39 @@ theorem key20_history_sound
           (setup.rows (↑circuit : ℕ)).matrices = (FinalRows.packageRows exports complete circuit).matrices)
     (keysShaped : ∀ (key : Fin 2), List.length (setup.circuitKeys key).digest = 4)
     (blocks : setup.keyBlocks = 512)
-    (coords : 28 ≤ Fintype.card Coord)
+    (coords : 30 ≤ Fintype.card Coord)
     (drawn : ∀ (index : ι),
-          FinalKey20.Opening.Drawn setup complete.packageWidth step cap control read head (family index))
+          FinalKey20.Opening.Drawn setup complete.packageWidth step control read head (family index))
     {queries : ℕ}
     (bounded : prover.QueryBound queries)
     (positive : 0 < budget)
     (admitted : StageAdmitted
           (HyperNova.ReverseStages.Stage.start
             (IvcSecurity.walkAdversary
-              (FinalKey20.adversary setup complete.packageWidth step cap control read head kind family
+              (FinalKey20.adversary setup complete.packageWidth step control read head kind family
                 prover budget))))
     (depth : ℕ)
     (depthBound : ∀ (table : Akita.Extract.Address Wire total → Option Coord → Akita.Replay.CodeSlot K),
-          FinalKey20.finalAccepts setup complete.packageWidth step cap control read head kind family
+          FinalKey20.finalAccepts setup complete.packageWidth step control read head kind family
               (FinalKey20.played prover table) →
             (head (FinalKey20.played prover table).first).statement.iteration ≤ depth) :
-    (((FinalKey20.adversary setup complete.packageWidth step cap control read head kind family prover
+    (((FinalKey20.adversary setup complete.packageWidth step control read head kind family prover
                   budget).tape.toOuterMeasure :
             Set
-                (FinalKey20.adversary setup complete.packageWidth step cap control read head kind family
+                (FinalKey20.adversary setup complete.packageWidth step control read head kind family
                     prover budget).Tape →
               ENNReal)
           {sample |
-            FinalKey20.FalseHistory setup complete.packageWidth step cap control read head kind family
+            FinalKey20.FalseHistory setup complete.packageWidth step control read head kind family
               prover exports.program sample.1}).toReal ≤
-      FinalKey20.shapesBound setup complete.packageWidth step cap control read head family prover
+      FinalKey20.shapesBound setup complete.packageWidth step control read head family prover
           (1 / (↑fieldModulus : ℝ) ^ 2) queries budget +
         IvcSecurity.walkBound setup.ajtai setup.circuitKeys exports assumption closed
-          (FinalKey20.adversary setup complete.packageWidth step cap control read head kind family prover
+          (FinalKey20.adversary setup complete.packageWidth step control read head kind family prover
             budget)
           admitted depth :=
   @NightstreamFPrime.Export.BoundedDepth.FinalKey20.history_sound_drawn logicalWidth publicFits mode setup
-    step cap control Wire Coord total read head fintypeCoord decidableEqCoord nonemptyCoord ι fintypeι kind
+    step control Wire Coord total read head fintypeCoord decidableEqCoord nonemptyCoord ι fintypeι kind
     family prover finiteWire budget relation cubeFits exports Admitted StageAdmitted Efficient error
     assumption closed complete rows keysShaped blocks coords drawn queries bounded
     positive admitted depth depthBound
@@ -747,7 +744,6 @@ theorem key20_history_knowledge
     {mode : FinalVerifier.Mode}
     (setup : FinalVerifier.Setup mode logicalWidth publicFits)
     (step : AppState → AppWitness → AppState)
-    (cap : ℕ)
     (control : AppState → AppWitness → Fin 2)
     {Wire : Type}
     {Coord : Type}
@@ -784,25 +780,25 @@ theorem key20_history_knowledge
           (setup.rows (↑circuit : ℕ)).matrices = (FinalRows.packageRows exports complete circuit).matrices)
     (keysShaped : ∀ (key : Fin 2), List.length (setup.circuitKeys key).digest = 4)
     (blocks : setup.keyBlocks = 512)
-    (coords : 28 ≤ Fintype.card Coord)
+    (coords : 30 ≤ Fintype.card Coord)
     (drawn : ∀ (index : ι),
-          FinalKey20.Opening.Drawn setup complete.packageWidth step cap control read head (family index))
+          FinalKey20.Opening.Drawn setup complete.packageWidth step control read head (family index))
     {queries : ℕ}
     (bounded : prover.QueryBound queries)
     (positive : 0 < budget)
     (admitted : StageAdmitted
           (HyperNova.ReverseStages.Stage.start
             (IvcSecurity.walkAdversary
-              (FinalKey20.adversary setup complete.packageWidth step cap control read head kind family
+              (FinalKey20.adversary setup complete.packageWidth step control read head kind family
                 prover budget))))
     (depth : ℕ)
     (depthBound : ∀ (table : Akita.Extract.Address Wire total → Option Coord → Akita.Replay.CodeSlot K),
-          FinalKey20.finalAccepts setup complete.packageWidth step cap control read head kind family
+          FinalKey20.finalAccepts setup complete.packageWidth step control read head kind family
               (FinalKey20.played prover table) →
             (head (FinalKey20.played prover table).first).statement.iteration ≤ depth) :
     (((↑(HyperNova.ReverseStages.reverseStages assumption closed
                       (IvcSecurity.walkAdversary
-                        (FinalKey20.adversary setup complete.packageWidth step cap control read head kind
+                        (FinalKey20.adversary setup complete.packageWidth step control read head kind
                           family prover budget))
                       admitted depth) :
                   HyperNova.ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
@@ -810,23 +806,23 @@ theorem key20_history_knowledge
             Set
                 (↑(HyperNova.ReverseStages.reverseStages assumption closed
                         (IvcSecurity.walkAdversary
-                          (FinalKey20.adversary setup complete.packageWidth step cap control read head kind
+                          (FinalKey20.adversary setup complete.packageWidth step control read head kind
                             family prover budget))
                         admitted depth) :
                     HyperNova.ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
                       (IvcWalk.Answer logicalWidth publicFits)).Tape →
               ENNReal)
           {tape |
-            FinalKey20.AdviceFailure setup step cap control read head kind family prover budget exports
+            FinalKey20.AdviceFailure setup step control read head kind family prover budget exports
               assumption closed complete admitted depth tape}).toReal ≤
-      FinalKey20.shapesBound setup complete.packageWidth step cap control read head family prover
+      FinalKey20.shapesBound setup complete.packageWidth step control read head family prover
           (1 / (↑fieldModulus : ℝ) ^ 2) queries budget +
         IvcSecurity.walkBound setup.ajtai setup.circuitKeys exports assumption closed
-          (FinalKey20.adversary setup complete.packageWidth step cap control read head kind family prover
+          (FinalKey20.adversary setup complete.packageWidth step control read head kind family prover
             budget)
           admitted depth :=
   @NightstreamFPrime.Export.BoundedDepth.FinalKey20.history_knowledge_drawn logicalWidth publicFits mode
-    setup step cap control Wire Coord total read head fintypeCoord decidableEqCoord nonemptyCoord ι
+    setup step control Wire Coord total read head fintypeCoord decidableEqCoord nonemptyCoord ι
     fintypeι kind family prover finiteWire budget relation cubeFits exports Admitted StageAdmitted
     Efficient error assumption closed complete rows keysShaped blocks coords drawn
     queries bounded positive admitted depth depthBound
@@ -849,7 +845,6 @@ theorem key20_memory_sound
     {mode : FinalVerifier.Mode}
     (setup : FinalVerifier.Setup mode logicalWidth publicFits)
     (step : AppState → AppWitness → AppState)
-    (cap : ℕ)
     (control : AppState → AppWitness → Fin 2)
     {Wire : Type}
     {Coord : Type}
@@ -899,9 +894,9 @@ theorem key20_memory_sound
             (FinalRows.packageRows exports complete circuit).matrices)
     (keysShaped : ∀ (key : Fin 2), List.length (setup.circuitKeys key).digest = 4)
     (blocks : setup.keyBlocks = 512)
-    (coords : 28 ≤ Fintype.card Coord)
+    (coords : 30 ≤ Fintype.card Coord)
     (drawn : ∀ (index : ι),
-          FinalKey20.Opening.Drawn setup complete.packageWidth step cap control read head
+          FinalKey20.Opening.Drawn setup complete.packageWidth step control read head
             (family index))
     {queries : ℕ}
     (bounded : prover.QueryBound queries)
@@ -911,10 +906,10 @@ theorem key20_memory_sound
             (IvcSecurity.walkAdversary
               (FinalMemory.adversary head kind
                 (fun index =>
-                  FinalKey20.Opening.accepts setup complete.packageWidth step cap control read
+                  FinalKey20.Opening.accepts setup complete.packageWidth step control read
                     head (family index))
                 (fun index =>
-                  FinalKey20.Opening.proof setup complete.packageWidth step cap control read head
+                  FinalKey20.Opening.proof setup complete.packageWidth step control read head
                     (family index) prover)
                 prover budget app claim))))
     (valid : p.Valid)
@@ -927,10 +922,10 @@ theorem key20_memory_sound
                       (IvcSecurity.walkAdversary
                         (FinalMemory.adversary head kind
                           (fun index =>
-                            FinalKey20.Opening.accepts setup complete.packageWidth step cap
+                            FinalKey20.Opening.accepts setup complete.packageWidth step
                               control read head (family index))
                           (fun index =>
-                            FinalKey20.Opening.proof setup complete.packageWidth step cap
+                            FinalKey20.Opening.proof setup complete.packageWidth step
                               control read head (family index) prover)
                           prover budget app claim))
                       admitted (p.sMax * p.n)) :
@@ -941,10 +936,10 @@ theorem key20_memory_sound
                         (IvcSecurity.walkAdversary
                           (FinalMemory.adversary head kind
                             (fun index =>
-                              FinalKey20.Opening.accepts setup complete.packageWidth step cap
+                              FinalKey20.Opening.accepts setup complete.packageWidth step
                                 control read head (family index))
                             (fun index =>
-                              FinalKey20.Opening.proof setup complete.packageWidth step cap
+                              FinalKey20.Opening.proof setup complete.packageWidth step
                                 control read head (family index) prover)
                             prover budget app claim))
                         admitted (p.sMax * p.n)) :
@@ -954,46 +949,46 @@ theorem key20_memory_sound
           {tape |
             FinalMemory.FalseMemory setup step head kind
               (fun index =>
-                FinalKey20.Opening.accepts setup complete.packageWidth step cap control read
+                FinalKey20.Opening.accepts setup complete.packageWidth step control read
                   head (family index))
               prover app exports
               (FinalMemory.tapeOf setup step head kind
                     (fun index =>
-                      FinalKey20.Opening.accepts setup complete.packageWidth step cap control
+                      FinalKey20.Opening.accepts setup complete.packageWidth step control
                         read head (family index))
                     (fun index =>
-                      FinalKey20.Opening.proof setup complete.packageWidth step cap control
+                      FinalKey20.Opening.proof setup complete.packageWidth step control
                         read head (family index) prover)
                     prover budget app exports assumption closed claim admitted (p.sMax * p.n)
                     tape).1.1
               (FinalMemory.sampleOf setup step head kind
                 (fun index =>
-                  FinalKey20.Opening.accepts setup complete.packageWidth step cap control read
+                  FinalKey20.Opening.accepts setup complete.packageWidth step control read
                     head (family index))
                 (fun index =>
-                  FinalKey20.Opening.proof setup complete.packageWidth step cap control read
+                  FinalKey20.Opening.proof setup complete.packageWidth step control read
                     head (family index) prover)
                 prover budget app exports assumption closed claim admitted (p.sMax * p.n)
                 tape)}).toReal ≤
-      FinalKey20.shapesBound setup complete.packageWidth step cap control read head family
+      FinalKey20.shapesBound setup complete.packageWidth step control read head family
           prover (1 / (↑fieldModulus : ℝ) ^ 2) queries budget +
         (IvcSecurity.walkBound setup.ajtai setup.circuitKeys exports assumption closed
                 (FinalMemory.adversary head kind
                   (fun index =>
-                    FinalKey20.Opening.accepts setup complete.packageWidth step cap control
+                    FinalKey20.Opening.accepts setup complete.packageWidth step control
                       read head (family index))
                   (fun index =>
-                    FinalKey20.Opening.proof setup complete.packageWidth step cap control read
+                    FinalKey20.Opening.proof setup complete.packageWidth step control read
                       head (family index) prover)
                   prover budget app claim)
                 admitted (p.sMax * p.n) +
               (((NebulaSecurity.ClaimedStage.law app
                         (FinalMemory.claimed setup step head kind
                           (fun index =>
-                            FinalKey20.Opening.accepts setup complete.packageWidth step cap
+                            FinalKey20.Opening.accepts setup complete.packageWidth step
                               control read head (family index))
                           (fun index =>
-                            FinalKey20.Opening.proof setup complete.packageWidth step cap
+                            FinalKey20.Opening.proof setup complete.packageWidth step
                               control read head (family index) prover)
                           prover budget app exports assumption closed claim admitted
                           (p.sMax * p.n))).toOuterMeasure :
@@ -1005,10 +1000,10 @@ theorem key20_memory_sound
             (((NebulaSecurity.ClaimedStage.law app
                       (FinalMemory.claimed setup step head kind
                         (fun index =>
-                          FinalKey20.Opening.accepts setup complete.packageWidth step cap
+                          FinalKey20.Opening.accepts setup complete.packageWidth step
                             control read head (family index))
                         (fun index =>
-                          FinalKey20.Opening.proof setup complete.packageWidth step cap
+                          FinalKey20.Opening.proof setup complete.packageWidth step
                             control read head (family index) prover)
                         prover budget app exports assumption closed claim admitted
                         (p.sMax * p.n))).toOuterMeasure :
@@ -1020,14 +1015,14 @@ theorem key20_memory_sound
           memoryError
             (FinalMemory.claimed setup step head kind
               (fun index =>
-                FinalKey20.Opening.accepts setup complete.packageWidth step cap control read
+                FinalKey20.Opening.accepts setup complete.packageWidth step control read
                   head (family index))
               (fun index =>
-                FinalKey20.Opening.proof setup complete.packageWidth step cap control read
+                FinalKey20.Opening.proof setup complete.packageWidth step control read
                   head (family index) prover)
               prover budget app exports assumption closed claim admitted (p.sMax * p.n))) :=
   @NightstreamFPrime.Export.BoundedDepth.FinalKey20.memory_sound_drawn logicalWidth publicFits
-    mode setup step cap control Wire Coord total read head fintypeCoord decidableEqCoord
+    mode setup step control Wire Coord total read head fintypeCoord decidableEqCoord
     nonemptyCoord ι fintypeι kind family prover finiteWire budget relation cubeFits exports
     Admitted StageAdmitted Efficient error assumption closed complete p app claim rows
     keysShaped blocks coords drawn queries bounded positive admitted valid programEq memoryError
@@ -1048,9 +1043,9 @@ theorem key20_points
     (use : FinalKey20.Use setup shape) :
     (setup.params shape).laneVars + (setup.params shape).keyBlockVars + (setup.params shape).rowVars = 20 ∧
       (setup.params shape).witnessVars = 16 ∧
-        (setup.params shape).spanVars + (setup.verifier shape).columnVars + (setup.verifier shape).zeros =
+        (setup.params shape).spanVars + (setup.verifier shape).zeros =
             16 ∧
-          (setup.params shape).spanVars ≤ 14 :=
+          (setup.params shape).spanVars ≤ 16 :=
   @NightstreamFPrime.Export.BoundedDepth.FinalKey20.key20_points logicalWidth publicFits mode setup shape
     use
 
@@ -1117,7 +1112,6 @@ theorem key20_instances
     {setup : FinalVerifier.Setup mode logicalWidth publicFits}
     {packageWidths : Fin 2 → ℕ}
     {step : AppState → AppWitness → AppState}
-    {cap : ℕ}
     {control : AppState → AppWitness → Fin 2}
     {Wire : Type}
     {Coord : Type}
@@ -1158,12 +1152,12 @@ theorem key20_instances
                         ((Akita.Extract.Route.euclidean Akita.Key20.normTerminal.operator
                               Akita.Key20.normTerminal.limit).Kernel
                           o.terminal.matrix o.terminal.weight o.terminal.bound)}
-    (solved : FinalAkita.Solved (FinalKey20.Opening.tower setup packageWidths step cap control read head o)
+    (solved : FinalAkita.Solved (FinalKey20.Opening.tower setup packageWidths step control read head o)
           o.key o.honest ((Akita.Key20.root.fold 0).innerBound (Akita.Key20.root.shape 0)) out) :
     Akita.Key20.Reduced Akita.Key20.instances o.key o.openKey o.key₁ o.openKey₁ o.key₂ o.openKey₂ o.key₃
       o.openKey₃ o.key₄ o.openKey₄ o.key₅ o.openKey₅ o.terminal.matrix :=
   @NightstreamFPrime.Export.BoundedDepth.FinalKey20.Opening.reduced logicalWidth publicFits mode setup
-    packageWidths step cap control Wire Coord total read head fintypeCoord decidableEqCoord o mass weight₁
+    packageWidths step control Wire Coord total read head fintypeCoord decidableEqCoord o mass weight₁
     weight₂ out solved
 
 
@@ -1184,7 +1178,6 @@ theorem key20_instances_shared
     {setup : FinalVerifier.Setup mode logicalWidth publicFits}
     {packageWidths : Fin 2 → ℕ}
     {step : AppState → AppWitness → AppState}
-    {cap : ℕ}
     {control : AppState → AppWitness → Fin 2}
     {Wire : Type}
     {Coord : Type}
@@ -1229,11 +1222,11 @@ theorem key20_instances_shared
                         ((Akita.Extract.Route.euclidean Akita.Key20.normTerminal.operator
                               Akita.Key20.normTerminal.limit).Kernel
                           o.terminal.matrix o.terminal.weight o.terminal.bound)}
-    (solved : FinalAkita.Solved (FinalKey20.Opening.tower setup packageWidths step cap control read head o)
+    (solved : FinalAkita.Solved (FinalKey20.Opening.tower setup packageWidths step control read head o)
           o.key o.honest ((Akita.Key20.root.fold 0).innerBound (Akita.Key20.root.shape 0)) out) :
     Akita.Setup.Solved Akita.Key20.views S :=
   @NightstreamFPrime.Export.BoundedDepth.FinalKey20.Opening.reduced_shared logicalWidth publicFits mode
-    setup packageWidths step cap control Wire Coord total read head fintypeCoord decidableEqCoord o mass
+    setup packageWidths step control Wire Coord total read head fintypeCoord decidableEqCoord o mass
     weight₁ weight₂ N S keys out solved
 
 /-- The response search of the root fold of `crates/ns-compress/artifacts/key20.aks` (Akita

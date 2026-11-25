@@ -2,8 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.JoinTerminal
 
 /-! The slots of the fold challenges of the code for theorem A of the join of `key20.aks` (Akita
 revision `d50f700`, `crates/akita-challenges/src/sampler/stream.rs`, `VerifierFoldDraw`; ePrint
-2026/1983, revision of 2026-11-23, Appendix E.1; `docs/akita-work/w16/design.md` section 2,
-item 2).
+2026/1983, revision of 2026-11-23, Appendix E.1).
 
 - `drawn20`: the drawn fold challenges of a group of a fold of an accepted proof of `layout20` are
   the challenges `cs` of the sampler of the code on a message, moved by `ambient`.

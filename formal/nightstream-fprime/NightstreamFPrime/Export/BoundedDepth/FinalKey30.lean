@@ -12,7 +12,7 @@ offloaded root, with the bound `Key30.towerError_le` of its stage errors and its
 of the file: the claims pass the layout of step 5, the key polynomial has `2^19` blocks, the
 opening point of `V` has the zeros `FinalKey20.laidZeros` of the layout, and `W` has the count of
 variables of the row. `key30_points` gives the numbers of the three opening claims: the points of
-the key polynomial, `W` and `V` have 30, 27 or 26, and 28 coordinates. `Use.points` gives these
+the key polynomial, `W` and `V` have 30, 27 or 26, and 26 coordinates. `Use.points` gives these
 lengths for the points of the Akita opening on each transcript with the conditions `Compose.Ran`.
 The link `RootLinked` of the root needs these coordinates (`Key30.root_points`). -/
 
@@ -52,7 +52,7 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
     RingCarrierLayout.carrierWidth logicalWidth}
   {mode : Mode} (setup : FinalVerifier.Setup mode logicalWidth publicFits)
-  (packageWidths : Fin 2 → ℕ) (step : AppState → AppWitness → AppState) (cap : ℕ)
+  (packageWidths : Fin 2 → ℕ) (step : AppState → AppWitness → AppState)
   (control : AppState → AppWitness → Fin 2) (shape : Claims logicalWidth publicFits)
   {Wire Coord : Type} {total : ℕ} (read : Reader Wire)
   (head : Wire → First logicalWidth publicFits) {r : Key30.Row} {member : r ∈ rows}
@@ -76,10 +76,10 @@ variable {logicalWidth : Nat}
   {openKey₂ : OpeningKey (level₂ r).opening} {claim₂ : Wire → Claim (level₂ r).opening K}
   {block₂ : Fin (level₂ r).shape.blocks → Coord}
   {decode₂ : CodeSlot K → Option (Rq (level₂ r).opening.carrierDegree)} {weight₂ : ℕ}
-  {β₃ : Module.Basis (Fin level₃.opening.planes) Zq K} {key₃ : Key level₃.shape}
-  {openKey₃ : OpeningKey level₃.opening} {claim₃ : Wire → Claim level₃.opening K}
-  {block₃ : Fin level₃.shape.blocks → Coord}
-  {decode₃ : CodeSlot K → Option (Rq level₃.opening.carrierDegree)} {weight₃ : ℕ}
+  {β₃ : Module.Basis (Fin (level₃ r).opening.planes) Zq K} {key₃ : Key (level₃ r).shape}
+  {openKey₃ : OpeningKey (level₃ r).opening} {claim₃ : Wire → Claim (level₃ r).opening K}
+  {block₃ : Fin (level₃ r).shape.blocks → Coord}
+  {decode₃ : CodeSlot K → Option (Rq (level₃ r).opening.carrierDegree)} {weight₃ : ℕ}
   {key₄ : Key level₄.shape} {openKey₄ : OpeningKey level₄.opening}
   {claim₄ : Wire → TraceClaim level₄.opening K} {block₄ : Fin level₄.shape.blocks → Coord}
   {decode₄ : CodeSlot K → Option (Rq level₄.shape.innerDegree)} {weight₄ : ℕ}
@@ -95,13 +95,13 @@ variable {logicalWidth : Nat}
   {place : Wire → Fin 3 → List K}
   {commits : Wire → (g : Fin 2) → ((level₁ r).shape g).Payload} {values : Wire → Fin 2 → K}
   {places : Wire → Fin 2 → List K} {commit₁ : Wire → ((level₁ r).shape 1).Payload}
-  {commit₂ : Wire → (level₂ r).shape.Payload} {commit₃ : Wire → level₃.shape.Payload}
+  {commit₂ : Wire → (level₂ r).shape.Payload} {commit₃ : Wire → (level₃ r).shape.Payload}
   {commit₄ : Wire → level₄.shape.Payload} {commit₅ : Wire → level₅.shape.Payload}
   {commit₆ : Wire → level₆.shape.Payload}
   {stateOf : Wire → Fin Key30.terminal.blocks → Fin Key30.terminal.innerRank →
     Rq Key30.terminal.innerDegree}
 
-local notation "C" => compose setup packageWidths step cap control shape read head bound
+local notation "C" => compose setup packageWidths step control shape read head bound
 
 local notation "vf" => FinalVerifier.Setup.verifier setup shape
 
@@ -126,10 +126,10 @@ local notation "second" =>
     weight₂ (Tier.finish first)
 
 local notation "third" =>
-  Tier.tensored (liftFold β₃ key₃ openKey₃ claim₃ level₃.vars (And.left level₃_sized)
-    quotientDigits (And.left (And.right level₃_sized)) level₃.batch
-    (And.left (And.right (And.right level₃_sized))) block₃ decode₃ (Compose.read C) weight₃
-    (Tier.finish second)) level₃.tail
+  Tier.tensored (liftFold β₃ key₃ openKey₃ claim₃ (Key20.Level.vars (level₃ r)) (And.left (level₃_sized r member))
+    quotientDigits (And.left (And.right (level₃_sized r member))) (Key20.Level.batch (level₃ r))
+    (And.left (And.right (And.right (level₃_sized r member)))) block₃ decode₃ (Compose.read C) weight₃
+    (Tier.finish second)) (Key20.Level.tail (level₃ r))
 
 local notation "fourth" =>
   Tier.tensored (committedTrace (fold := level₄.fold) key₄ openKey₄ claim₄ level₄.vars
@@ -140,7 +140,7 @@ local notation "fifth" =>
   Tier.tensored (committedTraceSq (fold := level₅.fold) key₅ openKey₅ claim₅ level₅.vars
     (And.left (tails_sized level₅ (List.mem_cons_self ..))) level₅.batch
     (And.left (And.right (tails_sized level₅ (List.mem_cons_self ..)))) block₅ decode₅
-    (Compose.read C) weight₅ norm₅.operator norm₅.limit (Tier.finish fourth)) level₅.tail
+    (Compose.read C) weight₅ (Key20.Squared.operator (norm₅ r)) (Key20.Squared.limit (norm₅ r)) (Tier.finish fourth)) level₅.tail
 
 local notation "sixth" =>
   Tier.tensored (committedTraceSq (fold := level₆.fold) key₆ openKey₆ claim₆ level₆.vars
@@ -151,7 +151,7 @@ local notation "sixth" =>
 
 local notation "accepts" =>
   offAccepts (weight₅ := weight₅) (weight₆ := weight₆) (route₄ := Route.coefficient)
-    (route₅ := Route.euclidean norm₅.operator norm₅.limit)
+    (route₅ := Route.euclidean (Key20.Squared.operator (norm₅ r)) (Key20.Squared.limit (norm₅ r)))
     (route₆ := Route.euclidean norm₆.operator norm₆.limit) first second third fourth fifth sixth L
     commits values places C vf zeroth commit value place registry commit₁ commit₂ commit₃
     (And.left quarters) (And.left (And.right quarters))
@@ -160,7 +160,7 @@ local notation "accepts" =>
 
 local notation "opening" =>
   offRoot (weight₅ := weight₅) (weight₆ := weight₆) (route₄ := Route.coefficient)
-    (route₅ := Route.euclidean norm₅.operator norm₅.limit)
+    (route₅ := Route.euclidean (Key20.Squared.operator (norm₅ r)) (Key20.Squared.limit (norm₅ r)))
     (route₆ := Route.euclidean norm₆.operator norm₆.limit) accepts zeroth first second third
     fourth fifth sixth L 32 16 16 16 (Compose.root C vf) (Compose.read C) commit value place
     commits values places flat
@@ -181,39 +181,39 @@ structure Use (setup : FinalVerifier.Setup mode logicalWidth publicFits)
 /-- The numbers of the opening claims of the argument for the key polynomial of `key30.aks`
 (Rust `Layout::new` with `akita::SCHEDULES`, and SPEC.md Algorithm 10, the Akita claims). For a
 setup with `Use`, the point `(kp, rowPoint)` of the key polynomial has `6 + 19 + 5 = 30`
-coordinates, the point of `V` has `spanVars + 2 + zeros = 28` coordinates, the span has at most 26
+coordinates, the point of `V` has `spanVars + zeros = 26` coordinates, the span has at most 26
 variables, and the point `ρ` of `W` has the count of variables of the row. These are the sizes of
 the tables of the groups of `Key30.root`. -/
 theorem key30_points (use : Use setup shape r) :
     (setup.params shape).laneVars + (setup.params shape).keyBlockVars +
         (setup.params shape).rowVars = 30 ∧
-      (setup.params shape).spanVars + (setup.verifier shape).columnVars +
-        (setup.verifier shape).zeros = 28 ∧
+      (setup.params shape).spanVars +
+        (setup.verifier shape).zeros = 26 ∧
       (setup.params shape).spanVars ≤ 26 ∧ (setup.params shape).witnessVars = r.vars := by
   refine and_assoc.mp (and_assoc.mp ⟨?_, use.row⟩)
   obtain ⟨⟨l, ok⟩, -⟩ := use.laid
   have same : setup.layout shape = l.production := by simp only [FinalVerifier.Setup.layout, ok]
-  have zeros : setup.zeros = l.inverseVars - l.spanVars - Compression.Rust.lookupVars := by
+  have zeros : setup.zeros = l.inverseVars - l.spanVars := by
     rw [use.zeros]
     simp only [FinalKey20.laidZeros, ok]
   unfold FinalVerifier.Setup.placed at ok
   rw [use.blocks] at ok
   obtain ⟨schedule, inList, held, -, row, inRow, fits, rfl⟩ := Compression.Rust.layoutNew_ok ok
   have all : ∀ s ∈ Compression.Rust.schedules, s.blocks = 524288 →
-      s.keyVars = 30 ∧ ∀ row ∈ s.rows, row = (26, 28) ∨ row = (27, 28) := by decide
+      s.keyVars = 30 ∧ ∀ row ∈ s.rows, row = (26, 26) ∨ row = (27, 26) := by decide
   obtain ⟨keyVars, both⟩ := all schedule inList held
   simp only [Compression.Rust.rowFits, Bool.and_eq_true, decide_eq_true_eq] at fits
   obtain ⟨span, known⟩ : ∃ span, span = (setup.layout shape).spanVars := ⟨_, rfl⟩
   rcases both row inRow with rfl | rfl
   all_goals
-    have small : span + 2 ≤ 28 := by
+    have small : span ≤ 26 := by
       rw [known, same]
       exact fits.2
-    have padded : setup.zeros = 28 - span - 2 := by
+    have padded : setup.zeros = 26 - span := by
       rw [zeros, known, same]
       rfl
     show (6 + (setup.layout shape).keyBlockVars + 5 = 30 ∧
-      (setup.layout shape).spanVars + 2 + setup.zeros = 28) ∧
+      (setup.layout shape).spanVars + setup.zeros = 26) ∧
         (setup.layout shape).spanVars ≤ 26
     rw [← known, padded, same]
     show (6 + (schedule.keyVars - 6 - 5) + 5 = 30 ∧ _) ∧ _
@@ -222,11 +222,11 @@ theorem key30_points (use : Use setup shape r) :
 
 omit [Nonempty Coord] in
 /-- On a transcript with the conditions `Compose.Ran` of the final verifier with `Use`, the points
-of the three claims of the Akita opening have 30, 27 or 26, and 28 coordinates
+of the three claims of the Akita opening have 30, 27 or 26, and 26 coordinates
 (`Compose.Ran.lengths`, `key30_points`). -/
 theorem Use.points (use : Use setup shape r) {point : Prefix Wire (Option Coord → CodeSlot K) total}
     (ran : Compose.Ran C vf commit value place point) :
-    ∀ g, (place (point.wire (Compose.root C vf)) g).length = ![30, r.vars, 28] g := by
+    ∀ g, (place (point.wire (Compose.root C vf)) g).length = ![30, r.vars, 26] g := by
   obtain ⟨key, v, -, w⟩ := key30_points setup shape use
   obtain ⟨keyLength, wLength, vLength⟩ :=
     ran.lengths (FinalVerifier.laid_facts setup use.laid).1
@@ -240,16 +240,16 @@ theorem Use.points (use : Use setup shape r) {point : Prefix Wire (Option Coord 
 (`FinalAkita.final_sound` with `Key30.tower_suffix`). For each prover with at most `Q` queries to
 the oracle, the probability that the verifier accepts and no proof with witnesses satisfies
 `Verifies` for the statement of the first message is at most
-`(Q + 1)·(runCost + 1623435/(4096·|K|) + (1458 + B_1 + B_2)·p) + (Q + 1)·(1469 + B_1 +
-B_2)/budget +
+`(Q + 1)·(runCost + 1622923/(4096·|K|) + (1179 + B_1 + B_2 + B_3)·p) + (Q + 1)·(1190 + B_1 + B_2 +
+B_3)/budget +
 breakChance`. The verifier `offAccepts` accepts with the conditions `Compose.Ran` and the links
 `offLinks` of the opening with an offloaded root. `p` is a bound of the slot probability of each challenge
-family (`Key30.towerError_le`), and `1469 + B_1 + B_2` is the count of the retry loops: 2 for the
-compression argument and `1467 + B_1 + B_2` for the opening, which is 1680 for `W` of 27 variables
-and 1670 for `W` of 26 variables. `breakChance` is the probability that the extractor returns a
+family (`Key30.towerError_le`), and `1190 + B_1 + B_2 + B_3` is the count of the retry loops: 2 for the
+compression argument and `1188 + B_1 + B_2 + B_3` for the opening, which is 1402 for `W` of 27 variables
+and 1391 for `W` of 26 variables. `breakChance` is the probability that the extractor returns a
 solution of Module-SIS for the key commitment, for a matrix of a group, of a level, or for
 `A_term`. `use`: the conditions `Use` of the key of `key30.aks` and the row, with which the points
-of the three opening claims have 30, 27 or 26, and 28 coordinates (`Use.points`). `coords`: an
+of the three opening claims have 30, 27 or 26, and 26 coordinates (`Use.points`). `coords`: an
 answer of the oracle has 40 slots, which is a slot for each coordinate of `α`, for each lookup
 challenge, for each challenge after `V` and for each fold challenge of a level. `registeredS` and
 `positive₁`: the premise of Akita Lemma 9.1 for the commitment `registry` of the setup prefix
@@ -286,7 +286,7 @@ theorem sound [Finite Wire] {peak : Fin 3 → ℕ} {peak₁ : Fin 2 → ℕ}
     (sparse₅ : ∃ peak, ∀ challenge, (∃ slot, decode₅ slot = some challenge) →
       Sparse weight₅ peak challenge)
     (bounded₅ : ∀ challenge, (∃ slot, decode₅ slot = some challenge) →
-      MulBound norm₅.operator challenge)
+      MulBound (norm₅ r).operator challenge)
     (injective₆ : Function.Injective block₆)
     (units₆ : UnitDifferences {challenge | ∃ slot, decode₆ slot = some challenge})
     (sparse₆ : ∃ peak, ∀ challenge, (∃ slot, decode₆ slot = some challenge) →
@@ -312,12 +312,12 @@ theorem sound [Finite Wire] {peak : Fin 3 → ℕ} {peak₁ : Fin 2 → ℕ}
     𝔼 table, 𝔼 _tape : Tape (Address Wire total) (Option Coord) (CodeSlot K) budget
           (Structure.protocol whole).stages,
         (if accepts ((Structure.protocol whole).final prover table) ∧
-            ¬ Proved setup packageWidths step cap control head
+            ¬ Proved setup packageWidths step control head
               (((Structure.protocol whole).input prover table 0).wire 0) then (1 : ℝ) else 0) ≤
-      (queries + 1) * (setup.runCost shape + (1623435 / (4096 * Fintype.card K) +
-          ((1458 + r.blocks₁ + r.blocks₂ : ℕ) : ℝ) * p)) +
-        (queries + 1) * (2 + (1467 + r.blocks₁ + r.blocks₂) : ℕ) / budget +
-        breakChance setup packageWidths step cap control shape read head bound accepts opening
+      (queries + 1) * (setup.runCost shape + (1622923 / (4096 * Fintype.card K) +
+          ((1179 + r.blocks₁ + r.blocks₂ + r.blocks₃ : ℕ) : ℝ) * p)) +
+        (queries + 1) * (2 + (1188 + r.blocks₁ + r.blocks₂ + r.blocks₃) : ℕ) / budget +
+        breakChance setup packageWidths step control shape read head bound accepts opening
           key openKey mass Sum.inl prover honest innerBound budget := by
   obtain ⟨-, -, span, -⟩ := key30_points setup shape use
   have slots : 28 ≤ Fintype.card Coord := (by decide : 28 ≤ 40).trans coords
@@ -345,8 +345,8 @@ theorem sound [Finite Wire] {peak : Fin 3 → ℕ} {peak₁ : Fin 2 → ℕ}
     have starts₅ : Tier.start fifth = Tier.finish fourth := rfl
     have starts₆ : Tier.start sixth = Tier.finish fifth := rfl
     omega
-  have sized := compose_sized setup packageWidths step cap control shape read head bound premises
-    use.laid lookupsFit challengesFit cube ((by decide : 3 ≤ 40).trans coords) early fits
+  have sized := compose_sized setup packageWidths step control shape read head bound premises
+    use.laid lookupsFit challengesFit cube early fits
   have later := Key30.tower_suffix (member := member) (scan := scan) (reference := reference)
     (accept := accepts)
     (commit := commit) (value := value) (place := place)
@@ -368,7 +368,7 @@ theorem sound [Finite Wire] {peak : Fin 3 → ℕ} {peak₁ : Fin 2 → ℕ}
     (openKey₆ := openKey₆) (claim₆ := claim₆) (block₆ := block₆) (weight₆ := weight₆)
     (read := Compose.read C) (start := Compose.root C vf) (flat := flat) chance chance₁ chance₂
     chance₃ chance₄ chance₅ chance₆ chanceL
-  refine (final_sound setup packageWidths step cap control shape read head bound Sum.inl prover
+  refine (final_sound setup packageWidths step control shape read head bound Sum.inl prover
     sized (fun _ accepted => accepted.1) (fun _ found => found) later registered covers bounded
     positive).trans ?_
   exact add_le_add (add_le_add (mul_le_mul_of_nonneg_left

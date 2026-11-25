@@ -111,8 +111,8 @@ scope note.
   run gives that number again. On 2026-11-20 the owner selected the method of
   the main-key record for each instance: the Sage `lattice-estimator` at `norm = 2` and the length
   `bound · √(m·d)`. By this method, `sage -python scripts/estimate_akita_sis.sage` gives the recorded 127.20 bits of
-  the main key again, and each Akita number below (`scripts/akita_sis_estimates.csv`, trust item 7). **The owner's target is 128 bits against a classical attacker (2026-11-22), and by this method two outer
-  matrices of the shipped schedule files are below it.** In the ADPS16 classical model the main key has 140.16 bits.
+  the main key again, and each Akita number below (`scripts/akita_sis_estimates.csv`, trust item 7). **The owner's target is 128 bits against a classical attacker (2026-11-22); by this method two outer
+  matrices of the schedule files are below it, an accepted owner choice (2026-11-24).** In the ADPS16 classical model the main key has 140.16 bits.
   Each matrix below 128 bits is a matrix `B` of rank 1 over the ring of degree 128: level 2 of `key20.aks` (width 1092,
   bound 31) at 122.06 bits, and level 2 of `key30.aks` (width 4224, bound 15) at 123.81 bits, with 124.39 bits for the
   second row of the file. Each other instance has 134.90 bits or more. The ADPS16 quantum numbers of the same
@@ -1326,8 +1326,8 @@ not change terminal source checks.
      `scripts/akita_sis_estimates.csv`. The main key has 140.16 bits.
      Two matrices `B` of rank 1 are below the target: level 2 of `key20.aks` at 122.06 bits, and level 2 of `key30.aks`
      at 123.81 bits and 124.39 bits for its two rows. Each other instance has 134.90 bits or more. The 169 bits of (i)
-     are a number of the direct ℓ∞ model and not of this method. The schedule files are not changed, so the change of
-     these two matrices is open (`decisions/akita-compression.md`, Open points).
+     are a number of the direct ℓ∞ model and not of this method. The owner accepted these numbers below the target on
+     2026-11-24, and the schedule files are not changed (`decisions/akita-compression.md`, Open points).
    - *The Poseidon2 sponge for the argument `[P2-PERM]` `[SPONGE]`.* The Poseidon2 sponge makes each challenge of the
      Π_CCS run and of the argument (`SPEC.md` section 5.4). Each term of the Rust sum of `SPEC.md` section 3 is for one
      interactive run, and Lean proves that the exact sum bounds one interactive run

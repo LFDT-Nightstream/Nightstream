@@ -1172,6 +1172,37 @@ decision.
   `Spec.Compression.Akita.Extract.exists_presents`); that the answers of the
   Keccak duplex are such answers is the random-oracle model.
 
+- (w) The join of the byte verifier to the verifier of the claims, for
+  `key20.aks`. The verifier of a claim reads a stage answer with a function
+  that Lean has only by choice, so the transcript of a proof is not a
+  computed function of the bytes. The join has two theorems. For an accepted
+  proof, a transcript of the claims' model exists that presents the bytes
+  (`Spec.Compression.Akita.Replay.exists_presents20`): each wire message has
+  the claims, the commitments and the terminal data of the replay, each fold
+  slot decodes with the decoder of the code to the challenge that the sampler
+  of the code drew, each work slot has the work bits of the model exactly
+  when the step of the code accepts, and each level game reads the path of
+  the code. For each transcript that presents the bytes of an accepted proof,
+  the verifier `Spec.Compression.Akita.Key20.Tower.accepts` of the opening
+  claims accepts it, for the tower data of the replay
+  (`Spec.Compression.Akita.Replay.presents20_accepts`,
+  `Spec.Compression.Akita.Replay.verifyProof_exists_accepts20`). The script
+  shapes, `endsFit` and the fold of each end check are theorems for each plan
+  of the two layouts (`Spec.Compression.Akita.Replay.script20`,
+  `Spec.Compression.Akita.Replay.script30`). The hypotheses that stay are the
+  layout, the setup prefixes of the seed, the decoded messages, and the
+  lengths of the points and the values of the public statement, which the
+  replay does not check and the code does. These parts are open. The converse
+  (the verifier of the claims accepts, so the byte verifier accepts) has no
+  theorem. `key30.aks` has no join. No theorem states that wire message `j`
+  depends only on the bytes that the code absorbs before challenge `j`: each
+  wire message carries the data of the whole replay, so the two theorems do
+  not yet carry a probability bound of a claim to the code. The work bits of
+  the model are those of the plan of the two real `key20.aks` proofs at each
+  of the 473 stages, by an executed check and not by a theorem about the
+  planner of the code. The last blocks of the terminal are preimages of the
+  digests of the proof (difference (b)).
+
 ### The results for `key30.aks`
 
 The claims of `Claims.AkitaKey30` are for the two rows of `key30.aks`, the file
@@ -1415,9 +1446,11 @@ trust item 7, gives the facts).
   method are 127.20 bits for the main key and 110.77, 112.36 and 112.89 bits
   for these matrices. The 169 bits of the code are a number of the direct ℓ∞
   model, which gives 154.23 bits for the main key, so they are not a number
-  of this method. The schedule files are not changed. Rank 2 for such a
-  matrix gives 285 bits or more, and the next smaller digit base gives 134.6
-  bits or more; this change is open.
+  of this method. Accepted owner choice (2026-11-24): the owner accepts
+  these three numbers below the target of 128 bits, and the schedule files
+  are not changed. Rank 2 for such a matrix gives 285 bits or more, and the
+  next smaller digit base gives 134.6 bits or more; the owner did not select
+  either change.
 - The pair `(λ_FS, Q_max)`. The Akita code declares neither number. It has a
   target rate of 128 bits for each query. The paper has a proof of work before
   selected algebraic challenge queries (Akita Section 10.1 and Appendix I),

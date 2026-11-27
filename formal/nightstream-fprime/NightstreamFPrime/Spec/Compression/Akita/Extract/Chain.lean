@@ -458,7 +458,7 @@ theorem packingPair_extraction_le {peak peak' : ℕ} (injective : Function.Injec
           (Tier.levelError second)) +
         (queries + 1) * (S.blocks + 1 + (S'.blocks + 1) : ℕ) / budget := by
   exact (packingPair_suffix injective units sparse base small varsFit batchFit injective' units'
-    sparse' base' small' varsFit' batchFit').extraction_le rfl prover bounded positive
+    sparse' base' small' varsFit' batchFit').extraction_le rfl prover (bounded.spread _) positive
 
 /-- The expected number of runs of the prover in the extraction of a committed packing fold over
 a last packing fold is at most `K̂ + (Q + 1)·(K̂ − 1)` with `K̂ = 2·(r + 1)·2·(r' + 1)` for `r`
@@ -484,7 +484,7 @@ theorem packingPair_runs_le {peak peak' : ℕ} (injective : Function.Injective b
       (2 * (S.blocks + 1) * (2 * (S'.blocks + 1)) : ℕ) +
         (queries + 1) * ((2 * (S.blocks + 1) * (2 * (S'.blocks + 1)) : ℕ) - 1) :=
   (packingPair_suffix injective units sparse base small varsFit batchFit injective' units'
-    sparse' base' small' varsFit' batchFit').runs_le rfl prover bounded budget
+    sparse' base' small' varsFit' batchFit').runs_le rfl prover (bounded.spread _) budget
 
 end Packing
 

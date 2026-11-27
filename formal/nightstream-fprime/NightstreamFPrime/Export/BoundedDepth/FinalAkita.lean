@@ -249,7 +249,7 @@ theorem final_extraction_le (sized : Compose.Sized C vf)
           Checkpoint.extract whole prover budget table tape = none then (1 : ℝ) else 0) ≤
       (queries + 1) * (setup.runCost shape + error) + (queries + 1) * (2 + loops : ℕ) / budget :=
   (final_suffix setup packageWidths step control shape read head bound embed sized ran
-    embedded later).extraction_le rfl prover bounded positive
+    embedded later).extraction_le rfl prover (bounded.spread _) positive
 
 /-- The expected number of runs of the prover in the extraction is at most
 `K̂ + (Q + 1)·(K̂ − 1)` with `K̂ = 4·tree` for the tree size `tree` of the Akita opening (Akita
@@ -265,7 +265,7 @@ theorem final_runs_le (sized : Compose.Sized C vf)
         (extractRuns whole prover budget table tape : ℝ) ≤
       (4 * tree : ℕ) + (queries + 1) * ((4 * tree : ℕ) - 1) :=
   (final_suffix setup packageWidths step control shape read head bound embed sized ran
-    embedded later).runs_le rfl prover bounded budget
+    embedded later).runs_le rfl prover (bounded.spread _) budget
 
 variable (accept body key openKey mass) in
 /-- The probability that the extractor returns a solution of Module-SIS (`Solved`): the term of

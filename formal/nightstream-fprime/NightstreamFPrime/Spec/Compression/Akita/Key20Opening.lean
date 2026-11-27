@@ -414,12 +414,29 @@ theorem Tower.extract_sound (drawn : o.Drawn) (slots : 22 ≤ Fintype.card Coord
 variable [Finite Wire]
 
 /-- Akita Theorem 10.17 in the form (161), with Corollary 10.49 and (206), for the opening of
-`key20.aks` with the decoders of the code. For each prover with at most `Q` queries to the table of
-the oracle on keys, the probability that `Tower.accepts` accepts and the extractor returns no
-output is at most `(Q + 1)·(317479/(1024·|E|) + 135/q²) + (Q + 1)·142/budget`, with `|E| = q²`
+`key20.aks` with the decoders of the code. For each prover with at most `Q` different queried keys
+of each stage (`Protocol.Spread`), the probability that `Tower.accepts` accepts and the extractor
+returns no output is at most `(Q + 1)·(317479/(1024·|E|) + 135/q²) + (Q + 1)·142/budget`, with `|E| = q²`
 (`card_field`). The fold term has the slot probability `1/q²` of each fold coordinate, an upper
 bound of the probability `2^-K` or `1/|Kept G|` of the decoder of the code. The probability is over the uniform table and the tape of the extractor. The
 bound has no term for the probability that the output is a solution of Module-SIS. -/
+theorem Tower.extraction_spread_le (drawn : o.Drawn) (slots : 22 ≤ Fintype.card Coord)
+    (prover : OracleComp (Address Wire total) (Option Coord → Replay.CodeSlot E) (ℕ → Wire))
+      {queries : ℕ}
+    (spread : o.body.protocol.Spread prover queries) {budget : ℕ} (positive : 0 < budget) :
+    𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) (Replay.CodeSlot E) budget
+          o.body.protocol.stages,
+        (if o.accepts (o.body.protocol.final prover table) ∧
+          Checkpoint.extract o.body prover budget table tape = none then (1 : ℝ) else 0) ≤
+      (queries + 1) * (317479 / (1024 * Fintype.card E) + 135 * (1 / (fieldModulus : ℝ) ^ 2)) +
+        (queries + 1) * (142 : ℕ) / budget := by
+  obtain ⟨_, suffix, small⟩ := Tower.suffix drawn slots
+  have bound := suffix.extraction_le rfl prover spread positive
+  rw [congrArg Protocol.accept suffix.protocol] at bound
+  exact bound.trans (add_le_add (mul_le_mul_of_nonneg_left small (by positivity)) le_rfl)
+
+/-- `Tower.extraction_spread_le` for a prover with at most `Q` queries to the table of the oracle
+on keys (Akita Theorem 10.17 in the form (161)). -/
 theorem Tower.extraction_le (drawn : o.Drawn) (slots : 22 ≤ Fintype.card Coord)
     (prover : OracleComp (Address Wire total) (Option Coord → Replay.CodeSlot E) (ℕ → Wire))
       {queries : ℕ}
@@ -429,10 +446,7 @@ theorem Tower.extraction_le (drawn : o.Drawn) (slots : 22 ≤ Fintype.card Coord
         (if o.accepts (o.body.protocol.final prover table) ∧
           Checkpoint.extract o.body prover budget table tape = none then (1 : ℝ) else 0) ≤
       (queries + 1) * (317479 / (1024 * Fintype.card E) + 135 * (1 / (fieldModulus : ℝ) ^ 2)) +
-        (queries + 1) * (142 : ℕ) / budget := by
-  obtain ⟨_, suffix, small⟩ := Tower.suffix drawn slots
-  have bound := suffix.extraction_le rfl prover bounded positive
-  rw [congrArg Protocol.accept suffix.protocol] at bound
-  exact bound.trans (add_le_add (mul_le_mul_of_nonneg_left small (by positivity)) le_rfl)
+        (queries + 1) * (142 : ℕ) / budget :=
+  Tower.extraction_spread_le drawn slots prover (bounded.spread _) positive
 
 end NightstreamFPrime.Spec.Compression.Akita.Key20

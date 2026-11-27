@@ -599,7 +599,7 @@ theorem batchRoot_extraction_le {peak : Fin count → ℕ} {peak' : ℕ}
   exact (batchRootChain_suffix (commit := commit) (value := value) (place := place)
     (next := next) (witnessOf := witnessOf) injective units sparse response uniform small varsFit
     batchFit groupsFit injective' units' sparse' base' small' varsFit'
-    batchFit').extraction_le rfl prover bounded positive
+    batchFit').extraction_le rfl prover (bounded.spread _) positive
 
 /-- The expected number of runs of the prover in the extraction of the batching root over a
 committed fold with opening groups over a last packing fold is at most `K̂ + (Q + 1)·(K̂ − 1)`
@@ -632,7 +632,7 @@ theorem batchRoot_runs_le {peak : Fin count → ℕ} {peak' : ℕ}
   (batchRootChain_suffix (commit := commit) (value := value) (place := place) (next := next)
     (witnessOf := witnessOf) injective units sparse response uniform small varsFit batchFit
     groupsFit injective' units' sparse' base' small' varsFit' batchFit').runs_le rfl prover
-    bounded budget
+    (bounded.spread _) budget
 
 end Instance
 

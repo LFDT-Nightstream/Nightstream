@@ -204,6 +204,14 @@ import NightstreamFPrime.Spec.Compression.Akita.Replay.SpongeFree
 import NightstreamFPrime.Spec.Compression.Akita.Replay.SpongeFreeBases
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Sound20Deps
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Sound20Game
+import NightstreamFPrime.Spec.Compression.Akita.Replay.Sound20Closed
+import NightstreamFPrime.Spec.Compression.Akita.Replay.Sound20Count
+import NightstreamFPrime.Spec.Compression.Akita.Replay.Sound20Digest
+import NightstreamFPrime.Spec.Compression.Akita.Replay.Sound20Wire
+import NightstreamFPrime.Spec.Compression.Akita.Replay.Sound20Reads
+import NightstreamFPrime.Spec.Compression.Akita.Replay.Sound20
+import NightstreamFPrime.Spec.Compression.Akita.Replay.Sound20Positions
+import NightstreamFPrime.Spec.Compression.Akita.Replay.Sound20Chain
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Grows
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Schedules
 import NightstreamFPrime.Spec.Compression.Akita.Replay.Stage3

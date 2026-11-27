@@ -448,7 +448,8 @@ theorem Suffix.extract_sound (suffix : Suffix accept start Opens body error loop
 variable [Finite Wire]
 
 /-- Akita Theorem 10.17, in the form (161), for a suffix from the stage 0 (Corollary 10.49 with
-(206) for the opening suffix). For each prover with at most `Q` queries, the probability that the
+(206) for the opening suffix). For each prover with at most `Q` different queried keys of each
+stage (`Protocol.Spread`), the probability that the
 verifier accepts and the extractor returns no output is at most
 `(Q + 1)·error + (Q + 1)·loops/budget`: `error` is the sum of the stage errors of the levels,
 `loops` is the number of the retry loops, and `budget` is the limit of the attempts of a retry
@@ -456,13 +457,13 @@ loop. The probability is over the table of the oracle and the tape of the extrac
 theorem Suffix.extraction_le (suffix : Suffix accept start Opens body error loops tree)
     (root : start = 0)
     (prover : OracleComp (Address Wire total) (Option Coord → Slot) (ℕ → Wire))
-    {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
+    {queries : ℕ} (spread : body.protocol.Spread prover queries) {budget : ℕ} (positive : 0 < budget) :
     𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) Slot budget
           body.protocol.stages,
         (if body.protocol.accept (body.protocol.final prover table) ∧
           Checkpoint.extract body prover budget table tape = none then (1 : ℝ) else 0) ≤
       (queries + 1) * error + (queries + 1) * loops / budget := by
-  have bound := checkpoint_extraction_le body prover (suffix.lawful root) bounded positive
+  have bound := checkpoint_extraction_spread_le body prover (suffix.lawful root) spread positive
   have charge := suffix.errorSum
   have count := suffix.loopCount
   rw [root] at charge count
@@ -474,12 +475,12 @@ at most `K̂ + (Q + 1)·(K̂ − 1)` for the tree size `K̂ = tree` (Akita Theor
 theorem Suffix.runs_le (suffix : Suffix accept start Opens body error loops tree)
     (root : start = 0)
     (prover : OracleComp (Address Wire total) (Option Coord → Slot) (ℕ → Wire))
-    {queries : ℕ} (bounded : prover.QueryBound queries) (budget : ℕ) :
+    {queries : ℕ} (spread : body.protocol.Spread prover queries) (budget : ℕ) :
     𝔼 table, 𝔼 tape : Tape (Address Wire total) (Option Coord) Slot budget
           body.protocol.stages,
         (extractRuns body prover budget table tape : ℝ) ≤
       tree + (queries + 1) * (tree - 1) := by
-  have bound := extract_runs_le body prover bounded budget
+  have bound := extract_runs_spread_le body prover spread budget
   have size := suffix.treeSize
   rw [root] at size
   unfold Structure.treeSize at bound

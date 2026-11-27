@@ -288,7 +288,7 @@ theorem indexed_anchor_le (lawful : structure_.Lawful) {level : ℕ} {coordinate
 theorem indexed_miss_le (lawful : structure_.Lawful) {level : ℕ} {coordinates : List Coord}
     (indexed : structure_.kind level = .indexed coordinates)
     (inside : level < structure_.protocol.stages) {queries : ℕ}
-    (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget)
+    (spread : structure_.protocol.Spread prover queries) {budget : ℕ} (positive : 0 < budget)
     {child : (Addr → Coord → Slot) → Inner → Option (Cert ⊕ Break)}
     (accepts : ∀ table tape, (child table tape).isSome →
       structure_.protocol.accept (structure_.protocol.final prover table)) :
@@ -302,7 +302,7 @@ theorem indexed_miss_le (lawful : structure_.Lawful) {level : ℕ} {coordinates 
   have count : 𝔼 table, (∑ key, if key ∈ structure_.protocol.asked prover table ∧
       structure_.protocol.rank key = level then (1 : ℝ) else 0) ≤ queries + 1 :=
     (Finset.expect_le_expect fun table _ =>
-      structure_.protocol.stage_asked_le prover bounded table level).trans
+      structure_.protocol.stage_asked_le prover spread table level).trans
       (Finset.expect_const Finset.univ_nonempty _).le
   have countNonnegative : 0 ≤ 𝔼 table, (∑ key,
       if key ∈ structure_.protocol.asked prover table ∧

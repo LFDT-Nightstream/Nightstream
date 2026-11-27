@@ -301,18 +301,18 @@ omit [Nonempty Slot] in
 /-- Claim 2 of Appendix E.2, second part: at most `Q + 1` stage inputs can be the selected
 checkpoint input after the table on the message subtree of their key is replaced. A counted input
 `ξ` has `T_J(⟨ξ⟩) = ξ`, and its key is that of the input of `A^J` or the stage-`level` key of a
-query of the prover. -/
-theorem selected_count_le {queries : ℕ} (bounded : prover.QueryBound queries) {level : ℕ}
+query of the prover. `Q` is the count of `Protocol.Spread`. -/
+theorem selected_count_le {queries : ℕ} (spread : structure_.protocol.Spread prover queries) {level : ℕ}
     (within : level ≤ structure_.protocol.stages) (table : Addr → Coord → Slot) :
     ∑ anchor, (if ∃ fresh, structure_.protocol.input prover (structure_.protocol.regrow level
         (structure_.protocol.address anchor) table fresh) level = anchor
       then (1 : ℝ) else 0) ≤ queries + 1 := by
+  obtain ⟨anchors, short, holds⟩ := spread table level
   have inside : (Finset.univ.filter fun anchor => ∃ fresh, structure_.protocol.input prover
       (structure_.protocol.regrow level (structure_.protocol.address anchor) table fresh) level =
         anchor) ⊆
         insert (structure_.protocol.input prover table level)
-          ((prover.queries table).toFinset.image fun key =>
-            structure_.protocol.rebuild table ((structure_.protocol.trim level key).getD key)) := by
+          (anchors.image (structure_.protocol.rebuild table)) := by
     intro anchor member
     simp only [Finset.mem_filter, Finset.mem_univ, true_and] at member
     obtain ⟨fresh, selected⟩ := member
@@ -331,7 +331,7 @@ theorem selected_count_le {queries : ℕ} (bounded : prover.QueryBound queries) 
     by_cases touched : ∃ key ∈ prover.queries table,
         structure_.protocol.trim level key = some (structure_.protocol.address anchor)
     · obtain ⟨key, queried, trimEq⟩ := touched
-      exact Or.inr ⟨key, List.mem_toFinset.mpr queried, by rw [trimEq]; exact rebuilt⟩
+      exact Or.inr ⟨_, holds key queried _ trimEq, rebuilt⟩
     · left
       push Not at touched
       refine selected.symm.trans (structure_.protocol.input_congr prover table _ level
@@ -347,11 +347,9 @@ theorem selected_count_le {queries : ℕ} (bounded : prover.QueryBound queries) 
         simp [Protocol.regrow, outside]
   rw [Finset.sum_boole]
   have count := (Finset.card_le_card inside).trans (Finset.card_insert_le _ _)
-  have short := (Finset.card_image_le (s := (prover.queries table).toFinset)
-    (f := fun key => structure_.protocol.rebuild table
-      ((structure_.protocol.trim level key).getD key))).trans
-      ((List.toFinset_card_le (prover.queries table)).trans (bounded.queries_length_le table))
-  exact_mod_cast count.trans (Nat.add_le_add_right short 1)
+  have small := (Finset.card_image_le (s := anchors)
+    (f := structure_.protocol.rebuild table)).trans short
+  exact_mod_cast count.trans (Nat.add_le_add_right small 1)
 
 private noncomputable def failChance (level budget : ℕ)
     (child : (Addr → Coord → Slot) → Inner → Option (Cert ⊕ Break)) (anchor : Point)
@@ -530,7 +528,7 @@ private theorem checkpoint_anchor_le (lawful : structure_.Lawful) {level span fr
 `s_ℓ ≥ s_{ℓ+1} − Σ_{j ∈ seg(ℓ)} ε_j·E[N_j(J)]`, with the loss of the limit of the loop. -/
 theorem checkpoint_miss_le (lawful : structure_.Lawful) {level span frontier : ℕ}
     (checkpoint : structure_.kind level = .checkpoint span) (deep : level + span + 1 ≤ frontier)
-    {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget)
+    {queries : ℕ} (spread : structure_.protocol.Spread prover queries) {budget : ℕ} (positive : 0 < budget)
     {child : (Addr → Coord → Slot) → Inner → Option (Cert ⊕ Break)}
     (sound : Sound structure_ prover child (level + 1) frontier) :
     𝔼 table, 𝔼 own : Inner, 𝔼 loops : Loops Addr Coord Slot budget Inner,
@@ -608,7 +606,7 @@ theorem checkpoint_miss_le (lawful : structure_.Lawful) {level span frontier : �
             simp [Ne.symm different]
           · simp
       · unfold selectable
-        have counted := selected_count_le structure_ prover bounded
+        have counted := selected_count_le structure_ prover spread
           (Nat.le_of_lt (Nat.lt_of_le_of_lt (Nat.le_add_right level span)
             (lawful.segment level span checkpoint).1)) table
         have scaled : ∑ anchor, (if ∃ fresh, structure_.protocol.input prover

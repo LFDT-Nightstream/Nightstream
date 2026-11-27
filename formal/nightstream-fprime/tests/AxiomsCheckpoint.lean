@@ -42,6 +42,11 @@ import NightstreamFPrime.Spec.Checkpoint
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.Protocol.rebuild_input
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.Protocol.input_congr
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.Protocol.stage_asked_le
+#audit_axioms NightstreamFPrime.Spec.Checkpoint.Protocol.trim_self
+#audit_axioms NightstreamFPrime.Spec.Checkpoint.Protocol.Spread
+#audit_axioms NightstreamFPrime.Spec.Checkpoint.Protocol.Spread.of_card
+#audit_axioms NightstreamFPrime.Spec.Checkpoint.Protocol.sum_ranked_le
+#audit_axioms NightstreamFPrime.Spec.RandomOracle.OracleComp.QueryBound.spread
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.Protocol.sum_asked_le
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.setSlot
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.setSlot_setSlot
@@ -124,6 +129,7 @@ import NightstreamFPrime.Spec.Checkpoint
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.checkpoint_extraction
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.address_sum_le
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.checkpoint_extraction_le
+#audit_axioms NightstreamFPrime.Spec.Checkpoint.checkpoint_extraction_spread_le
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.guardedRuns
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.indexedLoopRuns
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.indexedRuns
@@ -136,3 +142,4 @@ import NightstreamFPrime.Spec.Checkpoint
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.expectedRuns
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.runs_le
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.extract_runs_le
+#audit_axioms NightstreamFPrime.Spec.Checkpoint.extract_runs_spread_le

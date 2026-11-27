@@ -270,28 +270,89 @@ theorem input_congr (table other : Addr → Reply) (level : ℕ)
   rw [OracleComp.run_congr table other prover agreeProver]
   exact protocol.path_congr _ table other level agreePath
 
-/-- `A^J` queries at most one key of each stage besides the queries of the prover. -/
+/-- A key is its own stage key: `k_{≤ r} = k` for a key `k` of the stage `r`. -/
+theorem trim_self (table : Addr → Reply) (key : Addr) :
+    protocol.trim (protocol.rank key) key = some key := by
+  have cut := protocol.cut_self (protocol.rebuild table key)
+  have trimmed := protocol.trim_address (protocol.rank key) (protocol.rebuild table key)
+  rw [protocol.stage_rebuild] at cut
+  rw [cut, Option.map_some, protocol.address_rebuild] at trimmed
+  exact trimmed
+
+/-- For each table and each stage `level`, the queries of the prover have at most `queries`
+different stage-`level` keys `k_{≤ level}`: `anchors` holds the key `trim level key` of each query
+`key`. A prover with at most `queries` queries has this property (`QueryBound.spread`). -/
+def Spread (queries : ℕ) : Prop :=
+  ∀ (table : Addr → Reply) (level : ℕ), ∃ anchors : Finset Addr, anchors.card ≤ queries ∧
+    ∀ key ∈ prover.queries table, ∀ anchor, protocol.trim level key = some anchor →
+      anchor ∈ anchors
+
+/-- `Spread` from the count of the different stage keys of the list of the queries. -/
+theorem Spread.of_card [DecidableEq Addr] {queries : ℕ}
+    (short : ∀ (table : Addr → Reply) (level : ℕ),
+      ((prover.queries table).filterMap (protocol.trim level)).toFinset.card ≤ queries) :
+    protocol.Spread prover queries := fun table level =>
+  ⟨_, short table level, fun key queried _ trimmed =>
+    List.mem_toFinset.mpr (List.mem_filterMap.mpr ⟨key, queried, trimmed⟩)⟩
+
+/-- `A^J` queries at most one key of each stage besides the queries of the prover, and the queries
+of the prover have at most `queries` different keys of one stage. -/
 theorem stage_asked_le [Fintype Addr] [DecidableEq Addr] {queries : ℕ}
-    (bounded : prover.QueryBound queries) (table : Addr → Reply) (level : ℕ) :
+    (spread : protocol.Spread prover queries) (table : Addr → Reply) (level : ℕ) :
     ∑ key, (if key ∈ protocol.asked prover table ∧ protocol.rank key = level
       then (1 : ℝ) else 0) ≤ queries + 1 := by
+  obtain ⟨anchors, short, holds⟩ := spread table level
   have inside : (Finset.univ.filter fun key =>
       key ∈ protocol.asked prover table ∧ protocol.rank key = level) ⊆
-        (prover.queries table).toFinset ∪
-          {protocol.address (protocol.input prover table level)} := by
+        anchors ∪ {protocol.address (protocol.input prover table level)} := by
     intro key member
     simp only [Finset.mem_filter, Finset.mem_univ, true_and, mem_asked_iff] at member
-    simp only [Finset.mem_union, List.mem_toFinset, Finset.mem_singleton]
+    simp only [Finset.mem_union, Finset.mem_singleton]
     rcases member.1 with queried | ⟨other, inside, rfl⟩
-    · exact Or.inl queried
+    · exact Or.inl (holds key queried key (by rw [← member.2]; exact protocol.trim_self table key))
     · rw [protocol.rank_address, protocol.stage_input prover table (Nat.le_of_lt inside)] at member
       exact Or.inr (by rw [member.2])
   rw [Finset.sum_boole]
   have count := (Finset.card_le_card inside).trans (Finset.card_union_le _ _)
-  have short := (List.toFinset_card_le (prover.queries table)).trans
-    (bounded.queries_length_le table)
   rw [Finset.card_singleton] at count
   exact_mod_cast count.trans (Nat.add_le_add_right short 1)
+
+/-- A sum over the queried keys of a charge of the stage of the key is at most `queries + 1`
+times the sum of the charges of the stages, for a charge that is 0 after the last stage. -/
+theorem sum_ranked_le [Fintype Addr] [DecidableEq Addr] {queries : ℕ}
+    (spread : protocol.Spread prover queries) (table : Addr → Reply) (charge : ℕ → ℝ)
+    (nonnegative : ∀ level, 0 ≤ charge level)
+    (outside : ∀ level, protocol.stages ≤ level → charge level = 0) :
+    ∑ key, (if key ∈ protocol.asked prover table then charge (protocol.rank key) else 0) ≤
+      (queries + 1) * ∑ level ∈ Finset.range protocol.stages, charge level := by
+  have part : ∀ (key : Addr) (level : ℕ), 0 ≤
+      (if key ∈ protocol.asked prover table ∧ protocol.rank key = level then (1 : ℝ) else 0) *
+        charge level :=
+    fun key level => mul_nonneg (by split <;> norm_num) (nonnegative level)
+  calc
+    _ ≤ ∑ key, ∑ level ∈ Finset.range protocol.stages,
+          (if key ∈ protocol.asked prover table ∧ protocol.rank key = level then (1 : ℝ) else 0) *
+            charge level := by
+      refine Finset.sum_le_sum fun key _ => ?_
+      by_cases member : key ∈ protocol.asked prover table
+      · rw [ite_eq_left member]
+        by_cases inside : protocol.rank key < protocol.stages
+        · refine le_trans ?_ (Finset.single_le_sum (fun level _ => part key level)
+            (Finset.mem_range.mpr inside))
+          rw [ite_eq_left ⟨member, rfl⟩, one_mul]
+        · rw [outside _ (Nat.le_of_not_lt inside)]
+          exact Finset.sum_nonneg fun level _ => part key level
+      · rw [ite_eq_right member]
+        exact Finset.sum_nonneg fun level _ => part key level
+    _ = ∑ level ∈ Finset.range protocol.stages,
+          (∑ key, if key ∈ protocol.asked prover table ∧ protocol.rank key = level
+            then (1 : ℝ) else 0) * charge level := by
+      rw [Finset.sum_comm]
+      exact Finset.sum_congr rfl fun level _ => (Finset.sum_mul _ _ _).symm
+    _ ≤ ∑ level ∈ Finset.range protocol.stages, ((queries : ℝ) + 1) * charge level :=
+      Finset.sum_le_sum fun level _ => mul_le_mul_of_nonneg_right
+        (protocol.stage_asked_le prover spread table level) (nonnegative level)
+    _ = _ := (Finset.mul_sum _ _ _).symm
 
 /-- A sum over the queried keys is at most the sum over the queries of the prover and the stages
 of the transcript. -/
@@ -352,6 +413,14 @@ theorem sum_asked_le [Fintype Addr] [DecidableEq Addr] {queries : ℕ}
         exact_mod_cast (List.toFinset_card_le _).trans (bounded.queries_length_le table)
 
 end Protocol
+
+/-- A prover with at most `queries` queries has at most `queries` different keys of each stage. -/
+theorem _root_.NightstreamFPrime.Spec.RandomOracle.OracleComp.QueryBound.spread
+    {prover : OracleComp Addr Reply Proof} {queries : ℕ} (bounded : prover.QueryBound queries)
+    (protocol : Protocol Addr Point Reply Proof) : protocol.Spread prover queries :=
+  Protocol.Spread.of_card protocol prover fun table _ =>
+    (List.toFinset_card_le _).trans
+      ((List.length_filterMap_le _ _).trans (bounded.queries_length_le table))
 
 section Table
 

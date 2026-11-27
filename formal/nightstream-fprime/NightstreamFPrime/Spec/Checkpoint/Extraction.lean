@@ -182,7 +182,7 @@ private theorem miss_succ_le (budget depth level : ℕ)
       simp only [Finset.expect_add_distrib, Finset.expect_const Finset.univ_nonempty]
 
 /-- The telescoped success recurrences of Appendix E.2 for the stages from `level`. -/
-theorem miss_le (lawful : structure_.Lawful) {queries : ℕ} (bounded : prover.QueryBound queries)
+theorem miss_le (lawful : structure_.Lawful) {queries : ℕ} (spread : structure_.protocol.Spread prover queries)
     {budget : ℕ} (positive : 0 < budget) :
     ∀ depth level, level + depth = structure_.protocol.stages →
       miss structure_ prover budget depth level ≤
@@ -226,7 +226,7 @@ theorem miss_le (lawful : structure_.Lawful) {queries : ℕ} (bounded : prover.Q
       rcases kindEq : structure_.kind level with coordinates | span | _
       · refine (miss_succ_le structure_ prover budget depth level _
           (node_indexed structure_ prover budget kindEq)).trans ?_
-        have stage := indexed_miss_le structure_ prover lawful kindEq inside bounded positive
+        have stage := indexed_miss_le structure_ prover lawful kindEq inside spread positive
           accepts
         have here : stageLoss structure_ prover level = fun table =>
             ∑ key, if key ∈ structure_.protocol.asked prover table ∧
@@ -243,7 +243,7 @@ theorem miss_le (lawful : structure_.Lawful) {queries : ℕ} (bounded : prover.Q
           have := structure_.plain_le_frontier span depth (level + 1) (by omega)
             fun later low high => plain later (by omega) (by omega)
           omega
-        have stage := checkpoint_miss_le structure_ prover lawful kindEq deep bounded positive
+        have stage := checkpoint_miss_le structure_ prover lawful kindEq deep spread positive
           childSound
         have here : stageLoss structure_ prover level = fun table =>
             ∑ key, if key ∈ structure_.protocol.asked prover table ∧
@@ -290,14 +290,14 @@ verifier accepts and the extractor returns no output is at most `E[Σ_{a ∈ Add
 loss of the limit, `(Q + 1)·L/budget`, where `L` is the number of retry loops of one node of each
 stage. By `extract_sound`, an output is a witness of the relation or a witness of `R_bind`. -/
 theorem checkpoint_extraction (lawful : structure_.Lawful) {queries : ℕ}
-    (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
+    (spread : structure_.protocol.Spread prover queries) {budget : ℕ} (positive : 0 < budget) :
     𝔼 table, 𝔼 tape : Tape Addr Coord Slot budget structure_.protocol.stages,
         (if structure_.protocol.accept (structure_.protocol.final prover table) ∧
           extract structure_ prover budget table tape = none then (1 : ℝ) else 0) ≤
       (𝔼 table, ∑ key, if key ∈ structure_.protocol.asked prover table
         then structure_.charge (structure_.protocol.rank key) else 0) +
         (queries + 1) * structure_.loopsFrom 0 / budget := by
-  refine (miss_le structure_ prover lawful bounded positive structure_.protocol.stages 0
+  refine (miss_le structure_ prover lawful spread positive structure_.protocol.stages 0
     (Nat.zero_add _)).trans (add_le_add (Finset.expect_le_expect fun table _ => ?_) le_rfl)
   refine (loss_le_chargeFrom structure_ prover lawful table structure_.protocol.stages 0
     (Nat.zero_add _)).trans (le_of_eq ?_)
@@ -319,25 +319,35 @@ theorem address_sum_le (lawful : structure_.Lawful) {queries : ℕ}
     (Finset.expect_const Finset.univ_nonempty _).le
 
 /-- The familiar form (161) of Akita Theorem 10.17, with the loss of the limit of the loops:
-`(Q + 1)·ε_ck + (Q + 1)·L/budget`. -/
+`(Q + 1)·ε_ck + (Q + 1)·L/budget`, for a prover with at most `Q` different queried keys of each
+stage (`Protocol.Spread`). -/
+theorem checkpoint_extraction_spread_le (lawful : structure_.Lawful) {queries : ℕ}
+    (spread : structure_.protocol.Spread prover queries) {budget : ℕ} (positive : 0 < budget) :
+    𝔼 table, 𝔼 tape : Tape Addr Coord Slot budget structure_.protocol.stages,
+        (if structure_.protocol.accept (structure_.protocol.final prover table) ∧
+          extract structure_ prover budget table tape = none then (1 : ℝ) else 0) ≤
+      (queries + 1) * structure_.checkError + (queries + 1) * structure_.loopsFrom 0 / budget := by
+  have outside : ∀ level, structure_.protocol.stages ≤ level → structure_.charge level = 0 := by
+    intro level beyond
+    unfold Structure.charge
+    rw [ite_eq_right (Nat.not_lt.mpr beyond)]
+  have first := checkpoint_extraction structure_ prover lawful spread positive
+  have second : 𝔼 table, (∑ key, if key ∈ structure_.protocol.asked prover table
+      then structure_.charge (structure_.protocol.rank key) else 0) ≤
+        (queries + 1) * structure_.checkError :=
+    (Finset.expect_le_expect fun table _ => structure_.protocol.sum_ranked_le prover spread table
+      structure_.charge (structure_.charge_nonnegative lawful) outside).trans
+      (Finset.expect_const Finset.univ_nonempty _).le
+  linarith
+
+/-- The familiar form (161) of Akita Theorem 10.17, with the loss of the limit of the loops:
+`(Q + 1)·ε_ck + (Q + 1)·L/budget`, for a prover with at most `Q` queries. -/
 theorem checkpoint_extraction_le (lawful : structure_.Lawful) {queries : ℕ}
     (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
     𝔼 table, 𝔼 tape : Tape Addr Coord Slot budget structure_.protocol.stages,
         (if structure_.protocol.accept (structure_.protocol.final prover table) ∧
           extract structure_ prover budget table tape = none then (1 : ℝ) else 0) ≤
-      (queries + 1) * structure_.checkError + (queries + 1) * structure_.loopsFrom 0 / budget := by
-  have total : ∀ level, structure_.charge level ≤ structure_.checkError := by
-    intro level
-    by_cases inside : level < structure_.protocol.stages
-    · exact Finset.single_le_sum (fun other _ => structure_.charge_nonnegative lawful other)
-        (Finset.mem_range.mpr inside)
-    · have zero : structure_.charge level = 0 := by
-        unfold Structure.charge
-        rw [ite_eq_right inside]
-      rw [zero]
-      exact Finset.sum_nonneg fun other _ => structure_.charge_nonnegative lawful other
-  have first := checkpoint_extraction structure_ prover lawful bounded positive
-  have second := address_sum_le structure_ prover lawful bounded structure_.checkError total
-  linarith
+      (queries + 1) * structure_.checkError + (queries + 1) * structure_.loopsFrom 0 / budget :=
+  checkpoint_extraction_spread_le structure_ prover lawful (bounded.spread _) positive
 
 end NightstreamFPrime.Spec.Checkpoint

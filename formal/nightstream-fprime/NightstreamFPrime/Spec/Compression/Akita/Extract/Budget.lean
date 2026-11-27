@@ -171,7 +171,7 @@ theorem Suffix.extraction_le_strength (suffix : Suffix accept start Opens body e
         (if body.protocol.accept (body.protocol.final prover table) ∧
           Checkpoint.extract body prover budget table tape = none then (1 : ℝ) else 0) ≤
       (2 : ℝ) ^ (-strength) + (queries + 1) * loops / budget := by
-  refine (suffix.extraction_le root prover bounded positive).trans (add_le_add ?_ le_rfl)
+  refine (suffix.extraction_le root prover (bounded.spread _) positive).trans (add_le_add ?_ le_rfl)
   exact (mul_le_mul_of_nonneg_right (add_le_add (Nat.cast_le.mpr within) le_rfl)
     (suffix.error_nonnegative root)).trans budgeted
 

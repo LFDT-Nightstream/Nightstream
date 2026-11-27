@@ -568,7 +568,7 @@ theorem extraction_le {queries : ℕ} (bounded : prover.QueryBound queries) {bud
           Checkpoint.extract whole prover budget table tape = none then (1 : ℝ) else 0) ≤
       (queries + 1) * (C.leadCosts.sum + Verifier.runCost vf + error) +
         (queries + 1) * (2 + loops : ℕ) / budget :=
-  (suffix sized ran embed embedded later).extraction_le first prover bounded positive
+  (suffix sized ran embed embedded later).extraction_le first prover (bounded.spread _) positive
 
 /-- The expected number of runs of the prover in the extraction is at most
 `K̂ + (Q + 1)·(K̂ − 1)` with `K̂ = 4·tree` for the tree size `tree` of the Akita opening (Akita
@@ -578,7 +578,7 @@ theorem runs_le {queries : ℕ} (bounded : prover.QueryBound queries) (budget : 
           (Structure.protocol whole).stages,
         (extractRuns whole prover budget table tape : ℝ) ≤
       (4 * tree : ℕ) + (queries + 1) * ((4 * tree : ℕ) - 1) :=
-  (suffix sized ran embed embedded later).runs_le first prover bounded budget
+  (suffix sized ran embed embedded later).runs_le first prover (bounded.spread _) budget
 
 end Extraction
 

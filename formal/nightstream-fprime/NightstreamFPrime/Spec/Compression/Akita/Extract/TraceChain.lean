@@ -301,7 +301,7 @@ theorem traceTriple_extraction_le {peak peak' peak'' : ℕ} (injective : Functio
         (queries + 1) * (S.blocks + 1 + (S'.blocks + 1 + S''.blocks) : ℕ) / budget := by
   exact (traceTriple_suffix injective units sparse base small varsFit batchFit injective' units'
     sparse' base' small' varsFit' batchFit' next inside injective'' units''
-    sparse'').extraction_le rfl prover bounded positive
+    sparse'').extraction_le rfl prover (bounded.spread _) positive
 
 /-- The expected number of runs of the prover in the extraction of a committed packing fold over
 a committed trace fold over the terminal is at most `K̂ + (Q + 1)·(K̂ − 1)` with
@@ -332,7 +332,7 @@ theorem traceTriple_runs_le {peak peak' peak'' : ℕ} (injective : Function.Inje
         (queries + 1) * ((2 * (S.blocks + 1) * (2 * (S'.blocks + 1) * (S''.blocks + 1)) : ℕ) - 1) :=
   (traceTriple_suffix injective units sparse base small varsFit batchFit injective' units'
     sparse' base' small' varsFit' batchFit' next inside injective'' units''
-    sparse'').runs_le rfl prover bounded budget
+    sparse'').runs_le rfl prover (bounded.spread _) budget
 
 end Trace
 

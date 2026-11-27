@@ -104,6 +104,7 @@ decoders
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.Tower.suffix
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.Tower.extract_sound
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.Tower.extraction_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.Tower.extraction_spread_le
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.Opening.Drawn
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.Opening.Drawn.sized
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.Opening.Drawn.decodes

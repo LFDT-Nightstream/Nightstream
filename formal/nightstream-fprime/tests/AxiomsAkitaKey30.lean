@@ -128,6 +128,7 @@ statement (`Export/BoundedDepth/FinalShapes`, `FinalMemory`, `FinalKey30All`), a
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.Tower.suffix
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.Tower.extract_sound
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.Tower.extraction_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.Tower.extraction_spread_le
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.views_covered
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.instances_exact
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.reduced

@@ -30,6 +30,8 @@ part, with soundness and completeness together.
 | [`Claims/Ivc.lean`](NightstreamFPrime/Claims/Ivc.lean) | The terminal relation, the reverse extractor, a complete run |
 | [`Claims/Nebula.lean`](NightstreamFPrime/Claims/Nebula.lean) | Nebula memory |
 | [`Claims/Compression.lean`](NightstreamFPrime/Claims/Compression.lean) | The argument of the compressed proof |
+| [`Claims/Akita.lean`](NightstreamFPrime/Claims/Akita.lean) | The Akita results for each schedule: the extractor, one fold, short units, ring descent |
+| [`Claims/AkitaKey20.lean`](NightstreamFPrime/Claims/AkitaKey20.lean) | The Akita openings for the schedule of `key20.aks` |
 | [`Claims/Final.lean`](NightstreamFPrime/Claims/Final.lean) | The final verifier and the full history |
 
 A claim states one result with every hypothesis in its signature. Its proof

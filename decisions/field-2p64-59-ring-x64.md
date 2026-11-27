@@ -80,10 +80,11 @@ matrix, so there is one target. The width is `2^28` coefficients.
 | 18 | 25,165,824 | 127.20 bits | 480 | 140.16 bits | 166.84 bits |
 
 The sister project ProtogaLattice computed these values with
-lattice-estimator commit `3e48ef4` and Sage 10.9. Nightstream did not run
-them again, and the files of the run are not in the repository
-([security model](../formal/nightstream-fprime/SECURITY_MODEL.md), trust
-item 2).
+lattice-estimator commit `3e48ef4` and Sage 10.9. A Nightstream run of
+2026-11-20 with the same commit gives them again: the row `main key` of
+`scripts/akita_sis_estimates.csv`, which `scripts/estimate_akita_sis.sage`
+writes ([security model](../formal/nightstream-fprime/SECURITY_MODEL.md),
+trust item 2).
 
 The estimate is for generic lattice attacks on a uniform matrix. It is not a
 proof for structured Module-SIS or for a fixed public seed.
@@ -133,7 +134,8 @@ Assumptions):
   Security calculation (`[MSIS]`);
 - Poseidon2 over `F_q`, with the derived instance (`[P2-PERM]`,
   `[SPONGE]`); and
-- the security of Akita for the compression (`[AKITA]`).
+- the security of Akita for the compression: Module-SIS for its commitments
+  (`[MSIS]`) and its Keccak-family hashes (`[KECCAK]`).
 
 The low-norm invertibility bound of Theorem 4 for `X^64 + 1` is not an
 assumption, because Lean proves it (`Spec.RingStrongSet.lowNormInvertibility`).

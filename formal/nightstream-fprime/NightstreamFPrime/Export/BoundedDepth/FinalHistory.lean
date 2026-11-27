@@ -14,8 +14,7 @@ output is the accepted statement with the proof from `W` (`FinalVerifier.Setup.p
 history is a result in which `Verifies` rejects that proof, or a false acceptance of this
 adversary. So its probability is at most `q · finalError` plus the bound of HyperNova Lemma 18 for
 this adversary, `IvcSecurity.walkBound` (`soundness`). The same bound holds for the witnesses that
-the reverse extractor returns from the walk's start (`knowledge`). With Akita openings, both bounds
-add `Spec.Compression.Akita.Use.error` (`real_soundness`, `real_knowledge`). -/
+the reverse extractor returns from the walk's start (`knowledge`). -/
 
 set_option autoImplicit false
 
@@ -123,28 +122,6 @@ theorem soundness (complete : StepExtend.Complete exports)
           (MeasureTheory.measure_union_le _ _)
     _ ≤ _ := add_le_add rejected (by rw [prob_eq_law]; exact accepted)
 
-/-- With Akita openings, the probability of a false history is at most
-`q · (1/2^119 + 38/fieldModulus²)` plus `Spec.Compression.Akita.Use.error` and `IvcSecurity.walkBound`, as in
-`soundness`. `event` is a false history of the prover `real` with Akita openings, and
-`composition` relates it to `FalseHistory` of the game prover `s`
-(`Spec.Compression.Akita.Use.wins_le`). -/
-theorem real_soundness (complete : StepExtend.Complete exports)
-    (rows : ∀ circuit : Fin 2, (setup.rows circuit).matrices =
-      (FinalRows.packageRows exports complete circuit).matrices)
-    (keysShaped : ∀ key, (setup.circuitKeys key).digest.length = 4) (depth : ℕ)
-    (depthBound : ∀ o, some (some o) ∈ (law s (restore setup.game q [])).support →
-      o.1.iteration ≤ depth)
-    (opening : Compression.Akita.Use) (real : Compression.Akita.Prover opening.scheme opening.claims)
-    (event : real.Tape → Prop) (akita : opening.Knowledge real) (binding : opening.Binding)
-    (accepts : ∀ tape, event tape → opening.Opens real tape)
-    (composition : opening.Composition real event
-      (prob s (restore setup.game q []) (FalseHistory exports.program))) :
-    (real.tape.toOuterMeasure {tape | event tape}).toReal ≤ q * finalError + opening.error real +
-      walkBound setup.ajtai setup.circuitKeys exports assumption closed (adversary setup s q)
-        admitted depth := by
-  linarith [soundness setup exports assumption closed s q admitted complete rows keysShaped depth
-    depthBound, opening.wins_le real event _ akita binding accepts composition]
-
 local notation "finalStages" =>
   reverseStages assumption closed (walkAdversary (adversary setup s q)) admitted
 
@@ -226,28 +203,5 @@ theorem knowledge (complete : StepExtend.Complete exports)
               ((finalStages depth).1.input tape) ((finalStages depth).1.results tape)}).toReal :=
         ENNReal.toReal_add (event_ne_top _ _) (event_ne_top _ _)
     _ ≤ _ := add_le_add (by rw [pulled, ← prob_eq_law]; exact rejected) failed
-
-/-- The Akita form of `knowledge`: with Akita openings, the probability of `event` is at most
-`q · (1/2^119 + 38/fieldModulus²)` plus `Spec.Compression.Akita.Use.error` and `IvcSecurity.walkBound`.
-`event` is the counterpart of `AdviceFailure` for the prover `real` with Akita openings, and
-`composition` relates it to `AdviceFailure` of the game prover `s`
-(`Spec.Compression.Akita.Use.wins_le`). -/
-theorem real_knowledge (complete : StepExtend.Complete exports)
-    (rows : ∀ circuit : Fin 2, (setup.rows circuit).matrices =
-      (FinalRows.packageRows exports complete circuit).matrices)
-    (keysShaped : ∀ key, (setup.circuitKeys key).digest.length = 4) (depth : ℕ)
-    (depthBound : ∀ o, some (some o) ∈ (law s (restore setup.game q [])).support →
-      o.1.iteration ≤ depth)
-    (opening : Compression.Akita.Use) (real : Compression.Akita.Prover opening.scheme opening.claims)
-    (event : real.Tape → Prop) (akita : opening.Knowledge real) (binding : opening.Binding)
-    (accepts : ∀ tape, event tape → opening.Opens real tape)
-    (composition : opening.Composition real event
-      ((finalStages depth).1.tape.toOuterMeasure
-        {tape | AdviceFailure setup exports assumption closed s q admitted depth tape}).toReal) :
-    (real.tape.toOuterMeasure {tape | event tape}).toReal ≤ q * finalError + opening.error real +
-      walkBound setup.ajtai setup.circuitKeys exports assumption closed (adversary setup s q)
-        admitted depth := by
-  linarith [knowledge setup exports assumption closed s q admitted complete rows keysShaped depth
-    depthBound, opening.wins_le real event _ akita binding accepts composition]
 
 end NightstreamFPrime.Export.BoundedDepth.FinalHistory

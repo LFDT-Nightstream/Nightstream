@@ -1,0 +1,51 @@
+import tests.AxiomAudit
+import NightstreamFPrime.Spec.Compression.Akita.Replay.StageMapsReadings
+
+/-! Axiom audits for the stage maps of the opening of `key20.aks` on the answer type of the
+finite sponge (`Replay/StageMaps.lean`) and for `Readings20` from these maps
+(`Replay/StageMapsReadings.lean`). -/
+
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.FoldAt.reads
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.RootAt.reads
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.readings20_of_coupled
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.exists_coupled20
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Sponge.events_of_split
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Sponge.base_of_worked
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.eventsAt20_head
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.base20
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.rootGroup20
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.foldDraw20_root
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.drawEvents20_zero
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.drawCounts20_root
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.drawEvents20_root
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.drawBytes20
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.poolBytes20_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.countFits20
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.skeleton20_counts
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.fieldDraw20_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.foldBytes20_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.bits20_le_64
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.draws20_length
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.ranges20
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.special20
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.draws20_stage
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.draws20_unique
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.stage20_cases
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.listFn_into
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.decodePool_ext
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.card_second
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.FieldAt
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.WeightsAt
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.FoldAt
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.RootAt
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.exists_fieldMap
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.exists_drawMap
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.FieldAt.weights
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.exists_foldMap
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.exists_rootMap
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Coupled20
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.exists_stage20
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.phi20
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.phi20_last
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.card_phi20
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.phi20_coupled

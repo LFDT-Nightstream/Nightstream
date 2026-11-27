@@ -5,8 +5,8 @@ against: what each adversary controls, when it wins, the Lean result that
 bounds it, and what you must trust. It does not restate proofs; read the cited
 declaration. `SPEC.md` describes the protocol: two step circuits, a light
 circuit and a refresh circuit, that fold into two slots. Adversary 6, the
-adversary of the compressed proof, has a Lean result for the argument only,
-in a model with ideal Akita openings. No Lean result gives its aim. Section
+adversary of the compressed proof, has a claim for the argument only, in a
+model with ideal Akita openings. No claim gives its aim (trust item 7). Section
 Assumptions lists every assumption of the results, section Hashed
 encodings lists every place that hashes or absorbs data, and section Premises
 gives the class of each hypothesis of the claims. Nightstream claims exactly
@@ -92,19 +92,50 @@ scope note.
   says the analysis covers. (B) The model prover of the lemma samples values, and the rewinding
   knowledge soundness of ePrint 2025/536, Definition 3.8, is for deterministic provers. So the model prover
   has one fixed random tape for the base run and each retry.
-- `KECCAK`: SHAKE128, SHAKE256, SHA3-256 and the Keccak-f duplex of Akita in
-  the classical random-oracle model: the Ajtai setup reads SHAKE128 output
-  as uniform 64-bit words (trust item 1), and Akita reads its challenges as
-  uniform (trust item 7). The owner accepted this hash family for Akita on
-  2026-11-13 (`decisions/akita-compression.md`).
-- `MSIS`: Module-SIS for a uniform matrix of `κ = 18` rows over
-  `F_q[X]/(X^64 + 1)` at the chain norm, in the lattice-estimator model
-  of `decisions/field-2p64-59-ring-x64.md` (trust item 2), and for the
-  Akita commitments at Akita's price (trust item 7).
-- `AKITA`: the Akita commitment of the compression key binds the key polynomial
-  (`Spec.Compression.Akita.Use.Binding`). Akita Theorem 10.46 bounds extraction failure
-  over a draw of the public setup. The bound for the verifier's pinned setup and the
-  composition with the commitment of `V` after the lookup challenges are open (trust item 7).
+- `KECCAK`: SHAKE128, SHAKE256, SHA3-256 and the Keccak-f duplex of Akita in the classical random-oracle model: the
+  Ajtai setup reads SHAKE128 output as uniform 64-bit words (trust item 1), and Akita reads its challenges as uniform
+  (trust item 7). For the claims of `Claims.Akita`, the reading is this: the squeeze run of the duplex after one fixed
+  absorbed prefix is uniform and independent of each other answer, and it is a function of one uniform output of independent slots `Spec.Compression.Akita.Replay.CodeSlot`, one slot for each coordinate of a challenge. A field challenge reads the field part of its slot, and the work bits are read as `Spec.Compression.Akita.Extract.workZeros`.
+  At a fold group without a filter, the word `j` of `K` bits of the message is the word of the slot of the coordinate `j`. At a fold group with a filter, the message is `pool u a` in law (`Spec.Compression.Akita.Replay.expect_pool`): `a j` is the accepted word of the slot of the coordinate `j`, `u` is a vector of independent uniform words that no check of the verifier reads, and the challenge `j` of the code is the decoded `a j` (`Spec.Compression.Akita.Replay.sample_slots`).
+  For the selected key20 root, `Spec.Compression.Akita.Replay.verifyProof_bound20` assumes `carries`: one query-bounded
+  model prover must present the accepted bytes for each oracle table (`verifyProof_bound20_of_agrees` has the narrower form `agrees`). The replay accepts a sponge and the hash of the two last-block digests as inputs (`Public.sponge`, `Public.digest`). Application
+  to the code requires the sponge answers to have the modeled law and the prover to satisfy `carries`. Lean does not construct this prover. Proved parts of the construction: the page of a stage and the sponge events before its work give each other (`Replay.pageAt20_causal`, `Replay.pageAt20_events`), and the recording simulation of Akita Lemma 10.47 has the law of a uniform oracle with no condition on the bad events (`Replay.Simulate.simulate_law`). The digest term (213) is in no Lean bound of the verifier (`Replay.bad20_le` bounds the two bad events for a run with the two oracles). The script of the replay takes only a plan with the work bits of the rule of the planner of the code (`Replay.script_bits`), so `Replay.Bits20` is a theorem for `key20.aks` (`Replay.bits20_of_scripted`). The experiment of the open construction has a finite sponge: a uniform table on event lists of at most `L` events with absorbs of at most `B` bytes, and bytes `0xFF` for a query outside the bounds (`Replay.Sponge.answerOf`; a work fails on them). The address of a stage key reads the answers of the sponge at the earlier stage keys (`Replay.addressAt20_of_events`), which the key of the paper does not, so the model prover of `Replay.Simulate.simulateDeps` has more table queries than the adversary has sponge queries; no Lean bound has this count yet.
+  A prover of the code reads `u`. In the model `u` is a part of the random tape of the prover, and each bound of a claim holds for each tape, so it holds for the mean over `u`. This is stronger than one uniform answer for each permutation call. In `Claims.AkitaKey20.key20_verifier_sound` and
+  `Claims.AkitaKey30.key30_verifier_sound`, the draws of the Poseidon2 transcript of the argument and the draws of the
+  Keccak transcript of Akita are answers of one such table. No Lean statement joins the two hash functions of the code
+  to this table (trust item 7). For the SHA3-256 digests that the Akita transcript absorbs (root commitments, last
+  terminal blocks), the reading is that of Akita Lemma 10.47: the digest function is a uniform function that is
+  independent of the transcript function. The code uses Keccak-f for both, with different first bytes. The owner accepted this hash family for Akita on 2026-11-13
+  (`decisions/akita-compression.md`).
+- `MSIS`: Module-SIS for a uniform matrix of `κ = 18` rows over `F_q[X]/(X^64 + 1)` at the chain norm, in the
+  lattice-estimator model of `decisions/field-2p64-59-ring-x64.md` (trust item 2), and for the Akita commitments at the
+  price of the Akita code (trust item 7). The two prices are not numbers of one model. The 169 bits of the Akita code
+  are a direct ℓ∞ estimate. The estimator of the Akita authors gives 154.23 bits for the main key in that model, and no Sage
+  run gives that number again. On 2026-11-20 the owner selected the method of
+  the main-key record for each instance: the Sage `lattice-estimator` at `norm = 2` and the length
+  `bound · √(m·d)`. By this method, `sage -python scripts/estimate_akita_sis.sage` gives the recorded 127.20 bits of
+  the main key again, and each Akita number below (`scripts/akita_sis_estimates.csv`, trust item 7). The owner set a target of 128 classical bits on 2026-11-22.
+  The main key has 140.16 classical bits. Three level-2 matrices `B` of rank 1 and degree 128 fall below the target.
+  For `key20.aks`, width 1092 at bound 31 gives 122.06 classical bits. For rows 0 and 1 of `key30.aks`, widths 4032
+  and 4128 at bound 15 give 124.68 and 124.39 classical bits. Every other Akita instance has at least 134.90 classical bits.
+  The ADPS16 quantum estimates are 127.20 bits for the main key and 110.77, 113.155 and 112.89 for those three matrices.
+  The 2026-11-24 decision covers the test key and the former large schedule. The first row now has width 4032.
+  The new row has no separate owner decision. The accepted width-4128 instance covers it (`decisions/akita-compression.md`, Open points). For the matrices of the
+  commitment of the compression key, the instances are those of the premise `msis` (trust item 7). For the opening of
+  `key20.aks`, the instances are the 13 instances of `Claims.AkitaKey20.key20_instance_list`, and
+  `Claims.AkitaKey20.key20_instances` states that this list is complete for the term `breakChance` below. For the opening of
+  `key30.aks`, the instances are the 18 instances of `Claims.AkitaKey30.key30_instance_list`, and
+  `Claims.AkitaKey30.key30_instances` states that this list is complete for the term `breakChance` of the claims of that
+  file. Lean does not prove the hardness of an instance. The Akita matrices are views of one setup vector. For each algorithm `B` on a
+  uniform vector and uniform data independent of it, the probability that `B` returns a view and a solution for that view is the sum over the views `I`
+  of the success probability, against a uniform matrix of view `I`, of the algorithm `B_I` that Lean derives from `B`
+  (Akita Lemma 10.20 (i), `Spec.Compression.Akita.Setup.shared_setup_eq`, `Spec.Compression.Akita.Setup.embedded`).
+  This gives no number for `breakChance`. The solver of a Lean extraction result runs the
+  prover `K̂ + (Q + 1)(K̂ − 1)` times in expectation, for the tree size `K̂` (`Claims.Akita.checkpoint_runs`). In
+  `Claims.AkitaKey20.key20_verifier_sound`, the term of this entry is `Export.BoundedDepth.FinalAkita.breakChance`: the
+  probability that the extractor returns a solution for the key commitment, for a matrix of the root or of a level, or
+  for the matrix of the terminal. There `K̂ = 85,798,158,336`. `Claims.AkitaKey30.key30_verifier_sound` has the same
+  term for `key30.aks` (trust item 7 gives the instances and the radii).
 - `HN-A1`: HyperNova errata Assumption 1 for the two fold kinds, in the form of
   trust item 3.
 <!-- assumptions:end -->
@@ -128,7 +159,7 @@ the Rust code is held to the Lean definition (trust item 5).
 | Fold transcripts | `Lifecycle.RandomOracle.Schedule.challengeCalls`, `Lifecycle.RandomOracle.Schedule.pieces` | `Lifecycle.RandomOracle.Schedule.challengeAddress_injective`, `Lifecycle.RandomOracle.Schedule.statementCalls_identify`, `Lifecycle.RandomOracle.Schedule.proverCalls_identify`; fixed lengths: `Lifecycle.RandomOracle.Schedule.pieces_alike`, `Lifecycle.RandomOracle.Schedule.calls_pieces`; reads: the state of a `ρ` read is the state of no other challenge (`Lifecycle.RandomOracle.Schedule.rhoCalls_ne`) | Direct: `the_light_transcript_absorbs_the_lean_pieces`, `the_refresh_transcript_absorbs_the_lean_pieces` (`artifacts/nightstream-fprime-encoding-parity-v1.json`, `crates/nightstream-fprime/tests/fold_transcript_lean.rs`). The Π_RLC sampler is direct (`crates/neo-reductions/tests/pi_rlc_lean_parity.rs`). Indirect for the fold prover: package rows |
 | Compression transcript | `Export.BoundedDepth.CompressionSponge.pieces`, with `Lifecycle.RandomOracle.Sponge.byteWords` for a byte string and `Export.BoundedDepth.CompressionSponge.Claim.words` for a claim | `Export.BoundedDepth.CompressionSponge.calls_injective` (two runs of one statement shape, each byte string below `q` bytes), from `Export.BoundedDepth.CompressionSponge.pieces_alike`, `Lifecycle.RandomOracle.Sponge.byteWords_injective` and `Export.BoundedDepth.CompressionSponge.Claim.words_injective`. Rows 4 to 17 have the operations and counts of `Spec.Compression.Rust.schedule`: `Export.BoundedDepth.CompressionSponge.argumentPieces_fit` | Direct for the words: `byte_words_are_the_lean_words`, `claim_words_are_the_lean_words`, `the_domain_and_the_session_label_are_the_lean_ones`, `the_compression_domain_is_the_lean_domain`, and for the zero blocks of the reads: `a_replay_of_the_lean_pieces_ends_in_the_lean_session` (`artifacts/nightstream-fprime-encoding-parity-v1.json`, `crates/ns-compress/tests/unit/transcript.rs`). Direct for the order and the counts of rows 4 to 17 on a real proof: `a_replay_in_the_lean_order_draws_the_challenges_of_verify`. Open: no test compares rows 1 to 3 of a real proof with the Lean pieces. Rust makes them with the functions of a fold transcript (section Absorbs without a frame) |
 | Akita session bytes | `Export.BoundedDepth.CompressionSponge.session` | `Lifecycle.RandomOracle.Sponge.sessionBytes_injective`; `Export.BoundedDepth.CompressionSponge.session_binds`: two runs with one session are equal, or their transcripts are two distinct lists of sponge calls with the same lanes 0 to 3 | Direct: `the_session_is_the_lean_session`, `a_replay_of_the_lean_pieces_ends_in_the_lean_session` |
-| Akita transcript | None | Open: the Akita crates fix these bytes. `akita.verify` (`crates/ns-compress/src/akita/verifier.rs`) gives Akita the session bytes, the three commitments, the three points and the three values, and Akita absorbs them into its own Keccak sponge and makes its challenges there. Lean has no model of that sponge or of Akita's encodings. The fixed-setup and composition premises apply to this transcript under `[KECCAK]` (trust item 7) | None |
+| Akita transcript | None | Open: the Akita crates fix these bytes. `akita.verify` (`crates/ns-compress/src/akita/verifier.rs`) gives Akita the session bytes, the three commitments, the three points and the three values, and Akita absorbs them into its own Keccak sponge and makes its challenges there. The replay reads the encoded proof and computes the Keccak challenges. The Lean extraction results follow the oracle model of the revision of 2026-11-23 of the paper (Akita Section 10.3): the table is on message keys, the stage and the messages before the stage as abstract values (`Spec.Compression.Akita.Extract.Address`), the stage input is rebuilt from the key and the table (`Spec.Checkpoint.Protocol.rebuild`), and the answer is one output of independent slots (the slot reading of `[KECCAK]`). The sponge of the code does not absorb a challenge that it squeezes, as this model needs. The code absorbs public values that it computes from earlier challenges, and no Lean statement shows that its absorbed bytes are an injective key. In `Export.BoundedDepth.FinalKey20.sound`, the draws of the compression transcript and the draws of Akita are stages of one such table, and no Lean statement joins the Poseidon2 sponge and the Keccak sponge to it (trust item 7). The root commitments and the last terminal blocks enter the sponge as SHA3-256 digests. Lean bounds the bad events of such digests (`Spec.Compression.Akita.Digest.Run.bad_le`, the counting part of Akita Lemma 10.47) and has no model of the protocol with digests. The Lean verifier of the Akita claims has no digests, so no result shows that Akita binds these inputs. Two terms of the code are in no Lean bound (`decisions/akita-compression.md`, differences (a) and (b)): the collision term of the session value, `(C(Q_P, 2) + Q_P·Q) / q^4`, because a key of the code has the 32 session bytes (lanes 0 to 3 of the Poseidon2 state) in place of the earlier messages of the argument; and the digest term of Akita Lemma 10.47, `Σ_o (C(Q_o, 2) + Q_o·V_o) / 2^256`, at most `6·Q² / 2^256`, for the commitment digests and the terminal digests. A bound for the code also needs a proof that each message uses only the bytes before its challenge | `tests/AkitaAllVectors.lean` replays accepted and rejected proofs |
 | Nebula record chains | `Lifecycle.Nebula.blocks` | `Lifecycle.Nebula.blocks_injective`, `Lifecycle.Nebula.blockChunks_injective` | Direct: fixtures (`crates/nightstream/tests/nebula/memory.rs`) |
 | Nebula `η` | `Lifecycle.Nebula.etaInputBlocks` | `Lifecycle.Nebula.etaInputBlocks_injective`, `Lifecycle.Nebula.EtaOracle.pointOf_injective`; the four reads: `Export.BoundedDepth.EtaSponge.reads_injective` | Indirect: package rows |
 | Nebula state words | `Lifecycle.Nebula.carryVector` | `Lifecycle.Nebula.carryVector_injective`, `Lifecycle.Nebula.stateWords_eq_or_collision` | Direct: terminal fixtures |
@@ -198,35 +229,66 @@ covers.
 <!-- premises:begin -->
 | Premise | Head | Lines | Class | Evidence |
 | --- | --- | --- | --- | --- |
-| `publicFits` | `LE.le` | 33 | lean | `Export.BoundedDepth.StepRelation.keyPublicFits`, at the key width `2^26` |
-| `cubeFits`, `relation.cubeFits`, `key.relation.cubeFits`, `circuitKeys.relation.cubeFits`, `setup.circuitKeys.relation.cubeFits`, `light.circuitKeys.relation.cubeFits`, `Shipped/relations.cubeFits` | `LE.le` | 84 | lean | `Export.BoundedDepth.StepRelation.keyCubeFits`, at the key width `2^26` |
-| `program.*`, `exports.program.*` | `*` | 336 | lean | `Lifecycle.Stage1.Poseidon2HashChainV1.program` and `Export.Stage1.NebulaMemoryV1Package.application` are programs, so they carry these proofs. A Rust application has no such instance (Out of scope) |
+| `publicFits` | `LE.le` | 43 | lean | `Export.BoundedDepth.StepRelation.keyPublicFits`, at the key width `2^26` |
+| `cubeFits`, `relation.cubeFits`, `key.relation.cubeFits`, `circuitKeys.relation.cubeFits`, `setup.circuitKeys.relation.cubeFits`, `light.circuitKeys.relation.cubeFits`, `Shipped/relations.cubeFits` | `LE.le` | 102 | lean | `Export.BoundedDepth.StepRelation.keyCubeFits`, at the key width `2^26` |
+| `program.*`, `exports.program.*` | `*` | 392 | lean | `Lifecycle.Stage1.Poseidon2HashChainV1.program` and `Export.Stage1.NebulaMemoryV1Package.application` are programs, so they carry these proofs. A Rust application has no such instance (Out of scope) |
 | `stepEq`, `validControl`, `encoded`, `rowsZero`, `others` | `*` | 10 | lean | `Claims.Ivc.terminal_bridge` joins the two step results and takes none of these |
 | `layout.*` | `*` | 4 | lean | `Claims.Ivc.terminal_bridge` and `Claims.Ivc.run_complete` take them as fields of their `exports` (rows below) |
-| `programEq` | `Eq` | 5 | game | adversary 5: the memory application is the exported program |
-| `exports.programStep` | `Eq` | 20 | game | `SPEC.md` Algorithm 3: the step of the relation is the step of the application |
-| `exports.lightKey`, `exports.refreshKey`, `Shipped/lightKey`, `Shipped/refreshKey` | `Eq` | 44 | link | `formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-parity-v1.json`, `relation_rows_match_the_lean_checksum`: the rows that Rust expands from each package have the checksum of Lean's rows |
-| `exports.lightLayout.*`, `exports.refreshLayout.*`, `exports.lightInside`, `exports.refreshInside` | `*` | 120 | lean | `Export.BoundedDepth.EmittedPackages.Facts.exports` builds the bundle of the two packages that the emitter writes, with the emitter's first fresh columns, source width and batches, so it carries these proofs |
-| `fitsPackage.*`, `exports.lightFitsPackage.*`, `exports.refreshFitsPackage.*`, `Shipped/facts.*` | `*` | 232 | link | `Export.BoundedDepth.EmittedPackages.Facts.lightFits` and `Export.BoundedDepth.EmittedPackages.Facts.refreshFits` derive them from the capacity of `SPEC.md` section 4.4 (`Export.Generic.RelationFits.fits_of_capacity`): for packable pieces, the input indices and S-box columns fit the width, and the rows fit the cube. The test `step_packages_fit_their_capacity` checks the capacity on each shipped package, the light and refresh packages of the reference application (`formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-light-v1.json` and its refresh package) and of both Nebula programs, with Lean's row counts and logical widths (`factored_rows_match_the_lean_dense_checksum`). Lean does not prove the capacity for an application |
+| `programEq` | `Eq` | 6 | game | adversary 5: the memory application is the exported program |
+| `exports.programStep` | `Eq` | 24 | game | `SPEC.md` Algorithm 3: the step of the relation is the step of the application |
+| `exports.lightKey`, `exports.refreshKey`, `Shipped/lightKey`, `Shipped/refreshKey` | `Eq` | 52 | link | `formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-parity-v1.json`, `relation_rows_match_the_lean_checksum`: the rows that Rust expands from each package have the checksum of Lean's rows |
+| `exports.lightLayout.*`, `exports.refreshLayout.*`, `exports.lightInside`, `exports.refreshInside` | `*` | 144 | lean | `Export.BoundedDepth.EmittedPackages.Facts.exports` builds the bundle of the two packages that the emitter writes, with the emitter's first fresh columns, source width and batches, so it carries these proofs |
+| `fitsPackage.*`, `exports.lightFitsPackage.*`, `exports.refreshFitsPackage.*`, `Shipped/facts.*` | `*` | 272 | link | `Export.BoundedDepth.EmittedPackages.Facts.lightFits` and `Export.BoundedDepth.EmittedPackages.Facts.refreshFits` derive them from the capacity of `SPEC.md` section 4.4 (`Export.Generic.RelationFits.fits_of_capacity`): for packable pieces, the input indices and S-box columns fit the width, and the rows fit the cube. The test `step_packages_fit_their_capacity` checks the capacity on each shipped package, the light and refresh packages of the reference application (`formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-light-v1.json` and its refresh package) and of both Nebula programs, with Lean's row counts and logical widths (`factored_rows_match_the_lean_dense_checksum`). Lean does not prove the capacity for an application |
 | `accepted` | `Lifecycle.BoundedDepth.Terminal.HoldsFor` | 1 | game | `SPEC.md` Algorithm 6 |
-| `keysShaped` | `Eq` | 16 | lean | `Lifecycle.BoundedDepth.CircuitKeyDigest.keys_shaped`, for the keys `Lifecycle.BoundedDepth.CircuitKeyDigest.keys` of a package identity. Rust `circuit_key` computes these digests (section Hashed encodings, row Circuit key digest) |
-| `assumption` | `Spec.HyperNova.ReverseStages.Assumption1` | 13 | assumption | `[HN-A1]` |
-| `closed.*`, `admitted` | `*` | 42 | assumption | `[HN-A1]`, in the form of trust item 3: the closure premise and the admitted adversary |
+| `keysShaped` | `Eq` | 19 | lean | `Lifecycle.BoundedDepth.CircuitKeyDigest.keys_shaped`, for the keys `Lifecycle.BoundedDepth.CircuitKeyDigest.keys` of a package identity. Rust `circuit_key` computes these digests (section Hashed encodings, row Circuit key digest) |
+| `assumption` | `Spec.HyperNova.ReverseStages.Assumption1` | 16 | assumption | `[HN-A1]` |
+| `closed.*`, `admitted` | `*` | 51 | assumption | `[HN-A1]`, in the form of trust item 3: the closure premise and the admitted adversary |
 | `Nebula/premise` | `Spec.Sponge.Transfer` | 1 | assumption | `[SPONGE]` under `[P2-PERM]` |
 | `Fold/premise` | `Spec.Sponge.DuplexTransfer` | 2 | assumption | `[DSFS]` under `[P2-PERM]`, for a fold prover with at most `calls` permutation calls and a model adversary with at most `calls` queries. The event includes the extractor's retries (adversary 3). `calls` is a parameter of the adversary class, as in the row `finder`, and it is larger than the number of permutation calls of one verifier run |
 | `Nebula/disjoint`, `Nebula/inRange`, `Nebula/images`, `Nebula/reorders`, `Nebula/bound` | `*` | 5 | open | Open: the conditions of a catalog application (`Spec.Nebula.MemoryTrace.Binding`). No Lean result shows that the binding rows of the Rust catalog backend enforce them (Out of scope) |
 | `finder` | `Spec.Sponge.Transfer` | 2 | assumption | `[SPONGE]` under `[P2-PERM]`, for the collision finder of a fold with at most `calls` permutation calls and inputs of at most `blocks` padded blocks. The event is one output of one run. The finder reruns the adversary on the oracles of its own tape, so no retry is outside the run (adversary 3). `calls` is a parameter of the adversary class, as in the row below |
 | `finders` | `Spec.Sponge.Transfer` | 1 | assumption | `[SPONGE]` under `[P2-PERM]`, for the finder of stage `j` with at most `calls j` permutation calls and inputs of at most `blocks` padded blocks. Lean has no count of the calls of a stage, which is a Lean function, so `calls` is a parameter of the adversary class, as `depth` is (adversary 4) |
-| `binding` | `*` | 5 | assumption | `[AKITA]`: the commitment of the compression key binds the key polynomial |
-| `akita.fixedSetup` | `Spec.Compression.Akita.Use.FixedSetupKnowledge` | 5 | open | Open: Akita Definition 3.7 samples the public parameters in the experiment of Akita Theorem 10.46. The verifier pins one setup. The paper gives no extraction error bound for that fixed setup |
-| `akita.admissible` | `Spec.Compression.Akita.Schedule.Admissible` | 5 | open | Open: no schedule with a row of `crates/ns-compress/artifacts/key30.aks`, the file of a key of `2^19` blocks, is admissible (`Spec.Compression.Akita.Schedule.not_admissible_key30`). Each row uses coefficient packing at levels 2 and 3, and the family F1 of Akita Definition 9.2 gives these levels evaluation trace. Akita Theorem 10.46 is for an admissible schedule, so it does not cover an opening under this file. The row of `crates/ns-compress/artifacts/key20.aks` has F1 to F3, I2, I3, the second part of I1 and the witness-length part of C3 (`Spec.Compression.Akita.key20_conditions`), and `tests/AkitaSchedules.lean` compares the Lean rows with both files. C3 also requires equality of the successor commitment shape and ordered witness segments at each edge. That part is open for both files. The remaining conditions are in `Spec.Compression.Akita.Schedule.Rest`. A file holds no challenge certificate, sampler limit, setup registry or Module-SIS estimate for the root batching conditions of I1, C1, C2, C4 to C6, E1 to E3 and S1, and it holds no `λ_FS` and no `Q_max` for S2 and S3 |
-| `akita.admitted`, `akita.budget` | `*` | 10 | game | adversary 6: the prover with Akita openings is a classical random-oracle prover with at most `Q_max` queries to Akita's `H_FS` |
-| `accepts` | `Spec.Compression.Akita.Use.Opens` | 5 | game | `SPEC.md` Algorithm 10: step 11 accepts only when Akita accepts the three openings, the first against the commitment of the compression key |
-| `composition` | `Spec.Compression.Akita.Use.Composition` | 5 | open | Open: the gap of `V` of trust item 7. No result of Akita composes its opening with a commitment that follows a challenge of the application |
-| `valid.toValid.*`, `secure` | `*` | 61 | link | `formal/nightstream-fprime/artifacts/nightstream-fprime-nebula-gate-parity-v1.json`, `is_valid_and_is_secure_are_the_lean_decisions`: Rust checks rules 1 to 6 of `SPEC.md` section 7.1 on each geometry at run time, and the test compares that check with Lean's decisions. For the fixed WASM sizes Lean proves both (`Spec.Nebula.WasmSize.valid`, `Spec.Nebula.WasmSize.secure`), and `each_wasm_size_has_the_lean_geometry_and_rows` compares the geometries |
-| `valid.romWords`, `valid.ramWords` | `LT.lt` | 20 | game | `SPEC.md` section 7.1: a program is two images of words below `2^32`, so these bounds define the statements of the game. Rust holds each image as `Vec<u32>` (`nebula::Program`), so each program that the verifier receives meets them |
-| `app.*` | `*` | 43 | open | Open: `Lifecycle.Nebula.FirstPlan.app` is the test machine. A Rust-built memory application, the WASM relation included, has no instance (Out of scope) |
-| `round` | `Export.BoundedDepth.NebulaSecurity.MemoryRound` | 3 | open | Open: trust item 6. No result derives the memory round from the assumption list |
+| `msis` | `LE.le` | 1 | assumption | `[MSIS]`: for each admitted prover and each efficient extractor, the reduction `Spec.Compression.Akita.solve` returns a solution of Module-SIS with probability at most `bindingError`. The solution is for one of four instances: `A` at the norm `η_A = 2 · κ̄_1 · Δ^cert_f` of Akita (50), `B` at `b⋆ − 1`, or `F_1` or `F_2` at 1. For the shipped key shapes, `η_A` is the bound that the schedule file prices for `A`: 32505732 for `key20.aks` (`Spec.Compression.Akita.Descriptor.key20_innerBound`) and 16642998148 for `key30.aks` (`Spec.Compression.Akita.Descriptor.key30_innerBound`). The four matrices are views of one setup vector, which the code expands in pages of 4096 elements with one SHAKE256 stream for each page (`[KECCAK]`; for independent uniform page streams, `Spec.Compression.Akita.Replay.paged_le` bounds this expansion against a uniform vector), so Akita Lemma 10.20 joins the instances: it bounds the probability by the sum of the four advantages against a uniform matrix. Lean proves item (i) of that lemma for a uniform setup vector (`Spec.Compression.Akita.Setup.shared_setup_eq`). No theorem applies it to `Spec.Compression.Akita.solve` or to the SHAKE256 page streams |
+| `honest.*`, `S.*`, `covers` | `*` | 16 | lean | `Spec.Compression.Akita.Shape.key20_honest` and `Spec.Compression.Akita.Shape.key30_honest`, for the shapes `Spec.Compression.Akita.Shape.key20` and `Spec.Compression.Akita.Shape.key30` of the key group of each schedule file, which carry the proofs of `S.*`. `tests/AkitaSchedules.lean` compares the numbers of the shapes with both files. A file has no field for `b⋆` and no shape of `F_1` and `F_2`: `b⋆ = 8` is from the bound 7 of the file for `B`, and the shapes of the two maps are from the Akita code (not checked against Lean). For `covers`: `Spec.Compression.Akita.Descriptor.key20_covers` and `Spec.Compression.Akita.Descriptor.key30_covers` give that the norm `β̄_∞ + κ̄_1 · b/2` of the solution of the reduction for `A`, 293887 and 136249343, is at most `η_A`. They are for the descriptors `Spec.Compression.Akita.Descriptor.key20` and `Spec.Compression.Akita.Descriptor.key30` of the root opening of the key group of each file, where `κ̄_1` and `β̄_∞` are the numbers of Akita (50): `κ̄_1 = 2 · 31 = 62`, and `β̄_∞ = Δ^cert_f` is `8^6 − 1` and `8^9 − 1`. The test also compares the challenge counts, the opening base, the fold digits and the bound of `A` with both files. No Lean result shows that the verifier of the root fold certifies these two bounds: that is the root weak opening of Akita Definition 10.22 |
+| `Akita/structure_.protocol.*` | `*` | 42 | lean | `Spec.Compression.Akita.Extract.transcript` is the protocol of each Akita structure of Lean (`Spec.Compression.Akita.Extract.Tier.Suffix`, field `protocol`), so it carries these proofs. The three checkpoint claims are for each protocol with these laws |
+| `Akita/lawful.*` | `*` | 38 | lean | `Spec.Compression.Akita.Extract.Tier.Suffix.lawful` gives the conditions of Akita Definition 10.16 for a suffix from the stage 0, and `Spec.Compression.Akita.Key20.Tower.suffix` gives this suffix for the opening of `crates/ns-compress/artifacts/key20.aks`, under the stage and challenge hypotheses of `Spec.Compression.Akita.Key20.Tower.Drawn`. For another structure they are conditions of the claim. `Spec.Checkpoint.Structure.Lawful` has inclusions where the definition has equalities (trust item 7) |
+| `Akita/bounded`, `AkitaKey20/bounded`, `Akita/positive`, `AkitaKey20/positive`, `AkitaKey30/bounded`, `AkitaKey30/positive`, `Shipped/bounded`, `Shipped/positive` | `*` | 25 | game | adversary 6: the prover makes at most `Q` queries to the table of the stage answers, and the limit `budget` on the attempts of a retry loop of the extractor is positive. `Q` and `budget` are parameters of the bound |
+| `Akita/nonemptySlot`, `AkitaKey20/nonemptySlot`, `AkitaKey20/nonemptyCoord`, `AkitaKey20/finiteWire`, `AkitaKey20/slots`, `AkitaKey20/coords`, `AkitaKey30/nonemptyCoord`, `AkitaKey30/finiteWire`, `AkitaKey30/slots`, `AkitaKey30/coords`, `Shipped/nonemptyCoord`, `Shipped/finiteWire`, `Shipped/coords` | `*` | 45 | game | adversary 6: the experiment of the Akita claims. The wire messages are a finite set, and an answer of a stage has one value for each of its slots: 22 slots or more for the opening of `key20.aks` and 30 or more with the argument, and 28 and 40 for `key30.aks`. The code makes each answer with a sponge, and no Lean statement joins the two (trust item 7) |
+| `Akita/result`, `AkitaKey20/result`, `AkitaKey30/result` | `*` | 3 | game | adversary 6: the event of `Claims.Akita.checkpoint_sound`, `Claims.AkitaKey20.key20_opening_sound` and `Claims.AkitaKey30.key30_opening_sound` is an output of the extractor |
+| `Akita/shape.*`, `Akita/opening.*` | `*` | 32 | lean | `Spec.Compression.Akita.Key20.root` and `Spec.Compression.Akita.Key20.traces` have the commitment shapes and the opening shapes of the Lean schedule of `crates/ns-compress/artifacts/key20.aks`, which carry these proofs. The four fold claims are for each shape |
+| `Akita/opens.*`, `Akita/opens'.*`, `Akita/different`, `Akita/radius`, `Akita/accepts.*` | `*` | 119 | game | adversary 6: the event of a reduction to Module-SIS. It is two weak openings of one statement (Akita Definition 10.22) that differ, with a norm `radius` that covers their bounds, or a fork of two children for each block that satisfy their branch relations with carried digits `opens` (Akita Corollary 10.32) |
+| `Akita/units`, `Akita/sparse.*` | `*` | 6 | lean | `Spec.Compression.Akita.Key20.units_of_mem` and `Spec.Compression.Akita.Key20.sparse_of_mem`, for the fold decoders of the code on the slots `Spec.Compression.Akita.Replay.CodeSlot` (`Spec.Compression.Akita.Replay.open_mem`, `Spec.Compression.Akita.Replay.kept64_mem`, `Spec.Compression.Akita.Replay.kept128_mem`), from `Claims.Akita.short_units`. Trust item 7 gives the remaining conditions for applying the model to a Rust verifier |
+| `Akita/base` | `LE.le` | 2 | lean | `Spec.Compression.Akita.Key20.root_sized` and `Spec.Compression.Akita.Key20.traces_sized`: `b_z ≥ 2` at each fold of the Lean schedule of `crates/ns-compress/artifacts/key20.aks` |
+| `Akita.short_units/neZeroNatD`, `Akita.short_units/power`, `Akita.short_units/nonzero`, `Akita.short_units/short` | `*` | 4 | lean | `Spec.Compression.Akita.SparseFamily.unitDifferences` meets them for each difference of two members of a sparse family of a degree `2^{n+1}`: the difference is not 0, its coefficients are at most 4, and `2 · 4² < q` |
+| `AkitaKey20/drawn.injective`, `AkitaKey20/drawn.injective₁`, `AkitaKey20/drawn.injective₂`, `AkitaKey20/drawn.injective₃`, `AkitaKey20/drawn.injective₄`, `AkitaKey20/drawn.injective₅`, `AkitaKey20/drawn.injectiveL`, `AkitaKey20/drawn.next`, `AkitaKey20/drawn.inside`, `AkitaKey20/drawn.decodeL`, `AkitaKey20/inside`, `AkitaKey30/drawn.injective`, `AkitaKey30/drawn.injective₁`, `AkitaKey30/drawn.injective₂`, `AkitaKey30/drawn.injective₃`, `AkitaKey30/drawn.injective₄`, `AkitaKey30/drawn.injective₅`, `AkitaKey30/drawn.injective₆`, `AkitaKey30/drawn.injectiveL`, `AkitaKey30/drawn.next`, `AkitaKey30/drawn.inside`, `AkitaKey30/drawn.decodeL`, `AkitaKey30/inside`, `drawn.opening.injective`, `drawn.opening.injective₁`, `drawn.opening.injective₂`, `drawn.opening.injective₃`, `drawn.opening.injective₄`, `drawn.opening.injective₅`, `drawn.opening.injective₆`, `drawn.opening.injectiveL`, `drawn.opening.next`, `drawn.opening.inside`, `drawn.opening.decodeL` | `*` | 160 | game | adversary 6: the stage layout of the Lean verifier of the opening. The fold coordinates of a level have different slots, the fold challenge of the terminal is the stage after the last level and a stage of the transcript, and the decoder of the terminal is `Spec.Compression.Akita.Replay.CodeSlot.kept64`, the decoder of the code for the filtered family `(64, 31, 11)`. The conditional replay theorem for `key20.aks` does not transfer the probability bound to the code (trust item 7). The filters of the families are the predicate `accept_strict_parts` of the pinned code (`Spec.Compression.Akita.TrigTable.codeAccepts`), and Lean proves the error bound of its integer tables (`Spec.Compression.Akita.TrigTable.code_accurate`), so the operator bound `Γ` is a theorem (`Spec.Compression.Akita.TrigTable.filtered_code`) |
+| `AkitaKey20/drawn.kept`, `AkitaKey30/drawn.kept`, `AkitaKey20/tail`, `drawn.opening.kept` | `*` | 16 | open | Open: `2^128` members or more of each filtered challenge family pass the filter of the code, the family `(31, 11)` of the degree 64 for `Γ = 18` and the family `(31, 0)` of the degree 128 for `Γ = 13`. Akita Table 12 certifies the lower bounds `2^128.062439` and `2^128.563317` (the size of the base family `C_0` times the pass probability `p_0`) on the accepted families of the fixed-point filter at the scale `2^48`, from exact moments and a rational tail polynomial, and Lean does not check this certificate. The claims use `kept` for two facts only: each slot decodes at a filtered level (`Spec.Compression.Akita.Replay.kept64_isSome`, `Spec.Compression.Akita.Replay.kept128_isSome`; so `Spec.Compression.Akita.Key20.Tower.Drawn.decodes`, `Spec.Compression.Akita.Key30.Tower.Drawn.decodes`, `Export.BoundedDepth.FinalKey20.Opening.Drawn.decodes`), and a filtered fold coordinate has the price `1/card (Kept G) ≤ 1/2^128 ≤ 1/q²` (`Spec.Compression.Akita.Replay.slotChance_kept64_le`, `Spec.Compression.Akita.Replay.slotChance_kept64_field`). The opening of `key30.aks` uses only the family of the degree 64. The pinned Akita checkout has the certificate and a checker (`scripts/operator_norm`), and the Rust code has only the constant 128. Lean proves the union bound and the equal-marginal step of Akita Theorem H.2 for the integer predicate of the code: the count follows from the count at the frequency 0 (`Claims.AkitaKey20.key20_kept`, hypothesis `tail`, `Spec.Compression.Akita.Key20.Tail`), with the error bound `ε + 1` of the tables, because the tables of the code are antisymmetric only up to 1 (`Spec.Compression.Akita.TrigTable.code_antisymmetric`, `Spec.Compression.Akita.TrigTable.code_cos_one`). `Tail` allows a fraction of rejected members at the frequency 0 of at most 0.024219975628 (degree 64) and 0.010546520952 (degree 128); the certificate of the paper gives 0.023909042053 and 0.008120720198. Lean does not prove `Tail`: it needs the moments of Akita (292), the polynomial of (293) and the left inclusion of Theorem H.1 |
+| `AkitaKey20/decodes`, `AkitaKey20/decodes₁`, `AkitaKey20/decodes₂`, `AkitaKey20/decodes₃`, `AkitaKey20/decodes₄`, `AkitaKey20/decodes₅`, `AkitaKey20/decodesL`, `AkitaKey30/decodes`, `AkitaKey30/decodes₁`, `AkitaKey30/decodes₂`, `AkitaKey30/decodes₃`, `AkitaKey30/decodes₄`, `AkitaKey30/decodes₅`, `AkitaKey30/decodes₆`, `AkitaKey30/decodesL` | `Eq` | 15 | game | adversary 6: `Claims.AkitaKey20.key20_opening_accepts` and `Claims.AkitaKey30.key30_opening_accepts` are for each table on message keys whose slots decode to fold challenges |
+| `AkitaKey20/worked`, `AkitaKey30/worked` | `Membership.mem` | 4 | game | adversary 6: `Claims.AkitaKey20.key20_opening_accepts` and `Claims.AkitaKey30.key30_opening_accepts` are for each table on message keys whose work slots have 57 zero work bits (`Spec.Compression.Akita.Extract.workZeros`), in place of the nonce search of the honest prover |
+| `AkitaKey20/live`, `AkitaKey20/lengths`, `AkitaKey20/fit`, `AkitaKey30/live`, `AkitaKey30/lengths`, `AkitaKey30/fit` | `*` | 12 | game | adversary 6: `Claims.AkitaKey20.key20_opening_accepts` and `Claims.AkitaKey30.key30_opening_accepts` are for tables of the key polynomial, `W` and `V` with the sizes of the schedule, for points with their counts of coordinates, and for the setup prefix and the tables whose honest responses satisfy the fit conditions of Akita Definition 10.5 for each fold challenge vector that the decoders give (`Spec.Compression.Akita.Key20.Fit`, `Spec.Compression.Akita.Key30.Fit`). `Spec.Compression.Akita.Key20.fit_zero`, `Spec.Compression.Akita.Key30.fit_zero`, `Spec.Compression.Akita.Key20.fit_quiet` and `Spec.Compression.Akita.Key30.fit_quiet` give data that satisfies them. For the challenge families of the schedule and data that is not 0, no Lean result gives `fit` |
+| `AkitaKey20/fresh`, `AkitaKey20/apart`, `AkitaKey20/fair`, `AkitaKey20/energy`, `AkitaKey20/digits`, `AkitaKey20/sampler`, `AkitaKey20/total` | `*` | 24 | game | adversary 6: `Claims.AkitaKey20.key20_root_search` and `Claims.AkitaKey20.key20_level1_search` bound the event that each nonce fails, where a nonce fails when a fold challenge does not decode or the response does not fit. `sampler` is the probability `ε` that a fold challenge of one answer does not decode (the sampler term of Akita (157)), and the bound is `(ε + δ)^4096`. `Claims.AkitaKey20.key20_root_search_total` and `Claims.AkitaKey20.key20_level1_search_total` are the case `ε = 0` of decoders that decode each slot (`total`). The claims are for one transcript prefix with different keys of the nonces, different slots of the fold coordinates, decoders on which the sign flips of a challenge act (`Spec.Compression.Akita.SignFair`; `Spec.Compression.Akita.signFair_signed` gives one), challenges with the energy of the families, and source blocks with the digit bound of the level. For the decoders of the code, `Spec.Compression.Akita.Key20.rootDecode_signFair` and `Spec.Compression.Akita.Replay.signFair_open` give `fair`, and `Spec.Compression.Akita.Key20.rootDecode_isSome` and `Spec.Compression.Akita.Replay.open_isSome` give `total` |
+| `AkitaKey20/blocks`, `AkitaKey20/use.blocks` | `Eq` | 5 | link | `crates/ns-compress/artifacts/key20.aks`, `each_schedule_file_has_its_pinned_digest_and_its_rows`: the file of the key of 512 blocks has its pinned digest, and Rust `SCHEDULES` has the Lean schedules (`schedules_and_variables_are_lean_constants`). The claims are for a verifier that takes this key. The key of the light relation of the reference application has `2^19` blocks (row `Final.light_gate_complete/shipped`), so these claims do not cover it |
+| `AkitaKey20/use.laid`, `AkitaKey30/use.laid`, `drawn.laid` | `Export.BoundedDepth.FinalVerifier.Setup.Laid` | 11 | game | `SPEC.md` Algorithm 10: step 5 lays out the claims, and the claim is for claims that pass the layout |
+| `AkitaKey20/use.zeros`, `AkitaKey30/use.zeros` | `Eq` | 2 | lean | `Export.BoundedDepth.FinalKey20.laidSetup_use`, for the setup `Export.BoundedDepth.FinalKey20.laidSetup` of the Akita claims of the final verifier, and `Export.BoundedDepth.FinalKey30.Opening.knowledge` for this setup under `key30.aks`. No Lean result compares `Export.BoundedDepth.FinalKey20.laidZeros` with the Rust code (trust item 7) |
+| `AkitaKey20/drawn.registered.*` | `*` | 32 | open | Open: the verifier needs a certified decommitment of its pinned key commitment to the key polynomial. Its source must satisfy the commitment equations and digit bounds. Its factor must be a unit. The source and factor must obey the stated norm limits. No proof supplies these fields for the pinned key of 512 blocks. |
+| `drawn.early` | `Eq` | 9 | game | adversary 6: the commitments of the key polynomial and `W` depend only on the initial transcript, before the lookup challenges. The commitment of `V` can depend on those challenges. This condition on the modeled commitments does not establish prefix dependence for the byte verifier. |
+| `drawn.decode`, `drawn.decode₁`, `drawn.decode₂`, `drawn.decode₃`, `drawn.decode₄`, `drawn.decode₅` | `Eq` | 24 | game | adversary 6: the small-key model uses the specified slot decoder at each fold from the root through level 5. The row for `drawn.decodeL` gives the terminal decoder. Applying the probability bound to the code also requires prefix dependence and a connection to the random-oracle model (trust item 7). |
+| `drawn.mass`, `drawn.peak`, `drawn.weight₁`, `drawn.weight₂`, `drawn.weight₃`, `drawn.weight₄`, `drawn.weight₅` | `Eq` | 28 | game | adversary 6: the small-key model fixes the root mass and peak and the five lower-level challenge weights to the values of its sparse families. |
+| `drawn.covers` | `LE.le` | 9 | lean | `Export.BoundedDepth.FinalKey20.covers_one` and `Export.BoundedDepth.FinalKey30.covers_one` prove the radius inequality at factor bound 1 and source bound half the source base of the key group. |
+| `head.slots.point.dimension` | `Eq` | 13 | game | `SPEC.md` Algorithm 10: each slot claim in the first message has an evaluation point of the dimension of its relation. |
+| `AkitaKey30/scan.split` | `Eq` | 1 | lean | The key30 opening theorem applies to each scan that splits the public weight as in Akita equation (132). Under the shared setup hypothesis, `Spec.Compression.Akita.Batch.codeScan` constructs such a scan (trust item 7). |
+| `AkitaKey20.key20_instances/mass`, `AkitaKey20.key20_instances/weight₁`, `AkitaKey20.key20_instances/weight₂`, `AkitaKey20.key20_instances_shared/mass`, `AkitaKey20.key20_instances_shared/weight₁`, `AkitaKey20.key20_instances_shared/weight₂` | `Eq` | 6 | game | adversary 6: the claim is for the opening of `Claims.AkitaKey20.key20_verifier_sound`. The hypothesis `Export.BoundedDepth.FinalKey20.Opening.Drawn` of that claim has these three equations as fields (row `drawn.mass`): the norms `‖c‖_1` of the fold challenges of the root and of the levels 1 and 2, which fix the bounds of the witnesses of `R_bind` |
+| `AkitaKey20.key20_instances/solved`, `AkitaKey20.key20_instances_shared/solved`, `AkitaKey30/solved` | `Export.BoundedDepth.FinalAkita.Solved` | 4 | game | adversary 6: the event of the claim is an output of the extractor that is a solution of Module-SIS, which is the event of `Export.BoundedDepth.FinalAkita.breakChance` |
+| `AkitaKey30/blocks`, `AkitaKey30/use.blocks` | `Eq` | 5 | link | `crates/ns-compress/artifacts/key30.aks`, `each_schedule_file_has_its_pinned_digest_and_its_rows`: the file of the key of `2^19` blocks has its pinned digest, and Rust `SCHEDULES` has the Lean schedules (`schedules_and_variables_are_lean_constants`). The claims are for a verifier that takes this key, which is the size of the key of the light relation of the reference application (row `Final.light_gate_complete/shipped`) |
+| `AkitaKey30/use.row`, `drawn.row` | `Eq` | 6 | game | `SPEC.md` Algorithm 10: step 5 lays out the claims with a row of the schedule file, and the claim is for the row of `Spec.Compression.Akita.Key30.rows` that has the count of variables of `W`, 27 or 26 |
+| `AkitaKey30/member`, `AkitaKey30/o.member`, `family.member` | `Membership.mem` | 11 | game | adversary 6: the claim is for an opening under a row of the Lean schedule `Spec.Compression.Akita.Key30.rows` of `crates/ns-compress/artifacts/key30.aks`. `tests/AkitaSchedules.lean` compares the numbers of each row with the file |
+| `AkitaKey30/shared`, `AkitaKey30/keys`, `AkitaKey20.key20_instances_shared/keys`, `Shipped/shared` | `*` | 12 | game | adversary 6: the claim is for an opening whose matrices `A` and `B` of each group of the root and `D` of the root (`shared`, `Spec.Compression.Akita.Key30.Tower.Shared`), or all matrices (`keys`, `Spec.Compression.Akita.Key30.Shared`, `Spec.Compression.Akita.Key20.Shared`), are the views (Akita (35), `Spec.Compression.Akita.Setup.shared`) of one setup vector with the degree, the rank and the width of their instances, as the shared setup of the paper defines them. The Akita code reads each matrix of each level from one stream from the offset 0. From `shared` Lean proves the split of the public weight of the root into the setup part, Akita (132), in the form of the pinned code with the factor `powerScale` (`Spec.Compression.Akita.Batch.weight_geometric`, `Spec.Compression.Akita.Batch.codeScan`). `Spec.Compression.Akita.Key30.Tower.onSetup_shared`, `Spec.Compression.Akita.Key30.shared_ofSetup` and `Spec.Compression.Akita.Key20.shared_ofSetup` give data that satisfies them, and `keys` at the setup prefix gives `shared` (`Spec.Compression.Akita.Key30.Tower.shared_of_views`), so the claims are not empty |
+| `AkitaKey30/drawn.registered`, `drawn.opening.registered` | `Exists` | 8 | open | Open: the premise "correct preprocessing" of Akita Lemma 9.1. The commitment of the setup prefix in the verifier setup is the output of `Spec.Compression.Akita.commit` for the table of the setup prefix, with the decommitment of the algorithm as the reference (`Spec.Compression.Akita.Batch.registered_commit`). No Lean result or Rust test gives it for the prefix commitments of the pinned key `crates/ns-compress/artifacts/key30.vk` |
+| `AkitaKey30/drawn.registered.*`, `Shipped/drawn.registered.*` | `*` | 40 | open | Open: the verifier needs a certified decommitment of its pinned key commitment to the key polynomial, with the commitment equations, digit checks, unit factor and norm bounds. No proof supplies it for the pinned key of 524288 blocks. The separate setup-prefix certificate is the row `AkitaKey30/drawn.registered`. |
+| `Akita.module_sis_descent/neZeroNatD`, `Akita.module_sis_descent/neZeroNatDCar`, `Akita.module_sis_descent/tower` | `*` | 3 | lean | `Spec.Compression.Akita.Key20.maps_tower`, for the degrees 64 and 32 of the two compression maps, with `stride = 2`. The degree of an instance is not 0 (`Spec.Compression.Akita.Setup.Instance.positive`). The claim is for each pair of degrees with `stride · d_car = d` |
+| `valid.toValid.*`, `secure` | `*` | 67 | link | `formal/nightstream-fprime/artifacts/nightstream-fprime-nebula-gate-parity-v1.json`, `is_valid_and_is_secure_are_the_lean_decisions`: Rust checks rules 1 to 6 of `SPEC.md` section 7.1 on each geometry at run time, and the test compares that check with Lean's decisions. For the fixed WASM sizes Lean proves both (`Spec.Nebula.WasmSize.valid`, `Spec.Nebula.WasmSize.secure`), and `each_wasm_size_has_the_lean_geometry_and_rows` compares the geometries |
+| `valid.romWords`, `valid.ramWords` | `LT.lt` | 22 | game | `SPEC.md` section 7.1: a program is two images of words below `2^32`, so these bounds define the statements of the game. Rust holds each image as `Vec<u32>` (`nebula::Program`), so each program that the verifier receives meets them |
+| `app.*` | `*` | 48 | open | Open: `Lifecycle.Nebula.FirstPlan.app` is the test machine. A Rust-built memory application, the WASM relation included, has no instance (Out of scope) |
+| `round` | `Export.BoundedDepth.NebulaSecurity.MemoryRound` | 4 | open | Open: trust item 6. No result derives the memory round from the assumption list |
 | `sampler.*` | `*` | 2 | game | adversary 5: the `η` sampler and its query bound |
 | `wf.*`, `slots_le`, `key_fits` | `*` | 26 | lean | `Spec.Compression.Rust.layoutNew_production`, for the layout of the Lean model of `Layout::new` |
 | `counts` | `Spec.Compression.Verifier.CountsNonzero` | 1 | lean | `Spec.Compression.Production.params_countsNonzero` |
@@ -234,8 +296,8 @@ covers.
 | `rows` | `LE.le` | 2 | lean | `Claims.Compression.production_sound` |
 | `statement.*`, `constantLaw.*` | `*` | 8 | game | adversary 6: the statement of the Π_CCS run and the law of its constant |
 | `Compression/params.rlc_bound`, `Compression/freshBound`, `Compression/degreeCovers` | `*` | 3 | lean | `Claims.Final.verifier_sound` uses the Π_CCS run at the production parameters and takes none of these |
-| `Final/rows`, `Shipped/rows` | `Eq` | 9 | link | `Relation::new` gives `FactoredRows` the package's plan rows and the spans of its layout (`crates/nightstream/src/lifecycle/bounded_depth/relation.rs`). Lean emits the row counts, the logical width and a checksum of the dense matrices of its model `Export.BoundedDepth.FinalRows.packageRows` for both packages of the reference application (`formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-parity-v1.json`) and of each Nebula program (`formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-nebula-v1-rows-v1.json`, `formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-nebula-n1-rows-v1.json`), and `Export.BoundedDepth.RowsParity.fastSum_eq` proves that the emitted value is that checksum. The test `factored_rows_match_the_lean_dense_checksum` computes the same words from Rust's plan rows and spans for each of these packages. A checksum is evidence, not a proof. The memory claims are about Lean's Nebula programs; a Rust-built memory application is row `app.*` |
-| `depthBound` | `LE.le` | 10 | game | adversary 4: the result bounds the error over the stages below a bound `depth` on the iteration of the adversary's statements, so `depth` is a parameter of the adversary class, and the error grows with it. The history results of adversary 6 (`Claims.Final.history_sound`, `Claims.Final.history_sound_with_akita`) take the same parameter. The memory results of adversary 6 do not: the checks of `SPEC.md` Algorithm 8 step 4 accept at most `S_max · N` steps (`Lifecycle.Nebula.EndToEnd.VerifierChecks.iteration_le`), so their walk has `S_max · N` stages |
+| `Final/rows`, `AkitaKey20/rows`, `AkitaKey30/rows`, `Shipped/rows` | `Eq` | 13 | link | `Relation::new` gives `FactoredRows` the package's plan rows and the spans of its layout (`crates/nightstream/src/lifecycle/bounded_depth/relation.rs`). Lean emits the row counts, the logical width and a checksum of the dense matrices of its model `Export.BoundedDepth.FinalRows.packageRows` for both packages of the reference application (`formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-parity-v1.json`) and of each Nebula program (`formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-nebula-v1-rows-v1.json`, `formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-nebula-n1-rows-v1.json`), and `Export.BoundedDepth.RowsParity.fastSum_eq` proves that the emitted value is that checksum. The test `factored_rows_match_the_lean_dense_checksum` computes the same words from Rust's plan rows and spans for each of these packages. A checksum is evidence, not a proof. The memory claims are about Lean's Nebula programs; a Rust-built memory application is row `app.*` |
+| `depthBound` | `LE.le` | 12 | game | adversary 4: the result bounds the error over the stages below a bound `depth` on the iteration of the adversary's statements, so `depth` is a parameter of the adversary class, and the error grows with it. The history results of adversary 6 (`Claims.Final.history_sound`, `Claims.AkitaKey20.key20_history_sound`, `Claims.AkitaKey30.key30_history_sound`) take the same parameter. The memory results of adversary 6 do not: the checks of `SPEC.md` Algorithm 8 step 4 accept at most `S_max · N` steps (`Lifecycle.Nebula.EndToEnd.VerifierChecks.iteration_le`), so their walk has `S_max · N` stages |
 | `Encodings/same`, `Encodings/equal`, `Encodings/different` | `*` | 6 | game | `SPEC.md` section 4: the event of each encoding claim is two inputs with one digest or one block list |
 | `Encodings/leftWell.*`, `Encodings/rightWell.*` | `*` | 12 | game | `SPEC.md` section 4.2: the two states are well formed |
 | `Encodings/leftCanonical`, `Encodings/rightCanonical` | `*` | 2 | link | `formal/nightstream-fprime/artifacts/nightstream-fprime-encoding-parity-v1.json`, `the_identity_words_are_the_lean_words`: Rust makes the words of Lean, and it refuses a stream with a word at or above `q` (`a_word_at_or_above_q_is_refused`) |
@@ -257,9 +319,9 @@ covers.
 | `Fold/admissible`, `Fold/member`, `Fold/start` | `*` | 3 | game | `SPEC.md` section 3: the claim is about each depth that an admissible schedule reaches |
 | `Fold/positive` | `LT.lt` | 5 | game | adversary 3: the work budget of the extractor is positive |
 | `Step/holds`, `Step/represents.*` | `*` | 40 | game | `SPEC.md` Algorithm 5: the honest prover has an assignment of the step circuit that carries its step and its fold |
-| `Step/publicBelow`, `Ivc/complete.lightLayout`, `Ivc/complete.refreshLayout`, `Ivc/complete.lightPublicBelow`, `Ivc/complete.refreshPublicBelow`, `Ivc/complete.lightFreshAfterLocals`, `Ivc/complete.refreshFreshAfterLocals`, `Nebula/complete.lightLayout`, `Nebula/complete.refreshLayout`, `Nebula/complete.lightPublicBelow`, `Nebula/complete.refreshPublicBelow`, `Nebula/complete.lightFreshAfterLocals`, `Nebula/complete.refreshFreshAfterLocals`, `Final/complete.lightLayout`, `Final/complete.refreshLayout`, `Final/complete.lightPublicBelow`, `Final/complete.refreshPublicBelow`, `Final/complete.lightFreshAfterLocals`, `Final/complete.refreshFreshAfterLocals` | `*` | 80 | lean | `Export.BoundedDepth.EmittedPackages.Emitted.complete` builds the completeness bundle of the emitted packages: their layouts are the widened slot layouts, their first fresh columns are after the public columns (`Export.BoundedDepth.EmittedPackages.publicColumns_le_lightFresh`, `Export.BoundedDepth.EmittedPackages.publicColumns_le_refreshFresh`), and they are the ends of the circuits' locals (`Export.BoundedDepth.EmittedPackages.lightFresh`, `Export.BoundedDepth.EmittedPackages.refreshFresh`) |
+| `Step/publicBelow`, `Ivc/complete.lightLayout`, `Ivc/complete.refreshLayout`, `Ivc/complete.lightPublicBelow`, `Ivc/complete.refreshPublicBelow`, `Ivc/complete.lightFreshAfterLocals`, `Ivc/complete.refreshFreshAfterLocals`, `Nebula/complete.lightLayout`, `Nebula/complete.refreshLayout`, `Nebula/complete.lightPublicBelow`, `Nebula/complete.refreshPublicBelow`, `Nebula/complete.lightFreshAfterLocals`, `Nebula/complete.refreshFreshAfterLocals`, `Final/complete.lightLayout`, `Final/complete.refreshLayout`, `Final/complete.lightPublicBelow`, `Final/complete.refreshPublicBelow`, `Final/complete.lightFreshAfterLocals`, `Final/complete.refreshFreshAfterLocals`, `AkitaKey20/complete.lightLayout`, `AkitaKey30/complete.lightLayout`, `AkitaKey20/complete.refreshLayout`, `AkitaKey30/complete.refreshLayout`, `AkitaKey20/complete.lightPublicBelow`, `AkitaKey30/complete.lightPublicBelow`, `AkitaKey20/complete.refreshPublicBelow`, `AkitaKey30/complete.refreshPublicBelow`, `AkitaKey20/complete.lightFreshAfterLocals`, `AkitaKey30/complete.lightFreshAfterLocals`, `AkitaKey20/complete.refreshFreshAfterLocals`, `AkitaKey30/complete.refreshFreshAfterLocals` | `*` | 104 | lean | `Export.BoundedDepth.EmittedPackages.Emitted.complete` builds the completeness bundle of the emitted packages: their layouts are the widened slot layouts, their first fresh columns are after the public columns (`Export.BoundedDepth.EmittedPackages.publicColumns_le_lightFresh`, `Export.BoundedDepth.EmittedPackages.publicColumns_le_refreshFresh`), and they are the ends of the circuits' locals (`Export.BoundedDepth.EmittedPackages.lightFresh`, `Export.BoundedDepth.EmittedPackages.refreshFresh`) |
 | `Step/readsOwnColumns`, `Step/publicEq` | `*` | 4 | lean | `Export.BoundedDepth.StepExtend.light_extend`, `Export.BoundedDepth.StepExtend.refresh_extend` and `Export.BoundedDepth.StepExtend.base_extend` discharge them from the honest step's assignment (`Layout.BoundedDepth.LightAssemblerCompleteness.complete`, `Layout.BoundedDepth.RefreshAssemblerCompleteness.complete`): its public columns carry `encHash` of the output hash, and each row reads only columns before the end of the circuit's locals, so each piece reads only columns before a first fresh column at or after that end (`Export.BoundedDepth.StepExtend.Complete.lightReadsOwnColumns`, `Export.BoundedDepth.StepExtend.Complete.refreshReadsOwnColumns`) |
-| `Step/fitsKeyWidth`, `Ivc/complete.lightFitsKeyWidth`, `Ivc/complete.refreshFitsKeyWidth`, `Nebula/complete.lightFitsKeyWidth`, `Nebula/complete.refreshFitsKeyWidth`, `Final/complete.lightFitsKeyWidth`, `Final/complete.refreshFitsKeyWidth` | `*` | 28 | link | `SPEC.md` section 4.4 (Capacity): the slot layout of each package fits the key width `m = 2^26`. These are the fields `lightFitsKeyWidth` and `refreshFitsKeyWidth` of `Export.BoundedDepth.EmittedPackages.Facts`. The test `step_packages_fit_their_capacity` checks the capacity on each shipped package, the light and refresh packages of the reference application (`formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-light-v1.json` and its refresh package) and of both Nebula programs, with Lean's row counts and logical widths (`factored_rows_match_the_lean_dense_checksum`). Lean does not prove the capacity for an application. Rust gives each relation the width of its own package's slot layout (`crates/nightstream/src/lifecycle/bounded_depth/relation.rs`) |
+| `Step/fitsKeyWidth`, `Ivc/complete.lightFitsKeyWidth`, `Ivc/complete.refreshFitsKeyWidth`, `Nebula/complete.lightFitsKeyWidth`, `Nebula/complete.refreshFitsKeyWidth`, `Final/complete.lightFitsKeyWidth`, `Final/complete.refreshFitsKeyWidth`, `AkitaKey20/complete.lightFitsKeyWidth`, `AkitaKey30/complete.lightFitsKeyWidth`, `AkitaKey20/complete.refreshFitsKeyWidth`, `AkitaKey30/complete.refreshFitsKeyWidth` | `*` | 36 | link | `SPEC.md` section 4.4 (Capacity): the slot layout of each package fits the key width `m = 2^26`. These are the fields `lightFitsKeyWidth` and `refreshFitsKeyWidth` of `Export.BoundedDepth.EmittedPackages.Facts`. The test `step_packages_fit_their_capacity` checks the capacity on each shipped package, the light and refresh packages of the reference application (`formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-light-v1.json` and its refresh package) and of both Nebula programs, with Lean's row counts and logical widths (`factored_rows_match_the_lean_dense_checksum`). Lean does not prove the capacity for an application. Rust gives each relation the width of its own package's slot layout (`crates/nightstream/src/lifecycle/bounded_depth/relation.rs`) |
 | `Ivc.accepted_bounds/accepted`, `Ivc/finalAtMostB`, `Ivc/start` | `*` | 3 | game | adversary 4, the result for one slot: an accepted history of the slot |
 | `Ivc/validRun`, `Ivc/witnessLengths`, `Ivc/runBelow`, `Ivc/z0Length`, `Ivc/iterationNext`, `Ivc/valid`, `Ivc/verifies`, `Ivc/witnessLength` | `*` | 11 | game | `SPEC.md` Algorithm 5: the honest prover extends an accepted proof by a valid step, with a counter below `q` |
 | `Nebula/accepted.*`, `Nebula/start`, `Nebula/steps.*`, `Nebula/terminal.*` | `*` | 57 | game | `SPEC.md` Algorithm 8: the step checks hold at each index below the chain length, and the terminal state passes the verifier checks |
@@ -645,7 +707,7 @@ not change terminal source checks.
   (`Export.BoundedDepth.RunCompleteness.Verifies`). The same sum bounds the
   probability that this verifier accepts and no such steps lead from `z0` to
   `zi` (`Claims.Ivc.verifier_sound`). `SPEC.md`
-  section 9 gives the theorem of each verifier entry point.
+  section 9 gives the theorem of each verifier entry point, or the reason that it is open.
 - **Knowledge form:** HyperNova Definition 11 (ii) states knowledge
   soundness: its event is on the witnesses that the extractor returns. The
   same sum bounds the probability of an extraction failure: the terminal
@@ -694,7 +756,7 @@ not change terminal source checks.
   sample that the memory verifier accepts counts
   (`Export.BoundedDepth.NebulaSecurity.checked_le`). For a compressed memory proof, adversary 6 joins this
   bound with the bound of the final proof
-  (`Claims.Final.memory_sound_with_akita`).
+  (`Claims.AkitaKey20.key20_memory_sound`, `Claims.AkitaKey30.key30_memory_sound`).
 - **Deterministic part:** an accepted run gives an execution, a Poseidon2
   collision among the run's own chain inputs and the `D_init` chain, or a
   segment that passes the product test with unbalanced multisets
@@ -763,134 +825,82 @@ not change terminal source checks.
   proof with witnesses exists that the verifier of `SPEC.md` Algorithm 6
   accepts for the statement
   (`Export.BoundedDepth.RunCompleteness.Verifies`).
-- **Result:** for the argument only. Lean models the verifier of the
-  argument as a public-coin game (`Spec.Compression.Verifier.game`). In the
-  state-restoration experiment, a prover with `Q` oracle queries makes the
-  verifier accept claims whose committed `W` does not satisfy
-  `Spec.Compression.Verifier.Relation` with probability at most
-  `Q · error` (`Claims.Compression.argument_sound`). `Relation` gives,
-  for each claim, the 18 Ajtai rows of its commitment, `Eval_K`, each
-  `Eval_A` relative to the abstract matrix weights, its public input and,
-  for a claim with a table, each cell in `[−bound, bound]`
-  (`Spec.Compression.Verifier.game_avoids`). At the production shapes,
-  `error < 2^−119` (`Claims.Compression.production_error`). The
-  premises of the theorem, and how Rust meets each one, are in trust item 7.
-  Lean has no definition of the compression key. Its model of the layout
-  (`Spec.Compression.Rust.layoutNew`) meets the layout premises of the
-  theorem (`Spec.Compression.Rust.layoutNew_production`), and Rust tests
-  compare it with `Layout::new`. For each slot claim, `Relation` gives the
-  claim under `Spec.CE.Holds` with the norm of its depth
-  (`Lifecycle.BoundedDepth.CompressionSlot.slot_holds`), under the premise
-  `Spec.Compression.Claim.Represents` of trust item 7. Lean models the
-  Π_CCS run with one source as a game of the same kind
-  (`Spec.Compression.Fresh.game`). On a path that avoids its bad sets, of
-  density at most `38/q²`, an accepted run whose output claims hold gives
-  the fresh instance under `Spec.CCS.Holds`
-  (`Lifecycle.BoundedDepth.CompressionFresh.game_avoids`). Lean joins the
-  checks, Π_CCS and the argument in one game of the final verifier
-  (`Export.BoundedDepth.FinalVerifier.Setup.game`), for each mode. In the
-  light mode, the zero witness opens the default slot under the relation of
-  slot 1 (`Export.BoundedDepth.StepExtend.defaultSlot_holds`). With `Q`
-  queries, it accepts
-  a statement for which no proof with witnesses satisfies `Verifies` with
-  probability at most `Q · (2^−119 + 38/q²)`
-  (`Claims.Final.verifier_sound`), and with Akita openings
-  at most `Q · (2^−119 + 38/q²)` plus the fixed-setup extraction and key-binding errors
-  (`Spec.Compression.Akita.Use.error`,
-  `Claims.Final.verifier_sound_with_akita`), under the
-  premises of trust item 7. Lean bounds one interactive run of the
-  argument by the exact Rust error sum
-  (`Spec.Compression.Rust.params_run_soundness`). Only tests join the model
-  to the Rust layout and error sum, and no result states a full honest
-  run. Rust implements the final
-  verifier, and the tests check it on fixed inputs (`SPEC.md` lifecycle
-  rules 2 and 3, trust item 5). `decisions/akita-compression.md` gives the
-  reason for each step.
-- **Aim:** under the premises of trust item 7, an accepted final proof
-  gives three witnesses: one for each claim of the argument, and in the
-  light mode the zero witness of slot 1. The one Akita proof gives the polynomials `W` and
-  `V`, and the value of the key polynomial at one point. The key polynomial
-  is the Ajtai key, so the key sum-check makes the proof's key part of the
-  public weights equal to the part that the Ajtai key gives. The verifier
-  reads no element of the Ajtai key. The first sum-check and the last check
-  of `SPEC.md` Algorithm 10 give, for each claim of the argument, a witness in
-  `W` that opens the claim's commitment, has its public input and gives its
-  evaluations (`Spec.CE.Holds` without the norm). The lookup gives each slot witness
-  the bound of its depth. The Π_CCS run gives the fresh witness the rows of
-  its relation and coefficients in `{−1, 0, 1}` (`Spec.CCS.Holds`). The
-  verifier computes the state hash in the fresh public input from the
-  proof's slot claims, so no digest that the proof carries is authority.
-  These are the checks of `SPEC.md` Algorithm 6, with one difference. The
-  argument does not prove that the fresh witness is zero from the
-  relation's width to the end of its last ring column.
-  `Lifecycle.BoundedDepth.BlockSupport.Supported` does not require these
-  zeros. The honest prover's fresh witness has them: it is zero on every
-  cell from the width of its circuit's package
-  (`Lifecycle.BoundedDepth.BlockSupport.ZeroTail`,
-  `Export.BoundedDepth.RunCompleteness.FreshZeroTail`,
-  `Claims.Ivc.step_extends`, `Claims.Ivc.run_complete`).
-- **With the other adversaries:** the verifier of Algorithm 6 accepts only
-  what the terminal relation accepts
-  (`Export.BoundedDepth.RunCompleteness.holds_of_verifies`). So the results
-  of adversaries 2, 4 and 5 apply to a statement that the final verifier
-  accepts. Lean joins the bound above with the bound of adversary 4. A
-  prover of the experiment with `Q` queries is an IVC adversary: its tape
-  is the result of the experiment under the law of its draws, and its
-  output is the accepted statement with the proof from `W`
-  (`Export.BoundedDepth.FinalHistory.adversary`,
-  `Export.BoundedDepth.FinalVerifier.Setup.proofOf`). The event is a false
-  history: the final verifier accepts `(i, z0, zi)`, and no `i` steps of
-  the application, each valid at its state and with a witness of the
-  application's word count, lead from `z0` to `zi`
-  (`Export.BoundedDepth.FinalHistory.FalseHistory`). A false history is a
-  result in which `Verifies` rejects that proof, or a false acceptance of
-  this IVC adversary. So
-  `Pr[false history] ≤ Q · (2^−119 + 38/q²) + walkBound`, where
-  `walkBound = Σ_j (finderChance(stage j) + error(stage j))` is the bound of
-  adversary 4 for the stages of this IVC adversary
-  (`Claims.Final.history_sound`,
-  `Export.BoundedDepth.IvcSecurity.walkBound`). With Akita openings, the
-  bound adds the fixed-setup extraction and key-binding errors (`Claims.Final.history_sound_with_akita`).
-  The same bound holds for the witnesses that the reverse extractor returns:
-  the final verifier accepts, and those witnesses are not a valid history of
-  the accepted statement (`Claims.Final.history_knowledge`,
-  `Claims.Final.history_knowledge_with_akita`). At the
-  packages that the emitter writes for the reference application, Lean proves
-  each premise of class `lean` of the direct and final verifier results
-  (`Claims.Shipped.verify_sound`, `Claims.Shipped.verify_final_sound`).
-  The Lean Nebula packages are test packages that no public verifier loads,
-  so no such result exists for the memory verifiers (row `app.*`).
-  The premises are those of trust item 7, `[HN-A1]` and the closure
-  premise of trust item 3, an admitted IVC adversary of the prover, the
-  digest length 4 of each circuit key, and a bound `depth` on the
-  iteration of each statement that the experiment accepts. The sum has the
-  limits of adversary 4, so it gives no concrete security for a long
-  history. Lean also joins the bound above with the bound of adversary 5,
-  for the memory verifier of a final proof (Rust
-  `nebula::Verifier::verify_final`, `SPEC.md` Algorithms 8 and 10). The
-  prover names a memory statement with each result of the experiment, with
-  any law for each result. With that statement on its tape it is an IVC
-  adversary with the output above
-  (`Export.BoundedDepth.NebulaFinal.adversary`). The event is a false
-  memory statement: the final verifier accepts `(i, z0, zi)`, the checks of
-  `SPEC.md` Algorithm 8 hold for `(i, z0, zi)` and the memory statement, and
-  the history that the walk of adversary 4 decodes does not attest the
-  memory statement (`Export.BoundedDepth.NebulaFinal.FalseMemory`). The law
-  is that of the walk's last stage: the result, the memory statement and
-  the coins of each stage's extractor. A false memory statement is a tape
-  on which `Verifies` rejects the proof from `W`, or a win of adversary 5
-  for this IVC adversary. So its probability is at most
-  `Q · (2^−119 + 38/q²)` plus the terms of adversary 5
-  (`Claims.Final.memory_sound`). With Akita openings, the
-  bound adds the fixed-setup extraction and key-binding errors (`Claims.Final.memory_sound_with_akita`).
-  The premises are those of the two joined results, but without the bound
-  `depth`: the checks of `SPEC.md` Algorithm 8 step 4 accept at most
-  `S_max · N` steps (`Lifecycle.Nebula.EndToEnd.VerifierChecks.iteration_le`),
-  so the walk has `S_max · N` stages, and its answers cover the iteration of
-  each statement in the event. The memory round (trust item 6) stays a
-  premise. No Lean result joins the bound of adversary 2 with the bound of
-  this adversary. No result shows that an extractor of the three witnesses
-  is efficient.
+- **Result:** for the argument only. Lean models the verifier of the argument as a public-coin game
+  (`Spec.Compression.Verifier.game`). In the state-restoration experiment, a prover with `Q` oracle queries makes the
+  verifier accept claims whose committed `W` does not satisfy `Spec.Compression.Verifier.Relation` with probability at
+  most `Q · error` (`Claims.Compression.argument_sound`). `Relation` gives, for each claim, the 18 Ajtai rows of its
+  commitment, `Eval_K`, each `Eval_A` relative to the abstract matrix weights, its public input and, for a claim with a
+  table, each cell in `[−bound, bound]` (`Spec.Compression.Verifier.game_avoids`). At the production shapes, `error <
+  2^−119` (`Claims.Compression.production_error`). The premises of the theorem, and how Rust meets each one, are in
+  trust item 7. Lean has no definition of the compression key. Its model of the layout
+  (`Spec.Compression.Rust.layoutNew`) meets the layout premises of the theorem
+  (`Spec.Compression.Rust.layoutNew_production`), and Rust tests compare it with `Layout::new`. For each slot claim,
+  `Relation` gives the claim under `Spec.CE.Holds` with the norm of its depth
+  (`Lifecycle.BoundedDepth.CompressionSlot.slot_holds`), under the premise `Spec.Compression.Claim.Represents` of trust
+  item 7. Lean models the Π_CCS run with one source as a game of the same kind (`Spec.Compression.Fresh.game`). On a
+  path that avoids its bad sets, of density at most `38/q²`, an accepted run whose output claims hold gives the fresh
+  instance under `Spec.CCS.Holds` (`Lifecycle.BoundedDepth.CompressionFresh.game_avoids`). Lean joins the checks, Π_CCS
+  and the argument in one game of the final verifier (`Export.BoundedDepth.FinalVerifier.Setup.game`), for each mode. In
+  the light mode, the zero witness opens the default slot under the relation of slot 1
+  (`Export.BoundedDepth.StepExtend.defaultSlot_holds`). With `Q` queries, it accepts a statement for which no proof with
+  witnesses satisfies `Verifies` with probability at most `Q · (2^−119 + 38/q²)` (`Claims.Final.verifier_sound`).
+  Trust item 7 gives the bounds with Akita openings (`Claims.AkitaKey20.key20_verifier_sound`,
+  `Claims.AkitaKey30.key30_verifier_sound`).
+  Lean bounds one interactive run of the argument by the exact Rust error sum
+  (`Spec.Compression.Rust.params_run_soundness`). Only tests join the model to the Rust layout and error sum, and no
+  result states a full honest run. Rust implements the final verifier, and the tests check it on fixed inputs (`SPEC.md`
+  lifecycle rules 2 and 3, trust item 5). `decisions/akita-compression.md` gives the reason for each step.
+- **Aim:** under the premises of trust item 7, an accepted final proof gives three witnesses: one for each claim of the
+  argument, and in the light mode the zero witness of slot 1. The one Akita proof gives the polynomials `W` and `V`, and
+  the value of the key polynomial at one point. The key polynomial is the Ajtai key, so the key sum-check makes the
+  proof's key part of the public weights equal to the part that the Ajtai key gives. The verifier reads no element of
+  the Ajtai key. The first sum-check and the last check of `SPEC.md` Algorithm 10 give, for each claim of the argument,
+  a witness in `W` that opens the claim's commitment, has its public input and gives its evaluations (`Spec.CE.Holds`
+  without the norm). The lookup gives each slot witness the bound of its depth. The Π_CCS run gives the fresh witness
+  the rows of its relation and coefficients in `{−1, 0, 1}` (`Spec.CCS.Holds`). The verifier computes the state hash in
+  the fresh public input from the proof's slot claims, so no digest that the proof carries is authority. These are the
+  checks of `SPEC.md` Algorithm 6, with one difference. The argument does not prove that the fresh witness is zero from
+  the relation's width to the end of its last ring column. `Lifecycle.BoundedDepth.BlockSupport.Supported` does not
+  require these zeros. The honest prover's fresh witness has them: it is zero on every cell from the width of its
+  circuit's package (`Lifecycle.BoundedDepth.BlockSupport.ZeroTail`,
+  `Export.BoundedDepth.RunCompleteness.FreshZeroTail`, `Claims.Ivc.step_extends`, `Claims.Ivc.run_complete`).
+- **With the other adversaries:** the verifier of Algorithm 6 accepts only what the terminal relation accepts
+  (`Export.BoundedDepth.RunCompleteness.holds_of_verifies`). So the results of adversaries 2, 4 and 5 apply to a
+  statement that the final verifier accepts. Lean joins the bound above with the bound of adversary 4. A prover of the
+  experiment with `Q` queries is an IVC adversary: its tape is the result of the experiment under the law of its draws,
+  and its output is the accepted statement with the proof from `W` (`Export.BoundedDepth.FinalHistory.adversary`,
+  `Export.BoundedDepth.FinalVerifier.Setup.proofOf`). The event is a false history: the final verifier accepts `(i, z0,
+  zi)`, and no `i` steps of the application, each valid at its state and with a witness of the application's word count,
+  lead from `z0` to `zi` (`Export.BoundedDepth.FinalHistory.FalseHistory`). A false history is a result in which
+  `Verifies` rejects that proof, or a false acceptance of this IVC adversary. So `Pr[false history] ≤ Q · (2^−119 +
+  38/q²) + walkBound`, where `walkBound = Σ_j (finderChance(stage j) + error(stage j))` is the bound of adversary 4 for
+  the stages of this IVC adversary (`Claims.Final.history_sound`, `Export.BoundedDepth.IvcSecurity.walkBound`). The same
+  bound holds for the witnesses that the reverse extractor returns: the final verifier accepts, and those witnesses are
+  not a valid history of the accepted statement (`Claims.Final.history_knowledge`). Trust item 7 gives these results
+  with Akita openings. At the packages that the emitter writes for the reference application, Lean proves each premise
+  of class `lean` of the direct verifier result (`Claims.Shipped.verify_sound`). At these packages and the 524288 key
+  blocks of `key30.aks`, `Claims.Shipped.verify_final_sound` is `Claims.AkitaKey30.key30_history_sound` with the digest
+  length of the keys and the block count proved; it keeps the hypotheses `shared`, `drawn` and `coords` on the Akita
+  openings. The Lean Nebula packages are test packages that no public verifier loads, so no such result exists
+  for the memory verifiers (row `app.*`). The premises are those of trust item 7, `[HN-A1]` and the
+  closure premise of trust item 3, an admitted IVC adversary of the prover, the digest length 4 of each circuit key, and
+  a bound `depth` on the iteration of each statement that the experiment accepts. The sum has the limits of adversary 4,
+  so it gives no concrete security for a long history. Lean also joins the bound above with the bound of adversary 5,
+  for the memory verifier of a final proof (Rust `nebula::Verifier::verify_final`, `SPEC.md` Algorithms 8 and 10). The
+  prover names a memory statement with each result of the experiment, with any law for each result. With that statement
+  on its tape it is an IVC adversary with the output above (`Export.BoundedDepth.NebulaFinal.adversary`). The event is a
+  false memory statement: the final verifier accepts `(i, z0, zi)`, the checks of `SPEC.md` Algorithm 8 hold for `(i,
+  z0, zi)` and the memory statement, and the history that the walk of adversary 4 decodes does not attest the memory
+  statement (`Export.BoundedDepth.NebulaFinal.FalseMemory`). The law is that of the walk's last stage: the result, the
+  memory statement and the coins of each stage's extractor. A false memory statement is a tape on which `Verifies`
+  rejects the proof from `W`, or a win of adversary 5 for this IVC adversary. So its probability is at most `Q · (2^−119
+  + 38/q²)` plus the terms of adversary 5 (`Claims.Final.memory_sound`), and trust item 7 gives the bound with Akita
+  openings. The premises are those of the two joined results, but
+  without the bound `depth`: the checks of `SPEC.md` Algorithm 8 step 4 accept at most `S_max · N` steps
+  (`Lifecycle.Nebula.EndToEnd.VerifierChecks.iteration_le`), so the walk has `S_max · N` stages, and its answers cover
+  the iteration of each statement in the event. The memory round (trust item 6) stays a premise. No Lean result joins
+  the bound of adversary 2 with the bound of this adversary. No result shows that an extractor of the three witnesses is
+  efficient.
 - **Error:** Lean bounds the argument by `Q · error`, with `error` below
   `2^−119` at the production shapes (`SPEC.md` section 3). Rust bounds a
   sum of six terms for one interactive run of the argument, about
@@ -909,480 +919,459 @@ not change terminal source checks.
 
 ## What you trust
 
-1. **The Ajtai setup [KECCAK] (premise P1).** Each key element reads one
-   stream of 84 SHAKE128 output words of 64 bits. A word below `q` is kept, a
-   word of `q` or more is rejected, and coefficient `h` is kept word `h`, or
-   0 when fewer than `h + 1` words are kept (the fallback)
-   (`Spec.AjtaiSetupV1.Programming.verifierKey_eq`). The experiment is one
-   uniform stream. Each ring element is the element of the same number of
-   streams that take no fallback (`Spec.AjtaiSetupV1.Rejection.card_element`),
-   so the element is exactly uniform outside the fallback event. The event is
-   that 21 or more of the 84 words are rejected, and its probability for one
-   element is at most `fallbackBound = C(84, 21) · 59^21/2^1344`, below
-   `2^−1155` (`Spec.AjtaiSetupV1.Rejection.card_fallback_le`,
-   `Claims.Foundations.setup_fallback_bound`). With uniform streams, an
-   event has at most its probability under a uniform matrix, plus
-   `2 · fallbackBound` for each key element
-   (`Claims.Foundations.setup_element_bias`,
-   `Spec.AjtaiSetupV1.Programming.expect_le_programmed`). For the
-   `18 · 2^20` elements of the bounded-depth key the sum is below `2^−1129`
-   (`Claims.Foundations.setup_error`). So MSIS for
-   a uniform matrix applies (`decisions/fprime-ajtai-shake128-setup.md`,
-   `decisions/fprime-ajtai-rejection-sampling.md`,
-   `decisions/fprime-ajtai-shake128-security-argument.md`). The seed is
-   fixed and public, so an adversary that is precomputed for that seed is
-   outside this premise. Lean does not join this step to the results above.
+1. **The Ajtai setup [KECCAK] (premise P1).** Each key element reads one stream of 84 SHAKE128 output words of 64 bits.
+   A word below `q` is kept, a word of `q` or more is rejected, and coefficient `h` is kept word `h`, or 0 when fewer
+   than `h + 1` words are kept (the fallback) (`Spec.AjtaiSetupV1.Programming.verifierKey_eq`). The experiment is one
+   uniform stream. Each ring element is the element of the same number of streams that take no fallback
+   (`Spec.AjtaiSetupV1.Rejection.card_element`), so the element is exactly uniform outside the fallback event. The event
+   is that 21 or more of the 84 words are rejected, and its probability for one element is at most `fallbackBound =
+   C(84, 21) · 59^21/2^1344`, below `2^−1155` (`Spec.AjtaiSetupV1.Rejection.card_fallback_le`,
+   `Claims.Foundations.setup_fallback_bound`). With uniform streams, an event has at most its probability under a
+   uniform matrix, plus `2 · fallbackBound` for each key element (`Claims.Foundations.setup_element_bias`,
+   `Spec.AjtaiSetupV1.Programming.expect_le_programmed`). For the `18 · 2^20` elements of the bounded-depth key the sum
+   is below `2^−1129` (`Claims.Foundations.setup_error`). So MSIS for a uniform matrix applies
+   (`decisions/fprime-ajtai-shake128-setup.md`, `decisions/fprime-ajtai-rejection-sampling.md`,
+   `decisions/fprime-ajtai-shake128-security-argument.md`). The seed is fixed and public, so an adversary that is
+   precomputed for that seed is outside this premise. Lean does not join this step to the results above.
 2. **The binding and collision terms [MSIS] [P2-PERM] [SPONGE].**
-   - *MSIS at the chain norm.* Binding needs MSIS for a uniform matrix of
-     `κ = 18` rows of elements of `F_q[X]/(X^64 + 1)` (degree 64) at the chain norm
-     `msisChainBound = 8 · T · (B + cap · T · (b − 1)) = 25,165,824`, about
-     `2^24.58` (`Claims.Foundations.chain_norm`). It is the
-     SuperNeo v1.2 Section 8 norm `8TB` with `B` replaced by the largest
-     recovered bound (`Spec.Folding.Schedule.msisChainBound_zero`). The
-     terminal verifier checks each slot at the bound of its depth. By Cyclo
-     Theorem 3, this bound is at most `accumulatorBound cap = 10,112`
-     (`Spec.GlobalParams.accumulatorBound`, `SPEC.md` Algorithm 6), and Lean
-     proves that an honest run stays within it
-     (`Export.BoundedDepth.StepExtend.Honest`). A refresh fold recovers its input
-     only below `B`, so the terminal relation of the security results keeps
-     `B` (`Export.BoundedDepth.RunCompleteness.holds_of_verifies`). The recovered
-     bound, and so the chain norm, comes from `B`, not from the bound of the
-     depth.
-   - *The κ estimate.* A lattice-estimator run outside Lean, at rank
-     `κ = 18`, a width of `2^28` coefficients and the chain norm
-     `8T(2^14 + 64T) = 25,165,824`, gives 127.20 bits in the ADPS16 quantum
-     model (BKZ block size 480), 140.16 bits in the ADPS16 classical model and
-     166.84 bits in the default model. The norm is the largest extraction
-     norm. There is no allowance for more targets, because the main key is
-     one SHAKE128 matrix and so it has one target. The owner approved this
-     method (`decisions/field-2p64-59-ring-x64.md`). The sister project
-     ProtogaLattice computed these values with lattice-estimator commit
-     `3e48ef4` and Sage 10.9. Nightstream did not run them again, because
-     Sage stops at start-up on this machine. The owner selected `κ = 18` on
-     2026-11-13. The models are heuristic generic lattice attacks. They are
-     not a proof for structured Module-SIS or for the fixed public seed, and
-     the run's files are not in the repository.
-   - *Poseidon2 collisions.* The state hash, the slot digests, the package
-     identity, the Nebula record chains and the state digests of a memory
-     application bind their inputs only up to a Poseidon2 collision. The
-     results name each collision as an event on two inputs that a reduction
-     computes. Under `[P2-PERM]` and `[SPONGE]`, an algorithm with `N`
-     permutation calls finds two distinct padded inputs with one digest with
-     probability at most `C(N + 2, 2)/q⁴ + spongeError N`
-     (`Spec.Sponge.collision_le`). Two distinct inputs of the
-     hash have distinct padded inputs (`Spec.Sponge.collision_blocks`), and
-     two distinct values of a row of section Hashed encodings have distinct
-     inputs only by that row's injectivity theorem. The deployed permutation
-     is fixed, so `[P2-PERM]` is a heuristic for it; algorithms that use its
-     structure are outside the model.
-   - *The IVC collision term.* In the bounds of adversaries 4, 5 and 6, the
-     collision term of each reverse stage is the success chance of an
-     explicit finder that outputs such a pair of inputs
-     (`Export.BoundedDepth.IvcSecurity.finderChance`). Lean bounds it with the
-     bound above (`Claims.Ivc.walk_bound_numeric`). `N` counts the permutation
-     calls of the finder: the calls of the stage, and so the calls of the
-     earlier stages that it runs again. Lean cannot count them for a Lean
-     function, so `N` is a parameter of the adversary class.
-   - *The fold collision term.* The collision finder of each fold is such
-     an algorithm too, and Lean bounds its advantage with the same bound
-     (`Claims.Fold.light_knowledge_error_numeric`,
-     `Claims.Fold.refresh_knowledge_error_numeric`). `N` counts the calls of
-     the adversary in each of the finder's reruns.
+   - *MSIS at the chain norm.* Binding needs MSIS for a uniform matrix of `κ = 18` rows of elements of `F_q[X]/(X^64 +
+     1)` (degree 64) at the chain norm `msisChainBound = 8 · T · (B + cap · T · (b − 1)) = 25,165,824`, about `2^24.58`
+     (`Claims.Foundations.chain_norm`). It is the SuperNeo v1.2 Section 8 norm `8TB` with `B` replaced by the largest
+     recovered bound (`Spec.Folding.Schedule.msisChainBound_zero`). The terminal verifier checks each slot at the bound
+     of its depth. By Cyclo Theorem 3, this bound is at most `accumulatorBound cap = 10,112`
+     (`Spec.GlobalParams.accumulatorBound`, `SPEC.md` Algorithm 6), and Lean proves that an honest run stays within it
+     (`Export.BoundedDepth.StepExtend.Honest`). A refresh fold recovers its input only below `B`, so the terminal
+     relation of the security results keeps `B` (`Export.BoundedDepth.RunCompleteness.holds_of_verifies`). The recovered
+     bound, and so the chain norm, comes from `B`, not from the bound of the depth.
+   - *The κ estimate.* A lattice-estimator run outside Lean, at rank `κ = 18`, a width of `2^28` coefficients and the
+     chain norm `8T(2^14 + 64T) = 25,165,824`, gives 127.20 bits in the ADPS16 quantum model (BKZ block size 480),
+     140.16 bits in the ADPS16 classical model and 166.84 bits in the default model. The norm is the largest extraction
+     norm. There is no allowance for more targets, because the main key is one SHAKE128 matrix and so it has one target.
+     The owner approved this method (`decisions/field-2p64-59-ring-x64.md`). The sister project ProtogaLattice computed
+     these values with lattice-estimator commit `3e48ef4` and Sage 10.9. A Nightstream run of 2026-11-20 with the same
+     commit gives the three numbers again: the row `main key` of `scripts/akita_sis_estimates.csv`, which
+     `scripts/estimate_akita_sis.sage` writes (trust item 7). `scripts/estimate_nebula_sis.sage` has the calls of the
+     method for the prior profile, another modulus and the ring degree 54, so it does not give these numbers. The
+     owner selected `κ = 18` on
+     2026-11-13. The models are heuristic generic lattice attacks. They are not a proof for structured Module-SIS or
+     for the fixed public seed. The method is that of the SuperNeo parameter estimate: the Euclidean route, `norm = 2` at
+     the length `β · √(m·d)`. The direct ℓ∞ model of the Akita table gives 154.23 bits (block size 582) for this
+     instance. The owner's target is 128 bits against a classical attacker (2026-11-22), and the owner selected this
+     method for the main key and for each Akita instance (2026-11-20). The main key has 140.16 bits against that
+     target (the `MSIS` entry of the section Assumptions; trust item 7, the Module-SIS instances).
+   - *Poseidon2 collisions.* The state hash, the slot digests, the package identity, the Nebula record chains and the
+     state digests of a memory application bind their inputs only up to a Poseidon2 collision. The results name each
+     collision as an event on two inputs that a reduction computes. Under `[P2-PERM]` and `[SPONGE]`, an algorithm with
+     `N` permutation calls finds two distinct padded inputs with one digest with probability at most `C(N + 2, 2)/q⁴ +
+     spongeError N` (`Spec.Sponge.collision_le`). Two distinct inputs of the hash have distinct padded inputs
+     (`Spec.Sponge.collision_blocks`), and two distinct values of a row of section Hashed encodings have distinct inputs
+     only by that row's injectivity theorem. The deployed permutation is fixed, so `[P2-PERM]` is a heuristic for it;
+     algorithms that use its structure are outside the model.
+   - *The IVC collision term.* In the bounds of adversaries 4, 5 and 6, the collision term of each reverse stage is the
+     success chance of an explicit finder that outputs such a pair of inputs
+     (`Export.BoundedDepth.IvcSecurity.finderChance`). Lean bounds it with the bound above
+     (`Claims.Ivc.walk_bound_numeric`). `N` counts the permutation calls of the finder: the calls of the stage, and so
+     the calls of the earlier stages that it runs again. Lean cannot count them for a Lean function, so `N` is a
+     parameter of the adversary class.
+   - *The fold collision term.* The collision finder of each fold is such an algorithm too, and Lean bounds its
+     advantage with the same bound (`Claims.Fold.light_knowledge_error_numeric`,
+     `Claims.Fold.refresh_knowledge_error_numeric`). `N` counts the calls of the adversary in each of the finder's
+     reruns.
    - Lean does not bound the MSIS term numerically.
 3. **The history: HyperNova errata Assumption 1 for the two fold kinds [HN-A1].**
-   `Spec.HyperNova.ReverseStages.Assumption1` states Assumption 1 in the form
-   of HyperNova Definition 7 knowledge soundness. Adversary 4 uses it with the
-   success event `Export.BoundedDepth.IvcWalk.WalkSucceeds` and the extraction
+   `Spec.HyperNova.ReverseStages.Assumption1` states Assumption 1 in the form of HyperNova Definition 7 knowledge
+   soundness. Adversary 4 uses it with the success event `Export.BoundedDepth.IvcWalk.WalkSucceeds` and the extraction
    event `Export.BoundedDepth.IvcWalk.WalkExtracted`; the one-slot result uses
-   `Spec.HyperNova.Construction2.BoundedDepthSecurity.Assumption1` with the
-   same events.
-   For every admitted fold adversary there is an efficient extractor that
-   reads the adversary's tape and its own coins, so it may rerun the
-   adversary. The probability that the adversary succeeds and the extractor
-   fails is at most `error` of that adversary. The adversary outputs an attempt: a fold, the
-   running claim that it starts from, and a witness of its output at a
-   bound. One premise covers both fold kinds. The attempt names its circuit,
-   and a success needs the bounded-depth verifier of that circuit to accept,
-   so a light fold at the cap is not a success. A success also needs an
-   output bound of at most `B + cap · T · (b − 1)`, so the premise is needed
-   only up to the chain norm of trust item 2
-   (`Spec.HyperNova.Construction2.BoundedDepthReverse.Succeeds`). Extraction
-   must open the fold's input at the output bound plus `T(b − 1)` after a
-   light fold, and below `B` after a refresh fold, and it must open the fresh
-   claim (`Spec.HyperNova.Construction2.BoundedDepthReverse.Extracted`,
-   `Spec.Folding.Schedule.extractedBefore`). These are the differences from
-   Definition 7:
-   - The success event has a prior-state link. The light transcript does
-     not absorb the running claim (`Lifecycle.BoundedDepth.lightAbsorbPublicInput`),
-     and the refresh transcript absorbs the children's commitments and
-     evaluations but not the accumulator's point or public input
-     (`Lifecycle.BoundedDepth.refreshWords`). Both bind the accumulator only
-     through the prior digest in the fresh public input. So the adversary
-     also outputs a prior state, and a success needs `PriorLink` of that
-     state, the running claim and the fold
-     (`Spec.HyperNova.Construction2.BoundedDepthReverse.RunsBack`). The
-     prior state is an output, as in PR #155: a link to some prior state
-     holds for almost every running claim, because many states share one
-     digest. In an accepted execution, each fold of a slot links to the
-     prior hash preimage of its step: the fresh public input encodes the hash
-     of that preimage, and its program counter selects the slot that holds
-     the fold's running claim
+   `Spec.HyperNova.Construction2.BoundedDepthSecurity.Assumption1` with the same events. For every admitted fold
+   adversary there is an efficient extractor that reads the adversary's tape and its own coins, so it may rerun the
+   adversary. The probability that the adversary succeeds and the extractor fails is at most `error` of that adversary.
+   The adversary outputs an attempt: a fold, the running claim that it starts from, and a witness of its output at a
+   bound. One premise covers both fold kinds. The attempt names its circuit, and a success needs the bounded-depth
+   verifier of that circuit to accept, so a light fold at the cap is not a success. A success also needs an output bound
+   of at most `B + cap · T · (b − 1)`, so the premise is needed only up to the chain norm of trust item 2
+   (`Spec.HyperNova.Construction2.BoundedDepthReverse.Succeeds`). Extraction must open the fold's input at the output
+   bound plus `T(b − 1)` after a light fold, and below `B` after a refresh fold, and it must open the fresh claim
+   (`Spec.HyperNova.Construction2.BoundedDepthReverse.Extracted`, `Spec.Folding.Schedule.extractedBefore`). These are
+   the differences from Definition 7:
+   - The success event has a prior-state link. The light transcript does not absorb the running claim
+     (`Lifecycle.BoundedDepth.lightAbsorbPublicInput`), and the refresh transcript absorbs the children's commitments
+     and evaluations but not the accumulator's point or public input (`Lifecycle.BoundedDepth.refreshWords`). Both bind
+     the accumulator only through the prior digest in the fresh public input. So the adversary also outputs a prior
+     state, and a success needs `PriorLink` of that state, the running claim and the fold
+     (`Spec.HyperNova.Construction2.BoundedDepthReverse.RunsBack`). The prior state is an output, as in PR #155: a link
+     to some prior state holds for almost every running claim, because many states share one digest. In an accepted
+     execution, each fold of a slot links to the prior hash preimage of its step: the fresh public input encodes the
+     hash of that preimage, and its program counter selects the slot that holds the fold's running claim
      (`Spec.HyperNova.Construction2.BoundedDepthSecurity.StepLink`,
-     `Spec.HyperNova.Construction2.BoundedDepthSecurity.slot_runsBack`).
-     The bounded-depth scheme's link also requires a well-formed prior state
-     (`Lifecycle.BoundedDepth.PriorLink`). Two linked folds with one fresh instance
-     then start from one running claim, or their two prior states give a
-     state-hash collision (`Lifecycle.BoundedDepth.priorLink_binds`). So the
-     transcript fixes the running claim before the challenges, up to a
-     collision on a pair of states that the adversary outputs.
-   - The relations have a key. A claim holds under the key of its slot, and
-     every fold of an accepted history uses the slot's key.
-   - The transcript is not the one of HyperNova Construction 5, the
-     Fiat–Shamir transform of the revision of 2026-02-20. The published
-     construction hashes the public parameters and the structure into the
-     first challenge and derives each later challenge from the prover's
-     message. The errata's construction absorbs `sid` (the structure and the
-     public parameters) and the instances before the first challenge. The
-     fold transcripts absorb a domain block,
-     the fresh statement, the children of a refresh fold and the prover
-     messages (`SPEC.md` section 5.2). The structure, the keys and the
-     accumulator enter only through the prior digest. So `Assumption1` is a
-     premise about the Nightstream transcripts, not the paper's premise about
-     Construction 5.
-   - This joint form implies Definition 7's difference form
-     `Pr[success] − Pr[extraction] ≤ error`. The converse needs an adversary
-     that stops when its own success check fails.
-   - The public parameters are a fixed commitment setup, not sampled by the
-     generator. With a fixed hash and a fixed key, an efficient algorithm that
-     contains a collision exists. So the premise can hold only for algorithms
-     that a person can write without such knowledge.
-   - The structure is a fixed application. Definition 7 lets the adversary
-     choose the structure after the public parameters, and Definition 11 lets
-     the IVC prover choose `F` from the public parameters and its coins. A
-     choice that depends on the adversary's coins is not covered.
+     `Spec.HyperNova.Construction2.BoundedDepthSecurity.slot_runsBack`). The bounded-depth scheme's link also requires a
+     well-formed prior state (`Lifecycle.BoundedDepth.PriorLink`). Two linked folds with one fresh instance then start
+     from one running claim, or their two prior states give a state-hash collision
+     (`Lifecycle.BoundedDepth.priorLink_binds`). So the transcript fixes the running claim before the challenges, up to
+     a collision on a pair of states that the adversary outputs.
+   - The relations have a key. A claim holds under the key of its slot, and every fold of an accepted history uses the
+     slot's key.
+   - The transcript is not the one of HyperNova Construction 5, the Fiat–Shamir transform of the revision of 2026-02-20.
+     The published construction hashes the public parameters and the structure into the first challenge and derives each
+     later challenge from the prover's message. The errata's construction absorbs `sid` (the structure and the public
+     parameters) and the instances before the first challenge. The fold transcripts absorb a domain block, the fresh
+     statement, the children of a refresh fold and the prover messages (`SPEC.md` section 5.2). The structure, the keys
+     and the accumulator enter only through the prior digest. So `Assumption1` is a premise about the Nightstream
+     transcripts, not the paper's premise about Construction 5.
+   - This joint form implies Definition 7's difference form `Pr[success] − Pr[extraction] ≤ error`. The converse needs
+     an adversary that stops when its own success check fails.
+   - The public parameters are a fixed commitment setup, not sampled by the generator. With a fixed hash and a fixed
+     key, an efficient algorithm that contains a collision exists. So the premise can hold only for algorithms that a
+     person can write without such knowledge.
+   - The structure is a fixed application. Definition 7 lets the adversary choose the structure after the public
+     parameters, and Definition 11 lets the IVC prover choose `F` from the public parameters and its coins. A choice
+     that depends on the adversary's coins is not covered.
    - `error` replaces `negl(λ)`.
 
-   `Spec.HyperNova.ReverseStages.Closed` is the composition premise. A second class, `StageAdmitted`, holds whole stages:
-   the reverse extractor so far, as one algorithm. An admitted stage gives an
-   admitted fold adversary, and one reverse step of an admitted stage with an
-   efficient extractor is again an admitted stage. The IVC adversary is the
-   start stage, which must be admitted. `Admitted`, `StageAdmitted` and
-   `Efficient` are abstract; their intended meaning is expected polynomial
-   time. Lean has no running-time model, so it states no false claim about
-   running time, and the closure property is a premise. Lean chooses the
-   stages with `Classical.choose`, so a numerical bound on `error` must hold
-   for the whole class. Assumption 1 is the paper's plain-model premise, not
-   a theorem. The step circuits recompute the challenges of the previous fold
-   with Poseidon2, so a recursive argument uses the concrete hash, which no
-   random-oracle model covers. In a random-oracle model of the folds,
-   Assumption 1 holds with an explicit error: adversary 3's knowledge errors
-   for each circuit key plus a truncation loss `2 · ((Q + 1) + 15 · (Q + 15))
-   / budget` for an extractor with its own oracle coins and `budget` reruns
-   (`Claims.Fold.assumption1_in_random_oracle_model`). The claim names that
-   extractor (`Lifecycle.BoundedDepth.RandomOracle.Assumption1.RomEfficient`),
-   so no other function of the same type meets it. At an
-   oracle that answers like the Poseidon2 sponge, the model's success and
-   extraction events are the walk's
-   (`Export.BoundedDepth.RomWalk.succeeds_iff_walkSucceeds`,
-   `Export.BoundedDepth.RomWalk.extracted_iff_walkExtracted`), and an honest fold
-   meets the success event (`Lifecycle.BoundedDepth.RandomOracle.Honest.light_honest`,
-   `Lifecycle.BoundedDepth.RandomOracle.Honest.refresh_honest`). One fixed oracle
-   carries no probability, so this does not prove the premise for the
-   concrete hash. The two adversaries also have different types. A
-   random-oracle attempt is a pair of an oracle and a walk attempt
-   (`Lifecycle.BoundedDepth.RandomOracle.RomModel.RomAttempt`), and the IVC
-   adversary has no oracle (`Spec.HyperNova.ReverseStages.IvcAdversary`),
-   because the step circuits evaluate the fixed permutation. So `romError`
-   bounds the same events in another experiment, and no theorem gives the
-   `error` of the premise from it.
-   Lean has no random-oracle closure premise, because the query bound of a
-   stage grows with its depth. The sum has
-   one Assumption 1 error for each stage of the reverse extractor, which is
-   one visit, and stage `j + 1` runs
-   the extractor of stage `j`, which may rerun stage `j`. So the cost of a
-   stage grows with its depth. This is the constant-depth limit of HyperNova
-   Lemma 18: the Lean statement holds for every depth, but it gives no
-   concrete security for a long history. The errata's Definition 11 states
-   knowledge soundness only for a constant number of steps that does not
-   depend on the security parameter, and its proof composes the stage
-   extractors because that number is constant. A random-oracle bound for
-   each fold does not remove this limit: each stage's adversary includes
-   the earlier stages' reruns.
-4. **Scope: the circuit selection.** HyperNova NIVC selects the circuit of a step
-   with `φ(z_i, w_i)`. The Lean step relation takes it from the machine's
-   selector of the application state and witness (`Lifecycle.BoundedDepth.machine`,
-   `Lifecycle.BoundedDepth.stepHolds_iff`). Both bounded-depth circuits run the same
-   application step, so the selector does not change the computed state.
-   `Claims.Ivc.terminal_bridge` takes the selector that returns the
-   circuit that ran on a valid step (`Export.BoundedDepth.TerminalBridge.chosen`),
-   so the prover picks the circuit. Rust picks it from the depth of the selected slot
-   (`SPEC.md` Algorithm 5): a light fold below the cap and a refresh fold at
-   the cap. The light depth guard rejects a light fold at the cap for every
-   pick. The statement `(i, z0, zi)` does not fix the circuit of a step; the
-   state hash binds the program counter of the last step only.
-5. **Gap: Rust and Lean agree on recorded inputs only.** The Rust tests compare
-   Rust's expansion of the packages, its identity code, its witness program
-   and its logical assignment with Lean exports, and they check the
-   lifecycle on fixed inputs (`SPEC.md` section 9). No theorem covers
-   arbitrary Rust execution. No Lean theorem states that the package's
-   witness program (`Export.BoundedDepth.StepPackage.Package`, field
-   `witness`) computes an assignment that the rows accept. The completeness
-   of each gadget states only that such an assignment exists
-   (`Circuit.FormalCircuit`), and the rows do not fix each hint, for example
-   the inverse of `Gadgets.Range.CanonicalU64` when the value that it inverts
-   is 0. This gap is of completeness only, because the verifier checks the
-   rows and not the program.
-6. **Gap: the memory round.** `Export.BoundedDepth.NebulaSecurity.MemoryRound`
-   states the memory round for the two step circuits as a hypothesis: for
-   each admitted stage and the memory statement of its tape, the extracted run
-   is accepted and has a segment that passes the product test with unbalanced
-   multisets with probability at most `error_mem` of that stage. It is not an
-   assumption of the list, and no result derives it from the list: the
-   relation computes `η` with the Poseidon2 permutation inside the proven
-   step, and no ideal-permutation model covers that check. The random-oracle
-   model of `η` in adversary 5 gives the form of `error_mem`:
-   `(Q_η + 1) · 2 · m_mem/q²` plus the retry term, where `Q_η` counts the
-   evaluations of the `η` transcript, in the circuit and outside it. Lean does
-   not bound the retry term with a number, because each pair that it counts
-   is a Poseidon2 collision. The owner chose this form
-   (`decisions/nebula-memory-checking.md`). The model gives the `η` oracle no
-   relation to the fold addresses (trust item 3). Their domain tags differ,
-   and two block lists with these tags are distinct
-   (`Claims.Encodings.domains_separated`). The record
-   chains need only the collision bound of trust item 2.
-7. **The compressed proof [AKITA] [KECCAK] [MSIS] [P2-PERM] [SPONGE].**
+   `Spec.HyperNova.ReverseStages.Closed` is the composition premise. A second class, `StageAdmitted`, holds whole
+   stages: the reverse extractor so far, as one algorithm. An admitted stage gives an admitted fold adversary, and one
+   reverse step of an admitted stage with an efficient extractor is again an admitted stage. The IVC adversary is the
+   start stage, which must be admitted. `Admitted`, `StageAdmitted` and `Efficient` are abstract; their intended meaning
+   is expected polynomial time. Lean has no running-time model, so it states no false claim about running time, and the
+   closure property is a premise. Lean chooses the stages with `Classical.choose`, so a numerical bound on `error` must
+   hold for the whole class. Assumption 1 is the paper's plain-model premise, not a theorem. The step circuits recompute
+   the challenges of the previous fold with Poseidon2, so a recursive argument uses the concrete hash, which no
+   random-oracle model covers. In a random-oracle model of the folds, Assumption 1 holds with an explicit error:
+   adversary 3's knowledge errors for each circuit key plus a truncation loss `2 · ((Q + 1) + 15 · (Q + 15)) / budget`
+   for an extractor with its own oracle coins and `budget` reruns (`Claims.Fold.assumption1_in_random_oracle_model`).
+   The claim names that extractor (`Lifecycle.BoundedDepth.RandomOracle.Assumption1.RomEfficient`), so no other function
+   of the same type meets it. At an oracle that answers like the Poseidon2 sponge, the model's success and extraction
+   events are the walk's (`Export.BoundedDepth.RomWalk.succeeds_iff_walkSucceeds`,
+   `Export.BoundedDepth.RomWalk.extracted_iff_walkExtracted`), and an honest fold meets the success event
+   (`Lifecycle.BoundedDepth.RandomOracle.Honest.light_honest`,
+   `Lifecycle.BoundedDepth.RandomOracle.Honest.refresh_honest`). One fixed oracle carries no probability, so this does
+   not prove the premise for the concrete hash. The two adversaries also have different types. A random-oracle attempt
+   is a pair of an oracle and a walk attempt (`Lifecycle.BoundedDepth.RandomOracle.RomModel.RomAttempt`), and the IVC
+   adversary has no oracle (`Spec.HyperNova.ReverseStages.IvcAdversary`), because the step circuits evaluate the fixed
+   permutation. So `romError` bounds the same events in another experiment, and no theorem gives the `error` of the
+   premise from it. Lean has no random-oracle closure premise, because the query bound of a stage grows with its depth.
+   The sum has one Assumption 1 error for each stage of the reverse extractor, which is one visit, and stage `j + 1`
+   runs the extractor of stage `j`, which may rerun stage `j`. So the cost of a stage grows with its depth. This is the
+   constant-depth limit of HyperNova Lemma 18: the Lean statement holds for every depth, but it gives no concrete
+   security for a long history. The errata's Definition 11 states knowledge soundness only for a constant number of
+   steps that does not depend on the security parameter, and its proof composes the stage extractors because that number
+   is constant. A random-oracle bound for each fold does not remove this limit: each stage's adversary includes the
+   earlier stages' reruns.
+4. **Scope: the circuit selection.** HyperNova NIVC selects the circuit of a step with `φ(z_i, w_i)`. The Lean step
+   relation takes it from the machine's selector of the application state and witness (`Lifecycle.BoundedDepth.machine`,
+   `Lifecycle.BoundedDepth.stepHolds_iff`). Both bounded-depth circuits run the same application step, so the selector
+   does not change the computed state. `Claims.Ivc.terminal_bridge` takes the selector that returns the circuit that ran
+   on a valid step (`Export.BoundedDepth.TerminalBridge.chosen`), so the prover picks the circuit. Rust picks it from
+   the depth of the selected slot (`SPEC.md` Algorithm 5): a light fold below the cap and a refresh fold at the cap. The
+   light depth guard rejects a light fold at the cap for every pick. The statement `(i, z0, zi)` does not fix the
+   circuit of a step; the state hash binds the program counter of the last step only.
+5. **Gap: Rust and Lean agree on recorded inputs only.** The Rust tests compare Rust's expansion of the packages, its
+   identity code, its witness program and its logical assignment with Lean exports, and they check the lifecycle on
+   fixed inputs (`SPEC.md` section 9). No theorem covers arbitrary Rust execution. No Lean theorem states that the
+   package's witness program (`Export.BoundedDepth.StepPackage.Package`, field `witness`) computes an assignment that
+   the rows accept. The completeness of each gadget states only that such an assignment exists
+   (`Circuit.FormalCircuit`), and the rows do not fix each hint, for example the inverse of `Gadgets.Range.CanonicalU64`
+   when the value that it inverts is 0. This gap is of completeness only, because the verifier checks the rows and not
+   the program.
+6. **Gap: the memory round.** `Export.BoundedDepth.NebulaSecurity.MemoryRound` states the memory round for the two step
+   circuits as a hypothesis: for each admitted stage and the memory statement of its tape, the extracted run is accepted
+   and has a segment that passes the product test with unbalanced multisets with probability at most `error_mem` of that
+   stage. It is not an assumption of the list, and no result derives it from the list: the relation computes `η` with
+   the Poseidon2 permutation inside the proven step, and no ideal-permutation model covers that check. The random-oracle
+   model of `η` in adversary 5 gives the form of `error_mem`: `(Q_η + 1) · 2 · m_mem/q²` plus the retry term, where
+   `Q_η` counts the evaluations of the `η` transcript, in the circuit and outside it. Lean does not bound the retry term
+   with a number, because each pair that it counts is a Poseidon2 collision. The owner chose this form
+   (`decisions/nebula-memory-checking.md`). The model gives the `η` oracle no relation to the fold addresses (trust item
+   3). Their domain tags differ, and two block lists with these tags are distinct
+   (`Claims.Encodings.domains_separated`). The record chains need only the collision bound of trust item 2.
+7. **The compressed proof [KECCAK] [MSIS] [P2-PERM] [SPONGE].**
    Adversary 6 has these premises.
-   - *The premises of the Lean result.* `Claims.Compression.argument_sound`
-     takes these hypotheses.
-     `Spec.Compression.Verifier.WellFormed` (each slice is aligned and
-     inside the cube of `W`), the bound `2^25` on the cells of a witness
-     slice and the bound of the key on the blocks of a claim hold for the
-     layout of the Lean model of `Layout::new`
-     (`Spec.Compression.Rust.layoutNew_production`), when each claim has at
-     least its 320 public cells, which the shape check of Rust `layout`
-     makes. `Spec.Compression.Rust.layout_soundness` states the bound
-     without these premises. The premise is that Rust `Layout::new` is the
-     model: tests compare the two on each claim set of the reference
-     application and on generated claim sets, and no proof does.
-     `Spec.Compression.Verifier.CountsNonzero` (`2^vars` is below the
-     characteristic of `F_q`) follows from the bound `2^25`
-     (`Spec.Compression.Production.params_countsNonzero`). `Spec.Compression.Verifier.MatrixSpec`
-     (the verifier's matrix part is the multilinear extension of the matrix
-     weights) is a theorem for the Lean model of Rust `matrix_part`
-     (`Spec.Compression.Verifier.matrixPass_spec`), and
-     `Claims.Compression.production_sound` states the bound at the
-     production parameters without it. The model is a transcription of the
-     Rust code by hand. Lean emits the output of the model on three sample
-     cases: relations of 5 to 16 rows with slots across one and two block
-     borders, two claims on one relation and claims on two relations of one
-     size (`Export.MatrixPassParity.pass_matrixSpec` gives `MatrixSpec` for
-     the function that the emitter runs). The Rust test
-     `the_matrix_part_is_the_lean_matrix_pass` requires that `matrix_part`
-     gives these outputs. No data compares the two on the rows of the step
-     circuits. Lean defines the factored rows of a package
-     (`Export.BoundedDepth.FinalRows.packageRows`), but the model of
-     `matrix_part` takes about 0.1 s for each row of a sample relation, which
-     is hours for the more than 650,000 rows of the two circuits. Rust tests compare `matrix_part` with
-     its Rust definition on those rows. `L ≤ 2^2` and
-     `κ ≤ 2^5` are const asserts in Rust, and `params_soundness` proves them
-     at the production values. `slot_holds` also takes the hypothesis
-     `Spec.Compression.Claim.Represents`: the dense rows of a slot claim are
-     the matrices of its circuit's relation on the claim's cells. Rust builds
-     these rows from the package that `SPEC.md` Algorithm 2 pins. Lean's
-     model of them is `Export.BoundedDepth.FinalRows.packageRows`, and these
-     rows represent the circuit's relation
-     (`Export.Generic.PackageRows.rows_represents`). The premise `rows` of
-     the final claims is that Rust builds rows with the same dense matrices.
-     Lean emits a checksum of the model's dense matrices
-     (`Export.BoundedDepth.RowsParity.fastSum_eq`), and the test
-     `factored_rows_match_the_lean_dense_checksum` computes it from Rust's
-     plan rows and spans for both packages of the reference application
-     and of each Nebula program.
-     It also
-     needs that Rust gives each slot claim to the argument with the values
-     of `Lifecycle.BoundedDepth.CompressionSlot.claimValues`, which no check
-     compares. The model has three more
-     premises. First, the Akita openings are ideal: an opening is accepted
-     only when the committed table has the opened value. The prover
-     commits the tables at two times (`SPEC.md` section 5.4): `W` before
-     the Π_CCS run and the lookup challenges `τ` (row 2), and `V`, whose
-     cells are `1/(τ_k − W(x))`, after `τ` (row 9). The game has the same
-     order: `W` before `τ`, and `V` after `τ` and before the other
-     challenges (`Spec.Compression.Verifier.afterTables`). For Akita
-     openings, a win is a failure of the fixed-setup extractor, a
-     break of the binding of the key, or a win in which the extractor
-     returns the tables with the key polynomial
-     (`Spec.Compression.Akita.Use.wins_le`). The premise `composition`
-     bounds the last event by the event of one prover of the game, whose IVC
-     adversary must be admitted (trust item 3).
-     `Export.BoundedDepth.FinalVerifier.Premises` collects the premises on
-     the setup: `Represents` for the dense rows of each circuit, and at
-     most the blocks of its package for each claim. The final claims meet
-     them from the premise `rows`
-     (`Export.BoundedDepth.FinalRows.premises_of_rows`). The game runs the
-     gate of step 5 of `SPEC.md` Algorithm 10
-     (`Export.BoundedDepth.FinalVerifier.Setup.Gate`). It rejects a key
-     whose block count is not the count of Algorithm 11, claims that the
-     Lean model of Rust `Layout::new` does not lay out or that have fewer
-     than 320 cells, and a layout whose `error_bits` is below the security
-     minimum. It takes its layout from that model. That layout has the
-     production bounds (`Export.BoundedDepth.FinalVerifier.Setup.layout_facts`),
-     so the premise on the layout is that Rust `Layout::new` is the model,
-     as above. The game
-     takes the slot claims before `W` and the run of Π_CCS, and Rust absorbs
-     only `x`, their Poseidon2 hash, before that run, so the slot claims are
-     bound through `x` up to a collision of trust item 2. Second, the key
-     polynomial is the honest key. Rust enforces
-     this with the pin of the full bytes of the verification key
-     (`crates/ns-compress/artifacts/key20.vk`, `crates/ns-compress/artifacts/key30.vk`),
-     not with a digest. Third, each draw is uniform for each query. This is
-     the sponge of `[SPONGE]` under `[P2-PERM]` only if the compression
-     transcript absorbs an injective framing of its messages with a domain of
-     its own. Lean proves both for the words of the transcript: its sponge
-     calls fix the run among the runs of one statement shape
-     (`Export.BoundedDepth.CompressionSponge.calls_injective`), and they
-     start with a domain that no other use starts with
-     (`Export.DomainSeparation.compression_owns`,
-     `Claims.Encodings.domains_separated`). Rust tests compare the words with
-     Rust (section Hashed encodings). The gap is the join: no theorem states
-     that the draws of `Spec.Compression.Verifier.game` are the reads of this
-     sponge, so no result applies `Spec.Sponge.Transfer` to the game. Lean
-     models the order: each path of the game receives and draws the rows of
-     `SPEC.md` section 5.4 in order (`Spec.Compression.Rust.game_follows`),
-     and a test replays a real proof in that order and checks each
-     challenge of `verify`. Akita's own transcript is not modeled (row Akita
-     transcript of section Hashed encodings).
-   - *The mode.* The verifier takes the mode from its own circuit, and a
-     proof of the other mode has another tag and another slot count, which
-     the verifier rejects (`SPEC.md` Algorithm 10, step 3). Rust selects the
-     light mode for a memory circuit whose geometry has `N · S_max ≤ 65`
-     (`SPEC.md` Algorithm 9). Each verifier sees one mode, so the compression
-     transcript has no mode word, and `calls_injective` covers the one
-     statement shape of each circuit. The soundness of the light mode needs
-     no bound on the iteration. Its completeness needs one: an honest run of
-     at most `cap + 1` steps has a proof in the light mode
-     (`Claims.Ivc.light_run_complete`,
-     `Export.BoundedDepth.FinalVerifier.checks_light`), and the memory
-     verifier accepts no longer run of a WASM size
-     (`Claims.Nebula.memory_light_complete`). When the verifier's key is
-     the key of Algorithm 11 and has `2^19` blocks, and its security
-     minimum is at most 118 bits, that proof also passes the whole gate of
-     step 5 (`Claims.Final.light_gate_complete`). Each light layout that the
-     model accepts at a depth at most the cap has `error_bits` 119 for the small key and 118 for the large key
-     (`Claims.Compression.light_error_bits`). No theorem derives the key of
-     `2^19` blocks from a package. The test
-     `error_bits_and_the_gate_match_the_lean_bound_on_each_light_claim_set`
-     checks it for the reference application, and the fold gate holds the
-     minimum to 115 bits. In the light mode, `compress` checks the claim and the
-     depth of slot 1 but not its witness, and it commits only the witness
-     of slot 0 (`crates/nightstream/src/lifecycle/bounded_depth/compression.rs`,
-     `check_light_envelope`). So it turns a proof whose slot 1 witness is
-     changed into a final proof that Algorithm 10 accepts. The statement is
-     still true, because the zero witness opens the default slot
-     (`Export.BoundedDepth.StepExtend.defaultSlot_holds`). `[HN-A1]` for the
-     refresh fold and its knowledge error stay premises of the circuits that
-     keep both slots (trust item 3).
-   - *The compression key.* The verifier's key is the key of `SPEC.md`
-     Algorithm 11. It holds the Akita commitment of the key polynomial of
-     the production Ajtai key, and Akita's commitments of the prefixes of
-     its setup from Akita's public seed. The code pins the bytes of this key
-     for each block count, and a test computes each pinned key again from
-     the public seeds. `Verifier::compression_key` gives the pinned key,
-     and `Verifier::decode_compression_key` accepts loaded bytes only when
-     they equal it, so the pin enforces the premise for each key that the
-     verifier uses. Under another key, Akita gives no binding, and the
-     verifier can accept a false statement. The pin is a value in the code,
-     and the test is the check of the pin. No Lean result covers either.
-     The Lean result takes the honest key as a premise.
-   - *Akita `[AKITA]` and the gap of `V`.* The one Akita proof opens
-     the key polynomial, `W` and `V`. The prover uses the optimized Akita fork.
-     The verifier uses upstream Akita (ePrint 2026/1983), revision
-     `d50f700f`, crate version 0.1.0, with the configuration
-     `RecursiveCommitmentConfig<fp64::Dense>` and the schedule files of
-     `SPEC.md` section 3 (`Spec.Compression.Akita.Use`). Akita Theorem 10.46 (revision of
-     2026-10-15) bounds extraction failure for an admissible schedule (Akita Definition 9.2)
-     and a prover with `Q ≤ Q_max` queries to `H_FS`. Akita Definition 3.7 draws the
-     public setup inside this experiment. The error is `(Q + 1) · ε_int + Δ_setup + Σ_I Adv_I(B_I)`,
-     with `Δ_setup ≤ N_setup · q / 2^w`. Akita Lemma 10.47 adds `ε_hash` for the SHA3-256
-     digests of the last terminal block and the root commitments.
-     The verifier uses one pinned setup, including its offloaded prefix commitments.
-     The premise `akita.fixedSetup` requires this same bound for the pinned parameters
-     (`Spec.Compression.Akita.Schedule.knowledgeError`). It is open. Pinning the key
-     checks its identity. It supplies no bound on extraction failure for this key.
-     Schedule admissibility is a separate premise (`akita.admissible`). It fails for
-     `key30.aks` and remains open for `key20.aks`.
-     Under `[AKITA]`, the commitment of the compression key binds the key polynomial
-     (`Spec.Compression.Akita.Use.Binding`, premise `binding`).
-     The open premise `composition` bounds a win in which the extractor returns the
-     tables by a win of the game (`Spec.Compression.Akita.Use.Composition`).
-     The composition theorem of Akita (Theorem 10.45) has every root
-     commitment in the first message, before the first challenge of the
-     application, so it does not cover the commitment of `V` after `τ`.
-     Akita's checkpoint structures (Definition 10.16) allow more than one
-     checkpoint, but no result of the paper states the composition with a
-     second commitment, and Lean does not prove it. The premise also covers
-     `W`: Lean does not prove the conditions of Theorem 10.45 for the
-     argument, and the premise joins the Poseidon2 transcript of the game to
-     Akita's Keccak transcript.
-     Lean proves the rest of the step (`Spec.Compression.Akita.Use.wins_le`).
-     Akita states a target of a 128-bit Fiat–Shamir rate for each
-     random-oracle query. Its documentation says that this target is not an
-     end-to-end bound and that it declares no query budget, no bound on the
-     size of the extraction tree and no reduction loss. Akita has no audit
-     and no analysis in the quantum random-oracle model.
-   - *The Keccak family `[KECCAK]`.* Akita makes its challenges with a
-     Keccak-f duplex sponge, its digests with SHA3-256, its session
-     identifier with SHAKE128 and its setup with SHAKE256. No step circuit
-     computes these functions. The owner accepted this hash family for
-     Akita on 2026-11-13 (`decisions/akita-compression.md`).
-   - *Module-SIS for the Akita commitments `[MSIS]`.* Akita prices each of its
-     Module-SIS instances at 169 bits or more in the ADPS16 quantum cost
-     model (policy `Quantum169BitADPS16`). Akita states that this price is
-     for one attack family on a scalar instance, that it does not price
-     attacks on the ring or module structure, and that it does not include
-     the loss of the reduction. The Ajtai commitments of the claims keep
-     the lower estimate of trust item 2.
-   - *The Poseidon2 sponge for the argument `[P2-PERM]` `[SPONGE]`.* The
-     Poseidon2 sponge makes each challenge of the Π_CCS run and of the
-     argument (`SPEC.md` section 5.4). Each term of the Rust sum of `SPEC.md`
-     section 3 is for one interactive run, and Lean proves that the exact
-     sum bounds one interactive run
-     (`Spec.Compression.Rust.params_run_soundness`). In the
-     state-restoration model with `Q` queries, Lean bounds the
-     non-interactive argument by `Q · error`
-     (`Claims.Compression.argument_sound`), and `error` is at most the
-     exact sum (`Spec.Compression.Rust.error_le_runError`). Lean bounds the
-     Π_CCS run with one source by `Q · 38/q²`
-     (`Claims.Compression.fresh_sound`). The sponge meets this model, up
-     to `spongeError N`, only under the open conditions of the third premise
-     above.
-   - *Separation of the two transcripts.* The session bytes of the Akita
-     proof are a label and lanes 0 to 3 of the Poseidon2 sponge state
-     after the last message of the argument, so they bind the opening to
-     each earlier message, the bytes of the compression key included,
-     unless these four lanes collide (trust item 2). The Π_CCS run and the
-     argument have their own domain blocks, which differ from the fold
-     domains. `[P2-PERM]` and `[KECCAK]` make the permutation and the Keccak
-     functions independent. The compression domains, as Lean restates them,
-     are separated from the fold domains (`Claims.Encodings.domains_separated`),
-     but no emitted data compares the restated tags with Rust.
-     `Claims.Final.history_sound` puts the draws of the
-     argument and of the Π_CCS run on the tape of an IVC adversary whose
-     folds use Poseidon2 (trust item 3), so it also needs the separation of
-     the compression domains from the fold domains.
-   - *The error of the argument.* Lean bounds it by `Q · error`, with
-     `error < 2^−119` at the production shapes
-     (`Claims.Compression.production_error`). Rust bounds the
-     sum of `SPEC.md` section 3 for one interactive run, about `2^−118.81`
-     for the reference application at 4 lookup challenges, by `2^−118` in
-     integers. To either, add
-     the error of a Π_CCS run with one source, which Rust does not compute. Rust holds the Π_CCS test error for 17
-     sources to the caller's security minimum (`SPEC.md` section 3).
-   - *The Rust code.* Trust item 5 applies. The tests check fixed inputs.
-     The verifier does not expand the Ajtai key, but the key polynomial
-     that the compression key commits is the SHAKE128 key of `SPEC.md`
-     Algorithm 1. So premise P1 applies to it as it does to `SPEC.md`
-     Algorithm 6.
+   - *The premises of the Lean result.* `Claims.Compression.argument_sound` takes these hypotheses.
+     `Spec.Compression.Verifier.WellFormed` (each slice is aligned and inside the cube of `W`), the bound `2^25` on the
+     cells of a witness slice and the bound of the key on the blocks of a claim hold for the layout of the Lean model of
+     `Layout::new` (`Spec.Compression.Rust.layoutNew_production`), when each claim has at least its 320 public cells,
+     which the shape check of Rust `layout` makes. `Spec.Compression.Rust.layout_soundness` states the bound without
+     these premises. The premise is that Rust `Layout::new` is the model: tests compare the two on each claim set of the
+     reference application and on generated claim sets, and no proof does. `Spec.Compression.Verifier.CountsNonzero`
+     (`2^vars` is below the characteristic of `F_q`) follows from the bound `2^25`
+     (`Spec.Compression.Production.params_countsNonzero`). `Spec.Compression.Verifier.MatrixSpec` (the verifier's matrix
+     part is the multilinear extension of the matrix weights) is a theorem for the Lean model of Rust `matrix_part`
+     (`Spec.Compression.Verifier.matrixPass_spec`), and `Claims.Compression.production_sound` states the bound at the
+     production parameters without it. The model is a transcription of the Rust code by hand. Lean emits the output of
+     the model on three sample cases: relations of 5 to 16 rows with slots across one and two block borders, two claims
+     on one relation and claims on two relations of one size (`Export.MatrixPassParity.pass_matrixSpec` gives
+     `MatrixSpec` for the function that the emitter runs). The Rust test `the_matrix_part_is_the_lean_matrix_pass`
+     requires that `matrix_part` gives these outputs. No data compares the two on the rows of the step circuits. Lean
+     defines the factored rows of a package (`Export.BoundedDepth.FinalRows.packageRows`), but the model of
+     `matrix_part` takes about 0.1 s for each row of a sample relation, which is hours for the more than 650,000 rows of
+     the two circuits. Rust tests compare `matrix_part` with its Rust definition on those rows.
+     `params_soundness` proves `κ ≤ 2^5` at the production rank. `slot_holds` also takes the
+     hypothesis `Spec.Compression.Claim.Represents`: the dense rows of a slot claim are the matrices of its circuit's
+     relation on the claim's cells. Rust builds these rows from the package that `SPEC.md` Algorithm 2 pins. Lean's
+     model of them is `Export.BoundedDepth.FinalRows.packageRows`, and these rows represent the circuit's relation
+     (`Export.Generic.PackageRows.rows_represents`). The premise `rows` of the final claims is that Rust builds rows
+     with the same dense matrices. Lean emits a checksum of the model's dense matrices
+     (`Export.BoundedDepth.RowsParity.fastSum_eq`), and the test `factored_rows_match_the_lean_dense_checksum` computes
+     it from Rust's plan rows and spans for both packages of the reference application and of each Nebula program. It
+     also needs that Rust gives each slot claim to the argument with the values of
+     `Lifecycle.BoundedDepth.CompressionSlot.claimValues`, which no check compares. The model has three more premises.
+     First, the Akita openings are ideal: an opening is accepted only when the committed table has the opened value. The
+     prover commits the tables at two times (`SPEC.md` section 5.4): `W` before the Π_CCS run and the lookup challenges
+     `τ` (row 2), and `V`, whose slot cells are `1/Π_k(τ_k − W(x))`, after `τ` (row 9). The game has the same order: `W` before
+     `τ`, and `V` after `τ` and before the other challenges (`Spec.Compression.Verifier.afterTables`). The claims with
+     Akita openings have the extraction and its composition with the game inside their results (items below).
+     `Export.BoundedDepth.FinalVerifier.Premises`
+     collects the premises on the setup: `Represents` for the dense rows of each circuit, and at most the blocks of its
+     package for each claim. The final claims meet them from the premise `rows`
+     (`Export.BoundedDepth.FinalRows.premises_of_rows`). The game runs the gate of step 5 of `SPEC.md` Algorithm 10
+     (`Export.BoundedDepth.FinalVerifier.Setup.Gate`). It rejects a key whose block count is not the count of Algorithm
+     11, claims that the Lean model of Rust `Layout::new` does not lay out or that have fewer than 320 cells, and a
+     layout whose `error_bits` is below the security minimum. It takes its layout from that model. That layout has the
+     production bounds (`Export.BoundedDepth.FinalVerifier.Setup.layout_facts`), so the premise on the layout is that
+     Rust `Layout::new` is the model, as above. The game takes the slot claims before `W` and the run of Π_CCS, and Rust
+     absorbs only `x`, their Poseidon2 hash, before that run, so the slot claims are bound through `x` up to a collision
+     of trust item 2. Second, the key polynomial is the honest key. Rust enforces this with the pin of the full bytes of
+     the verification key (`crates/ns-compress/artifacts/key20.vk`, `crates/ns-compress/artifacts/key30.vk`), not with a
+     digest. Third, each draw is uniform for each query. This is the sponge of `[SPONGE]` under `[P2-PERM]` only if the
+     compression transcript absorbs an injective framing of its messages with a domain of its own. Lean proves both for
+     the words of the transcript: its sponge calls fix the run among the runs of one statement shape
+     (`Export.BoundedDepth.CompressionSponge.calls_injective`), and they start with a domain that no other use starts
+     with (`Export.DomainSeparation.compression_owns`, `Claims.Encodings.domains_separated`). Rust tests compare the
+     words with Rust (section Hashed encodings). The gap is the join: no theorem states that the draws of
+     `Spec.Compression.Verifier.game` are the reads of this sponge, so no result applies `Spec.Sponge.Transfer` to the
+     game. Lean models the order: each path of the game receives and draws the rows of `SPEC.md` section 5.4 in order
+     (`Spec.Compression.Rust.game_follows`), and a test replays a real proof in that order and checks each challenge of
+     `verify`. The Akita replay derives its challenges from the proof bytes (row Akita transcript of section Hashed encodings).
+   - *The mode.* The verifier takes the mode from its own circuit, and a proof of the other mode has another tag and
+     another slot count, which the verifier rejects (`SPEC.md` Algorithm 10, step 3). Rust selects the light mode for a
+     memory circuit whose geometry has `N · S_max ≤ 65` (`SPEC.md` Algorithm 9). Each verifier sees one mode, so the
+     compression transcript has no mode word, and `calls_injective` covers the one statement shape of each circuit. The
+     soundness of the light mode needs no bound on the iteration. Its completeness needs one: an honest run of at most
+     `cap + 1` steps has a proof in the light mode (`Claims.Ivc.light_run_complete`,
+     `Export.BoundedDepth.FinalVerifier.checks_light`), and the memory verifier accepts no longer run of a WASM size
+     (`Claims.Nebula.memory_light_complete`). When the verifier's key is the key of Algorithm 11 and has `2^19` blocks,
+     and its security minimum is at most 118 bits, that proof also passes the whole gate of step 5
+     (`Claims.Final.light_gate_complete`). Each light layout that the model accepts at a depth at most the cap has
+     `error_bits` 119 for the small key and 118 for the large key (`Claims.Compression.light_error_bits`). No theorem derives the key of `2^19` blocks from a
+     package. The test `error_bits_and_the_gate_match_the_lean_bound_on_each_light_claim_set` checks it for the
+     reference application, and the fold gate holds the minimum to 115 bits. In the light mode, `compress` checks the
+     claim and the depth of slot 1 but not its witness, and it commits only the witness of slot 0
+     (`crates/nightstream/src/lifecycle/bounded_depth/compression.rs`, `check_light_envelope`). So it turns a proof
+     whose slot 1 witness is changed into a final proof that Algorithm 10 accepts. The statement is still true, because
+     the zero witness opens the default slot (`Export.BoundedDepth.StepExtend.defaultSlot_holds`). `[HN-A1]` for the
+     refresh fold and its knowledge error stay premises of the circuits that keep both slots (trust item 3).
+   - *The compression key.* The verifier's key is the key of `SPEC.md` Algorithm 11. It holds the Akita commitment of
+     the key polynomial of the production Ajtai key, and Akita's commitments of the prefixes of its setup from Akita's
+     public seed. The code pins the bytes of this key for each block count, and a test computes each pinned key again
+     from the public seeds. `Verifier::compression_key` gives the pinned key, and `Verifier::decode_compression_key`
+     accepts loaded bytes only when they equal it, so the pin enforces the premise for each key that the verifier uses.
+     Under another key, Akita gives no binding, and the verifier can accept a false statement. The pin is a value in the
+     code, and the test is the check of the pin. No Lean result covers either. The Lean result takes the honest key as a
+     premise.
+   - *The Akita opening and the gap of `V`.* The one Akita proof opens the key polynomial, `W` and `V`. The prover uses the optimized Akita fork. The verifier uses upstream Akita
+     (ePrint 2026/1983), revision `d50f700f`, crate version 0.1.0, with the configuration
+     `RecursiveCommitmentConfig<fp64::Dense>` and the schedule files of `SPEC.md` section 3. No claim takes Akita
+     Theorem 10.46 as a premise. Its conditions (Akita Definition 9.2) fail for `key30.aks`, which is not in the family
+     F1 (`Spec.Compression.Akita.Schedule.not_admissible_key30`). The composition theorem of Akita (Theorem 10.45) has
+     every root commitment in the first message, before the first challenge of the application, so it does not cover
+     the commitment of `V` after `τ`. Akita's checkpoint structures (Definition 10.16) allow more than one checkpoint,
+     but no result of the paper states the composition with a second commitment. Lean proves it for `key20.aks`
+     (`Claims.AkitaKey20.key20_verifier_sound`) and, under the hypotheses of the items below, for `key30.aks`
+     (`Claims.AkitaKey30.key30_verifier_sound`). The commitment of the compression key binds the key polynomial under
+     `[MSIS]` for each extractor of Akita Definition 3.7 (`Claims.Compression.key_binding`, item below) for the
+     scheme whose decommitment relation is the certified
+     relation: Akita Definition 10.21 with the weak certificate of Akita Definition 10.22
+     (`Spec.Compression.Akita.Certified.Opens`). Akita's `Rel_com` (Definition 10.21) has no norm bound on the source
+     blocks, so it is not binding alone. The documentation of the Akita code states a target of a 128-bit Fiat–Shamir
+     rate for each random-oracle query. It says that this target is not an end-to-end bound and that the code declares
+     no query budget, no bound on the size of the extraction tree and no reduction loss. The paper has a complete
+     formula, that of Theorem 10.46, and no evaluated end-to-end number for a schedule. Akita has no audit and no
+     analysis in the quantum random-oracle model.
+   - *What Lean proves of Akita.* The results are the claims of `Claims.Akita` and `Claims.AkitaKey20`. They and the
+     claims of `Claims.AkitaKey30` are Nightstream bounds, not the bound of Akita Theorem 10.46. One query of the model
+     returns all the slots of a key, and the paper counts a query for each indexed coordinate stream (Akita Section
+     10.3). No Lean result relates the two counts, and the shipped files have no `(λ_FS, Q_max)`. A bound with no term
+     `breakChance` is for acceptance with no output of the extractor, and a solution of Module-SIS is an output, so
+     it is not the knowledge error of the paper. The main claim is
+     `Claims.AkitaKey20.key20_verifier_sound`, from `Export.BoundedDepth.FinalKey20.sound`. It is for the schedule of
+     `key20.aks`: a root of three groups, level 1 with coefficient packing, levels 2 to 5 with evaluation trace and the
+     terminal, with the quotient-lift check at the root and at level 1, and with the squared-norm route at levels 3 to 5
+     and at the terminal (`Spec.Compression.Akita.Key20.tower_suffix`). The prover has at most `Q` queries to one
+     uniform table on message keys (item below). The final verifier with these openings
+     (`Spec.Compression.Akita.Extract.towerAccepts`) accepts a statement for which no proof with witnesses satisfies
+     `Verifies` with probability at most `(Q + 1) · (runCost + 317479/(1024·|K|) + 135 · p) + (Q + 1) · 144/budget
+     + breakChance`. `runCost` is the sum of the bounds of the draws of the Π_CCS run and of the argument
+     (`Export.BoundedDepth.FinalVerifier.Setup.runCost`). `317479/(1024·|K|) + 135 · p` bounds the stage errors of
+     the opening, which has 135 fold coordinates (`Spec.Compression.Akita.Key20.towerError_le`). A slot is
+     `Spec.Compression.Akita.Replay.CodeSlot K`, and the fold decoders are those of the code: `p ≤ 2^−128` without a filter, for words of 128 or 129 bits (`Spec.Compression.Akita.Replay.slotChance_open`), and `p ≤ 1/|Kept G|` with it (`Spec.Compression.Akita.Replay.slotChance_kept64`), so
+     with `kept` the exact fold term is at most `135/2^128`. The claims state `p ≤ 1/q²` and the bound `455719/(1024·q²)`
+     (`Spec.Compression.Akita.Replay.slotChance_kept64_field`, `Claims.AkitaKey20.key20_opening_bound`). For these
+     decoders Lean proves the unit differences (`Claims.Akita.short_units`) and the sparse challenges. The operator bound `Γ` of the filtered families is a theorem for the filter of the code
+     (Akita Theorem H.1, `TrigTable.filtered_code`), with the error bound of its tables (`TrigTable.code_accurate`). The extractor has 144 retry loops,
+     each with at most `budget` attempts. The result closes the gap of `V` inside itself, with two checkpoints of Akita
+     Definition 10.16 in sequence. The first has the candidate `W`, and its stages are the Π_CCS run and the draw of
+     `τ`. The second has the candidate `W` and `V` (`Spec.Compression.Akita.Extract.Compose.suffix`, for the two parts
+     of the game of `Export.BoundedDepth.FinalVerifier.Setup.game_eq`). The parts of the proof are Akita Theorem 10.17
+     (`Claims.Akita.checkpoint_extraction`, `Claims.Akita.checkpoint_sound`), the suffix of Akita Proposition 10.44 with
+     the batching root (`Claims.AkitaKey20.key20_opening_sound`, `Claims.AkitaKey20.key20_opening_bound`), and Akita Lemma 10.23
+     and Akita Corollary 10.32 for a fold (`Claims.Akita.fold_weak_binding`, `Claims.Akita.fold_extracts`, and
+     `Claims.Akita.trace_weak_binding`, `Claims.Akita.trace_extracts` at a trace level). `breakChance` is the `[MSIS]`
+     term: the probability that the extractor returns a solution of Module-SIS
+     (`Export.BoundedDepth.FinalAkita.breakChance`). The instances are the key commitment, at `η_A` of the key
+     group, at or above the norm of the reduction (`covers`); `A` of the root and of each level, at `η_A = 2 · κ̄_1 · Δ^cert_f` on the
+     coefficient route and at the squared radius `64 · Γ² · S_max` on the squared-norm route; `B` and `D`, at `b⋆ − 1`;
+     a compression map, at 1; and the matrix of the terminal, at its squared radius
+     (`Spec.Compression.Akita.Extract.Route.Break`). The solver runs the prover at most `K̂ + (Q + 1)(K̂ − 1)` times in
+     expectation, with `K̂ = 4 · 21,449,539,584`: the tree size of the opening and a factor 2 for each checkpoint of the
+     argument (`Claims.Akita.checkpoint_runs`, `Export.BoundedDepth.FinalAkita.mixed_runs_le`). These are hypotheses of
+     `sound`. Lean proves them for the decoders of the code above, and it proves the operator
+     bound for the filter of the code. Each difference of two challenges of a family is a unit, for which Akita cites Lyubashevsky and
+     Seiler. Each challenge is sparse, and at the squared-norm levels it has the operator bound `Γ`
+     (`Spec.Compression.Akita.UnitDifferences`, `Spec.Compression.Akita.Sparse`, `Spec.Compression.Akita.MulBound`). `p`
+     is at least the largest probability of one challenge under the slot decoder of each family
+     (`Spec.Compression.Akita.Extract.slotChance`). The final verifier needs at least 30 slots per answer (`coords`). The fold coordinates
+     of a level have different slots. `registered`: the key commitment of the verifier has a certified decommitment to
+     the key polynomial. `use` (`Export.BoundedDepth.FinalKey20.Use`): the claims pass the layout of step 5 of `SPEC.md`
+     Algorithm 10, the key polynomial has 512 blocks, and the opening point of `V` has the zero count of the layout
+     (`Export.BoundedDepth.FinalKey20.laidZeros`). Then the three opening points have 20, 16 and 16 coordinates
+     (`Claims.AkitaKey20.key20_points`, `Export.BoundedDepth.FinalKey20.Use.points`), and the block counts of the Lean
+     schedule agree with the points of its links (`Claims.AkitaKey20.key20_blocks`). No Lean result compares `laidZeros` with
+     the Rust code. The premises of the final verifier are those of `Claims.Final.verifier_sound`. `sound` is for one
+     claim shape: one `pc` and one depth for each slot. For a finite family of shapes, the verifier
+     `Export.BoundedDepth.FinalKey20.finalAccepts` accepts a statement of zero steps, with no draw and no error term, or
+     it is the verifier of the shape that the first message names. Its bound
+     `Export.BoundedDepth.FinalKey20.shapesBound` is the sum of the bound above over the shapes, so it has the number of
+     the shapes as a factor (`Export.BoundedDepth.FinalKey20.sound_all`, `Export.BoundedDepth.FinalKey20.knowledge_all`,
+     and `Claims.AkitaKey20.key20_verifier_sound` in the form of `Claims.Final.verifier_sound`). In this game, a false
+     history (`Export.BoundedDepth.FinalKey20.FalseHistory`) has a probability of at most `shapesBound + walkBound`,
+     with `Export.BoundedDepth.IvcSecurity.walkBound` for a bound `depth` on the accepted iterations, and the same bound
+     holds for the witnesses of the reverse extractor (`Claims.AkitaKey20.key20_history_sound`,
+     `Claims.AkitaKey20.key20_history_knowledge`). A false memory statement has the bound `shapesBound` plus the terms of `Claims.Nebula.memory_sound` in this game (`Claims.AkitaKey20.key20_memory_sound`). The opening verifier of
+     the tower accepts the honest prover at these numbers if the fit conditions hold for its responses
+     (`Spec.Compression.Akita.Key20.tower_complete`). With the fit conditions as the hypothesis `fit` it accepts for each family of
+     tables (`Claims.AkitaKey20.key20_opening_accepts`, `Spec.Compression.Akita.Key20.fit_zero`, `Spec.Compression.Akita.Key20.fit_quiet`). Levels 1 to 5 have the bounded source of
+     Akita Section 4.5, and the full-field condition is false for them (`Spec.Compression.Akita.Key20.not_honest`). The
+     whole verifier accepts an honest proof for each table whose answers decode to fold challenges and to no challenge
+     of the reject set of the argument (`Export.BoundedDepth.FinalKey20.complete`,
+     `Export.BoundedDepth.FinalKey20.accepts`). One answer decodes to a challenge of this set
+     (`Spec.Compression.Verifier.Rejects`) with a probability of at most `tableError + omegaError`
+     (`Spec.Compression.Verifier.rejects_mass_le`). This acceptance has two hypotheses that no Lean result gives:
+     `leads`, the honest run of Π_CCS on the fresh instance, and `fit`, the fit of the honest responses. The
+     completeness of Akita Theorem 10.9 is not perfect: a response does not fit with a probability. The verifier has the nonce of the response search with its limit `2^12` (`Spec.Compression.Akita.Extract.Tier.Decodes`). For the root and level 1 of `key20.aks` and decoders with `Spec.Compression.Akita.SignFair`, each nonce fails after one prefix (a fold challenge does not decode, or the response does not fit) with probability at most `(ε + 2^−12)^4096` and `(ε + 2^−49)^4096`, where `ε` is the sampler term of Akita (157) (`Claims.AkitaKey20.key20_root_search`, `Claims.AkitaKey20.key20_level1_search`), and `ε = 0` for decoders that decode each slot (`Claims.AkitaKey20.key20_root_search_total`, `Claims.AkitaKey20.key20_level1_search_total`). No Lean result joins these bounds to `fit`.
+     At the other levels the bound is the response-model premise of Akita (152) and (340), which the paper calls heuristic: its text "motivates this premise but does not prove it" (Akita Appendix K). `key20.aks` is the
+     file of the test key of `2^9` blocks, and the claims of this item do not cover `key30.aks` (item below). The Lean
+     verifier differs from the pinned code (`decisions/akita-compression.md`). The
+     acceptance has the hypotheses `leads` and `fit`, and no closed accepting instance exists for the whole verifier.
+   - *What Lean proves for `key30.aks`.* The results are the claims of `Claims.AkitaKey30`, for the two rows of the file
+     of the key of `2^19` blocks. The opening has the batching root, the offloaded root fold of Akita Section 9, the
+     batching stage of the two claims of level 1, level 1 with the group of the setup prefix and the group of the
+     witness, levels 2 and 3 with coefficient packing, levels 4 to 6 with evaluation trace and the terminal
+     (`Spec.Compression.Akita.Key30.tower_suffix`). The claims are `Claims.AkitaKey30.key30_opening_sound` and
+     `Claims.AkitaKey30.key30_opening_bound` for the opening, `Claims.AkitaKey30.key30_verifier_sound`,
+     `Claims.AkitaKey30.key30_history_sound` and `Claims.AkitaKey30.key30_history_knowledge` for the final verifier of
+     each claim shape and of the proof of zero steps, `Claims.AkitaKey30.key30_points` for the 30, 27 or 26, and 26
+     coordinates of the opening points, and `Claims.AkitaKey30.key30_instance_list` and
+     `Claims.AkitaKey30.key30_instances` for the instances of Module-SIS. The bound of one shape is `(Q + 1) · (runCost
+     + (6452107 + 4096·(B_1 + B_2 + B_3))/(4096·q²)) + (Q + 1) · (1190 + B_1 + B_2 + B_3)/budget + breakChance`, with `B_1 + B_2 + B_3` equal to 214 for
+     `W` of 27 variables and to 203 for `W` of 26 variables (`Export.BoundedDepth.FinalKey30.Opening.shapeBound`). The
+     decoders are those of the code on the slots `Spec.Compression.Akita.Replay.CodeSlot K`, so the unit differences, the
+     sparse challenges and `p ≤ 1/q²` (with `kept`) are theorems. The premises are those of the claims of `key20.aks` and two more, and one
+     of them is open. `shared`: the matrices of the root are views of the setup prefix, and Lean proves the split (132)
+     (`Spec.Compression.Akita.Key30.Tower.Shared`). `registered`: the commitment of the setup prefix in the verifier
+     setup is the output of the Lean commitment algorithm for the setup prefix, the premise of Akita Lemma 9.1
+     (`Spec.Compression.Akita.Batch.registered_commit`). The operator bound `Γ` of the filtered families of levels 5 and
+     6 and of the terminal is a theorem for the filter of the code (`Spec.Compression.Akita.TrigTable.filtered_code`). The Lean verifier of the opening accepts the honest proof for each setup prefix and
+     each family of tables with the fit conditions (`Claims.AkitaKey30.key30_opening_accepts`). They are the hypothesis `fit`
+     (`Spec.Compression.Akita.Key30.fit_zero`, `Spec.Compression.Akita.Key30.fit_quiet`). The memory result is in this game (`Claims.AkitaKey30.key30_memory_sound`). `decisions/akita-compression.md`, section
+     "The results for `key30.aks`", gives the limits and the differences from the paper and from the code.
+   - *Differences between the paper, the code and the Lean model.* `decisions/akita-compression.md`, section
+     "Differences between the paper, the code and the Lean model", has them: (a) to (j) for each schedule, and (k) to
+     (o) for the opening with an offloaded root. In short: the model is one uniform table on message keys with
+     independent slots, which is the slot reading of `[KECCAK]`, and one query returns all the slots of a key; the
+     Lean verifier is not the verifier of the pinned code; the bound `N_setup · q / 2^w` of `Δ_setup` bounds nothing at the draw width of the code; the code
+     declares no `(λ_FS, Q_max)`; and the Lean extractor has the limit `budget` on the attempts of each retry loop.
+   - *The Keccak family `[KECCAK]`.* Akita makes its challenges with a Keccak-f duplex sponge, its digests with
+     SHA3-256, its session identifier with SHAKE128 and its setup with SHAKE256. No step circuit computes these
+     functions. The owner accepted this hash family for Akita on 2026-11-13 (`decisions/akita-compression.md`).
+   - *Module-SIS for the Akita commitments `[MSIS]`.* Lean reduces the binding of the commitment of the compression key
+     to Module-SIS (`Claims.Compression.key_binding`): a certified decommitment to a different table gives, with the
+     state of the commitment algorithm, a solution for `A` at `η_A = 2 · κ̄_1 · Δ^cert_f`, for `B` at `b⋆ − 1`, or for
+     `F_1` or `F_2` at 1. For the shipped key shapes, `η_A` is the bound that the schedule file prices for `A` (32505732
+     for `key20.aks`, 16642998148 for `key30.aks`), and Lean proves that the norm `β̄_∞ + κ̄_1 · b/2` of the reduction
+     is at most `η_A` (premise `covers`). Here `κ̄_1` and `β̄_∞ = Δ^cert_f` are the numbers of Akita (50) for the root
+     opening descriptor of the file. For the claims, no Lean result shows that the verifier of the root fold certifies
+     them: that is the root weak opening (item above). The claim gives no bound on `bindingError` (premise `msis`). It
+     is for the output of `Spec.Compression.Akita.commit` on the key polynomial. No Lean result shows that the pinned
+     key holds this output for the Akita matrices of the fixed seed: the pin and its test (item above) are the only
+     check. The paper prices `A` on the coefficient route in the ℓ∞ norm at `2 · κ̄_1 · β̄_∞`, which is the Lean `η_A`,
+     and on the squared-norm route at the least power of two at or above `64 · Γ² · S_max`. The Ajtai commitments of the
+     claims keep the estimate of trust item 2.
+   - *The Module-SIS instances of Akita `[MSIS]`.* The hardness of an instance depends on the ring degree, and the Lean
+     reductions do not. For `key20.aks`, the 43 matrices of the Lean tower give 13 instances `(d, n, m, p, η)` that are
+     not below another instance (`Claims.AkitaKey20.key20_instance_list`): the compression maps at the degrees 32 and 64, `B`
+     and `D` at 64 and 128, and `A` at 64, 128, 512 and 1024, with the norm ℓ2 for 3 of them. Each bound of a Lean
+     witness of `R_bind` is at most the bound that the file prices, and the list is complete for `breakChance`
+     (`Claims.AkitaKey20.key20_instances`). `tests/AkitaSchedules.lean` compares the degree, the rank, the width, the norm
+     and the bound of each matrix `A`, `B` and `D` of the file with the list. The file does not hold the compression
+     maps. For matrices that are the views of one setup vector, `Claims.AkitaKey20.key20_instances_shared` gives a solution
+     for a view of the list (Akita Lemma 10.20). For `key30.aks`, each row has 54 matrix views. One list of 18 instances covers both rows, at the degrees 32 to 2048 (`Claims.AkitaKey30.key30_instance_list`).
+     The list is complete for `breakChance` (`Claims.AkitaKey30.key30_instances`), and `tests/AkitaSchedules.lean`
+     compares it with the two rows of the file. (i) The price. The pinned code admits an instance only at 169.07 bits or
+     more of quantum ADPS16 Core-SVP cost, `2^(0.265·β)` for the BKZ block size `β` (policy `Quantum169BitADPS16`). The
+     model is a direct ℓ∞ attack, or the Euclidean attack for a bound on ℓ2, on the scalar instance `(n·d, m·d)`. The
+     estimator is the estimator of the Akita authors. A run of it in a copy of the pinned code reproduces the two cells
+     of Table 10 of the paper, 147.34 and 153.17 bits. It used `key20.aks` and the former `key30.aks` with SHA-256
+     `b71861d25a4cb23b8eb68b20365bc5b76336224dcacdcada86242c9d9c084f94`. It gave 171.99 bits or more for each of their 46 ℓ∞ instances and 173.57 bits or more for each of the 3 instances in ℓ2. For 27 of the 46 the search was
+     exhaustive. For the other 19 it was a search for a local minimum that the estimator does not certify, so these 19
+     numbers are estimates and not floors: Akita Appendix G accepts a floor only from a certified search. The files of
+     this run are not in the repository. The lowest of `key20.aks` are `A` of level 2, `(128, 4, 512, ∞, 126852)`, at
+     171.99 bits and `B` of level 2, `(128, 1, 1092, ∞, 31)`, at 172.51 bits. The Sage `lattice-estimator` runs of (v)
+     are in another model. (ii) The degrees. Table 10 of the
+     paper (Akita Appendix G) has the degrees 32 and 16 for the compression maps at `q = 2^64 − 59`, with a floor of 128
+     bits for each instance and more than 125 bits for the family. The pinned code has 64 and 32 since the Akita commit
+     `dfdbd767` of 2026-10-20, which raised the floor to 169 bits. So Nightstream runs larger degrees than the table of
+     the paper, and the 169 bits are not in the paper. The paper gives no number for an instance of `A`, `B`, `D` or the
+     terminal at this modulus. (iii) The price does not include attacks on the ring or module structure, the loss of the
+     reduction, or the sum over the instances that share one setup stream. In the model of (i), this sum is about 170.9
+     bits for each file in that run. The new `key30.aks` has no such direct estimate. (iv) The reductions. Lean proves that a solution moves to a matrix with more columns, fewer
+     rows or a larger bound (`Spec.Compression.Akita.ShortKernel.carry`), and from the degree `s · d` and the width `m`
+     to the degree `d` and the width `s · m`, at one rank and one bound (`Claims.Akita.module_sis_descent`, and
+     `Spec.Compression.Akita.ShortKernelSq.lower_chance` for ℓ2). So descent moves a price only from a smaller degree to
+     a larger degree. The first-stage cell of Table 10, `(32, 1, 2048, ∞, 1)` at 147.34 bits, covers `F_1` and `H_1` by
+     width and descent, and `F_2` and `H_2` by width. The reductions carry the 169 bits to no other instance. (v) The
+     target. The owner's target is 128 bits against a classical attacker (2026-11-22), by the method of the main-key
+     record in the ADPS16 classical model (the `MSIS` entry of the section Assumptions). The command
+     `python3 scripts/akita_sis_instances.py` lists the matrix views of the two files: 43 and 108 views, 50 distinct
+     and 24 maximal. With a checkout of `lattice-estimator` at commit `3e48ef4` on `PYTHONPATH`, the command
+     `sage -python scripts/estimate_akita_sis.sage` writes the numbers of the main key and of each distinct view to
+     `scripts/akita_sis_estimates.csv`. The main key has 140.16 bits.
+     The level-2 matrices `B` of the test key and the two large-key rows have 122.06, 124.68 and 124.39 classical bits
+     respectively. The width-4128 instance of this list covers the current first row at width 4032
+     (`Claims.AkitaKey30.key30_instance_list`, `decisions/akita-compression.md`, Open points). The separate 169-bit policy of (i) uses the direct ℓ∞ model.
+   - *The Poseidon2 sponge for the argument `[P2-PERM]` `[SPONGE]`.* The Poseidon2 sponge makes each challenge of the
+     Π_CCS run and of the argument (`SPEC.md` section 5.4). Each term of the Rust sum of `SPEC.md` section 3 is for one
+     interactive run, and Lean proves that the exact sum bounds one interactive run
+     (`Spec.Compression.Rust.params_run_soundness`). In the state-restoration model with `Q` queries, Lean bounds the
+     non-interactive argument by `Q · error` (`Claims.Compression.argument_sound`), and `error` is at most the exact sum
+     (`Spec.Compression.Rust.error_le_runError`). Lean bounds the Π_CCS run with one source by `Q · 38/q²`
+     (`Claims.Compression.fresh_sound`). The sponge meets this model, up to `spongeError N`, only under the open
+     conditions of the third premise above.
+   - *Separation of the two transcripts.* The session bytes of the Akita proof are a label and lanes 0 to 3 of the
+     Poseidon2 sponge state after the last message of the argument, so they bind the opening to each earlier message,
+     the bytes of the compression key included, unless these four lanes collide (trust item 2). The Π_CCS run and the
+     argument have their own domain blocks, which differ from the fold domains. `[P2-PERM]` and `[KECCAK]` make the
+     permutation and the Keccak functions independent. The compression domains, as Lean restates them, are separated
+     from the fold domains (`Claims.Encodings.domains_separated`), but no emitted data compares the restated tags with
+     Rust. `Claims.Final.history_sound` puts the draws of the argument and of the Π_CCS run on the tape of an IVC
+     adversary whose folds use Poseidon2 (trust item 3), so it also needs the separation of the compression domains from
+     the fold domains.
+   - *The error of the argument.* Lean bounds it by `Q · error`, with `error < 2^−119` at the production shapes
+     (`Claims.Compression.production_error`). Rust bounds the sum of `SPEC.md` section 3 for one interactive run, about
+     `2^−118.81` for the reference application at 4 lookup challenges, by `2^−118` in integers. To either, add the error
+     of a Π_CCS run with one source, which Rust does not compute. Rust holds the Π_CCS test error for 17 sources to the
+     caller's security minimum (`SPEC.md` section 3).
+   - *The Rust code.* Trust item 5 applies. The tests check fixed inputs. The verifier does not expand the Ajtai key,
+     but the key polynomial that the compression key commits is the SHAKE128 key of `SPEC.md` Algorithm 1. So premise P1
+     applies to it as it does to `SPEC.md` Algorithm 6.
 ## Out of scope
 
 - Completeness does not follow from a knowledge bound: a bound on the

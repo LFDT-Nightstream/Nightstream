@@ -2,33 +2,24 @@ import NightstreamFPrime.Spec.Algebra
 import NightstreamFPrime.Spec.Compression.Akita.Rows
 import NightstreamFPrime.Spec.Compression.Game.Law
 
-/-! Akita (ePrint 2026/1983, revision of 2026-10-15) as a polynomial commitment scheme, and the
-premises of the final verifier (`SECURITY_MODEL.md`, trust item 7).
+/-! Akita (ePrint 2026/1983, revision of 2026-11-23) as a polynomial commitment scheme, and the
+binding of the commitment of the compression key (`SECURITY_MODEL.md`, trust item 7).
 
-- `Pcs` has the parts of Akita Definition 3.5 that the security notions read. `Extractor.Fails`
-  is the failure event of Akita Definition 3.7 for a batch of claims (Akita (173)), at fixed parameters.
+- `Pcs` has the parts of Akita Definition 3.5 that the security notions read. `Prover` and
+  `Extractor` are those of Akita Definition 3.7.
 - `Schedule.Admissible` is Akita Definition 9.2. The conditions that a schedule file decides are
   those of `Row.Conditions` (`Akita/Rows.lean`). A schedule with the row of `key20.aks` is
   admissible when it has the other conditions (`Schedule.admissible_key20_iff`), and no schedule
   with a row of `key30.aks` is admissible (`Schedule.not_admissible_key30`).
-- Akita Theorem 10.46 bounds extraction failure over sampled setup by
-  `(Q + 1) · ε_int + Δ_setup + Σ_I Adv_I(B_I)` for `Q ≤ Q_max` queries to `H_FS`.
-  Akita Lemma 10.47 adds `ε_hash` for the digests of the terminal and the root commitments
-  (`Schedule.knowledgeError`). Applying this bound at the fixed setup requires an open premise.
-- `Use` is the one Akita opening of a final proof (SPEC.md Algorithm 10, step 11). Its premises
-  are `Use.Knowledge` (the conditions and `Use.FixedSetupKnowledge` for the fixed setup),
-  `Use.Binding` (the commitment of the compression key opens only to the key polynomial) and
-  `Use.Composition` (an extracted win is a win of the game with ideal openings, which no result of
-  Akita gives, because the prover commits `V` after the challenge `τ`).
-- `Use.wins_le`: under these premises, the prover with Akita openings wins at most `Use.error`
-  more often than the game. -/
+- `Use` is the one Akita opening of a final proof (SPEC.md Algorithm 10, step 11). `Use.Binding`
+  states that the commitment of the compression key opens only to the key polynomial, which
+  `Akita/Binding.lean` reduces to Module-SIS. -/
 
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Spec.Compression.Akita
 
 open scoped ENNReal
-open NightstreamFPrime.Spec.Compression.Game (event_ne_top map_fst_bind)
 
 /-- The parts of a multilinear polynomial commitment scheme (Akita Definition 3.5) that its
 security notions read: the evaluation `f(r)` of a table, the decommitment relation `Rel_com`, and
@@ -47,13 +38,6 @@ structure Pcs where
 
 /-- An opening claim `(cm, r, v)`. -/
 abbrev Pcs.Claim (S : Pcs) : Type := S.Commitment × S.Point × S.Value
-
-/-- Akita (27) for each claim, which is the batch relation (173) with one claim for each
-commitment: the witness decommits the commitment, and its table has the value at the point. -/
-def Pcs.Holds (S : Pcs) (pp : S.Params) {n : ℕ} (claims : Fin n → S.Claim)
-    (witness : Fin n → S.Table × S.State) : Prop :=
-  ∀ i, S.relCom pp (claims i).1 (witness i).1 (witness i).2 ∧
-    S.eval (witness i).1 (claims i).2.1 = (claims i).2.2
 
 /-- A prover of the knowledge experiment of Akita Definition 3.7 for a batch of `n` claims: the
 law of its tape, which fixes its coins and the answers of the random oracle; its claims and proof;
@@ -86,16 +70,6 @@ noncomputable def law : PMF (prover.Tape × extractor.Coins) :=
 /-- The probability of an event of the tape and the coins. -/
 noncomputable def chance (event : prover.Tape × extractor.Coins → Prop) : ℝ :=
   (extractor.law.toOuterMeasure {draw | event draw}).toReal
-
-/-- The extractor returns a witness for the prover's claims. -/
-def Extracts (pp : S.Params) (draw : prover.Tape × extractor.Coins) : Prop :=
-  ∃ witness, extractor.run draw.1 draw.2 = some witness ∧
-    S.Holds pp (prover.output draw.1).1 witness
-
-/-- The event of Akita Definition 3.7: the verifier accepts, and the extractor returns `⊥` or no
-witness. -/
-def Fails (pp : S.Params) (draw : prover.Tape × extractor.Coins) : Prop :=
-  S.verify pp n (prover.output draw.1).1 (prover.output draw.1).2 ∧ ¬ extractor.Extracts pp draw
 
 end Extractor
 
@@ -151,18 +125,6 @@ theorem not_admissible_key30 (file : sch.row = key30W27 ∨ sch.row = key30W26) 
   rcases file with file | file <;> rw [file] at methods
   exacts [key30W27_conditions.1 methods, key30W26_conditions.1 methods]
 
-/-- `N_setup · q / 2^w`, the bound on `Δ_setup` of Akita Theorem 10.46. -/
-noncomputable def setupGap : ℝ := sch.setupLength * fieldModulus / 2 ^ sch.drawBits
-
-/-- The sampled-setup bound of Akita (210), `(Q + 1) · ε_int + Δ_setup + Σ_I Adv_I(B_I)`, using
-`setupGap` for `Δ_setup`, plus `(Q_H² + Q_H · V_H) / 2^256` for `Q_H` digest queries and `V_H`
-digest positions. The last term bounds `ε_hash` of Akita (212) for 256-bit digests.
-`advantage I` is `Adv_I(B_I)`. -/
-noncomputable def knowledgeError {S : Pcs} {n : ℕ} (prover : Prover S n)
-    (advantage : Fin sch.instances → ℝ) : ℝ :=
-  (prover.queries + 1) * sch.interactiveError + sch.setupGap + ∑ I, advantage I +
-    (prover.digestQueries ^ 2 + prover.digestQueries * prover.digestPositions) / 2 ^ 256
-
 end Schedule
 
 /-- The one Akita opening of a final proof: a batch of `claims` claims under `schedule` and
@@ -187,28 +149,6 @@ namespace Use
 
 variable (u : Use)
 
-/-- Open premise at the fixed parameters `u.params`: under the schedule, prover and query
-conditions, an efficient extractor for `prover` meets `Schedule.knowledgeError` for the
-failure event of Akita Definition 3.7. Akita Theorem 10.46 bounds the experiment over sampled
-setup. -/
-def FixedSetupKnowledge (prover : Prover u.scheme u.claims) : Prop :=
-  u.schedule.Admissible → u.Admitted prover → prover.queries ≤ u.schedule.queryMax →
-    ∃ extractor : Extractor prover, u.Efficient prover extractor ∧
-      extractor.chance (extractor.Fails u.params) ≤ u.schedule.knowledgeError prover (u.advantage prover)
-
-/-- The fixed-setup extraction premise and its conditions. -/
-structure Knowledge (prover : Prover u.scheme u.claims) : Prop where
-  fixedSetup : u.FixedSetupKnowledge prover
-  admissible : u.schedule.Admissible
-  admitted : u.Admitted prover
-  budget : prover.queries ≤ u.schedule.queryMax
-
-/-- The Akita verifier accepts the output on `tape`, and its claim `key` is on the commitment of
-the compression key. -/
-def Opens (prover : Prover u.scheme u.claims) (tape : prover.Tape) : Prop :=
-  u.scheme.verify u.params u.claims (prover.output tape).1 (prover.output tape).2 ∧
-    ((prover.output tape).1 u.key).1 = u.keyCommitment
-
 /-- The extractor returns a decommitment of the commitment of the compression key to a table
 that is not the key polynomial. -/
 def KeyBroken {prover : Prover u.scheme u.claims} (extractor : Extractor prover)
@@ -222,70 +162,6 @@ with an efficient extractor breaks it with probability at most `bindingError`. -
 def Binding : Prop :=
   ∀ prover (extractor : Extractor prover), u.Admitted prover → u.Efficient prover extractor →
     extractor.chance (u.KeyBroken extractor) ≤ u.bindingError prover
-
-/-- `event` holds, and the extractor returns a witness for the claims with the key polynomial. -/
-def Extracted {prover : Prover u.scheme u.claims} (event : prover.Tape → Prop)
-    (extractor : Extractor prover) (draw : prover.Tape × extractor.Coins) : Prop :=
-  event draw.1 ∧ ∃ witness, extractor.run draw.1 draw.2 = some witness ∧
-    u.scheme.Holds u.params (prover.output draw.1).1 witness ∧ (witness u.key).1 = u.keyTable
-
-/-- The composition of the Akita opening with the game of ideal openings, for the event `event`
-of the prover with Akita openings and the probability `ideal` of its counterpart in the game: for
-each efficient extractor, `Extracted` has probability at most `ideal`. No result of Akita gives
-it: Akita Theorem 10.45 needs each commitment in the first message, and the prover commits `V`
-after the challenge `τ` (SPEC.md section 5.4). -/
-def Composition (prover : Prover u.scheme u.claims) (event : prover.Tape → Prop) (ideal : ℝ) :
-    Prop :=
-  ∀ extractor, u.Efficient prover extractor → extractor.chance (u.Extracted event extractor) ≤ ideal
-
-/-- The extraction bound at the fixed setup and the binding error (`SECURITY_MODEL.md`, trust item 7). -/
-noncomputable def error (prover : Prover u.scheme u.claims) : ℝ :=
-  u.schedule.knowledgeError prover (u.advantage prover) + u.bindingError prover
-
-/-- A win of the prover with Akita openings is a failure of the fixed-setup extractor, a break
-of the binding of the key, or an extracted win, which `composition` bounds by `ideal`. -/
-theorem wins_le (prover : Prover u.scheme u.claims) (event : prover.Tape → Prop) (ideal : ℝ)
-    (knowledge : u.Knowledge prover) (binding : u.Binding)
-    (accepts : ∀ tape, event tape → u.Opens prover tape)
-    (composition : u.Composition prover event ideal) :
-    (prover.tape.toOuterMeasure {tape | event tape}).toReal ≤ ideal + u.error prover := by
-  obtain ⟨extractor, efficient, fails⟩ :=
-    knowledge.fixedSetup knowledge.admissible knowledge.admitted knowledge.budget
-  have broken := binding prover extractor knowledge.admitted efficient
-  have extracted := composition extractor efficient
-  have marginal : prover.tape.toOuterMeasure {tape | event tape} =
-      extractor.law.toOuterMeasure {draw | event draw.1} := by
-    have mapped := congrArg (fun law => PMF.toOuterMeasure law {tape | event tape})
-      (map_fst_bind prover.tape fun _ => extractor.coins)
-    simp only [PMF.toOuterMeasure_map_apply] at mapped
-    exact mapped.symm
-  have cover : {draw | event draw.1} ⊆ ({draw | extractor.Fails u.params draw} ∪
-      {draw | u.KeyBroken extractor draw}) ∪ {draw | u.Extracted event extractor draw} := by
-    intro draw won
-    obtain ⟨verified, keyed⟩ := accepts draw.1 won
-    by_cases extracts : extractor.Extracts u.params draw
-    · obtain ⟨witness, ran, holds⟩ := extracts
-      by_cases same : (witness u.key).1 = u.keyTable
-      · exact Or.inr ⟨won, witness, ran, holds, same⟩
-      · have opens := (holds u.key).1
-        rw [keyed] at opens
-        exact Or.inl (Or.inr ⟨witness, ran, opens, same⟩)
-    · exact Or.inl (Or.inl ⟨verified, extracts⟩)
-  have split : (extractor.law.toOuterMeasure {draw | event draw.1}).toReal ≤
-      extractor.chance (extractor.Fails u.params) + extractor.chance (u.KeyBroken extractor) +
-        extractor.chance (u.Extracted event extractor) := by
-    unfold Extractor.chance
-    rw [← ENNReal.toReal_add (event_ne_top _ _) (event_ne_top _ _),
-      ← ENNReal.toReal_add (ENNReal.add_ne_top.mpr ⟨event_ne_top _ _, event_ne_top _ _⟩)
-        (event_ne_top _ _)]
-    exact ENNReal.toReal_mono
-      (ENNReal.add_ne_top.mpr ⟨ENNReal.add_ne_top.mpr ⟨event_ne_top _ _, event_ne_top _ _⟩,
-        event_ne_top _ _⟩)
-      ((MeasureTheory.measure_mono cover).trans ((MeasureTheory.measure_union_le _ _).trans
-        (add_le_add (MeasureTheory.measure_union_le _ _) le_rfl)))
-  rw [marginal]
-  unfold error
-  linarith
 
 end Use
 

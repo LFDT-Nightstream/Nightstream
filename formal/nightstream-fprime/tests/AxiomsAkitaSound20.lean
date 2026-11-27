@@ -1,0 +1,55 @@
+import tests.AxiomAudit
+import NightstreamFPrime.Spec.Compression.Akita.Replay.Sound20Deps
+import NightstreamFPrime.Spec.Compression.Akita.Replay.Sound20Game
+
+/-! Axiom audits for the `key20.aks` instance of the recording prover of Akita Lemma 10.47
+(`Replay/Sound20Deps.lean`), the run of the experiment and its law (`Replay/Sound20Game.lean`). -/
+
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.depsOf
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.depsOf_cons
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.depsOf_prefix
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.mem_depsOf
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.depsOf_closed
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.length_depsOf
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.deps20
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.deps20_closed
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.length_deps20
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.startsAbsorb
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.stageCount
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.stageCount_absorbs
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.stageCount_squeezes
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.eventsAt20_succ_squeezes
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.stageCount_eventsAt20
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.stageOf
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.stageOf_base
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.phiAt
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.card_phiAt
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.recordOf
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.resolveAt
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.resolveAt_local
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.backAt
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.resolveAt_back
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.bind
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.eval_bind
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.trace_bind
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.Bound.bind
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.flatMap_congr_mem
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.guessed_congr_family
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.asking
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.eval_asking
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.trace_asking
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.closed
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.eval_closed
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.trace_closed_challenge
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.closed_named
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.answered_inl
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.answered_same
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.closed_alike
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.Simulate.expect_le_const
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.game20
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.game20_eval
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.game20_trace
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.game20_bound
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.simulate20_law
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.game20_law
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Replay.oracle20_law

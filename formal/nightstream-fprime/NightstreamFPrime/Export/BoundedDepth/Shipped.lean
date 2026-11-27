@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.BoundedDepth.EmittedPackages
 import NightstreamFPrime.Export.BoundedDepth.FinalHistory
+import NightstreamFPrime.Export.BoundedDepth.FinalKey30All
 import NightstreamFPrime.Export.BoundedDepth.VerifierSecurity
 import NightstreamFPrime.Lifecycle.BoundedDepth.CircuitKeyDigest
 import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1
@@ -18,6 +19,8 @@ the other classes. -/
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.BoundedDepth.Shipped
+
+open NightstreamFPrime.Spec.Compression.Akita.Replay (CodeSlot)
 
 open scoped ENNReal
 open scoped NightstreamFPrime.Spec.Compression.Production
@@ -104,11 +107,12 @@ def complete (facts : Facts application ajtai) (identity : List F) (relations : 
     facts lightKey refreshKey
 
 /-- The setup of the final verifier with the Ajtai key, the keys of a package identity, the rows
-`rows`, the block counts and the security minimum. -/
+`rows`, the 524288 key blocks of `crates/ns-compress/artifacts/key30.aks`, and the security
+minimum. -/
 def setup (mode : Mode) (ajtai : Ajtai) (identity : List F) (relations : Fin 2 → Relation)
-    (rows : ℕ → Compression.Verifier.Factored F) (keyBlocks zeros minimum : ℕ) :
+    (rows : ℕ → Compression.Verifier.Factored F) (zeros minimum : ℕ) :
     Setup mode StepRelation.keyWidth StepRelation.keyPublicFits :=
-  ⟨ajtai, keys identity relations, rows, keyBlocks, zeros, minimum⟩
+  ⟨ajtai, keys identity relations, rows, 524288, zeros, minimum⟩
 
 /-- `Verifier::verify` (SPEC.md Algorithm 6) at the shipped packages of the reference
 application: the probability that the verifier accepts a statement that no valid run of the
@@ -142,13 +146,34 @@ theorem verify_sound (facts : Facts program ajtai) (identity : List F)
     (exports facts identity relations lightKey refreshKey) assumption closed adversary admitted
     (CircuitKeyDigest.keys_shaped identity relations) packageWidths control depth depthBound
 
+section Final
+
+open NightstreamFPrime.Spec.FieldExtensionRing
+
+attribute [local instance low] Classical.propDecidable
+
+attribute [local instance] NightstreamFPrime.Export.BoundedDepth.FinalKey20.instAlgebraZqK
+  NightstreamFPrime.Export.BoundedDepth.FinalKey20.instDegree2K
+
 /-- `Verifier::verify_final` (SPEC.md Algorithm 10) at the shipped packages of the reference
-application, with Akita openings: the probability of a false history is at most
-`q · finalError` plus `Spec.Compression.Akita.Use.error` and `walkBound` (`FinalHistory.real_soundness`). -/
+application, with the Akita openings of `crates/ns-compress/artifacts/key30.aks`: for each prover
+with at most `queries` queries to the oracle, the probability of a false history is at most
+`FinalKey30.shapesBound` plus `walkBound` (`FinalKey30.history_sound_drawn`). -/
 theorem verify_final_sound {mode : Mode} (facts : Facts program ajtai) (identity : List F)
     (relations : Fin 2 → Relation) (lightKey : relations 0 = lightRelation facts)
     (refreshKey : relations 1 = refreshRelation facts)
-    (setupRows : ℕ → Compression.Verifier.Factored F) (keyBlocks zeros minimum : ℕ)
+    (setupRows : ℕ → Compression.Verifier.Factored F) (zeros minimum : ℕ)
+    (control : AppState → AppWitness → Fin 2)
+    {Wire Coord : Type} {total : ℕ} (read : Compression.Akita.Extract.Reader Wire)
+    (head : Wire → FinalAkita.First StepRelation.keyWidth StepRelation.keyPublicFits)
+    [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] {ι : Type} [Fintype ι]
+    (kind : Wire → Option ι)
+    (family : ι → FinalKey30.Opening StepRelation.keyWidth StepRelation.keyPublicFits Wire Coord
+      total)
+    (shared : ∀ index, (family index).tower.Shared)
+    (prover : RandomOracle.OracleComp (Compression.Akita.Extract.Address Wire total)
+      (Option Coord → CodeSlot K) (ℕ → Wire))
+    [Finite Wire] (budget : ℕ)
     {Admitted : NifsAdversary (WalkAttempt StepRelation.keyWidth StepRelation.keyPublicFits) → Prop}
     {StageAdmitted : Stage (Visit StepRelation.keyWidth StepRelation.keyPublicFits)
       (Answer StepRelation.keyWidth StepRelation.keyPublicFits) → Prop}
@@ -161,38 +186,48 @@ theorem verify_final_sound {mode : Mode} (facts : Facts program ajtai) (identity
         (exports facts identity relations lightKey refreshKey))
       (back ajtai (keys identity relations) (exports facts identity relations lightKey refreshKey))
       Admitted StageAdmitted Efficient)
-    (s : Compression.Game.Strategy
-      (Option (Option (Outcome StepRelation.keyWidth StepRelation.keyPublicFits))))
-    (q : ℕ)
-    (admitted : StageAdmitted (Stage.start (walkAdversary (FinalHistory.adversary
-      (setup mode ajtai identity relations setupRows keyBlocks zeros minimum) s q))))
     (rows : ∀ circuit : Fin 2, (setupRows circuit).matrices =
       (FinalRows.packageRows (exports facts identity relations lightKey refreshKey)
         (complete facts identity relations lightKey refreshKey) circuit).matrices)
+    (coords : 40 ≤ Fintype.card Coord)
+    (drawn : ∀ index, (family index).Drawn
+      (setup mode ajtai identity relations setupRows zeros minimum)
+      (complete facts identity relations lightKey refreshKey).packageWidth program.step control
+      read head (shared index))
+    {queries : ℕ} (bounded : prover.QueryBound queries) (positive : 0 < budget)
+    (admitted : StageAdmitted (Stage.start (walkAdversary (FinalKey30.adversary
+      (setup mode ajtai identity relations setupRows zeros minimum)
+      (complete facts identity relations lightKey refreshKey).packageWidth program.step control
+      read head kind family shared prover budget))))
     (depth : ℕ)
-    (depthBound : ∀ o : Outcome StepRelation.keyWidth StepRelation.keyPublicFits,
-      some (some o) ∈ (Compression.Game.law s
-        ((setup mode ajtai identity relations setupRows keyBlocks zeros minimum).game.restore q
-          [])).support →
-        o.1.iteration ≤ depth)
-    (opening : Compression.Akita.Use) (real : Compression.Akita.Prover opening.scheme opening.claims)
-    (event : real.Tape → Prop) (akita : opening.Knowledge real) (binding : opening.Binding)
-    (accepts : ∀ tape, event tape → opening.Opens real tape)
-    (composition : opening.Composition real event (Compression.Game.prob s
-        ((setup mode ajtai identity relations setupRows keyBlocks zeros minimum).game.restore q [])
-        (FinalHistory.FalseHistory program))) :
-    (real.tape.toOuterMeasure {tape | event tape}).toReal ≤
-      (q : ℝ) * FinalVerifier.finalError + opening.error real +
+    (depthBound : ∀ table, FinalKey30.finalAccepts
+        (setup mode ajtai identity relations setupRows zeros minimum)
+        (complete facts identity relations lightKey refreshKey).packageWidth program.step
+        control read head kind family shared (FinalKey20.played prover table) →
+      (head (FinalKey20.played prover table).first).statement.iteration ≤ depth) :
+    ((FinalKey30.adversary (setup mode ajtai identity relations setupRows zeros minimum)
+        (complete facts identity relations lightKey refreshKey).packageWidth program.step
+        control read head kind family shared prover budget).tape.toOuterMeasure {sample |
+          FinalKey30.FalseHistory (setup mode ajtai identity relations setupRows zeros minimum)
+            (complete facts identity relations lightKey refreshKey).packageWidth program.step
+            control read head kind family shared prover program sample.1}).toReal ≤
+      FinalKey30.shapesBound (setup mode ajtai identity relations setupRows zeros minimum)
+          (complete facts identity relations lightKey refreshKey).packageWidth program.step
+          control read head family shared prover queries budget +
         walkBound ajtai (keys identity relations)
           (exports facts identity relations lightKey refreshKey) assumption closed
-          (FinalHistory.adversary
-            (setup mode ajtai identity relations setupRows keyBlocks zeros minimum) s q)
+          (FinalKey30.adversary (setup mode ajtai identity relations setupRows zeros minimum)
+            (complete facts identity relations lightKey refreshKey).packageWidth program.step
+            control read head kind family shared prover budget)
           admitted depth :=
-  FinalHistory.real_soundness
-    (setup mode ajtai identity relations setupRows keyBlocks zeros minimum)
-    (exports facts identity relations lightKey refreshKey) assumption closed s q admitted
-    (complete facts identity relations lightKey refreshKey) rows
-    (CircuitKeyDigest.keys_shaped identity relations) depth depthBound opening real event akita
-    binding accepts composition
+  FinalKey30.history_sound_drawn (setup := setup mode ajtai identity relations setupRows zeros
+      minimum)
+    (exports := exports facts identity relations lightKey refreshKey) (assumption := assumption)
+    (closed := closed) (complete := complete facts identity relations lightKey refreshKey)
+    (rows := rows) (keysShaped := CircuitKeyDigest.keys_shaped identity relations) (blocks := rfl)
+    (coords := coords) (drawn := drawn) (bounded := bounded) (positive := positive)
+    (admitted := admitted) (depth := depth) (depthBound := depthBound)
+
+end Final
 
 end NightstreamFPrime.Export.BoundedDepth.Shipped

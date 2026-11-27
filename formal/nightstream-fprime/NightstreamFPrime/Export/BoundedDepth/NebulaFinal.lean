@@ -224,41 +224,4 @@ theorem soundness (complete : StepExtend.Complete exports)
         ENNReal.toReal_add (event_ne_top _ _) (event_ne_top _ _)
     _ ≤ _ := add_le_add rejected (by rw [sampled]; exact bad)
 
-/-- With Akita openings, the probability of a false memory statement is at most
-`q · (1/2^119 + 38/fieldModulus²)` plus `Spec.Compression.Akita.Use.error` and the terms of
-`NebulaSecurity.bad_le`, over the walk's `S_max · N` stages, as in `soundness`. `event` is a false
-memory statement of the prover `real` with Akita openings, and `composition` relates it to
-`FalseMemory` of the game prover `s` (`Spec.Compression.Akita.Use.wins_le`). -/
-theorem real_soundness (complete : StepExtend.Complete exports)
-    (rows : ∀ circuit : Fin 2, (setup.rows circuit).matrices =
-      (FinalRows.packageRows exports complete circuit).matrices)
-    (valid : p.Valid) (keysShaped : ∀ key, (setup.circuitKeys key).digest.length = 4)
-    (programEq : exports.program = MemoryApp.program p.toGeometry app)
-    {memoryError : ClaimedStage app (logicalWidth := logicalWidth) (publicFits := publicFits) → ℝ}
-    (round : MemoryRound app setup.ajtai setup.circuitKeys exports StageAdmitted memoryError)
-    (opening : Compression.Akita.Use) (real : Compression.Akita.Prover opening.scheme opening.claims)
-    (event : real.Tape → Prop) (akita : opening.Knowledge real) (binding : opening.Binding)
-    (accepts : ∀ tape, event tape → opening.Opens real tape)
-    (composition : opening.Composition real event
-      ((stages (p.sMax * p.n)).1.tape.toOuterMeasure
-        {tape | FalseMemory setup app exports
-          (tapeOf setup app exports assumption closed s q claim admitted (p.sMax * p.n) tape).1
-          (sampleOf setup app exports assumption closed s q claim admitted (p.sMax * p.n)
-            tape)}).toReal) :
-    (real.tape.toOuterMeasure {tape | event tape}).toReal ≤ q * finalError + opening.error real +
-        (walkBound setup.ajtai setup.circuitKeys exports assumption closed
-            (adversary setup app s q claim) admitted (p.sMax * p.n) +
-          ((claimed setup app exports assumption closed s q claim admitted
-              (p.sMax * p.n)).law.toOuterMeasure
-            {sample | (experiment app setup.ajtai setup.circuitKeys exports).StateLinkCollision app
-              sample}).toReal +
-          ((claimed setup app exports assumption closed s q claim admitted
-              (p.sMax * p.n)).law.toOuterMeasure
-            {sample | (experiment app setup.ajtai setup.circuitKeys exports).ChainCollision app
-              sample}).toReal +
-          memoryError
-            (claimed setup app exports assumption closed s q claim admitted (p.sMax * p.n))) := by
-  linarith [soundness setup app exports assumption closed s q claim admitted complete rows valid
-    keysShaped programEq round, opening.wins_le real event _ akita binding accepts composition]
-
 end NightstreamFPrime.Export.BoundedDepth.NebulaFinal
